@@ -1,0 +1,648 @@
+{
+ "title": "AFRI Terminal - Features Claude Should Add (Design: Godel + Bloomberg + TradingView)",
+ "author": "MUTXRI (Hermes agent, for Jimmy)",
+ "subject": "Complete feature expansion spec for the African markets terminal - every feature Claude should build, with the Godel/Bloomberg/TradingView design language applied",
+ "page_size": "letter",
+ "elements": [
+  {
+   "type": "heading",
+   "text": "AFRI Terminal - Feature Expansion Specification",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "What Claude should add to the existing terminal (http://127.0.0.1:8081/terminal.html, files in the GitHub repo / D:\\mutxri-terminal). Design DNA: Godel Terminal's black+mint aesthetic and command palette, Bloomberg's 3-panel pro layout and function codes, TradingView's charting and heatmap quality. Product name is TBD - use 'AFRI' as placeholder. Every feature below is specified so Claude can build it without further questions. Last updated August 2026."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "1. Design Language (Copy These Exactly)",
+   "level": 1
+  },
+  {
+   "type": "heading",
+   "text": "1.1 Color Palette (from Godel's CSS)",
+   "level": 2
+  },
+  {
+   "type": "table",
+   "header": true,
+   "rows": [
+    [
+     "Variable",
+     "Value",
+     "Use"
+    ],
+    [
+     "--bg",
+     "#000000",
+     "Page background"
+    ],
+    [
+     "--bg2",
+     "#0a0a0a",
+     "Panel background"
+    ],
+    [
+     "--bg3",
+     "#141414",
+     "Sub-panel / headers"
+    ],
+    [
+     "--bg4",
+     "#1f1f1f",
+     "Command bar / active"
+    ],
+    [
+     "--line",
+     "#1a1a1a",
+     "Borders"
+    ],
+    [
+     "--line2",
+     "#262626",
+     "Stronger borders"
+    ],
+    [
+     "--tx",
+     "#f0f0f0",
+     "Primary text"
+    ],
+    [
+     "--tx2",
+     "#9a9a9a",
+     "Secondary text"
+    ],
+    [
+     "--tx3",
+     "#6a6a6a",
+     "Muted text"
+    ],
+    [
+     "--up",
+     "#33e29a",
+     "Gains (mint green)"
+    ],
+    [
+     "--down",
+     "#f87171",
+     "Losses (red)"
+    ],
+    [
+     "--acc",
+     "#33e29a",
+     "Accent / active"
+    ],
+    [
+     "--acc2",
+     "#1ecfb0",
+     "Secondary accent (teal)"
+    ]
+   ]
+  },
+  {
+   "type": "heading",
+   "text": "1.2 Fonts",
+   "level": 2
+  },
+  {
+   "type": "paragraph",
+   "text": "Google Fonts: Oxygen Mono (ALL data/numbers/tickers/tables), Inter (UI text/labels), Sofia Sans Semi Condensed (logo/brand). Never use JetBrains Mono. Data text is always monospace - this is the Bloomberg feel."
+  },
+  {
+   "type": "heading",
+   "text": "1.3 Layout DNA",
+   "level": 2
+  },
+  {
+   "type": "paragraph",
+   "text": "Bloomberg-style 3-panel: left = watchlist/command-driven lists, center = chart + heatmap, right = tabbed panels (News/FX/RATES/FUND/Detail). Top bar = brand, exchange tabs, search, market clock. Bottom = status line. Everything dense, keyboard-friendly, monospace-heavy. Scanline-free. Corner radius 0-2px (terminal, not web app). Godel accent: mint highlight on hover/active, thin borders, no shadows except command bar."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "2. Feature Priority Overview",
+   "level": 1
+  },
+  {
+   "type": "table",
+   "header": true,
+   "rows": [
+    [
+     "Priority",
+     "Feature",
+     "Why"
+    ],
+    [
+     "P0",
+     "Command palette overhaul (Bloomberg codes)",
+     "Core UX - what makes it a terminal"
+    ],
+    [
+     "P0",
+     "Screener (EQS/SCREEN)",
+     "Explicitly requested, data ready"
+    ],
+    [
+     "P0",
+     "Morning brief improvements",
+     "Already works - make it richer"
+    ],
+    [
+     "P1",
+     "Multi-chart workspace / watchlist persistence",
+     "Pro users expect it"
+    ],
+    [
+     "P1",
+     "Company announcements feed (REG)",
+     "Differentiator - regulators"
+    ],
+    [
+     "P1",
+     "Candlestick polish + indicators",
+     "TradingView-grade charts"
+    ],
+    [
+     "P1",
+     "Portfolio watchlist with localStorage",
+     "Sticky sessions"
+    ],
+    [
+     "P2",
+     "Bonds/T-bills board (BND)",
+     "Income investors"
+    ],
+    [
+     "P2",
+     "Global commodities (GLCO)",
+     "African angle: gold, platinum, cocoa"
+    ],
+    [
+     "P2",
+     "Analyst ratings aggregation",
+     "Where free data allows"
+    ],
+    [
+     "P2",
+     "Auth + multi-user",
+     "Before public deployment"
+    ],
+    [
+     "P3",
+     "Mobile PWA",
+     "African retail is mobile-first"
+    ],
+    [
+     "P3",
+     "i18n (FR, AR, SW, ZULU)",
+     "Reach"
+    ],
+    [
+     "P3",
+     "Export to Excel/CSV",
+     "FA command parity"
+    ]
+   ]
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "3. P0 - Command Palette Overhaul (Bloomberg Function Codes)",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "The backtick palette exists but is thin. Make it a full Bloomberg-style function-code system. Every code must work with TICKER PREFIX (e.g. 'SOL DES', 'COMI GIP') and bare (e.g. 'WEI'). Add a discoverability help screen (HELP) listing every code with a one-line description, rendered as a searchable list."
+  },
+  {
+   "type": "table",
+   "header": true,
+   "rows": [
+    [
+     "Code",
+     "Function",
+     "Behavior"
+    ],
+    [
+     "DES",
+     "Security Description",
+     "Full company overview: business, sector, quote, mcap, key stats, 52W range, description from AF/Wikipedia"
+    ],
+    [
+     "GIP",
+     "Global Identifier",
+     "All identifiers: ticker, ISIN, exchange, currency, listing date, sector, industry"
+    ],
+    [
+     "HP / C",
+     "Chart",
+     "Area/line/candles, all ranges, full-screen option"
+    ],
+    [
+     "QP",
+     "Quote Panel",
+     "Live quote block: bid/ask where available, open/high/low/prev, volume, 52W"
+    ],
+    [
+     "N / NEWS",
+     "Company News",
+     "Ticker-filtered news (Google News query 'TICKER company' + AF news)"
+    ],
+    [
+     "CF",
+     "Filings",
+     "All documents/filings for the security, sorted desc, clickable PDFs"
+    ],
+    [
+     "FA",
+     "Financial Analysis",
+     "Income statement, balance sheet, cash flow - from AF financial_summary + statement tables where available"
+    ],
+    [
+     "FUND / DIV / ERN",
+     "Fundamentals",
+     "Dividends, earnings, per-share metrics, major shareholders"
+    ],
+    [
+     "OMON",
+     "Options Monitor",
+     "JSE options chain (where free data exists); show 'not available' honestly elsewhere"
+    ],
+    [
+     "TAS",
+     "Time & Sales",
+     "Recent trades list - from Yahoo intraday where available"
+    ],
+    [
+     "HMS",
+     "Holders",
+     "Major shareholders (ownership.json) + institutional holders where known"
+    ],
+    [
+     "WEI",
+     "World Indices",
+     "Index board: all 4 exchanges + global (SPX, FTSE, DAX, Nikkei, Hang Seng) via Yahoo"
+    ],
+    [
+     "EM",
+     "Earnings Matrix",
+     "EPS, latest earnings date, dividend yield across watchlist"
+    ],
+    [
+     "EQS / SCREEN",
+     "Equity Screener",
+     "Filter 768 stocks: exchange, sector, price range, % change, volume, dividend yield - sortable table, export CSV"
+    ],
+    [
+     "FX",
+     "Forex",
+     "Full FX board (existing + more pairs)"
+    ],
+    [
+     "GLCO",
+     "Global Commodities",
+     "Gold, platinum, silver, oil, cocoa, coffee, tea - via Yahoo commodity symbols"
+    ],
+    [
+     "BND",
+     "Bonds",
+     "T-bill/bond yields per country (curated from central banks)"
+    ],
+    [
+     "REG",
+     "Regulatory",
+     "Regulator wire: CMA/SEC/FSCA/FRA/CB announcements"
+    ],
+    [
+     "BRIEF",
+     "Morning Brief",
+     "Generate + email today's brief on demand"
+    ],
+    [
+     "HELP",
+     "Help",
+     "Searchable command reference"
+    ],
+    [
+     "QM",
+     "Quote Monitor",
+     "Watchlist view"
+    ]
+   ]
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "4. P0 - Equity Screener (EQS/SCREEN)",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "TradingView-grade screener over all 768 stocks. Data is already available: heatmap payload has price/chgPct/volume/sector for every stock; fundamentals.json + ownership.json add dividends and holders."
+  },
+  {
+   "type": "paragraph",
+   "text": "UI: full-panel screener (center + right combined or overlay). Filter rows: Exchange (multi-select JSE/EGX/NGX/NSE), Sector (dropdown from classified sectors), Price min/max, % change min/max, Volume min, Dividend yield min (from fundamentals dividends / price), Currency. Result table: Ticker, Company, Exchange, Sector, Price, Chg%, Volume, Dividend yield - sortable by any column, click row = open security. Export button (CSV download). Persist last filter set in localStorage. Honest labels: JSE/EGX live prices, NGX/NSE EOD."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "5. P0 - Morning Brief Improvements",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "The existing morning_brief.py works (indices, FX, rates, headlines). Add: 1) TOP MOVERS section - biggest gainers/losers per exchange from live quotes (top 5 each, with % change). 2) DIVIDENDS section - today's/upcoming dividend announcements from AF news + fundamentals. 3) ANNOUNCEMENTS section - latest corporate announcements. 4) MARKET CALENDAR - today's expected events (earnings dates where known). 5) Custom HTML template with the mint theme, fully responsive for phone reading. 6) Optional second recipient (investor partner). 7) Weekend handling: skip Saturday (no fresh data), send a lighter 'week ahead' brief on Monday."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "6. P1 - Charts (TradingView-Grade)",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "Current charts use lightweight-charts with AREA/LINE/CANDLE. Upgrade to TradingView quality:"
+  },
+  {
+   "type": "table",
+   "header": true,
+   "rows": [
+    [
+     "Feature",
+     "Spec"
+    ],
+    [
+     "Indicators",
+     "MA(20/50/200), EMA, RSI(14), MACD, Bollinger Bands - toggles in chart tools, drawn as overlay series"
+    ],
+    [
+     "Timeframes",
+     "1D intraday (where Yahoo provides), 1W, 1M, 3M, 6M, 1Y, 2Y, 5Y, MAX"
+    ],
+    [
+     "Fullscreen",
+     "F key or button expands chart to full viewport"
+    ],
+    [
+     "Crosshair data readout",
+     "OHLC + volume + % change at crosshair position (top-left readout like TradingView)"
+    ],
+    [
+     "Multi-pane",
+     "Price pane + volume pane + indicator pane (MACD/RSI below)"
+    ],
+    [
+     "Chart settings",
+     "Colors, grid on/off, log scale toggle (saved to localStorage)"
+    ],
+    [
+     "Compare",
+     "Overlay a second symbol (e.g. SOL vs J203 index) - \"COMPARE\" command"
+    ],
+    [
+     "Export",
+     "Download chart as PNG"
+    ]
+   ]
+  },
+  {
+   "type": "paragraph",
+   "text": "Data note: Yahoo chart API returns daily bars reliably; intraday 1m/5m bars work for JSE/EGX during session but are rate-limited - use daily for 1M+ ranges, intraday only on demand."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "7. P1 - Watchlist & Workspace Persistence",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "1) localStorage watchlist: user adds symbols (star icon or ADD command), stored per-browser, rendered as a pinned section above the exchange listing. 2) Layout persistence: active exchange tab, active right tab, chart type, ranges - all restored on reload. 3) Multi-chart workspace: allow opening a second chart panel (split view) for compare. 4) Keyboard: arrow keys navigate watchlist, Enter opens, Esc closes command bar, F fullscreen, W watchlist toggle."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "8. P1 - REG - Regulatory Wire",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "A scrolling feed of official regulatory/central-bank releases, aggregated via Google News RSS queries (verified reachable): CMA Kenya (cma.or.ke), SEC Nigeria (sec.gov.ng), FSCA South Africa (fsca.co.za), FRA Egypt (fra.gov.eg), CBK, CBN, SARB, CBE, National Treasuries. Queries: 'site:or.gov.ke OR site:sec.gov.ng OR site:fsca.co.za' etc + institution name queries. Each item: source, headline, date, link. New REG tab in right panel + REG command. This is the trust differentiator - no African retail terminal aggregates regulators."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "9. P2 - Additional Panels",
+   "level": 1
+  },
+  {
+   "type": "heading",
+   "text": "9.1 GLCO - Global Commodities",
+   "level": 2
+  },
+  {
+   "type": "paragraph",
+   "text": "Board of commodities relevant to Africa via Yahoo symbols: Gold (GC=F), Silver (SI=F), Platinum (PL=F), Brent (BZ=F), WTI (CL=F), Cocoa (CC=F), Coffee (KC=F), Sugar (SB=F), Corn (ZC=F), Wheat (ZW=F). Table: commodity, price, day %, chart sparkline (mini area). Note: African commodity angle = gold (SA), platinum (SA), cocoa (GH/CI), coffee (KE/ET/UG), tea (KE)."
+  },
+  {
+   "type": "heading",
+   "text": "9.2 BND - Bonds & T-Bills",
+   "level": 2
+  },
+  {
+   "type": "paragraph",
+   "text": "Curated bond/t-bill yield table per country: KE T-bills (91/182/364 day), NG FGN bonds, ZA R186/R203 government bonds, EG T-bills. Sources: central bank auction results (curated, updated on announcements). Show: instrument, maturity, yield, last updated, source. Honest note where delayed."
+  },
+  {
+   "type": "heading",
+   "text": "9.3 Analyst Ratings",
+   "level": 2
+  },
+  {
+   "type": "paragraph",
+   "text": "Where free data allows: aggregate analyst targets/ratings from public broker notes surfaced via Google News ('TICKER company broker rating target price when:30d'). Display: consensus (Buy/Hold/Sell), latest target, source links. Honest note: full consensus needs licensed data (Refinitiv/Bloomberg)."
+  },
+  {
+   "type": "heading",
+   "text": "9.4 Time & Sales (TAS)",
+   "level": 2
+  },
+  {
+   "type": "paragraph",
+   "text": "Recent trades for JSE/EGX using Yahoo intraday chart data (last ~100 bars, 1m interval, session only). Table: time, price, volume, cumulative. Honest label when market closed (show last session)."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "10. P2 - Auth & Deployment",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "Before public launch: 1) Simple auth (email+password or magic link) with sessions - free options: Cloudflare Access, or lightweight JWT in the Python server with a users.json store. 2) Rate limiting per user on Yahoo proxy (fair-use cache already exists - add per-IP limits). 3) Deployment: free tier options - Railway/Render/Cloudflare Workers for the server (Python server = Railway/Render), frontend static. 4) HTTPS via the host. 5) Honest data-license labels on every panel (LIVE / 15-min delay / EOD / curated)."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "11. P3 - Mobile & International",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "1) PWA: manifest + service worker, installable, offline shell showing last-loaded data. African retail invests on phones - this is a reach play. 2) Mobile layout: single column - top = quote + mini chart, then tabs. 3) Localization: FR (francophone Africa), AR (Egypt), SW (East Africa), ZU (SA). Start with FR + AR. 4) Currency toggle: show prices in local currency AND USD equivalent. 5) Alerts: price-above/below threshold alerts (in-app first, email later)."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "12. Data Sources (verified working - use these)",
+   "level": 1
+  },
+  {
+   "type": "table",
+   "header": true,
+   "rows": [
+    [
+     "Need",
+     "Source",
+     "Notes"
+    ],
+    [
+     "Quotes JSE/EGX",
+     "Yahoo chart API",
+     ".JO and .CA suffix, live, cached 240s"
+    ],
+    [
+     "Dividends JSE/EGX",
+     "Yahoo chart events=div",
+     "Full history, cached 24h"
+    ],
+    [
+     "Indices",
+     "Yahoo (^J203.JO, ^EGX30.CA, ^GSPC...)",
+     "Live"
+    ],
+    [
+     "FX",
+     "Yahoo (USDZAR=X etc)",
+     "Live, 6+ pairs"
+    ],
+    [
+     "Commodities",
+     "Yahoo (GC=F, PL=F, CC=F...)",
+     "Live"
+    ],
+    [
+     "US yields",
+     "Yahoo (^TNX, ^FVX, ^IRX, ^TYX)",
+     "Live"
+    ],
+    [
+     "NGX/NSE EOD",
+     "African Financials share-price tables",
+     "Daily EOD, scraped"
+    ],
+    [
+     "Fundamentals/filings/dividends NGX/NSE",
+     "African Financials company pages (fundamentals.json)",
+     "190 companies"
+    ],
+    [
+     "Financial summaries",
+     "AF filing meta descriptions (fill_financial_summary.py)",
+     "Revenue/EBIT/PAT/EPS/assets"
+    ],
+    [
+     "Tickers/sectors",
+     "TradingView screener (tradingview-screener pip)",
+     "EGX 290, NGX 137, KE 57"
+    ],
+    [
+     "News (S&P Global etc)",
+     "Google News RSS (7 queries) + 5 direct RSS",
+     "25+ sources"
+    ],
+    [
+     "Logos",
+     "Google favicon (company_domains.json)",
+     "172 domains"
+    ],
+    [
+     "Central bank rates",
+     "Curated (CB_RATES in afri_server.py)",
+     "Updated on rate decisions"
+    ],
+    [
+     "Ownership",
+     "ownership.json (curated)",
+     "26 liquid names, extensible"
+    ]
+   ]
+  },
+  {
+   "type": "paragraph",
+   "text": "DEAD ENDS (verified - do not retry): Mubasher API (403), EGX site (TSPD challenge), investing.com (403), Yahoo quoteSummary/fundamentals (401), Wikipedia EGX tables (none), Zawya (404), StockAnalysis (no JSE/EGX)."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "13. Architecture Notes For Claude",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "Current: single-file terminal.html (all CSS/JS inline, lightweight-charts + Google Fonts CDN) + afri_server.py (Python stdlib http.server, cache dict, warm thread, /api/* endpoints). Keep this simplicity unless a feature demands more."
+  },
+  {
+   "type": "paragraph",
+   "text": "Recommended additions: 1) Keep frontend vanilla JS (no build step) - it's the speed advantage. 2) Server: add /api/screener (server-side filtering on stocks.json + cached quotes), /api/commodities, /api/reg. 3) localStorage keys: 'afri_watchlist', 'afri_layout'. 4) Chart indicators: lightweight-charts supports overlay series (addLineSeries for MAs) - no new library needed; RSI/MACD computed client-side from bars. 5) Never block the UI on Yahoo fetches - always progressive fill + cache. 6) Every new data panel must show its source + freshness + license status (LIVE/DELAYED/EOD/CURATED) - this is the trust moat."
+  },
+  {
+   "type": "paragraph",
+   "text": "Quality bar: no console errors, all panels work with no data (graceful 'no data' states), keyboard navigation consistent, theme variables used everywhere (no hardcoded colors), responsive down to 360px width."
+  },
+  {
+   "type": "pagebreak"
+  },
+  {
+   "type": "heading",
+   "text": "14. Definition Of 'Flawless' (Acceptance Criteria)",
+   "level": 1
+  },
+  {
+   "type": "paragraph",
+   "text": "Claude's work is done when: 1) Every P0 feature exists and works from a clean browser (no console errors). 2) All charts render area/line/candle with indicators. 3) Screener filters correctly across all 4 exchanges and exports CSV. 4) Morning brief sends and includes top movers + dividends. 5) Watchlist persists across reload. 6) REG feed shows regulator items. 7) Every panel labels its data freshness. 8) The whole thing runs with just python afri_server.py - no pip installs, no build step. 9) Zero hardcoded secrets in the repo. 10) Mobile layout usable. When those pass, the app is 'flawless' by the owner's standard."
+  },
+  {
+   "type": "paragraph",
+   "text": "END OF SPEC. Claude: build in priority order (P0 first), commit each feature, and never fake data - show honest 'not available on free feed' states instead."
+  }
+ ]
+}
