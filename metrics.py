@@ -187,12 +187,13 @@ def compute_metrics(bars, dividends=None, meta=None):
     # --- dividends ---
     divs = sorted((dividends or []), key=lambda d: d["date"])
     if divs:
-        total_div = sum(d.get("amount") or 0 for d in divs)
-        m["dividend_yield"] = round(total_div / price * 100, 3) if price else None
-        m["dividend_per_share"] = round(total_div, 4)
+        # trailing 12 months only (yield must reflect the last year of payouts)
+        t12 = sum(d.get("amount") or 0 for d in divs if d["date"] > bars[-1]["time"] - 365 * 86400)
+        m["dividend_yield"] = round(t12 / price * 100, 3) if price else None
+        m["dividend_per_share"] = round(t12, 4)
         m["last_dividend"] = divs[-1].get("amount")
-        # growth: compare last year total vs prior year total
-        y1 = sum(d.get("amount") or 0 for d in divs if d["date"] > bars[-1]["time"] - 365 * 86400)
+        # growth: compare trailing-12m vs prior-12m
+        y1 = t12
         y2 = sum(d.get("amount") or 0 for d in divs if bars[-1]["time"] - 730 * 86400 < d["date"] <= bars[-1]["time"] - 365 * 86400)
         if y2 and y1 is not None:
             m["dividend_growth"] = _pct(y1, y2)

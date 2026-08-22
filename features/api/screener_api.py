@@ -105,6 +105,9 @@ def handle_screener(
         chg_pct = _to_float(quote.get("chgPct"))
         volume = _to_float(quote.get("volume"))
         row_sector = quote.get("sector") or stock.get("sector") or "Other"
+        # guard: sector can arrive as float NaN from TradingView dumps
+        if not isinstance(row_sector, str):
+            row_sector = "Other"
         # Numeric filters — a None value fails a set bound (can't confirm
         # it qualifies), rather than silently passing.
         if price_min is not None and (price is None or price < price_min):

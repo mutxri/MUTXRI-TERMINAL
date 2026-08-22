@@ -5,7 +5,7 @@ Serves the terminal UI + proxies live market data (Yahoo chart API) and news RSS
 Run:  python afri_server.py   (then open http://127.0.0.1:8081/)
 Stdlib only - no pip installs needed.
 """
-import json, time, urllib.request, urllib.parse, threading, sys, os
+import json, time, urllib.request, urllib.parse, threading, sys, os, re
 from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from xml.etree import ElementTree as ET
@@ -420,6 +420,19 @@ def fundamentals(sym, ex, name):
             if (vname and (vname in name_l or name_l in vname)) or (vfirst and nfirst and vfirst == nfirst):
                 af_key = k
                 break
+    if af_key is None and sym_l:
+        # slug-fragment match: 'ZENITHBANK' in 'ng-zenith' (token 'zenith'),
+        # 'DANGCEM' in 'ng-dangce', 'MTNN' in 'ng-mtn', etc.
+        for k, v in _FUND.items():
+            if not k.startswith(ex + ":"):
+                continue
+            slug = k.split(":")[-1].lower()
+            if not slug:
+                continue
+            tokens = [t for t in re.split(r"[-_.]", slug) if t]
+            if sym_l in slug or slug in sym_l or any(sym_l.startswith(t) and len(t) >= 4 for t in tokens):
+                af_key = k
+                break
     af = _FUND.get(af_key) if af_key else None
     out = {"exchange": ex, "af": af}
     if ex in ("JSE", "EGX") and sym:
@@ -560,6 +573,20 @@ def rates():
     cache_put(key, 600, json.dumps(out))
     return out
 
+def _is_af_ticker(sym):
+    """True if sym matches a known NGX or NSE ticker (case-insensitive).
+    Used to prefer EOD data over a possibly-wrong Yahoo resolution."""
+    if not sym:
+        return False
+    t = sym.upper()
+    for ex in ("NGX", "NSE"):
+        for s in get_listing(ex):
+            cands = [str(s.get("ticker") or "").upper(), str(s.get("code") or "").upper(),
+                     str(s.get("sym") or "").upper().split(".")[0]]
+            if t in cands:
+                return True
+    return False
+
 def eod_bars(sym):
     """Synthesize a small chart payload from the static EOD listing (NGX/NSE).
     Yahoo dropped .NG/.NR tickers, so these markets only have the daily EOD
@@ -589,18 +616,16 @@ def eod_bars(sym):
                         prev = price
                     open_p = prev
                 now = int(time.time())
-                bars = []
-                for i in range(6):
-                    t = now - (6 - i) * 86400
-                    drift = 1 + (i - 3) * 0.004
-                    c = round(price * drift, 4)
-                    o = round(open_p * drift, 4)
-                    bars.append({
-                        "time": t,
-                        "open": o, "high": round(max(o, c) * 1.002, 4),
-                        "low": round(min(o, c) * 0.998, 4), "close": c,
-                        "volume": int(vol),
-                    })
+                # Honest EOD chart: one real snapshot point, NOT fabricated
+                # history. Multi-period returns stay None (cannot be computed
+                # from a single EOD price) - the UI shows n/a rather than
+                # invented numbers.
+                bars = [{
+                    "time": now,
+                    "open": round(open_p, 4), "high": round(price * 1.001, 4),
+                    "low": round(min(open_p, price) * 0.999, 4), "close": round(price, 4),
+                    "volume": int(vol),
+                }]
                 return {
                     "symbol": sym, "name": s.get("name") or sym,
                     "currency": s.get("currency", ""), "exchange": ex,
@@ -636,6 +661,13 @@ class Handler(SimpleHTTPRequestHandler):
                 eod = eod_bars(sym)
                 if eod:
                     d = eod
+            # NSE/NGX: Yahoo may resolve a bare ticker (KCB, EQTY) to a WRONG
+            # instrument (foreign cross-listing, ETF). Prefer the EOD listing
+            # whenever the symbol is a known NGX/NSE ticker.
+            if not d.get("eod") and _is_af_ticker(sym):
+                eod = eod_bars(sym)
+                if eod:
+                    d = eod
             self.json(d)
         elif path.path == "/api/quotes":
             q = urllib.parse.parse_qs(path.query)
@@ -658,6 +690,12 @@ class Handler(SimpleHTTPRequestHandler):
             d = yahoo_chart(sym, "5y", "1d")
             if "error" in d or not d.get("bars"):
                 d = eod_bars(sym)
+            # NGX/NSE bare tickers: Yahoo may resolve to a WRONG instrument;
+            # prefer the EOD listing data (real price, correct currency)
+            if (not d or not d.get("eod")) and _is_af_ticker(sym):
+                e = eod_bars(sym)
+                if e:
+                    d = e
             if d and d.get("bars"):
                 import metrics as metrics_mod
                 divs = yahoo_dividends(sym) if ex in ("JSE", "EGX") else []
@@ -679,6 +717,15 @@ class Handler(SimpleHTTPRequestHandler):
                 out = metrics_mod.compute_metrics(d["bars"], divs, meta)
                 out["revenue"] = (af or {}).get("revenue")
                 out["description"] = (af or {}).get("description")
+                # financial statements (income statement / balance sheet / cash flow)
+                st = ((af or {}).get("statements") or {}).get("data") or {}
+                if st:
+                    out["statements"] = {
+                        "period": ((af or {}).get("statements") or {}).get("period"),
+                        "year": ((af or {}).get("statements") or {}).get("year"),
+                        "url": ((af or {}).get("statements") or {}).get("url"),
+                        "data": st,
+                    }
                 own = ownership_for(ex, sym, name)
                 if own:
                     out["ownership"] = own

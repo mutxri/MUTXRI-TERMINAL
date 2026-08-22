@@ -301,6 +301,33 @@ function loadMetrics(sym, ex, name){
         ['DIVIDENDS', [['Yield', d.dividend_yield], ['DPS', d.dividend_per_share], ['Last Dividend', d.last_dividend], ['Growth', d.dividend_growth], ['Payment Years', d.dividend_payment_years]]],
       ];
 
+      // financial statements section (income statement / balance sheet / cash flow)
+      if(d.statements && d.statements.data){
+        const s = d.statements.data;
+        const period = (d.statements.period||'') + ' ' + (d.statements.year||'');
+        const rows = [
+          ['Revenue', s.revenue], ['Gross Profit', s.gross_profit], ['Operating Profit', s.operating_profit],
+          ['Profit After Tax', s.profit_after_tax], ['EPS', s.eps], ['Total Assets', s.total_assets],
+          ['Total Liabilities', s.total_liabilities], ['Shareholders Equity', s.shareholders_equity],
+          ['Cash & Equivalents', s.cash_and_equivalents], ['Operating Cash Flow', s.operating_cash_flow],
+          ['Investing Cash Flow', s.investing_cash_flow], ['Financing Cash Flow', s.financing_cash_flow],
+          ['Dividends Paid', s.dividends_paid], ['Free Float', s.free_float ? s.free_float + '%' : null],
+        ];
+        const real = rows.filter(([,v]) => v !== null && v !== undefined);
+        if(real.length){
+          html += `<div style="color:var(--tx3);font-size:10px;letter-spacing:.1em;padding:8px 0 4px;font-weight:700">FINANCIAL STATEMENTS <span style="color:var(--tx3);font-weight:400">· ${esc(period)} · ${esc(d.currency||'')}</span></div>`;
+          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-family:var(--mono);font-size:10px">';
+          real.forEach(([k, v]) => {
+            const val = typeof v === 'number' ? v.toLocaleString(undefined,{maximumFractionDigits:2}) : String(v);
+            html += `<span style="color:var(--tx3)">${esc(k)}</span><span style="text-align:right;color:var(--tx)">${esc(val)}</span>`;
+          });
+          html += '</div>';
+          if(d.statements.url){
+            html += `<div style="padding:4px 0 0;font-size:9px"><a href="${esc(d.statements.url)}" target="_blank" style="color:var(--acc2)">view filing ↗</a></div>`;
+          }
+        }
+      }
+
       groups.forEach(([title, rows]) => {
         const real = rows.filter(([,v]) => v !== null && v !== undefined);
         if(!real.length) return;
