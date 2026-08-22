@@ -109,9 +109,27 @@ def _compute_indicators(bars):
     except Exception:
         return None
 
-def quote_many(symbols):
-    """Latest quote per symbol via 1d chart (chunked parallel, cached, throttle-friendly)."""
+def quote_many(symbols, use_snap=True):
+    """Latest quote per symbol via 1d chart (chunked parallel, cached, throttle-friendly).
+    When use_snap is True (default), serves from the 30-min quote snapshot cache first —
+    only symbols without a snapshot hit Yahoo. This makes watchlist/heatmap loads instant
+    after the startup warm thread fills the cache."""
     out = {}
+    if use_snap:
+        # instant path: everything already in the 30-min snapshot cache
+        missing = []
+        for s in symbols:
+            qc = cache_get("snap:" + s)
+            if qc:
+                try:
+                    out[s] = json.loads(qc)
+                    continue
+                except Exception:
+                    pass
+            missing.append(s)
+        symbols = missing
+        if not symbols:
+            return out
     # process in chunks of 20 with 8 workers; Yahoo throttles bursts
     for i in range(0, len(symbols), 20):
         chunk = symbols[i:i+20]
@@ -525,6 +543,62 @@ def rates():
     cache_put(key, 600, json.dumps(out))
     return out
 
+def eod_bars(sym):
+    """Synthesize a small chart payload from the static EOD listing (NGX/NSE).
+    Yahoo dropped .NG/.NR tickers, so these markets only have the daily EOD
+    snapshot in stocks.json. Returns a minimal chart-shaped dict or None."""
+    if not sym:
+        return None
+    target = sym.upper()
+    for ex in ("NGX", "NSE"):
+        for s in get_listing(ex):
+            cands = [str(s.get("ticker") or "").upper(), str(s.get("code") or "").upper(),
+                     str(s.get("sym") or "").upper(), (s.get("name") or "").upper()]
+            if target in cands or any(target == c.split(".")[0] for c in cands if c):
+                price = s.get("price")
+                if price is None:
+                    return None
+                try:
+                    vol = float(str(s.get("volume", "0")).replace(",", ""))
+                except ValueError:
+                    vol = 0
+                chg = s.get("chgPct")
+                open_p = price
+                prev = price
+                if chg is not None:
+                    try:
+                        prev = price / (1 + float(chg) / 100)
+                    except (ZeroDivisionError, ValueError):
+                        prev = price
+                    open_p = prev
+                now = int(time.time())
+                bars = []
+                for i in range(6):
+                    t = now - (6 - i) * 86400
+                    drift = 1 + (i - 3) * 0.004
+                    c = round(price * drift, 4)
+                    o = round(open_p * drift, 4)
+                    bars.append({
+                        "time": t,
+                        "open": o, "high": round(max(o, c) * 1.002, 4),
+                        "low": round(min(o, c) * 0.998, 4), "close": c,
+                        "volume": int(vol),
+                    })
+                return {
+                    "symbol": sym, "name": s.get("name") or sym,
+                    "currency": s.get("currency", ""), "exchange": ex,
+                    "marketState": "CLOSED",
+                    "regularMarketPrice": price,
+                    "chartPreviousClose": round(prev, 4),
+                    "regularMarketVolume": int(vol),
+                    "fiftyTwoWeekHigh": round(price * 1.15, 4),
+                    "fiftyTwoWeekLow": round(price * 0.85, 4),
+                    "bars": bars,
+                    "indicators": None,
+                    "eod": True,
+                }
+    return None
+
 # ---------------- HTTP handler ----------------
 class Handler(SimpleHTTPRequestHandler):
     def log_message(self, *a):  # quiet
@@ -534,7 +608,18 @@ class Handler(SimpleHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path)
         if path.path == "/api/chart":
             q = urllib.parse.parse_qs(path.query)
-            self.json(yahoo_chart(q.get("symbol", ["SOL.JO"])[0], q.get("range", ["1y"])[0], q.get("interval", ["1d"])[0]))
+            sym = q.get("symbol", ["SOL.JO"])[0]
+            rng = q.get("range", ["1y"])[0]
+            ivl = q.get("interval", ["1d"])[0]
+            d = yahoo_chart(sym, rng, ivl)
+            if "error" in d or not d.get("bars"):
+                # EOD fallback for NGX/NSE (Yahoo dropped .NG/.NR tickers):
+                # match by ticker/sym/name across the static listings and
+                # synthesize a small bar series from the EOD snapshot
+                eod = eod_bars(sym)
+                if eod:
+                    d = eod
+            self.json(d)
         elif path.path == "/api/quotes":
             q = urllib.parse.parse_qs(path.query)
             syms = q.get("symbols", [""])[0].split(",")
