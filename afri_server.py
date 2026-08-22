@@ -433,6 +433,32 @@ def fundamentals(sym, ex, name):
             if sym_l in slug or slug in sym_l or any(sym_l.startswith(t) and len(t) >= 4 for t in tokens):
                 af_key = k
                 break
+    if af_key is None and sym_l:
+        # fuzzy prefix: 'STERLINGNG' vs slug token 'sterln' (AF truncates
+        # names; match on shared prefix length >= 5 covering >= 60% of the
+        # shorter side)
+        def _cprefix(a, b):
+            n = 0
+            for x, y in zip(a, b):
+                if x != y:
+                    break
+                n += 1
+            return n
+        for k, v in _FUND.items():
+            if not k.startswith(ex + ":"):
+                continue
+            slug = k.split(":")[-1].lower()
+            if not slug:
+                continue
+            for t in re.split(r"[-_.]", slug):
+                if len(t) < 5:
+                    continue
+                cp = _cprefix(sym_l, t)
+                if cp >= 5 and cp >= 0.6 * min(len(sym_l), len(t)):
+                    af_key = k
+                    break
+            if af_key:
+                break
     af = _FUND.get(af_key) if af_key else None
     out = {"exchange": ex, "af": af}
     if ex in ("JSE", "EGX") and sym:

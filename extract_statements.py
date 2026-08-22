@@ -114,16 +114,33 @@ def extract_statements(txt):
     return {k: v for k, v in st.items() if v is not None}
 
 def pick_latest_doc(comp):
-    """Best financial-statement document: newest by year+period (annual > HY > Q)."""
+    """Best financial-statement document: newest by year+period (annual > HY > Q).
+    Auto-fixes docs whose year/period are missing (rebuilt from the URL)."""
     docs = comp.get("documents", [])
     cands = []
     for d in docs:
         url = d.get("url") or ""
         if "/document/" not in url:
             continue
-        period = (d.get("period") or "").upper()
         year = str(d.get("year") or "")
+        period = (d.get("period") or "").upper()
+        # rebuild year/period from the URL if missing (old scrape bug)
         if not year.isdigit():
+            ym = re.search(r"(\d{4})-[a-z]{2,3}-?([a-z0-9]+)?", url)
+            if ym:
+                year = ym.group(1)
+                if not period:
+                    p = ym.group(2).upper()
+                    period = {"FY": "FY", "HY": "HY", "Q1": "Q1", "Q2": "Q2", "Q3": "Q3", "Q4": "Q4"}.get(p, "")
+            if not period and "-ar-" in url:
+                period = "FY"
+            if year.isdigit():
+                d["year"] = year
+                d["period"] = period.lower()
+        if not year.isdigit():
+            continue
+        # skip press releases (pr-) - they are not financial statements
+        if re.search(r"\d{4}-pr", url):
             continue
         rank = {"FY": 4, "AR": 4, "ANNUAL": 4, "HY": 3, "Q3": 2, "Q2": 2, "Q1": 1}.get(period, 0)
         cands.append((int(year), rank, d))
