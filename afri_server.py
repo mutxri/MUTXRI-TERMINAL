@@ -649,6 +649,42 @@ class Handler(SimpleHTTPRequestHandler):
             q = urllib.parse.parse_qs(path.query)
             ex = q.get("exchange", ["JSE"])[0]
             self.json({"exchange": ex, "count": len(get_listing(ex)), "stocks": heatmap(ex)})
+        elif path.path == "/api/metrics":
+            q = urllib.parse.parse_qs(path.query)
+            sym = q.get("symbol", ["SOL.JO"])[0]
+            ex = q.get("exchange", [""])[0]
+            name = q.get("name", [""])[0]
+            # 5y daily bars -> full metric set
+            d = yahoo_chart(sym, "5y", "1d")
+            if "error" in d or not d.get("bars"):
+                d = eod_bars(sym)
+            if d and d.get("bars"):
+                import metrics as metrics_mod
+                divs = yahoo_dividends(sym) if ex in ("JSE", "EGX") else []
+                divs = divs if isinstance(divs, list) else []
+                # AF company data for enrichment (employees, founded, revenue, sector)
+                af = None
+                if ex in ("NGX", "NSE"):
+                    f = fundamentals(sym, ex, name)
+                    af = f.get("af")
+                meta = {
+                    "name": d.get("name") or name, "symbol": sym, "exchange": ex,
+                    "country": "South Africa" if ex == "JSE" else "Egypt" if ex == "EGX" else "Nigeria" if ex == "NGX" else "Kenya",
+                    "currency": d.get("currency"), "employees": (af or {}).get("employees"),
+                    "founded": ((af or {}).get("profile") or {}).get("founded"),
+                    "industry": ((af or {}).get("profile") or {}).get("industry"),
+                    "sector": (af or {}).get("sector"),
+                    "isin": None,
+                }
+                out = metrics_mod.compute_metrics(d["bars"], divs, meta)
+                out["revenue"] = (af or {}).get("revenue")
+                out["description"] = (af or {}).get("description")
+                own = ownership_for(ex, sym, name)
+                if own:
+                    out["ownership"] = own
+                self.json(out)
+            else:
+                self.json({"error": "no data for " + sym})
         elif path.path == "/api/fundamentals":
             q = urllib.parse.parse_qs(path.query)
             sym = q.get("symbol", [""])[0]

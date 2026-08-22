@@ -260,6 +260,8 @@ $('cmd').addEventListener('keydown', e => {
 
 function openStock(sym){
   if(!sym) return;
+  const ex = currentEx;
+  const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
   $('rightInfo').innerHTML = `<div style="padding:6px 0;color:var(--acc);font-weight:700">${esc(sym)}</div>
     <div style="padding:4px 0;color:var(--tx3)">Loading…</div>`;
   fetch('/api/chart?symbol=' + encodeURIComponent(sym) + '&range=1y&interval=1d')
@@ -269,74 +271,58 @@ function openStock(sym){
       currentChartSym = sym;
       renderStockInfo(d);
       renderChart(d, sym);
-      loadShareholders(sym, d);
+      loadMetrics(sym, ex, stock && stock.name);
     })
     .catch(e => $('rightInfo').innerHTML = `<div style="color:var(--down)">${esc(String(e))}</div>`);
 }
 
-function loadShareholders(sym, chartData){
-  // find the stock's exchange for the fundamentals lookup
-  const ex = currentEx;
-  const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
-  const name = stock ? stock.name : (chartData && chartData.name);
-  if(!name) return;
-  fetch('/api/fundamentals?symbol=' + encodeURIComponent(sym) + '&exchange=' + encodeURIComponent(ex) + '&name=' + encodeURIComponent(name))
+function loadMetrics(sym, ex, name){
+  const params = new URLSearchParams({symbol: sym, exchange: ex||'', name: name||''});
+  fetch('/api/metrics?' + params.toString())
     .then(r => r.json())
     .then(d => {
-      let html = '';
-      const af = d.af;
-      if(af){
-        // ==== COMPANY DESCRIPTION (Godel DES style) ====
-        if(af.description){
-          html += `<div style="padding:10px 12px;border-top:1px solid var(--line)">
-            <div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">COMPANY</div>
-            <div style="font-size:11px;color:var(--tx2);line-height:1.55">${esc(af.description)}</div></div>`;
-        }
-        // ==== KEY METRICS: revenue, employees, customers, profit, eps ====
-        const metrics = [];
-        if(af.revenue) metrics.push(['REVENUE', af.revenue]);
-        if(af.employees) metrics.push(['EMPLOYEES', Number(af.employees).toLocaleString()]);
-        if(af.customers) metrics.push(['CUSTOMERS', af.customers]);
-        if(af.profit_after_tax) metrics.push(['PROFIT AFTER TAX', af.profit_after_tax]);
-        if(af.eps) metrics.push(['EPS', af.eps]);
-        // financial_summary fallback
-        const fs = af.financial_summary || {};
-        if(!metrics.length && fs.group_service_revenue) metrics.push(['REVENUE', fs.group_service_revenue]);
-        if(!af.eps && fs.basic_earnings_per_share) metrics.push(['EPS', fs.basic_earnings_per_share]);
-        if(metrics.length){
-          html += `<div style="padding:10px 12px;border-top:1px solid var(--line)">
-            <div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">KEY METRICS</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 14px;font-family:var(--mono);font-size:10px">`;
-          metrics.forEach(([k,v]) => {
-            html += `<span style="color:var(--tx3)">${k}</span><span style="text-align:right;color:var(--tx)">${esc(String(v))}</span>`;
-          });
-          html += `</div></div>`;
-        }
-        // ==== PROFILE: founded, listed, year end, indices ====
-        const p = af.profile || {};
-        if(p.founded || p.listed || p.year_end || p.indices){
-          html += `<div style="padding:10px 12px;border-top:1px solid var(--line)">
-            <div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">PROFILE</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 14px;font-family:var(--mono);font-size:10px">`;
-          [['FOUNDED', p.founded], ['LISTED', p.listed], ['YEAR END', p.year_end], ['INDICES', p.indices], ['INDUSTRY', p.industry]].forEach(([k,v]) => {
-            if(v) html += `<span style="color:var(--tx3)">${k}</span><span style="text-align:right;color:var(--tx)">${esc(String(v))}</span>`;
-          });
-          html += `</div></div>`;
-        }
+      if(d.error || !d.stock_price) return;
+      let html = '<div style="padding:10px 12px;border-top:1px solid var(--line)">';
+      html += `<div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">FULL METRICS</div>`;
+
+      // --- company description ---
+      if(d.description){
+        html += `<div style="font-size:11px;color:var(--tx2);line-height:1.55;padding:4px 0 8px">${esc(d.description)}</div>`;
       }
-      const own = d.ownership;
-      if(own && own.shareholders && own.shareholders.length){
-        html += `<div style="padding:10px 12px;border-top:1px solid var(--line)">
-          <div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">MAJOR SHAREHOLDERS · ${esc(own.company||'')}</div>`;
-        own.shareholders.forEach(sh => {
-          html += `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);font-size:11px">
-            <span style="color:var(--tx2)">${esc(sh.holder)}</span>
-            <span style="color:var(--acc);font-weight:700;font-family:var(--mono)">${esc(sh.stake)}</span>
-          </div>`;
+
+      const groups = [
+        ['IDENTITY', [['Exchange', d.exchange], ['Country', d.country], ['Currency', d.currency], ['Sector', d.sector], ['Industry', d.industry], ['Founded', d.founded], ['Employees', d.employees != null ? Number(d.employees).toLocaleString() : null], ['Revenue', d.revenue], ['ISIN', d.isin]]],
+        ['PRICE', [['Stock Price', d.stock_price], ['Open', d.open_price], ['High', d.high_price], ['Low', d.low_price], ['Previous Close', d.previous_close], ['Volume', d.volume != null ? Number(d.volume).toLocaleString() : null], ['Avg Volume (20d)', d.avg_volume != null ? Number(d.avg_volume).toLocaleString() : null], ['Dollar Volume', d.dollar_volume != null ? Number(d.dollar_volume).toLocaleString(undefined,{maximumFractionDigits:0}) : null], ['Price Date', d.stock_price_date ? new Date(d.stock_price_date).toISOString().slice(0,10) : null]]],
+        ['PRICE CHANGE', [['1D', d.price_change_1D], ['1W', d.price_change_1W], ['1M', d.price_change_1M], ['3M', d.price_change_3M], ['6M', d.price_change_6M], ['YTD', d.price_change_YTD], ['1Y', d.price_change_1Y], ['3Y', d.price_change_3Y], ['5Y', d.price_change_5Y], ['10Y', d.price_change_10Y], ['15Y', d.price_change_15Y], ['20Y', d.price_change_20Y]]],
+        ['TOTAL RETURN', [['1W', d.total_return_1W], ['1M', d.total_return_1M], ['3M', d.total_return_3M], ['6M', d.total_return_6M], ['YTD', d.total_return_YTD], ['1Y', d.total_return_1Y], ['3Y', d.total_return_3Y], ['5Y', d.total_return_5Y], ['10Y', d.total_return_10Y], ['15Y', d.total_return_15Y], ['20Y', d.total_return_20Y]]],
+        ['CAGR', [['1Y', d.return_cagr_1Y], ['3Y', d.return_cagr_3Y], ['5Y', d.return_cagr_5Y], ['10Y', d.return_cagr_10Y], ['15Y', d.return_cagr_15Y], ['20Y', d.return_cagr_20Y]]],
+        ['RANGES', [['52W High', d.fifty_two_week_high], ['52W High Date', d.fifty_two_week_high_date ? new Date(d.fifty_two_week_high_date).toISOString().slice(0,10) : null], ['52W Low', d.fifty_two_week_low], ['52W Low Date', d.fifty_two_week_low_date ? new Date(d.fifty_two_week_low_date).toISOString().slice(0,10) : null], ['Change vs 52W High', d.price_change_52w_high], ['Change vs 52W Low', d.price_change_52w_low], ['Position in Range', d.position_in_range], ['All-Time High', d.all_time_high], ['ATH Date', d.all_time_high_date ? new Date(d.all_time_high_date).toISOString().slice(0,10) : null], ['ATH Change', d.all_time_high_change], ['All-Time Low', d.all_time_low], ['ATL Date', d.all_time_low_date ? new Date(d.all_time_low_date).toISOString().slice(0,10) : null], ['ATL Change', d.all_time_low_change]]],
+        ['TECHNICAL', [['RSI (14)', d.rsi_14], ['Weekly RSI', d.rsi_weekly], ['Monthly RSI', d.rsi_monthly], ['ATR (14)', d.atr_14], ['Beta (5Y)', d.beta_5y], ['20-Day MA', d.ma_20], ['50-Day MA', d.ma_50], ['150-Day MA', d.ma_150], ['200-Day MA', d.ma_200], ['Price vs 20D MA', d.price_change_20d_ma], ['Price vs 50D MA', d.price_change_50d_ma], ['Price vs 150D MA', d.price_change_150d_ma], ['Price vs 200D MA', d.price_change_200d_ma], ['50 vs 200 MA', d.ma_50_vs_200]]],
+        ['DIVIDENDS', [['Yield', d.dividend_yield], ['DPS', d.dividend_per_share], ['Last Dividend', d.last_dividend], ['Growth', d.dividend_growth], ['Payment Years', d.dividend_payment_years]]],
+      ];
+
+      groups.forEach(([title, rows]) => {
+        const real = rows.filter(([,v]) => v !== null && v !== undefined);
+        if(!real.length) return;
+        html += `<div style="color:var(--tx3);font-size:10px;letter-spacing:.1em;padding:8px 0 4px;font-weight:700">${title}</div>`;
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-family:var(--mono);font-size:10px">';
+        real.forEach(([k, v]) => {
+          const val = typeof v === 'number' ? v.toLocaleString(undefined,{maximumFractionDigits:2}) : String(v);
+          html += `<span style="color:var(--tx3)">${esc(k)}</span><span style="text-align:right;color:var(--tx)">${esc(val)}</span>`;
         });
-        html += `<div style="padding:6px 0 0;color:var(--tx3);font-size:9px">${esc(own.source||'')}</div></div>`;
+        html += '</div>';
+      });
+
+      // ownership
+      if(d.ownership && d.ownership.shareholders){
+        html += `<div style="color:var(--tx3);font-size:10px;letter-spacing:.1em;padding:8px 0 4px;font-weight:700">MAJOR SHAREHOLDERS · ${esc(d.ownership.company||'')}</div>`;
+        d.ownership.shareholders.forEach(sh => {
+          html += `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px"><span style="color:var(--tx2)">${esc(sh.holder)}</span><span style="color:var(--acc);font-family:var(--mono)">${esc(sh.stake)}</span></div>`;
+        });
+        html += `<div style="padding:4px 0 0;color:var(--tx3);font-size:8px">${esc(d.ownership.source||'')}</div>`;
       }
-      if(html) $('rightInfo').insertAdjacentHTML('beforeend', html);
+      html += '</div>';
+      $('rightInfo').insertAdjacentHTML('beforeend', html);
     })
     .catch(() => {});
 }
