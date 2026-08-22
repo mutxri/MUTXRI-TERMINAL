@@ -399,10 +399,27 @@ def ownership_for(ex, sym, name):
 def fundamentals(sym, ex, name):
     """Per-company fundamentals: AF data (NGX/NSE) + Yahoo dividends (JSE/EGX)."""
     af_key = None
+    name_l = (name or "").lower().strip()
+    sym_l = (sym or "").lower().strip()
+    # exact first, then substring match on the AF company name
     for k, v in _FUND.items():
-        if k.startswith(ex + ":") and (name and v.get("name", "").lower() == name.lower() or k.endswith(sym.lower())):
+        if not k.startswith(ex + ":"):
+            continue
+        vname = (v.get("name") or "").lower()
+        if (name_l and vname == name_l) or (sym_l and k.endswith(sym_l)):
             af_key = k
             break
+    if af_key is None and name_l:
+        for k, v in _FUND.items():
+            if not k.startswith(ex + ":"):
+                continue
+            vname = (v.get("name") or "").lower()
+            # substring either direction, or first-word match
+            vfirst = vname.split()[0] if vname.split() else ""
+            nfirst = name_l.split()[0] if name_l.split() else ""
+            if (vname and (vname in name_l or name_l in vname)) or (vfirst and nfirst and vfirst == nfirst):
+                af_key = k
+                break
     af = _FUND.get(af_key) if af_key else None
     out = {"exchange": ex, "af": af}
     if ex in ("JSE", "EGX") and sym:

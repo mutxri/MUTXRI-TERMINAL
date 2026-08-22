@@ -283,18 +283,60 @@ function loadShareholders(sym, chartData){
   fetch('/api/fundamentals?symbol=' + encodeURIComponent(sym) + '&exchange=' + encodeURIComponent(ex) + '&name=' + encodeURIComponent(name))
     .then(r => r.json())
     .then(d => {
+      let html = '';
+      const af = d.af;
+      if(af){
+        // ==== COMPANY DESCRIPTION (Godel DES style) ====
+        if(af.description){
+          html += `<div style="padding:10px 12px;border-top:1px solid var(--line)">
+            <div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">COMPANY</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.55">${esc(af.description)}</div></div>`;
+        }
+        // ==== KEY METRICS: revenue, employees, customers, profit, eps ====
+        const metrics = [];
+        if(af.revenue) metrics.push(['REVENUE', af.revenue]);
+        if(af.employees) metrics.push(['EMPLOYEES', Number(af.employees).toLocaleString()]);
+        if(af.customers) metrics.push(['CUSTOMERS', af.customers]);
+        if(af.profit_after_tax) metrics.push(['PROFIT AFTER TAX', af.profit_after_tax]);
+        if(af.eps) metrics.push(['EPS', af.eps]);
+        // financial_summary fallback
+        const fs = af.financial_summary || {};
+        if(!metrics.length && fs.group_service_revenue) metrics.push(['REVENUE', fs.group_service_revenue]);
+        if(!af.eps && fs.basic_earnings_per_share) metrics.push(['EPS', fs.basic_earnings_per_share]);
+        if(metrics.length){
+          html += `<div style="padding:10px 12px;border-top:1px solid var(--line)">
+            <div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">KEY METRICS</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 14px;font-family:var(--mono);font-size:10px">`;
+          metrics.forEach(([k,v]) => {
+            html += `<span style="color:var(--tx3)">${k}</span><span style="text-align:right;color:var(--tx)">${esc(String(v))}</span>`;
+          });
+          html += `</div></div>`;
+        }
+        // ==== PROFILE: founded, listed, year end, indices ====
+        const p = af.profile || {};
+        if(p.founded || p.listed || p.year_end || p.indices){
+          html += `<div style="padding:10px 12px;border-top:1px solid var(--line)">
+            <div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">PROFILE</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 14px;font-family:var(--mono);font-size:10px">`;
+          [['FOUNDED', p.founded], ['LISTED', p.listed], ['YEAR END', p.year_end], ['INDICES', p.indices], ['INDUSTRY', p.industry]].forEach(([k,v]) => {
+            if(v) html += `<span style="color:var(--tx3)">${k}</span><span style="text-align:right;color:var(--tx)">${esc(String(v))}</span>`;
+          });
+          html += `</div></div>`;
+        }
+      }
       const own = d.ownership;
-      if(!own || !own.shareholders || !own.shareholders.length) return;
-      let html = `<div style="padding:10px 12px;border-top:1px solid var(--line)">
-        <div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">MAJOR SHAREHOLDERS · ${esc(own.company||'')}</div>`;
-      own.shareholders.forEach(sh => {
-        html += `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);font-size:11px">
-          <span style="color:var(--tx2)">${esc(sh.holder)}</span>
-          <span style="color:var(--acc);font-weight:700;font-family:var(--mono)">${esc(sh.stake)}</span>
-        </div>`;
-      });
-      html += `<div style="padding:6px 0 0;color:var(--tx3);font-size:9px">${esc(own.source||'')}</div></div>`;
-      $('rightInfo').insertAdjacentHTML('beforeend', html);
+      if(own && own.shareholders && own.shareholders.length){
+        html += `<div style="padding:10px 12px;border-top:1px solid var(--line)">
+          <div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">MAJOR SHAREHOLDERS · ${esc(own.company||'')}</div>`;
+        own.shareholders.forEach(sh => {
+          html += `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);font-size:11px">
+            <span style="color:var(--tx2)">${esc(sh.holder)}</span>
+            <span style="color:var(--acc);font-weight:700;font-family:var(--mono)">${esc(sh.stake)}</span>
+          </div>`;
+        });
+        html += `<div style="padding:6px 0 0;color:var(--tx3);font-size:9px">${esc(own.source||'')}</div></div>`;
+      }
+      if(html) $('rightInfo').insertAdjacentHTML('beforeend', html);
     })
     .catch(() => {});
 }
