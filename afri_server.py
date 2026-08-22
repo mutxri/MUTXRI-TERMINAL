@@ -5,10 +5,19 @@ Serves the terminal UI + proxies live market data (Yahoo chart API) and news RSS
 Run:  python afri_server.py   (then open http://127.0.0.1:8081/)
 Stdlib only - no pip installs needed.
 """
-import json, time, urllib.request, urllib.parse, threading
+import json, time, urllib.request, urllib.parse, threading, sys, os
 from concurrent.futures import ThreadPoolExecutor
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from xml.etree import ElementTree as ET
+
+# Claude feature modules (features/api/*) - stdlib only
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "features", "api"))
+try:
+    import screener_api, reg_api, commodities_api, bonds_api, tas_api, ratings_api, heatmap_api, fx_api, indicators
+    _FEATURES_OK = True
+except Exception as _e:
+    _FEATURES_OK = False
+    _FEATURES_ERR = str(_e)
 
 HOST, PORT = "127.0.0.1", 8081
 YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={rng}&interval={ivl}"
@@ -75,9 +84,30 @@ def yahoo_chart(sym, rng="1y", ivl="1d"):
         "fiftyTwoWeekHigh": meta.get("fiftyTwoWeekHigh"),
         "fiftyTwoWeekLow": meta.get("fiftyTwoWeekLow"),
         "bars": bars,
+        "indicators": _compute_indicators(bars) if _FEATURES_OK else None,
     }
     cache_put(key, TTL["chart"], json.dumps(out))
     return out
+
+def _compute_indicators(bars):
+    """Attach MA/EMA/RSI/MACD/Bollinger overlays to chart bars (Claude's indicators.py)."""
+    try:
+        closes = [b["close"] for b in bars]
+        out = {
+            "sma20": indicators.sma(closes, 20),
+            "sma50": indicators.sma(closes, 50),
+            "ema12": indicators.ema(closes, 12),
+            "rsi14": indicators.rsi(closes, 14),
+            "bollinger": indicators.bollinger(closes, 20),
+        }
+        macd = indicators.macd(closes)
+        if isinstance(macd, dict):
+            out["macd"] = macd.get("macd")
+            out["macdSignal"] = macd.get("signal")
+            out["macdHist"] = macd.get("histogram")
+        return out
+    except Exception:
+        return None
 
 def quote_many(symbols):
     """Latest quote per symbol via 1d chart (chunked parallel, cached, throttle-friendly)."""
@@ -109,7 +139,7 @@ def quote_one(s):
         prev = bars[0]["open"] if len(bars) > 0 else last
     chg = (last - prev) if (last is not None and prev) else None
     pct = (chg / prev * 100) if (chg is not None and prev) else None
-    return {
+    out = {
         "symbol": s, "name": d.get("name", s), "price": last,
         "prev": prev, "change": chg, "changePct": pct,
         "currency": d.get("currency"), "exchange": d.get("exchange"),
@@ -117,6 +147,9 @@ def quote_one(s):
         "dayLow": d.get("regularMarketDayLow"), "volume": d.get("regularMarketVolume"),
         "w52High": d.get("fiftyTwoWeekHigh"), "w52Low": d.get("fiftyTwoWeekLow"),
     }
+    # keep a long-lived per-symbol quote snapshot for the screener (30 min)
+    cache_put("snap:" + s, 1800, json.dumps(out))
+    return out
 
 # ---------------- Yahoo dividend events ----------------
 DIV_TTL = 86400  # 24h — dividends change rarely
@@ -378,23 +411,44 @@ def company_domain(name):
     return None
 
 # ---------------- Heatmap ----------------
+_heatmap_stale = {}   # ex -> last payload (served while rebuilding)
+_heatmap_building = set()
+
 def heatmap(ex):
-    """Full-market heatmap payload: {sym, name, price, chgPct, volume, sector}."""
+    """Full-market heatmap payload: {sym, name, price, chgPct, volume, sector}.
+    Never blocks: serves fresh cache, else stale, else a fast partial built
+    from whatever per-symbol quotes are already cached — while a background
+    rebuild completes the rest."""
     key = "heatmap:" + ex
     hit = cache_get(key)
     if hit:
         return json.loads(hit)
+    if ex in _heatmap_stale:
+        if ex not in _heatmap_building:
+            _heatmap_building.add(ex)
+            threading.Thread(target=_heatmap_build, args=(ex,), daemon=True).start()
+        return _heatmap_stale[ex]
+    # cold start: serve a fast partial immediately, rebuild in background
+    if ex not in _heatmap_building:
+        _heatmap_building.add(ex)
+        threading.Thread(target=_heatmap_build, args=(ex,), daemon=True).start()
+    return _heatmap_partial(ex)
+
+def _heatmap_partial(ex):
+    """Fast partial heatmap from per-symbol quote snapshots already in cache
+    (never touches Yahoo). Used only on cold start while the background
+    rebuild fills in the rest."""
     stocks = get_listing(ex)
     out = []
     if ex in ("JSE", "EGX"):
-        syms = [s["sym"] for s in stocks]
-        q = quote_many(syms)  # cached per-symbol
         for s in stocks:
-            d = q.get(s["sym"]) or {}
+            qc = cache_get(f"snap:{s['sym']}")
+            d = json.loads(qc) if qc else {}
             out.append({
                 "sym": s["sym"], "code": s.get("code"), "name": s["name"],
-                "short": s.get("short") or s.get("ticker"), "price": d.get("price"), "chgPct": d.get("changePct"),
-                "volume": d.get("volume"), "sector": classify_sector(s["name"]),
+                "short": s.get("short") or s.get("ticker"), "price": d.get("price"),
+                "chgPct": d.get("changePct"), "volume": d.get("volume"),
+                "sector": classify_sector(s["name"]),
                 "currency": s.get("currency"), "logo": company_domain(s["name"]),
             })
     else:
@@ -409,8 +463,40 @@ def heatmap(ex):
                 "volume": vol, "sector": s.get("sector") or classify_sector(s["name"]),
                 "currency": s.get("currency"), "date": s.get("date"), "logo": company_domain(s["name"]),
             })
-    cache_put(key, 90, json.dumps(out))
     return out
+
+def _heatmap_build(ex):
+    try:
+        stocks = get_listing(ex)
+        out = []
+        if ex in ("JSE", "EGX"):
+            syms = [s["sym"] for s in stocks]
+            q = quote_many(syms)  # cached per-symbol
+            for s in stocks:
+                d = q.get(s["sym"]) or {}
+                out.append({
+                    "sym": s["sym"], "code": s.get("code"), "name": s["name"],
+                    "short": s.get("short") or s.get("ticker"), "price": d.get("price"), "chgPct": d.get("changePct"),
+                    "volume": d.get("volume"), "sector": classify_sector(s["name"]),
+                    "currency": s.get("currency"), "logo": company_domain(s["name"]),
+                })
+        else:
+            for s in stocks:
+                try:
+                    vol = float(str(s.get("volume", "0")).replace(",", ""))
+                except ValueError:
+                    vol = 0
+                out.append({
+                    "sym": None, "code": None, "name": s["name"],
+                    "short": s.get("ticker"), "price": s.get("price"), "chgPct": s.get("chgPct"),
+                    "volume": vol, "sector": s.get("sector") or classify_sector(s["name"]),
+                    "currency": s.get("currency"), "date": s.get("date"), "logo": company_domain(s["name"]),
+                })
+        cache_put("heatmap:" + ex, 90, json.dumps(out))
+        _heatmap_stale[ex] = out
+        return out
+    finally:
+        _heatmap_building.discard(ex)
 
 # ---------------- Interest rates ----------------
 # Central bank policy rates (curated, from official sources, updated on rate decisions)
@@ -473,6 +559,147 @@ class Handler(SimpleHTTPRequestHandler):
             self.json(eod_quote(ex, name) or {"error": "not found"})
         elif path.path == "/api/news":
             self.json(fetch_news())
+        elif path.path == "/api/screener":
+            q = urllib.parse.parse_qs(path.query)
+            params = {k: v[0] if len(v) == 1 else v for k, v in q.items()}
+            # stocks.json records lack exchange/sector/price — enrich from the listing + quote cache
+            def _load_screener_stocks():
+                out = []
+                for ex in ("JSE", "EGX", "NGX", "NSE"):
+                    # cached heatmap only (never trigger a full Yahoo rebuild here)
+                    hit = cache_get("heatmap:" + ex)
+                    hm = json.loads(hit) if hit else []
+                    hm_by_sym = {h["sym"]: h for h in hm if h.get("sym")}
+                    for s in get_listing(ex):
+                        rec = dict(s)
+                        rec["exchange"] = ex
+                        # NGX/NSE records have no sym — synthesize from ticker so the
+                        # screener handler (which requires sym) includes them
+                        if not rec.get("sym"):
+                            rec["sym"] = (rec.get("ticker") or rec.get("code") or rec.get("name", "")).replace(" ", "-").upper()
+                        h = hm_by_sym.get(rec["sym"])
+                        if h:
+                            rec["sector"] = h.get("sector")
+                            rec["price"] = h.get("price")
+                            rec["chgPct"] = h.get("chgPct")
+                            rec["volume"] = h.get("volume")
+                        else:
+                            # fall back to EOD fields embedded in the listing (NGX/NSE)
+                            rec.setdefault("sector", s.get("sector"))
+                            rec.setdefault("price", s.get("price"))
+                            rec.setdefault("chgPct", s.get("chgPct"))
+                            rec.setdefault("volume", s.get("volume"))
+                        out.append(rec)
+                return out
+            # quote_lookup returns the enriched record so the handler's
+            # quote.get("chgPct")/volume reads work (Claude's handler reads
+            # those from the quote, price falls back to the stock record)
+            _scr_cache = {}
+
+            def _load_screener_stocks():
+                if "list" in _scr_cache:
+                    return _scr_cache["list"]
+                out = []
+                for ex in ("JSE", "EGX", "NGX", "NSE"):
+                    # cached heatmap only (never trigger a full Yahoo rebuild here)
+                    hit = cache_get("heatmap:" + ex)
+                    hm = json.loads(hit) if hit else []
+                    hm_by_sym = {h["sym"]: h for h in hm if h.get("sym")}
+                    for s in get_listing(ex):
+                        rec = dict(s)
+                        rec["exchange"] = ex
+                        # NGX/NSE records have no sym — synthesize from ticker so the
+                        # screener handler (which requires sym) includes them
+                        if not rec.get("sym"):
+                            rec["sym"] = (rec.get("ticker") or rec.get("code") or rec.get("name", "")).replace(" ", "-").upper()
+                        h = hm_by_sym.get(rec["sym"])
+                        if h:
+                            rec["sector"] = h.get("sector")
+                            rec["price"] = h.get("price")
+                            rec["chgPct"] = h.get("chgPct")
+                            rec["volume"] = h.get("volume")
+                        else:
+                            # fall back to the long-lived quote snapshot (30 min,
+                            # written by quote_one during the startup warm thread)
+                            qc = cache_get(f"snap:{rec['sym']}")
+                            if qc:
+                                try:
+                                    qd = json.loads(qc)
+                                    rec.setdefault("price", qd.get("price"))
+                                    rec.setdefault("chgPct", qd.get("changePct"))
+                                    rec.setdefault("volume", qd.get("volume"))
+                                except Exception:
+                                    pass
+                            # then EOD fields embedded in the listing (NGX/NSE)
+                            rec.setdefault("sector", s.get("sector"))
+                            rec.setdefault("price", s.get("price"))
+                            rec.setdefault("chgPct", s.get("chgPct"))
+                            rec.setdefault("volume", s.get("volume"))
+                            # last resort: classify from the name (same rules as heatmap)
+                            if not rec.get("sector") or rec.get("sector") == "Other":
+                                rec["sector"] = classify_sector(rec.get("name") or "")
+                        out.append(rec)
+                _scr_cache["list"] = out
+                return out
+
+            def _quote_lookup(sym):
+                if "index" not in _scr_cache:
+                    _scr_cache["index"] = {s.get("sym"): s for s in _load_screener_stocks()}
+                return _scr_cache["index"].get(sym)
+            self.json(screener_api.handle_screener(
+                params,
+                load_stocks=_load_screener_stocks,
+                quote_lookup=_quote_lookup))
+        elif path.path == "/api/reg":
+            self.json(reg_api.handle_reg(cache=None))
+        elif path.path == "/api/commodities":
+            self.json(commodities_api.handle_commodities(cache=None))
+        elif path.path == "/api/bonds":
+            self.json(bonds_api.handle_bonds())
+        elif path.path == "/api/ratings":
+            q = urllib.parse.parse_qs(path.query)
+            sym = q.get("symbol", [""])[0]
+            news = fetch_news(limit=60)
+            self.json(ratings_api.aggregate_ratings(sym, news))
+        elif path.path == "/api/tas":
+            q = urllib.parse.parse_qs(path.query)
+            sym = q.get("symbol", ["SOL.JO"])[0]
+            d = yahoo_chart(sym, rng="1d", ivl="5m")
+            bars = d.get("bars", []) if isinstance(d, dict) else []
+            live = (d.get("marketState") == "REGULAR") if isinstance(d, dict) else False
+            self.json(tas_api.build_tape(sym, bars, intraday_available=live))
+        elif path.path == "/api/fx":
+            # alias for the FX panel (same payload as /api/fxmatrix)
+            fx = quote_many(["USDZAR=X", "USDEGP=X", "USDKES=X", "USDNGN=X", "EURUSD=X", "GBPUSD=X"])
+            fx_rates = {}
+            mapping = {"USDZAR=X": "ZAR", "USDEGP=X": "EGP", "USDKES=X": "KES",
+                       "USDNGN=X": "NGN", "EURUSD=X": None, "GBPUSD=X": None}
+            for sym, q2 in fx.items():
+                if q2 and q2.get("price") is not None:
+                    ccy = mapping.get(sym)
+                    if ccy:
+                        fx_rates[ccy] = q2["price"]
+            # EUR/GBP -> USD conversion: EURUSD=X price = USD per EUR, so USD = 1/price
+            for sym, key in [("EURUSD=X", "EUR"), ("GBPUSD=X", "GBP")]:
+                q2 = fx.get(sym)
+                if q2 and q2.get("price"):
+                    fx_rates[key] = 1.0 / q2["price"]
+            fx_rates["USD"] = 1.0
+            self.json(fx_api.build_matrix(fx_rates))
+        elif path.path == "/api/fxmatrix":
+            fx = quote_many(["USDZAR=X", "USDEGP=X", "USDKES=X", "USDNGN=X", "EURUSD=X", "GBPUSD=X"])
+            fx_rates = {}
+            mapping = {"USDZAR=X": ("ZAR", "USD"), "USDEGP=X": ("EGP", "USD"), "USDKES=X": ("KES", "USD"),
+                       "USDNGN=X": ("NGN", "USD"), "EURUSD=X": ("USD", "EUR"), "GBPUSD=X": ("USD", "GBP")}
+            for sym, q2 in fx.items():
+                if q2 and q2.get("price") is not None:
+                    ccy, base = mapping.get(sym, (None, None))
+                    if ccy and base == "USD":
+                        fx_rates[ccy] = q2["price"]
+                    elif ccy and base == ccy:
+                        pass
+            fx_rates["USD"] = 1.0
+            self.json(fx_api.build_matrix(fx_rates))
         elif path.path == "/api/rates":
             self.json(rates())
         elif path.path == "/api/health":
@@ -501,9 +728,15 @@ if __name__ == "__main__":
                     if s.get("sym"):
                         all_syms.append(s["sym"])
             quote_many(all_syms)
+            # prime heatmap payload caches (screener reads these)
+            for ex in ("JSE", "EGX", "NGX", "NSE"):
+                try:
+                    heatmap(ex)
+                except Exception:
+                    pass
             fetch_news()
             print(f"cache warmed ({len(all_syms)} symbols)")
         except Exception as e:
             print("warm failed:", e)
     threading.Thread(target=_warm, daemon=True).start()
-    HTTPServer((HOST, PORT), Handler).serve_forever()
+    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
