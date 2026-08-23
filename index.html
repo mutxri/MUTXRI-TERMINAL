@@ -293,9 +293,9 @@ function openStock(sym){
         <div style="color:var(--acc);font-weight:700;margin-bottom:6px">${esc(sym)} · ${esc(d.name||'')}</div>
         <div style="color:var(--tx3);line-height:1.6">${esc(d.message||'No market data available for this security.')}</div></div>`; return; }
       currentChartSym = sym;
-      renderStockInfo(d);
-      renderChart(d, sym);
-      loadMetrics(sym, ex, stock && stock.name);
+      try{ renderStockInfo(d); }catch(e){ console.error('info fail', e); }
+      try{ renderChart(d, sym); }catch(e){ console.error('chart fail', e); }
+      try{ loadMetrics(sym, ex, stock && stock.name); }catch(e){ console.error('metrics fail', e); }
     })
     .catch(e => $('rightInfo').innerHTML = `<div style="color:var(--down)">${esc(String(e))}</div>`);
 }
@@ -474,6 +474,8 @@ function renderChart(d, sym){
   if(chartObj){ chartObj.remove(); chartObj = null; }
   currentChartData = d;
   const MINT = '#33e29a', RED = '#f87171';
+  const cw = box.clientWidth || box.parentElement?.clientWidth || 320;
+  const ch = box.clientHeight || 260;
   chartObj = LightweightCharts.createChart(box, {
     layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
     grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
@@ -481,8 +483,8 @@ function renderChart(d, sym){
     timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:4},
     crosshair:{mode:1},
     localization:{priceFormatter:p=>p.toFixed(2)},
-    width: box.clientWidth || 300,
-    height: 260,
+    width: Math.max(cw, 120),
+    height: Math.max(ch, 120),
   });
   let series;
   if(chartType === 'candle'){
