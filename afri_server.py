@@ -168,6 +168,17 @@ def quote_one(s):
         "w52High": d.get("fiftyTwoWeekHigh"), "w52Low": d.get("fiftyTwoWeekLow"),
     }
     # keep a long-lived per-symbol quote snapshot for the screener (30 min)
+    # currency fallback: ISIN syms return null currency; apply listing currency
+    if not out.get("currency"):
+        for exx in ("JSE", "EGX", "NGX", "NSE"):
+            for st in get_listing(exx):
+                cands = [str(st.get("ticker") or "").upper(), str(st.get("code") or "").upper(),
+                         str(st.get("sym") or "").upper()]
+                if s.upper() in cands or any(s.upper() == c.split(".")[0] for c in cands if c):
+                    out["currency"] = st.get("currency", "")
+                    break
+            if out.get("currency"):
+                break
     cache_put("snap:" + s, 1800, json.dumps(out))
     return out
 
