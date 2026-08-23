@@ -1151,6 +1151,64 @@ class Handler(SimpleHTTPRequestHandler):
             self.json(rates())
         elif path.path == "/api/health":
             self.json({"ok": True, "time": time.time()})
+        elif path.path == "/api/financials":
+            # Claude's per-statement endpoint, served from OUR real AF data
+            q = urllib.parse.parse_qs(path.query)
+            ticker = q.get("ticker", ["SCOM"])[0].upper()
+            statement = q.get("statement", ["income"])[0]
+            period = q.get("period", ["annual"])[0]
+            try:
+                import financials_api
+                # find the AF company for this ticker (any exchange)
+                af_key = None
+                tl = ticker.lower()
+                for k, v in _FUND.items():
+                    kk = k.split(":", 1)[-1]
+                    # strip country prefix: NGX:ng-dangce -> dangce
+                    core = kk.split("-", 1)[-1] if "-" in kk else kk
+                    # match slug suffix, prefix (dangce -> DANGCEM), or company name
+                    if core == tl or kk.endswith("-" + tl) or \
+                       core == tl.replace("-", "") or \
+                       tl.startswith(core) or core.startswith(tl) or \
+                       (v.get("name") or "").lower() == tl:
+                        af_key = k
+                        break
+                st = {}
+                if af_key:
+                    af = _FUND[af_key]
+                    sd = ((af.get("statements") or {}).get("data") or {})
+                    cur = "NGN" if af_key.startswith("NGX") else "KES"
+                    if sd:
+                        # map our extracted fields into Claude's schema (single period)
+                        vals = {}
+                        for src_key, dst_key in [
+                            ("revenue", "revenue"), ("gross_profit", "grossProfit"),
+                            ("profit_after_tax", "netProfit"), ("eps", "eps"),
+                            ("total_assets", "totalAssets"), ("cash_and_equivalents", "cashAndEquivalents"),
+                            ("total_liabilities", "totalLiabilities"),
+                            ("operating_cash_flow", "operatingCashFlow"),
+                            ("investing_cash_flow", "investingCashFlow"),
+                            ("financing_cash_flow", "financingCashFlow"),
+                        ]:
+                            if sd.get(src_key) is not None:
+                                vals[dst_key] = [sd[src_key]]
+                        if vals:
+                            period_label = "FY" + str((af.get("statements") or {}).get("year") or "?")
+                            st = {ticker: {"annual": {statement: {
+                                "periods": [period_label], "currency": cur,
+                                "values": vals, "as_of": (af.get("statements") or {}).get("year"),
+                                "source_url": (af.get("statements") or {}).get("url"),
+                                "filed": True}}}}
+                out = financials_api.get_financials(ticker, statement, period, store=st if st else None)
+                # attach verified filing links from the registry
+                rec = financials_api.get_filings(ticker)
+                if rec.get("reports"):
+                    out["filings"] = rec["reports"]
+                    out["ir_url"] = rec.get("ir_url") or out.get("ir_url")
+                self.json(out)
+            except Exception as e:
+                self.json({"ticker": ticker, "statement": statement, "available": False,
+                           "rows": [], "note": "financials unavailable: %s" % str(e)[:60]})
         elif path.path == "/api/indices":
             # real market indices tape (EGX 30, JSE Top 40, JSE All-Share) +
             # NGX/NSE basket proxies from real constituent quotes
