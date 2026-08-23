@@ -5,7 +5,7 @@ Serves the terminal UI + proxies live market data (Yahoo chart API) and news RSS
 Run:  python afri_server.py   (then open http://127.0.0.1:8081/)
 Stdlib only - no pip installs needed.
 """
-import json, time, urllib.request, urllib.parse, threading, sys, os, re
+import json, time, urllib.request, urllib.parse, threading, sys, os, re, datetime
 from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from xml.etree import ElementTree as ET
@@ -52,8 +52,10 @@ def yahoo_chart(sym, rng="1y", ivl="1d"):
     try:
         raw = http_get(YAHOO.format(sym=urllib.parse.quote(sym), rng=rng, ivl=ivl))
         data = json.loads(raw)["chart"]["result"][0]
+    except urllib.error.HTTPError as ex:
+        return {"error": "no market data for this security"}
     except Exception as ex:
-        return {"error": str(ex)}
+        return {"error": "no market data for this security"}
     ts = data.get("timestamp", [])
     q = (data.get("indicators", {}).get("quote") or [{}])[0]
     opens, highs, lows, closes, vols = q.get("open"), q.get("high"), q.get("low"), q.get("close"), q.get("volume")
@@ -516,13 +518,15 @@ def _heatmap_partial(ex):
     out = []
     if ex in ("JSE", "EGX"):
         for s in stocks:
+            if s.get("instrument") == "structured":
+                continue
             qc = cache_get(f"snap:{s['sym']}")
             d = json.loads(qc) if qc else {}
             out.append({
                 "sym": s["sym"], "code": s.get("code"), "name": s["name"],
                 "short": s.get("short") or s.get("ticker"), "price": d.get("price"),
                 "chgPct": d.get("changePct"), "volume": d.get("volume"),
-                "sector": classify_sector(s["name"]),
+                "sector": s.get("sector") or classify_sector(s["name"]),
                 "currency": s.get("currency"), "logo": company_domain(s["name"]),
             })
     else:
@@ -544,14 +548,19 @@ def _heatmap_build(ex):
         stocks = get_listing(ex)
         out = []
         if ex in ("JSE", "EGX"):
-            syms = [s["sym"] for s in stocks]
+            syms = [s["sym"] for s in stocks if s.get("instrument") != "structured"]
             q = quote_many(syms)  # cached per-symbol
             for s in stocks:
+                if s.get("instrument") == "structured":
+                    continue  # skip AMC notes / prefs / bonds / ETFs in the heatmap
                 d = q.get(s["sym"]) or {}
+                # prefer the curated sector from stocks.json (already classified),
+                # fall back to on-the-fly classification
+                sec = s.get("sector") or classify_sector(s["name"])
                 out.append({
                     "sym": s["sym"], "code": s.get("code"), "name": s["name"],
                     "short": s.get("short") or s.get("ticker"), "price": d.get("price"), "chgPct": d.get("changePct"),
-                    "volume": d.get("volume"), "sector": classify_sector(s["name"]),
+                    "volume": d.get("volume"), "sector": sec,
                     "currency": s.get("currency"), "logo": company_domain(s["name"]),
                 })
         else:
@@ -642,16 +651,29 @@ def eod_bars(sym):
                         prev = price
                     open_p = prev
                 now = int(time.time())
-                # Honest EOD chart: one real snapshot point, NOT fabricated
-                # history. Multi-period returns stay None (cannot be computed
-                # from a single EOD price) - the UI shows n/a rather than
-                # invented numbers.
+                # Honest EOD chart: real snapshot points only. If the board
+                # gives a YTD % change, derive the year-start close (real
+                # math: price = start * (1 + ytd/100)) for a 2-point trend.
                 bars = [{
                     "time": now,
                     "open": round(open_p, 4), "high": round(price * 1.001, 4),
                     "low": round(min(open_p, price) * 0.999, 4), "close": round(price, 4),
                     "volume": int(vol),
                 }]
+                ytd = s.get("ytd")
+                if ytd is not None:
+                    try:
+                        ytd_v = float(str(ytd).replace("+", "").replace("%", ""))
+                        start_price = price / (1 + ytd_v / 100)
+                        year_start = int(datetime.datetime(datetime.datetime.now().year, 1, 1).timestamp())
+                        bars.insert(0, {
+                            "time": year_start,
+                            "open": round(start_price, 4), "high": round(max(start_price, price), 4),
+                            "low": round(min(start_price, price), 4), "close": round(start_price, 4),
+                            "volume": 0,
+                        })
+                    except (ValueError, ZeroDivisionError):
+                        pass
                 return {
                     "symbol": sym, "name": s.get("name") or sym,
                     "currency": s.get("currency", ""), "exchange": ex,
@@ -687,13 +709,61 @@ class Handler(SimpleHTTPRequestHandler):
                 eod = eod_bars(sym)
                 if eod:
                     d = eod
+            # currency fallback: Yahoo ISIN syms return null currency;
+            # apply the listing's own currency (EGP/KES/NGN/ZAc)
+            if not d.get("currency"):
+                for exx in ("JSE", "EGX", "NGX", "NSE"):
+                    for s in get_listing(exx):
+                        cands = [str(s.get("ticker") or "").upper(), str(s.get("code") or "").upper(),
+                                 str(s.get("sym") or "").upper()]
+                        if sym.upper() in cands or any(sym.upper() == c.split(".")[0] for c in cands if c):
+                            d["currency"] = s.get("currency", "")
+                            break
+                    if d.get("currency"):
+                        break
+                else:
+                    # known security but no market data source: clean message
+                    known = None
+                    for exx in ("JSE", "EGX", "NGX", "NSE"):
+                        for s in get_listing(exx):
+                            cands = [str(s.get("ticker") or "").upper(), str(s.get("code") or "").upper(),
+                                     str(s.get("sym") or "").upper(), (s.get("name") or "").upper()]
+                            if sym.upper() in cands or any(sym.upper() == c.split(".")[0] for c in cands if c):
+                                known = s
+                                break
+                        if known:
+                            break
+                    if known:
+                        d = {
+                            "symbol": sym, "name": known.get("name") or sym,
+                            "currency": known.get("currency", ""), "exchange": known.get("exchange", ""),
+                            "marketState": "CLOSED", "regularMarketPrice": None,
+                            "bars": [], "indicators": None, "noData": True,
+                            "message": "No market data source for this security (not covered by the free feed)",
+                        }
+                    else:
+                        d = {"error": "no market data for this security"}
             # NSE/NGX: Yahoo may resolve a bare ticker (KCB, EQTY) to a WRONG
-            # instrument (foreign cross-listing, ETF). Prefer the EOD listing
-            # whenever the symbol is a known NGX/NSE ticker.
-            if not d.get("eod") and _is_af_ticker(sym):
-                eod = eod_bars(sym)
-                if eod:
-                    d = eod
+            # instrument (foreign cross-listing, ETF). Only override when the
+            # Yahoo currency clearly mismatches the local listing currency
+            # (e.g. USD price for a KES stock). If Yahoo has real history in
+            # the right currency, keep it (gives NSE/NGX real candles).
+            if not d.get("eod") and not d.get("noData") and _is_af_ticker(sym):
+                yc = (d.get("currency") or "").upper()
+                ex_cur = ""
+                for exx in ("NGX", "NSE"):
+                    for s in get_listing(exx):
+                        cands = [str(s.get("ticker") or "").upper(), str(s.get("code") or "").upper(),
+                                 str(s.get("sym") or "").upper()]
+                        if sym.upper() in cands or any(sym.upper() == c.split(".")[0] for c in cands if c):
+                            ex_cur = (s.get("currency") or "").upper()
+                            break
+                    if ex_cur:
+                        break
+                if ex_cur and yc and yc not in ex_cur and yc in ("USD", "USDC", "GBP", "EUR"):
+                    eod = eod_bars(sym)
+                    if eod:
+                        d = eod
             self.json(d)
         elif path.path == "/api/quotes":
             q = urllib.parse.parse_qs(path.query)
@@ -717,11 +787,25 @@ class Handler(SimpleHTTPRequestHandler):
             if "error" in d or not d.get("bars"):
                 d = eod_bars(sym)
             # NGX/NSE bare tickers: Yahoo may resolve to a WRONG instrument;
-            # prefer the EOD listing data (real price, correct currency)
-            if (not d or not d.get("eod")) and _is_af_ticker(sym):
-                e = eod_bars(sym)
-                if e:
-                    d = e
+            # prefer the EOD listing data ONLY when the Yahoo currency clearly
+            # mismatches the local currency (USD for KES). Real history in the
+            # right currency is kept (gives NSE/NGX actual candles).
+            if (d and not d.get("eod")) and _is_af_ticker(sym):
+                yc = (d.get("currency") or "").upper()
+                ex_cur = ""
+                for exx in ("NGX", "NSE"):
+                    for s in get_listing(exx):
+                        cands = [str(s.get("ticker") or "").upper(), str(s.get("code") or "").upper(),
+                                 str(s.get("sym") or "").upper()]
+                        if sym.upper() in cands or any(sym.upper() == c.split(".")[0] for c in cands if c):
+                            ex_cur = (s.get("currency") or "").upper()
+                            break
+                    if ex_cur:
+                        break
+                if ex_cur and yc and yc not in ex_cur and yc in ("USD", "USDC", "GBP", "EUR"):
+                    e = eod_bars(sym)
+                    if e:
+                        d = e
             if d and d.get("bars"):
                 import metrics as metrics_mod
                 divs = yahoo_dividends(sym) if ex in ("JSE", "EGX") else []

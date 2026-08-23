@@ -173,7 +173,7 @@ function stockTicker(s){
 function renderWatchlist(filter){
   const list = listing[currentEx] || [];
   const f = (filter || '').toUpperCase();
-  const rows = f ? list.filter(s => stockTicker(s).includes(f) || (s.name||'').toUpperCase().includes(f)) : list;
+  const rows = f ? list.filter(s => stockTicker(s).includes(f) || (s.name||'').toUpperCase().includes(f)) : list.filter(s => s.instrument !== 'structured');
   const el = $('wlList');
   el.innerHTML = rows.slice(0, 300).map(s => {
     // JSE/EGX: quote from cache; NGX/NSE: EOD data embedded in the listing
@@ -249,7 +249,8 @@ function tapeItem(s){
 }
 function buildTapeFromListing(ex){
   // instant: use the listing's own price data (EOD) - no network wait
-  const syms = (listing[ex]||[]).filter(s => s.sym || s.ticker).slice(0, 40);
+  // only real common stocks (skip structured notes, prefs, bonds, ETFs)
+  const syms = (listing[ex]||[]).filter(s => (s.instrument !== 'structured') && (s.sym || s.ticker)).slice(0, 40);
   const items = syms.map(tapeItem).filter(Boolean).join('');
   $('tape').innerHTML = items + items;
 }
@@ -287,7 +288,10 @@ function openStock(sym){
   fetch('/api/chart?symbol=' + encodeURIComponent(sym) + '&range=1y&interval=1d')
     .then(r => r.json())
     .then(d => {
-      if(d.error){ $('rightInfo').innerHTML = `<div style="color:var(--down)">${esc(d.error)}</div>`; return; }
+      if(d.error){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--down);font-family:var(--mono);font-size:11px">${esc(d.error)}</div>`; return; }
+      if(d.noData){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx2);font-family:var(--mono);font-size:11px">
+        <div style="color:var(--acc);font-weight:700;margin-bottom:6px">${esc(sym)} · ${esc(d.name||'')}</div>
+        <div style="color:var(--tx3);line-height:1.6">${esc(d.message||'No market data available for this security.')}</div></div>`; return; }
       currentChartSym = sym;
       renderStockInfo(d);
       renderChart(d, sym);
@@ -406,16 +410,10 @@ function renderStockInfo(d){
       </div>
       <div style="display:flex;gap:6px;padding:8px 0 4px;flex-wrap:wrap">
         <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('1d')">1D</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('5d')">5D</button>
         <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('1mo')">1M</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('3mo')">3M</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('6mo')">6M</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('ytd')">YTD</button>
         <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('1y')">1Y</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('3y')">3Y</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('5y')">5Y</button>
         <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('10y')">10Y</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('max')">MAX</button>
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('max')">ALL</button>
         <span style="flex:1"></span>
         <button class="ctab" style="padding:4px 10px;border-radius:2px" onclick="setChartType('candle')">CANDLE</button>
         <button class="ctab" style="padding:4px 10px;border-radius:2px" onclick="setChartType('line')">LINE</button>
@@ -435,14 +433,8 @@ function setChartType(t){
 let currentChartRange = '1y';
 const RANGE_INTERVALS = {
   '1d':  ['1d',  '5m'],
-  '5d':  ['5d',  '15m'],
   '1mo': ['1mo', '1h'],
-  '3mo': ['3mo', '1d'],
-  '6mo': ['6mo', '1d'],
-  'ytd': ['ytd', '1d'],
   '1y':  ['1y',  '1d'],
-  '3y':  ['3y',  '1d'],
-  '5y':  ['5y',  '1d'],
   '10y': ['10y', '1d'],
   'max': ['max', '1mo'],   // all available history (monthly bars, back to ~2000)
 };
