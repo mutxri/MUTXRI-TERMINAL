@@ -408,16 +408,16 @@ function renderStockInfo(d){
         <span style="color:var(--tx3)">52W LOW</span><span style="text-align:right">${d.fiftyTwoWeekLow != null ? d.fiftyTwoWeekLow.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
         <span style="color:var(--tx3)">STATE</span><span style="text-align:right">${esc(d.marketState||'?')}</span>
       </div>
-      <div style="display:flex;gap:6px;padding:8px 0 4px;flex-wrap:wrap">
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('1d')">1D</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('1mo')">1M</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('1y')">1Y</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('10y')">10Y</button>
-        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('max')">ALL</button>
-        <span style="flex:1"></span>
-        <button class="ctab" style="padding:4px 10px;border-radius:2px" onclick="setChartType('candle')">CANDLE</button>
-        <button class="ctab" style="padding:4px 10px;border-radius:2px" onclick="setChartType('line')">LINE</button>
-        <button class="ctab" style="padding:4px 10px;border-radius:2px" onclick="setChartType('area')">AREA</button>
+      <div style="display:flex;gap:4px;padding:8px 0 4px;align-items:center;white-space:nowrap;overflow-x:auto">
+        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('1d')">1D</button>
+        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('1mo')">1M</button>
+        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('1y')">1Y</button>
+        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('10y')">10Y</button>
+        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('max')">ALL</button>
+        <span style="width:8px"></span>
+        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartType('candle')">CANDLE</button>
+        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartType('line')">LINE</button>
+        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartType('area')">AREA</button>
       </div>
     </div>
     <div id="chartBox" style="height:260px;position:relative"></div>`;
@@ -446,6 +446,16 @@ function setChartRange(r){
     .then(res => res.json())
     .then(d => {
       if(d.error || !d.bars || !d.bars.length){ return; }
+      // kwayisi/NGX-NSE history: filter bars to the selected range window
+      if(d.kwayisi){
+        const now = Date.now() / 1000;
+        const DAY = 86400;
+        // NSE/NGX have EOD period returns (1W/1M/3M/6M/1Y/YTD) - no intraday
+        const windows = {'1d': 7, '1mo': 30, '1y': 365, '10y': 365, 'max': 365};
+        const win = windows[r] || 365;
+        d.bars = d.bars.filter(b => now - b.time <= win * DAY);
+        if(!d.bars.length) d.bars = d.bars.slice(-1);
+      }
       currentChartData = d;
       renderChart(d, currentChartSym);
       // highlight the active range button

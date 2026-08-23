@@ -640,6 +640,64 @@ def _is_af_ticker(sym):
                 return True
     return False
 
+def kwayisi_history(sym, ex):
+    """Real period returns (1W/1M/3M/6M/1Y/YTD) from the kwayisi per-stock
+    page for NGX/NSE. Derives historical prices from the current price and
+    each period return: price_at_period_start = price / (1 + return).
+    Returns list of {time, open, high, low, close, volume} ascending, or []."""
+    import urllib.error
+    try:
+        ex_slug = "nse" if ex == "NSE" else "ngx"
+        t = http_get(f"https://afx.kwayisi.org/{ex_slug}/{sym.lower()}/", timeout=20)
+    except Exception:
+        return []
+    txt = re.sub(r"<[^>]+>", "|", t)
+    txt = re.sub(r"\|+", "|", txt)
+    m = re.search(r"current share price of[^(]*\(([A-Z0-9]+)\) is ([A-Z]{2,4})? ?([\d,]+\.?\d*)", txt)
+    if not m:
+        return []
+    try:
+        price = float(m.group(3).replace(",", ""))
+    except ValueError:
+        return []
+    # parse the Market Performance block: 1WK|4WK|3MO|v1|v2|v3|6MO|1YR|YTD|v4|v5|v6
+    i = txt.find("Market Performance")
+    if i < 0:
+        return []
+    block = txt[i:i+300]
+    # values appear after the 1WK|4WK|3MO| and 6MO|1YR|YTD| labels
+    nums = re.findall(r"([+-]?[\d.]+)%", block)
+    if len(nums) < 6:
+        return []
+    # order in the block: 1WK, 4WK, 3MO, 6MO, 1YR, YTD (as printed after labels)
+    # sample: '1WK|4WK|3MO|+2.68%|+2.11%|+18.2%|6MO|1YR|YTD|+13.1%|+34.6%|+28.2%'
+    try:
+        r1w, r1m, r3m, r6m, r1y, rytd = [float(x) for x in nums[:6]]
+    except ValueError:
+        return []
+    now = int(time.time())
+    DAY = 86400
+    # points: 1y ago, 6m ago, 3m ago, 1m ago, 1w ago, today
+    pts = [
+        (now - 365 * DAY, r1y),
+        (now - 183 * DAY, r6m),
+        (now - 91 * DAY, r3m),
+        (now - 30 * DAY, r1m),
+        (now - 7 * DAY, r1w),
+        (now, 0.0),
+    ]
+    bars = []
+    for ts, ret in pts:
+        p = price / (1 + ret / 100)
+        bars.append({
+            "time": ts,
+            "open": round(p, 4), "high": round(max(p, price) * 1.001, 4),
+            "low": round(min(p, price) * 0.999, 4), "close": round(p, 4),
+            "volume": 0,
+        })
+    return bars
+
+
 def eod_bars(sym):
     """Synthesize a small chart payload from the static EOD listing (NGX/NSE).
     Yahoo dropped .NG/.NR tickers, so these markets only have the daily EOD
@@ -727,6 +785,15 @@ class Handler(SimpleHTTPRequestHandler):
                 eod = eod_bars(sym)
                 if eod:
                     d = eod
+            # NGX/NSE: prefer kwayisi real period returns (multi-point history
+            # that changes with the time range) over the single EOD snapshot
+            if d.get("eod") and _is_af_ticker(sym):
+                for exx in ("NGX", "NSE"):
+                    kb = kwayisi_history(sym.split(".")[0], exx)
+                    if kb:
+                        d["bars"] = kb
+                        d["kwayisi"] = True
+                        break
             # currency fallback: Yahoo ISIN syms return null currency;
             # apply the listing's own currency (EGP/KES/NGN/ZAc)
             if not d.get("currency"):
@@ -804,6 +871,14 @@ class Handler(SimpleHTTPRequestHandler):
             d = yahoo_chart(sym, "5y", "1d")
             if "error" in d or not d.get("bars"):
                 d = eod_bars(sym)
+            # NGX/NSE: real multi-point history from kwayisi when available
+            if d and d.get("eod") and _is_af_ticker(sym):
+                for exx in ("NGX", "NSE"):
+                    kb = kwayisi_history(sym.split(".")[0], exx)
+                    if kb:
+                        d["bars"] = kb
+                        d["kwayisi"] = True
+                        break
             # NGX/NSE bare tickers: Yahoo may resolve to a WRONG instrument;
             # prefer the EOD listing data ONLY when the Yahoo currency clearly
             # mismatches the local currency (USD for KES). Real history in the
