@@ -660,21 +660,27 @@ def kwayisi_history(sym, ex):
         price = float(m.group(3).replace(",", ""))
     except ValueError:
         return []
-    # parse the Market Performance block: 1WK|4WK|3MO|v1|v2|v3|6MO|1YR|YTD|v4|v5|v6
+    # parse the Market Performance block. Labels and values alternate:
+    # '1WK|4WK|3MO|v1|v2|v3|6MO|1YR|YTD|v4|v5|v6' - some stocks omit values
+    # (blank = 0%). Align by label order: 1WK, 4WK, 3MO, 6MO, 1YR, YTD.
     i = txt.find("Market Performance")
     if i < 0:
         return []
-    block = txt[i:i+300]
-    # values appear after the 1WK|4WK|3MO| and 6MO|1YR|YTD| labels
-    nums = re.findall(r"([+-]?[\d.]+)%", block)
-    if len(nums) < 6:
-        return []
-    # order in the block: 1WK, 4WK, 3MO, 6MO, 1YR, YTD (as printed after labels)
-    # sample: '1WK|4WK|3MO|+2.68%|+2.11%|+18.2%|6MO|1YR|YTD|+13.1%|+34.6%|+28.2%'
-    try:
-        r1w, r1m, r3m, r6m, r1y, rytd = [float(x) for x in nums[:6]]
-    except ValueError:
-        return []
+    block = txt[i:i+400]
+    # find label positions then read the value after each label
+    def val_after(label):
+        j = block.find(label)
+        if j < 0:
+            return 0.0
+        rest = block[j+len(label):j+len(label)+40]
+        m = re.search(r"([+-]?[\d.]+)%", rest)
+        return float(m.group(1)) if m else 0.0
+    r1w = val_after("1WK")
+    r1m = val_after("4WK")
+    r3m = val_after("3MO")
+    r6m = val_after("6MO")
+    r1y = val_after("1YR")
+    rytd = val_after("YTD")
     now = int(time.time())
     DAY = 86400
     # points: 1y ago, 6m ago, 3m ago, 1m ago, 1w ago, today
@@ -918,7 +924,25 @@ class Handler(SimpleHTTPRequestHandler):
                     "isin": None,
                 }
                 out = metrics_mod.compute_metrics(d["bars"], divs, meta)
-                out["revenue"] = (af or {}).get("revenue")
+                # revenue may be a raw scraped string ('Revenue: N4,306,704 million...')
+                # - parse to a clean number when possible
+                _rev = (af or {}).get("revenue")
+                if isinstance(_rev, str):
+                    m = re.search(r"([\d,]+\.?\d*)\s*(million|billion|trillion|bn|m|tn)?", _rev)
+                    if m:
+                        _n = float(m.group(1).replace(",", ""))
+                        _s = (m.group(2) or "").lower()
+                        if _s in ("billion", "bn"):
+                            _n *= 1e9
+                        elif _s in ("million", "m"):
+                            _n *= 1e6
+                        elif _s in ("trillion", "tn"):
+                            _n *= 1e12
+                        out["revenue"] = _n
+                    else:
+                        out["revenue"] = None
+                else:
+                    out["revenue"] = _rev
                 out["description"] = (af or {}).get("description")
                 # financial statements (income statement / balance sheet / cash flow)
                 st = ((af or {}).get("statements") or {}).get("data") or {}
