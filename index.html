@@ -159,8 +159,9 @@ async function loadListing(ex){
     const d = await r.json();
     listing[ex] = d.stocks || [];
     $('wlEx').textContent = ex + ' · ' + listing[ex].length;
-    renderWatchlist();
-    primeQuotes(ex);
+    renderWatchlist($('q').value);
+    buildTape(ex);            // tape now shows the new exchange immediately
+    primeQuotes(ex);          // then refresh with live quotes
   }catch(e){ console.error('listing fail', e); }
 }
 
@@ -211,18 +212,8 @@ async function primeQuotes(ex){
 
 // ===== Ticker tape =====
 function buildTape(ex){
-  const syms = (listing[ex]||[]).filter(s => s.sym || s.ticker).slice(0, 40);
-  const items = syms.map(s => {
-    const q = quotes[s.sym] || {};
-    const price = q.price != null ? q.price : s.price;
-    const chg = q.changePct != null ? q.changePct : s.chgPct;
-    if(price == null) return '';
-    const tkr = stockTicker(s);
-    const cls = chg >= 0 ? 'up' : 'down';
-    const sign = chg >= 0 ? '+' : '';
-    return `<span class="tape-item"><span class="sym">${esc(tkr)}</span><span class="pr">${Number(price).toLocaleString(undefined,{maximumFractionDigits:2})}</span><span class="chg ${cls}">${sign}${Number(chg).toFixed(2)}%</span></span>`;
-  }).filter(Boolean).join('');
-  $('tape').innerHTML = items + items; // duplicate for seamless scroll
+  // live-quotes version: refresh with fetched quotes
+  buildTapeFromListing(ex);
 }
 
 // ===== Exchange tabs =====
@@ -231,10 +222,36 @@ document.querySelectorAll('.exch-tab').forEach(t => {
     document.querySelectorAll('.exch-tab').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
     currentEx = t.dataset.ex;
-    if(!listing[currentEx]) loadListing(currentEx);
-    else { renderWatchlist($('q').value); primeQuotes(currentEx); }
+    if(!listing[currentEx]) {
+      // immediate tape from the new exchange's own data, then refresh
+      buildTapeFromListing(currentEx);
+      renderWatchlist($('q').value);
+      loadListing(currentEx);
+    } else {
+      buildTapeFromListing(currentEx);
+      renderWatchlist($('q').value);
+      primeQuotes(currentEx);
+    }
   };
 });
+
+// ===== Tape helpers =====
+function tapeItem(s){
+  const q = quotes[s.sym] || {};
+  const price = q.price != null ? q.price : s.price;
+  const chg = q.changePct != null ? q.changePct : s.chgPct;
+  if(price == null) return '';
+  const tkr = stockTicker(s);
+  const cls = chg >= 0 ? 'up' : 'down';
+  const sign = chg >= 0 ? '+' : '';
+  return `<span class="tape-item"><span class="sym">${esc(tkr)}</span><span class="pr">${Number(price).toLocaleString(undefined,{maximumFractionDigits:2})}</span><span class="chg ${cls}">${sign}${Number(chg).toFixed(2)}%</span></span>`;
+}
+function buildTapeFromListing(ex){
+  // instant: use the listing's own price data (EOD) - no network wait
+  const syms = (listing[ex]||[]).filter(s => s.sym || s.ticker).slice(0, 40);
+  const items = syms.map(tapeItem).filter(Boolean).join('');
+  $('tape').innerHTML = items + items;
+}
 
 // ===== Search =====
 $('q').addEventListener('input', e => renderWatchlist(e.target.value));
