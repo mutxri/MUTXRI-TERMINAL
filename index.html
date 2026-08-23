@@ -184,11 +184,13 @@ function renderWatchlist(filter){
     const cls = chg === null || chg === undefined ? '' : (chg >= 0 ? 'up' : 'down');
     const sign = chg === null || chg === undefined ? '' : (chg >= 0 ? '+' : '') + Number(chg).toFixed(2) + '%';
     const sym = stockTicker(s);
+    const volTxt = vol != null ? Number(vol).toLocaleString() : '';
     return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
       <span class="sym">${esc(sym)}</span>
       <span class="nm">${esc(s.name||'')}</span>
       <span class="pr">${pr} <small style="color:var(--tx3)">${esc(cur)}</small></span>
       <span class="chg ${cls}">${sign}</span>
+      <span class="pr" style="font-size:9px;color:var(--tx3);min-width:70px;text-align:right">${volTxt}</span>
     </div>`;
   }).join('') || '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px">no stocks</div>';
 }
@@ -384,7 +386,17 @@ function renderStockInfo(d){
         <span style="color:var(--tx3)">52W LOW</span><span style="text-align:right">${d.fiftyTwoWeekLow != null ? d.fiftyTwoWeekLow.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
         <span style="color:var(--tx3)">STATE</span><span style="text-align:right">${esc(d.marketState||'?')}</span>
       </div>
-      <div style="display:flex;gap:6px;padding:8px 0 4px">
+      <div style="display:flex;gap:6px;padding:8px 0 4px;flex-wrap:wrap">
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('1d')">1D</button>
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('5d')">5D</button>
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('1mo')">1M</button>
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('3mo')">3M</button>
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('6mo')">6M</button>
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('ytd')">YTD</button>
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('1y')">1Y</button>
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('3y')">3Y</button>
+        <button class="ctab" style="padding:3px 8px;border-radius:2px" onclick="setChartRange('5y')">5Y</button>
+        <span style="flex:1"></span>
         <button class="ctab" style="padding:4px 10px;border-radius:2px" onclick="setChartType('candle')">CANDLE</button>
         <button class="ctab" style="padding:4px 10px;border-radius:2px" onclick="setChartType('line')">LINE</button>
         <button class="ctab" style="padding:4px 10px;border-radius:2px" onclick="setChartType('area')">AREA</button>
@@ -397,6 +409,37 @@ function renderStockInfo(d){
 function setChartType(t){
   chartType = t;
   if(currentChartData) renderChart(currentChartData, currentChartSym);
+}
+
+// ===== Chart timeframes: 1D 5D 1M 3M 6M YTD 1Y 3Y 5Y =====
+let currentChartRange = '1y';
+const RANGE_INTERVALS = {
+  '1d':  ['1d',  '5m'],
+  '5d':  ['5d',  '15m'],
+  '1mo': ['1mo', '1h'],
+  '3mo': ['3mo', '1d'],
+  '6mo': ['6mo', '1d'],
+  'ytd': ['ytd', '1d'],
+  '1y':  ['1y',  '1d'],
+  '3y':  ['3y',  '1d'],
+  '5y':  ['5y',  '1d'],
+};
+function setChartRange(r){
+  if(!currentChartSym) return;
+  currentChartRange = r;
+  const [rng, ivl] = RANGE_INTERVALS[r] || ['1y', '1d'];
+  fetch('/api/chart?symbol=' + encodeURIComponent(currentChartSym) + '&range=' + rng + '&interval=' + ivl)
+    .then(res => res.json())
+    .then(d => {
+      if(d.error || !d.bars || !d.bars.length){ return; }
+      currentChartData = d;
+      renderChart(d, currentChartSym);
+      // highlight the active range button
+      document.querySelectorAll('.ctab').forEach(b => b.style.outline = '');
+      const btn = [...document.querySelectorAll('.ctab')].find(b => b.textContent === r.toUpperCase() || (r === '1mo' && b.textContent === '1M'));
+      if(btn) btn.style.outline = '1px solid var(--acc)';
+    })
+    .catch(() => {});
 }
 
 function renderChart(d, sym){
