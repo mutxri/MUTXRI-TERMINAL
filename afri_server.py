@@ -391,6 +391,13 @@ try:
 except Exception:
     _FUND = {}
 
+# IR-crawled statements (sidecar from mass_ir_crawler) - merged on top of AF data
+try:
+    with open("ir_statements.json", encoding="utf-8") as f:
+        _IR_STMTS = json.load(f)
+except Exception:
+    _IR_STMTS = {}
+
 try:
     with open("ownership.json", encoding="utf-8") as f:
         _OWN = json.load(f)
@@ -847,6 +854,18 @@ class Handler(SimpleHTTPRequestHandler):
                         "url": ((af or {}).get("statements") or {}).get("url"),
                         "data": st,
                     }
+                # overlay IR-crawled statements (JSE/EGX companies, or richer data)
+                for k, v in _IR_STMTS.items():
+                    # match by sym / ticker / name
+                    vk = k.split(":", 1)[-1]
+                    if vk.upper() == sym.upper() or (v.get("name") or "").lower() == (name or "").lower():
+                        if v.get("data"):
+                            out["statements"] = {
+                                "period": "IR", "year": "latest",
+                                "url": v.get("pdf") or v.get("ir") or "",
+                                "data": v["data"], "source": "Company IR",
+                            }
+                        break
                     # real valuation/quality ratios from statement + price
                     ratios = metrics_mod.compute_ratios(st, out.get("stock_price"))
                     out.update(ratios)
