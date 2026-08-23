@@ -241,6 +241,54 @@ def parse_pdf_statements(data):
         rows = rows_by_page[last_cf]
         out["operating_cash_flow"] = row_value(rows, "Net cash flows from operating")
 
+    # ---- results-at-a-glance fallback: tabular format with label + values ----
+    # e.g. 'Revenue  505,360  622,637' / 'Earnings after tax  (99,338)  239,853'
+    if not out.get("revenue") or not out.get("profit_after_tax"):
+        for rows in rows_by_page:
+            has_glance = False
+            for x, y, line in rows:
+                ll = line.lower()
+                if "results at a glance" in ll or "result at a glance" in ll:
+                    has_glance = True
+                    break
+            if not has_glance:
+                continue
+            for xx, yy, ln in rows:
+                m = re.match(r"^([A-Za-z][A-Za-z &/'()%-]{2,60}?)\s+\(?([\d,]+\.?\d*)\)?\s+\(?[\d,]+\.?\d*\)?\s*$", ln)
+                if m:
+                    lab = m.group(1).lower()
+                    v = m.group(2).replace(",", "").replace("(", "-")
+                    try:
+                        val = float(v)
+                    except ValueError:
+                        continue
+                    if "revenue" in lab and "revenue" not in out:
+                        out["revenue"] = val
+                    elif "earnings after tax" in lab or "profit after tax" in lab or "profit for the period" in lab or "profit/(loss)" in lab:
+                        if "profit_after_tax" not in out:
+                            out["profit_after_tax"] = val
+                    elif "total assets" in lab:
+                        if "total_assets" not in out:
+                            out["total_assets"] = val
+                    elif "total liabilities" in lab:
+                        if "total_liabilities" not in out:
+                            out["total_liabilities"] = val
+                    elif "operating profit" in lab:
+                        if "operating_profit" not in out:
+                            out["operating_profit"] = val
+                    elif "cash and cash equivalents" in lab or "cash and bank" in lab:
+                        if "cash_and_equivalents" not in out:
+                            out["cash_and_equivalents"] = val
+                    elif "operating cash" in lab or "cash generated from operations" in lab:
+                        if "operating_cash_flow" not in out:
+                            out["operating_cash_flow"] = val
+                    elif "gross profit" in lab:
+                        if "gross_profit" not in out:
+                            out["gross_profit"] = val
+                    elif "earnings per share" in lab or "basic earnings" in lab:
+                        if "eps" not in out:
+                            out["eps"] = val
+            break
     return {k: v for k, v in out.items() if v is not None}
 
 if __name__ == "__main__":
