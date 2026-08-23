@@ -430,7 +430,7 @@ def fundamentals(sym, ex, name):
             if not slug:
                 continue
             tokens = [t for t in re.split(r"[-_.]", slug) if t]
-            if sym_l in slug or slug in sym_l or any(sym_l.startswith(t) and len(t) >= 4 for t in tokens):
+            if sym_l in slug or slug in sym_l or any((sym_l.startswith(t) or t.startswith(sym_l)) and len(t) >= 3 for t in tokens):
                 af_key = k
                 break
     if af_key is None and sym_l:
