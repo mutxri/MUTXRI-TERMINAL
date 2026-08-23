@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MUTXRI CAPITAL — Terminal Showcase (for review)</title>
+<title>MUTXRI CAPITAL — Terminal Showcase (corrected review)</title>
 <style>
 :root{
   --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --line:#1f1f1f;
   --acc:#33e29a; --teal:#1ecfb0; --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
-  --down:#f87171;
+  --down:#f87171; --warn:#e0a340;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--tx);font-family:'Courier New',monospace;padding:16px}
@@ -18,10 +18,17 @@ h2{color:var(--teal);font-size:13px;letter-spacing:.1em;padding:14px 0 8px;borde
 h2 .tag{color:var(--tx3);font-weight:normal;letter-spacing:0;font-size:11px;margin-left:8px}
 .note{color:var(--tx2);font-size:11px;line-height:1.7;padding:4px 0 10px}
 .hint{color:var(--tx3);font-size:10px}
-.up{color:var(--acc)} .down{color:var(--down)}
+.up{color:var(--acc)} .down{color:var(--down)} .warn{color:var(--warn)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--tx2);padding:6px 0}
+.pill{display:inline-block;padding:1px 7px;border-radius:2px;font-size:9px;letter-spacing:.04em;border:1px solid var(--line)}
+.pill.v{color:var(--acc);border-color:rgba(51,226,154,.4)}
+.pill.s{color:var(--warn);border-color:rgba(224,163,64,.4)}
+.pill.u{color:var(--tx3)}
+.pill.x{color:var(--down);border-color:rgba(248,113,113,.4)}
+.fix{background:var(--bg2);border-left:2px solid var(--warn);padding:8px 10px;margin:6px 0;font-size:11px;line-height:1.6;color:var(--tx2)}
+.fix b{color:var(--tx)}
 
-/* --- terminal mock --- */
-.term{border:1px solid var(--line);background:var(--bg2);margin:12px 0 22px}
+.term{border:1px solid var(--line);background:var(--bg2);margin:12px 0 8px}
 .term-head{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:10px;color:var(--tx3)}
 .term-head .dot{width:8px;height:8px;border-radius:50%;background:#333}
 .term-head .dot.g{background:var(--acc)}
@@ -58,135 +65,155 @@ h2 .tag{color:var(--tx3);font-weight:normal;letter-spacing:0;font-size:11px;marg
 .tbl td{padding:5px 8px;border-bottom:1px solid #151515;color:var(--tx2)}
 .tbl td:first-child{color:var(--tx)}
 .footer{color:var(--tx3);font-size:9px;padding:14px 0 30px;line-height:1.8}
+a{color:var(--acc)}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<h1>MUTXRI CAPITAL — TERMINAL SHOWCASE</h1>
-<div class="note">Static snapshot of the live terminal (http://127.0.0.1:8081/) — for review by Claude. All figures below are real, fetched live from the running server on 23 Aug 2026. Nothing fabricated.</div>
+<h1>MUTXRI CAPITAL — TERMINAL SHOWCASE (CORRECTED)</h1>
+<div class="note">
+Corrected review copy — every correction below was <b>verified against primary/official sources</b> (NGX Pulse, African Financials, Businessday, Nairametrics, kwayisi, live Yahoo feed) on 23 Aug 2026 before being applied. Each figure carries a provenance tag. Nothing is asserted as live-verified unless it was.
+</div>
+<div class="legend">
+  <span><span class="pill v">VERIFIED</span> confirmed against a primary/official source</span>
+  <span><span class="pill s">SAMPLE</span> illustrative placeholder, not live</span>
+  <span><span class="pill u">UNVERIFIED</span> from Hermes server, not independently checked</span>
+  <span><span class="pill x">CORRECTED</span> original was wrong</span>
+</div>
 
-<h2>1 · The terminal shell <span class="tag">(live mock)</span></h2>
+<h2>0 · Corrections applied <span class="tag">each verified before applying</span></h2>
+<div class="fix"><b>Header claim.</b> "All figures real / nothing fabricated" removed — the original mixed SAMPLE data into the LIVE tape. Replaced with per-item provenance tags.</div>
+<div class="fix"><b>NPN price.</b> Original "NPN 3,402" was wrong by ~23x. Live value: <span class="up">78,476 ZAc (R784.76)</span> — confirmed from the live Yahoo feed for NPN.JO. <span class="pill x">corrected</span></div>
+<div class="fix"><b>JSE "Banks 72" — classifier bug, FIXED IN CODE.</b> The 72 included 54 UBS AG structured notes (UBNDDU = "Corporate Bond", HERTGE = "0% 03/11/33", ULUXSE = "LuxurySeries") and preference shares, all wrongly bucketed as Banks because their names contain "bank". Reclassified all 54 as structured; JSE Banks is now <b>9 real banks</b>: Absa, Capitec, FirstRand, Investec ×2, Nedbank, Standard Bank, ABSA Bank, Sasfin. <span class="pill x">corrected</span></div>
+<div class="fix"><b>ARADEL and WAPCO — WRONGLY LISTED AS DELISTED.</b> Both actively trade on NGX: <span class="up">ARADEL ₦1,374.20</span> (NGX Pulse, 23 Aug 2026, mcap ₦5.97T) and <span class="up">WAPCO ₦226.5</span> (+101% YTD, now renamed HBM Nigeria Plc). Prices added to the terminal. <span class="pill x">corrected</span></div>
+<div class="fix"><b>DANGCEM revenue.</b> Original 4.3T was AF's interim string. The FY2024 audited filing states <span class="up">N3,580.6bn (N3.58T)</span> — confirmed by African Financials abridged report, Businessday, Nairametrics. Terminal corrected. <span class="pill x">corrected</span></div>
+<div class="fix"><b>DUNLOP</b> — genuinely delisted from NGX on 9 Apr 2026 (last trade ₦0.20 in 2018). <b>UBN</b> (Union Bank) — delisted 15 Nov 2023. Both marked with status in the terminal. <span class="pill v">verified</span></div>
+<div class="fix"><b>Universe counts.</b> 1,030 = all listed securities (incl. prefs, ETFs, funds). The independently verified common-equity universe is 675 (227/272/111/65). Both shown below — neither is wrong, different scopes.</div>
+
+<h2>1 · The terminal shell <span class="tag">layout mock — SAMPLE prices where tagged</span></h2>
 <div class="term">
-  <div class="term-head"><span class="dot g"></span><span class="dot"></span><span class="dot r"></span><span class="t">MUTXRI CAPITAL · AFRICAN MARKETS</span><span class="hint">LIVE</span></div>
+  <div class="term-head"><span class="dot g"></span><span class="dot"></span><span class="dot r"></span><span class="t">MUTXRI CAPITAL · AFRICAN MARKETS</span><span class="hint">tape = real indices only</span></div>
   <div class="tape" id="tape"></div>
   <div class="body">
     <div class="side">
       <div class="tab on">JSE</div><div class="tab">EGX</div><div class="tab">NGX</div><div class="tab">NSE</div>
-      <div style="margin-top:10px;color:var(--tx3)">WATCHLIST · JSE (sample)</div>
+      <div style="margin-top:10px;color:var(--warn)">WATCHLIST · JSE — <span class="pill s">SAMPLE</span> illustrative, not live</div>
       <ul class="wl" id="wl"></ul>
     </div>
     <div class="center">
-      <div style="color:var(--tx3);padding-bottom:6px">HEATMAP · SECTOR TREEMAP · JSE</div>
+      <div style="color:var(--tx3);padding-bottom:6px">HEATMAP · SECTOR TREEMAP · JSE <span class="pill u">counts unverified</span></div>
       <div class="cellgrid" id="heat"></div>
     </div>
     <div class="right">
-      <div class="big" id="rprice">PRX.JO</div>
-      <div class="row"><span class="lbl">PRICE</span><span id="rprice2">71,628.00</span></div>
-      <div class="row"><span class="lbl">CHANGE</span><span class="up" id="rchg">+2.40%</span></div>
-      <div class="row"><span class="lbl">CURRENCY</span><span>ZAc</span></div>
-      <div class="row"><span class="lbl">SECTOR</span><span>Technology</span></div>
-      <div class="row"><span class="lbl">OWNERS</span><span id="rown">Naspers ~72%</span></div>
+      <div class="big" id="rprice">SCOM.NR</div>
+      <div class="row"><span class="lbl">PRICE</span><span id="rprice2">36.35 KES <span class="pill u">unverified</span></span></div>
+      <div class="row"><span class="lbl">CHANGE</span><span class="up" id="rchg">+2.68%</span></div>
+      <div class="row"><span class="lbl">CURRENCY</span><span>KES</span></div>
+      <div class="row"><span class="lbl">SECTOR</span><span>Telecom</span></div>
+      <div class="row"><span class="lbl">FILING</span><span><a href="https://www.safaricom.co.ke/investor-relations" target="_blank" rel="noopener">IR ↗</a> <span class="pill v">verified</span></span></div>
       <div class="btns">
         <button class="on">1D</button><button>1M</button><button>1Y</button><button>10Y</button><button>ALL</button>
         <span style="width:4px"></span>
         <button class="on">CANDLE</button><button>LINE</button><button>AREA</button>
       </div>
       <div class="chartbox"><div class="candles" id="candles"></div></div>
+      <div class="hint" style="padding-top:4px">SCOM 6-pt EOD history (27.01 → 36.35) · kwayisi period returns <span class="pill u">unverified here</span></div>
     </div>
   </div>
 </div>
-<div class="hint">↑ All chart buttons (timeframes + CANDLE/LINE/AREA) are in ONE row — the user's explicit layout demand. Chart shows real 6-point history for NSE/NGX via kwayisi period returns.</div>
+<div class="hint">All chart buttons (timeframes + CANDLE/LINE/AREA) in one row retained. Chart matches its panel (SCOM), fixing the original PRX/SCOM mismatch.</div>
 
-<h2>2 · Universe & data coverage</h2>
+<h2>2 · Universe &amp; data coverage <span class="tag">both counts shown</span></h2>
 <table class="tbl">
-  <tr><th>Exchange</th><th>Stocks</th><th>Sector groups</th><th>Top sectors</th></tr>
-  <tr><td>JSE (Johannesburg)</td><td>431</td><td>24</td><td>Banks 72 · Financial Services 68 · Industrials 43 · Mining 39</td></tr>
-  <tr><td>EGX (Cairo)</td><td>374</td><td>23</td><td>Industrials 82 · Real Estate 61 · Financial Services 44 · Food &amp; Beverage 43</td></tr>
-  <tr><td>NGX (Lagos)</td><td>156</td><td>33</td><td>Insurance 17 · Banking 12 · Technology 12</td></tr>
-  <tr><td>NSE (Nairobi)</td><td>69</td><td>18</td><td>Banks 11 · Industrials 10 · Agriculture 7</td></tr>
+  <tr><th>Exchange</th><th>All securities</th><th>Common equity (verified)</th><th>Note</th></tr>
+  <tr><td>JSE (Johannesburg)</td><td>431 <span class="pill u">u</span></td><td>227 <span class="pill v">v</span></td><td>diff = prefs, ETFs, UBS notes, fund lines (102 structured)</td></tr>
+  <tr><td>EGX (Cairo)</td><td>374 <span class="pill u">u</span></td><td>272 <span class="pill v">v</span></td><td>diff = ETF, pref, USD dual-lines</td></tr>
+  <tr><td>NGX (Lagos)</td><td>156 <span class="pill u">u</span></td><td>111 <span class="pill v">v</span></td><td>diff = bonds, ETFs, small-cap tail</td></tr>
+  <tr><td>NSE (Nairobi)</td><td>69 <span class="pill u">u</span></td><td>65 <span class="pill v">v</span></td><td>diff = 2 KPLC prefs + 2 new-2026 listings</td></tr>
+  <tr><td><b>TOTAL</b></td><td><b>1,030</b></td><td><b>675</b></td><td>different scopes, both correct</td></tr>
 </table>
 
-<h2>3 · Real indices on the tape (no fabricated values)</h2>
+<h2>3 · Indices on the tape <span class="tag">symbols verified; live values captured 23 Aug</span></h2>
 <table class="tbl">
-  <tr><th>Index</th><th>Price</th><th>Change</th><th>Source</th></tr>
-  <tr><td>EGX 30</td><td>55,350.40 EGP</td><td class="up">+1.54%</td><td>Yahoo ^CASE30 (official)</td></tr>
-  <tr><td>JSE Top 40</td><td>110,387.07 ZAR</td><td class="up">+3.20%</td><td>Yahoo ^J200.JO (official)</td></tr>
-  <tr><td>JSE All-Share</td><td>117,747.80 ZAR</td><td class="up">+2.68%</td><td>Yahoo ^J203.JO (official)</td></tr>
-  <tr><td>JSE Top40 USD</td><td>7,402.32 USD</td><td class="up">+4.14%</td><td>Yahoo ^JN0U.JO (official)</td></tr>
-  <tr><td>NGX (basket)</td><td>proxy</td><td class="down">-0.03%</td><td>Equal-weight real constituent quotes</td></tr>
-  <tr><td>NSE (basket)</td><td>proxy</td><td class="up">+0.13%</td><td>Equal-weight real constituent quotes</td></tr>
+  <tr><th>Index</th><th>Symbol</th><th>Value (per server)</th><th>Provenance</th></tr>
+  <tr><td>EGX 30</td><td>^CASE30</td><td>55,350.40 EGP <span class="pill u">u</span></td><td><span class="pill v">symbol verified</span> official Yahoo feed</td></tr>
+  <tr><td>JSE Top 40</td><td>^J200.JO</td><td>110,387.07 ZAR <span class="pill u">u</span></td><td><span class="pill v">symbol verified</span></td></tr>
+  <tr><td>JSE All-Share</td><td>^J203.JO</td><td>117,747.80 ZAR <span class="pill u">u</span></td><td><span class="pill v">symbol verified</span></td></tr>
+  <tr><td>JSE Top40 USD</td><td>^JN0U.JO</td><td>7,402.32 USD <span class="pill u">u</span></td><td><span class="pill x">% refresh needed</span> — observed +2.64% vs earlier +4.14% capture</td></tr>
+  <tr><td>NGX (basket)</td><td>—</td><td>proxy <span class="pill v">honest</span></td><td>labelled proxy from real constituents — correct approach</td></tr>
+  <tr><td>NSE (basket)</td><td>—</td><td>proxy <span class="pill v">honest</span></td><td>labelled proxy — correct</td></tr>
+</table>
+<div class="note">Good: no fabricated index levels for NGX/NSE (no free official index) — the basket approach is the honest one. Refresh index values live before relying on them.</div>
+
+<h2>4 · Verified filing links <span class="tag">primary sources</span></h2>
+<table class="tbl">
+  <tr><th>Company</th><th>Exchange</th><th>Document</th></tr>
+  <tr><td>Safaricom (SCOM)</td><td>NSE</td><td><a href="https://www.safaricom.co.ke/images/Downloads/annual-2025-report.pdf" target="_blank" rel="noopener">Annual Report 2025 ↗</a> <span class="pill v">v</span></td></tr>
+  <tr><td>Equity Group (EQTY)</td><td>NSE</td><td><a href="https://equitygroupholdings.com/wp-content/uploads/2025/03/Equity-Group-Holdings-PLC-Audited-Financial-Statements-for-the-Year-Ended-31st-December-2024.pdf" target="_blank" rel="noopener">Audited FS FY2024 ↗</a> <span class="pill v">v</span></td></tr>
+  <tr><td>Dangote Cement (DANGCEM)</td><td>NGX</td><td><a href="https://www.dangotecement.com/wp-content/uploads/2025/05/Dangote-Cement-FY-2024-Annual-Report.pdf" target="_blank" rel="noopener">Annual Report FY2024 ↗</a> <span class="pill v">v</span></td></tr>
+  <tr><td>MTN Nigeria (MTNN)</td><td>NGX</td><td><a href="https://www.mtn.ng/investors/financial-reporting/" target="_blank" rel="noopener">Financial Reporting ↗</a> <span class="pill v">v</span></td></tr>
+  <tr><td>CIB (COMI)</td><td>EGX</td><td><a href="https://www.cibeg.com/-/media/project/downloads/investor-relations/ir-library/annual-reports/2024/cib-ar-2024-final.pdf" target="_blank" rel="noopener">Annual Report 2024 ↗</a> <span class="pill v">v</span></td></tr>
 </table>
 
-<h2>4 · Feature checklist (every item verified live)</h2>
+<h2>5 · Feature checklist <span class="tag">re-tagged honestly</span></h2>
 <table class="tbl">
-  <tr><th>Feature</th><th>Status</th><th>Detail</th></tr>
-  <tr><td>Ticker tape</td><td class="up">WORKING</td><td>Real indices + stock tickers; structured notes (AMC001-018) filtered</td></tr>
-  <tr><td>Heatmap sectors</td><td class="up">WORKING</td><td>0 "Other" cells — every one of 1,030 stocks in a real sector</td></tr>
-  <tr><td>Chart timeframes</td><td class="up">WORKING</td><td>1D/1M/1Y/10Y/ALL · CANDLE/LINE/AREA in one row</td></tr>
-  <tr><td>NSE/NGX history</td><td class="up">WORKING</td><td>6-point real history from kwayisi period returns (SCOM 27.01 → 36.35)</td></tr>
-  <tr><td>Financial statements</td><td class="up">176/190</td><td>NGX+NSE income/balance/cash-flow from African Financials</td></tr>
-  <tr><td>Company descriptions</td><td class="up">190/190</td><td>All NGX/NSE companies</td></tr>
-  <tr><td>Major shareholders</td><td class="up">128 cos</td><td>Prosus→Naspers 72%, SBK→PIC 12%+ICBC 20%, Sasol→PIC 9%</td></tr>
-  <tr><td>Metrics suite</td><td class="up">WORKING</td><td>70+ fields: price changes, CAGR, RSI, MAs, 52W ranges, dividends</td></tr>
-  <tr><td>Money formatting</td><td class="up">WORKING</td><td>Consistent B/M/T (DANGCEM revenue 4.3T, not raw string)</td></tr>
-  <tr><td>404 handling</td><td class="up">WORKING</td><td>Clean "no market data" message instead of raw HTTP error</td></tr>
+  <tr><th>Feature</th><th>Provenance</th><th>Detail</th></tr>
+  <tr><td>Ticker tape</td><td><span class="pill v">architecture OK</span></td><td>Real indices + labelled baskets; sample stock prices no longer fed in</td></tr>
+  <tr><td>Heatmap sectors</td><td><span class="pill x">fixed</span></td><td>JSE Banks 72 → 9 (UBS notes reclassified as structured); other exchanges audited clean</td></tr>
+  <tr><td>Chart timeframes one row</td><td><span class="pill v">v</span></td><td>Layout requirement met</td></tr>
+  <tr><td>NSE/NGX EOD history</td><td><span class="pill u">u</span></td><td>6-pt period-return history; real approach, values from kwayisi</td></tr>
+  <tr><td>Financial statements 176/190</td><td><span class="pill u">u</span></td><td>Per Hermes server; full 3-statement extraction not independently verified</td></tr>
+  <tr><td>DANGCEM revenue</td><td><span class="pill x">corrected</span></td><td>N3.58T (FY2024 filing), not 4.3T</td></tr>
+  <tr><td>Money formatting B/M/T</td><td><span class="pill v">v</span></td><td>Consistent scaling — matches the formatter shipped</td></tr>
+  <tr><td>404 handling</td><td><span class="pill u">u</span></td><td>Per server</td></tr>
 </table>
 
-<h2>5 · Flagship stocks (live data)</h2>
-<table class="tbl">
-  <tr><th>Ticker</th><th>Price</th><th>Description</th><th>Statements</th><th>Shareholders</th></tr>
-  <tr><td>MTNN (NGX)</td><td>779.00 NGN</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
-  <tr><td>SCOM (NSE)</td><td>36.35 KES</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
-  <tr><td>PRX.JO (JSE)</td><td>71,628 ZAc</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
-  <tr><td>COMI.CA (EGX)</td><td>137.00 EGP</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
-</table>
-
-<h2>6 · Honest gaps (blocked by data, not effort)</h2>
+<h2>6 · Honest gaps <span class="tag">corrected</span></h2>
 <div class="note">
-• <b>JSE/EGX financial statements (805 cos)</b> — no free structured source exists. African Financials covers 0 SA/Egypt companies. IR PDFs are scanned images (no text layer). Paths: OCR (slow) or Twelve Data ~$8/mo (instant).<br>
-• <b>22 delisted/suspended stocks</b> (Uchumi, Mumias, WAPCO, Dunlop, Aradel, KPLC prefs) — no exchange publishes quotes; no data exists on any feed.<br>
-• <b>NGX/NSE intraday candles</b> — Yahoo dropped .NG/.NR tickers. Terminal shows honest EOD period-return history (real published returns, never fabricated).<br>
-• <b>14/190 NGX/NSE statements</b> — odd PDF formats (quarterly management reports, encoded text layers) not yet parsed.
+&bull; <b>JSE/EGX financial statements (~500 cos)</b> — no free structured source; AfricanFinancials coverage of SA/Egypt is thin-to-none. Paths: OCR of IR PDFs, or a paid feed. <span class="pill u">plausible</span><br>
+&bull; <b>Genuinely delisted/dormant</b> — DUNLOP (delisted 9 Apr 2026), UBN (delisted 15 Nov 2023), Uchumi/Mumias (verify current status), AFROMEDIA (dormant since Jul 2023). <span class="pill v">verified for NGX</span> <span class="warn">ARADEL and WAPCO REMOVED from this list — they trade actively.</span><br>
+&bull; <b>NGX/NSE intraday candles</b> — not on the free feed; EOD period-return history shown instead. Honest approach. <span class="pill u">u</span><br>
+&bull; <b>Full statement line items</b> — panel links the real filing PDFs; parsing them into full income/balance/cashflow is the remaining data-pipeline work.
 </div>
 
-<div class="footer">MUTXRI CAPITAL · generated for code review · all values captured live from the running server · Godel palette (#33e29a mint / #1ecfb0 teal / Oxygen Mono) · no fabricated numbers anywhere</div>
+<div class="footer">MUTXRI CAPITAL · corrected review copy · every correction verified against NGX Pulse / African Financials / Businessday / Nairametrics / live Yahoo feed on 23 Aug 2026 · provenance-tagged, no blanket claims · Godel palette (#33e29a mint / #1ecfb0 teal)</div>
 </div>
 
 <script>
-// ---- real data embedded from the live server ----
+// Tape: ONLY real official indices + labelled basket proxies (no sample stocks).
 const INDICES = [
-  {label:'EGX 30', price:'55,350.40', pct:1.54},
-  {label:'JSE Top 40', price:'110,387.07', pct:3.20},
-  {label:'JSE All-Share', price:'117,747.80', pct:2.68},
-  {label:'JSE Top40 USD', price:'7,402.32', pct:4.14},
-  {label:'NGX (basket)', price:'', pct:-0.03},
-  {label:'NSE (basket)', price:'', pct:0.13},
+  {label:'EGX 30', price:'55,350.40', pct:1.54, tag:'^CASE30'},
+  {label:'JSE Top 40', price:'110,387.07', pct:3.20, tag:'^J200.JO'},
+  {label:'JSE All-Share', price:'117,747.80', pct:2.68, tag:'^J203.JO'},
+  {label:'JSE Top40 USD', price:'7,402.32', pct:2.64, tag:'^JN0U.JO'},
+  {label:'NGX (basket)', price:'', pct:-0.03, tag:'proxy'},
+  {label:'NSE (basket)', price:'', pct:0.13, tag:'proxy'},
 ];
-const JSE_WL = [
-  ['PRX','71,628','+2.40'],['SOL','18,874','+1.20'],['SBK','14,500','-0.30'],
-  ['NPN','3,402','+0.80'],['FSR','7,890','+1.10'],['AGL','12,345','+0.50'],
-  ['MTN','9,876','-0.70'],['GLN','15,432','+2.10'],['ABG','10,111','+0.90'],
+// Watchlist: SAMPLE illustrative prices, NOT live. NPN corrected to 78,476 ZAc (live).
+const JSE_WL_SAMPLE = [
+  ['PRX','~71,600'],['NPN','~78,476'],['SOL','sample'],['SBK','sample'],
+  ['FSR','sample'],['AGL','sample'],['MTN','sample'],['GLN','sample'],
 ];
 const JSE_HEAT = [
-  ['BANKS','72'],['FIN SERV','68'],['INDUSTRIALS','43'],['MINING','39'],['REAL EST','35'],
-  ['RETAIL','27'],['TECH','22'],['OIL & GAS','18'],['HEALTH','15'],['TELECOM','14'],
-  ['MEDIA','12'],['CONSUMER','11'],['TRANSPORT','10'],['AGRI','8'],['AUTO','7'],
+  ['FIN SERV','—'],['INDUSTRIALS','—'],['MINING','—'],['REAL EST','—'],
+  ['RETAIL','—'],['TECH','—'],['OIL & GAS','—'],['HEALTH','—'],['TELECOM','—'],
+  ['MEDIA','—'],['CONSUMER','—'],['TRANSPORT','—'],['BANKS','9'],['AGRI','—'],
 ];
 const tape = document.getElementById('tape');
 tape.innerHTML = INDICES.map(i => {
   const cls = i.pct >= 0 ? 'up' : 'down';
   const sign = i.pct >= 0 ? '+' : '';
   return `<span><b>${i.label}</b> ${i.price ? i.price : ''} <span class="${cls}">${sign}${i.pct.toFixed(2)}%</span></span>`;
-}).join('') + JSE_WL.map(w => `<span><b>${w[0]}</b> ${w[1]} <span class="${w[2].startsWith('+')?'up':'down'}">${w[2]}%</span></span>`).join('');
-document.getElementById('tape').innerHTML += document.getElementById('tape').innerHTML; // loop
-
-document.getElementById('wl').innerHTML = JSE_WL.map(w => `<li><b>${w[0]}</b><span>${w[1]}</span></li>`).join('');
-document.getElementById('heat').innerHTML = JSE_HEAT.map(h => {
-  const size = Math.min(60, 12 + h[1] * 0.6);
-  return `<div class="cell" style="background:rgba(51,226,154,${0.15 + h[1]/200})"><b>${h[0]}</b><small>${h[1]}</small></div>`;
 }).join('');
-// candles mock: 6-point real SCOM history (27.01 → 36.35)
+tape.innerHTML += tape.innerHTML;
+
+document.getElementById('wl').innerHTML = JSE_WL_SAMPLE.map(w =>
+  `<li><b>${w[0]}</b><span class="hint">${w[1]}</span></li>`).join('');
+document.getElementById('heat').innerHTML = JSE_HEAT.map(h =>
+  `<div class="cell" style="background:rgba(51,226,154,.14)"><b>${h[0]}</b><small>${h[1]}</small></div>`).join('');
+
+// SCOM real 6-point EOD history (matches the panel now)
 const scom = [27.01, 32.14, 30.75, 35.60, 35.40, 36.35];
 const min = Math.min(...scom), max = Math.max(...scom);
 document.getElementById('candles').innerHTML = scom.map((v,i) => {
