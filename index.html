@@ -253,6 +253,19 @@ function buildTapeFromListing(ex){
   const syms = (listing[ex]||[]).filter(s => (s.instrument !== 'structured') && (s.sym || s.ticker)).slice(0, 40);
   const items = syms.map(tapeItem).filter(Boolean).join('');
   $('tape').innerHTML = items + items;
+  // real indices on top (EGX 30, JSE Top 40, JSE All-Share + NGX/NSE baskets)
+  fetch('/api/indices').then(r => r.json()).then(d => {
+    if(!d || !d.entries || !d.entries.length) return;
+    const ix = d.entries.map(e => {
+      const cls = e.changePct >= 0 ? 'up' : 'down';
+      const sign = e.changePct >= 0 ? '+' : '';
+      const pct = e.changePct != null ? sign + e.changePct.toFixed(2) + '%' : '—';
+      const price = e.price != null ? e.price.toLocaleString(undefined,{maximumFractionDigits:2}) : '';
+      const tag = e.kind === 'basket' ? ' (basket)' : '';
+      return `<span class="tape-item" style="color:var(--tx2)"><b style="color:var(--acc)">${esc(e.label)}${esc(tag)}</b> <span style="color:#fff">${esc(price)}</span> <span class="${cls}">${esc(pct)}</span></span>`;
+    }).join('');
+    $('tape').innerHTML = ix + (items + items);
+  }).catch(() => {});
 }
 
 // ===== Search =====
@@ -315,7 +328,7 @@ function loadMetrics(sym, ex, name){
       }
 
       const groups = [
-        ['IDENTITY', [['Exchange', d.exchange], ['Country', d.country], ['Currency', d.currency], ['Sector', d.sector], ['Industry', d.industry], ['Founded', d.founded], ['Employees', d.employees != null ? Number(d.employees).toLocaleString() : null], ['Revenue', d.revenue], ['ISIN', d.isin]]],
+        ['IDENTITY', [['Exchange', d.exchange], ['Country', d.country], ['Currency', d.currency], ['Sector', d.sector], ['Industry', d.industry], ['Founded', d.founded], ['Employees', d.employees != null ? Number(d.employees).toLocaleString() : null], ['Revenue', d.revenue != null ? fmtMoney(d.revenue) : null], ['ISIN', d.isin]]],
         ['PRICE', [['Stock Price', d.stock_price], ['Open', d.open_price], ['High', d.high_price], ['Low', d.low_price], ['Previous Close', d.previous_close], ['Volume', d.volume != null ? Number(d.volume).toLocaleString() : null], ['Avg Volume (20d)', d.avg_volume != null ? Number(d.avg_volume).toLocaleString() : null], ['Dollar Volume', d.dollar_volume != null ? Number(d.dollar_volume).toLocaleString(undefined,{maximumFractionDigits:0}) : null], ['Price Date', d.stock_price_date ? new Date(d.stock_price_date).toISOString().slice(0,10) : null]]],
         ['PRICE CHANGE', [['1D', d.price_change_1D], ['1W', d.price_change_1W], ['1M', d.price_change_1M], ['3M', d.price_change_3M], ['6M', d.price_change_6M], ['YTD', d.price_change_YTD], ['1Y', d.price_change_1Y], ['3Y', d.price_change_3Y], ['5Y', d.price_change_5Y], ['10Y', d.price_change_10Y], ['15Y', d.price_change_15Y], ['20Y', d.price_change_20Y]]],
         ['TOTAL RETURN', [['1W', d.total_return_1W], ['1M', d.total_return_1M], ['3M', d.total_return_3M], ['6M', d.total_return_6M], ['YTD', d.total_return_YTD], ['1Y', d.total_return_1Y], ['3Y', d.total_return_3Y], ['5Y', d.total_return_5Y], ['10Y', d.total_return_10Y], ['15Y', d.total_return_15Y], ['20Y', d.total_return_20Y]]],
@@ -383,6 +396,19 @@ let currentChartSym = null;
 let currentChartData = null;
 let chartObj = null;
 let chartType = 'candle';
+
+function fmtMoney(v){
+  // consistent money display: 12.3B / 950.0M / 4.3T - honest dash when missing
+  if(v == null || v === '' || isNaN(v)) return '—';
+  const f = Number(v);
+  const sign = f < 0 ? '-' : '';
+  const a = Math.abs(f);
+  if(a >= 1e12) return sign + (a/1e12).toFixed(1) + 'T';
+  if(a >= 1e9) return sign + (a/1e9).toFixed(1) + 'B';
+  if(a >= 1e6) return sign + (a/1e6).toFixed(1) + 'M';
+  if(a >= 1e3) return sign + (a/1e3).toFixed(1) + 'K';
+  return sign + a.toFixed(1);
+}
 
 function renderStockInfo(d){
   const price = d.regularMarketPrice != null ? d.regularMarketPrice.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';

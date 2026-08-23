@@ -646,10 +646,25 @@ def kwayisi_history(sym, ex):
     each period return: price_at_period_start = price / (1 + return).
     Returns list of {time, open, high, low, close, volume} ascending, or []."""
     import urllib.error
-    try:
-        ex_slug = "nse" if ex == "NSE" else "ngx"
-        t = http_get(f"https://afx.kwayisi.org/{ex_slug}/{sym.lower()}/", timeout=20)
-    except Exception:
+    # fast-fail: kwayisi down should not hang the request - enforce a HARD
+    # deadline via a thread (socket timeout is ignored on Windows blackholes)
+    ck = "kw:" + ex + ":" + sym.lower()
+    qc = cache_get(ck)
+    if qc:
+        return json.loads(qc)
+    import threading
+    _res = {}
+    def _fetch():
+        try:
+            ex_slug = "nse" if ex == "NSE" else "ngx"
+            _res["t"] = http_get(f"https://afx.kwayisi.org/{ex_slug}/{sym.lower()}/", timeout=6)
+        except Exception:
+            _res["t"] = None
+    th = threading.Thread(target=_fetch, daemon=True)
+    th.start()
+    th.join(6.5)
+    t = _res.get("t")
+    if not t:
         return []
     txt = re.sub(r"<[^>]+>", "|", t)
     txt = re.sub(r"\|+", "|", txt)
@@ -701,6 +716,7 @@ def kwayisi_history(sym, ex):
             "low": round(min(p, price) * 0.999, 4), "close": round(p, 4),
             "volume": 0,
         })
+    cache_put(ck, 1800, json.dumps(bars))
     return bars
 
 
@@ -795,10 +811,14 @@ class Handler(SimpleHTTPRequestHandler):
             # that changes with the time range) over the single EOD snapshot
             if d.get("eod") and _is_af_ticker(sym):
                 for exx in ("NGX", "NSE"):
-                    kb = kwayisi_history(sym.split(".")[0], exx)
-                    if kb:
-                        d["bars"] = kb
-                        d["kwayisi"] = True
+                    if any(str(s.get("ticker") or "").upper() == sym.split(".")[0].upper() or
+                           str(s.get("code") or "").upper() == sym.split(".")[0].upper() or
+                           str(s.get("sym") or "").upper() == sym.split(".")[0].upper()
+                           for s in get_listing(exx)[:5]):
+                        kb = kwayisi_history(sym.split(".")[0], exx)
+                        if kb:
+                            d["bars"] = kb
+                            d["kwayisi"] = True
                         break
             # currency fallback: Yahoo ISIN syms return null currency;
             # apply the listing's own currency (EGP/KES/NGN/ZAc)
@@ -879,12 +899,12 @@ class Handler(SimpleHTTPRequestHandler):
                 d = eod_bars(sym)
             # NGX/NSE: real multi-point history from kwayisi when available
             if d and d.get("eod") and _is_af_ticker(sym):
-                for exx in ("NGX", "NSE"):
-                    kb = kwayisi_history(sym.split(".")[0], exx)
+                # only try the exchange the user is viewing (kwayisi is per-exchange)
+                if ex in ("NGX", "NSE"):
+                    kb = kwayisi_history(sym.split(".")[0], ex)
                     if kb:
                         d["bars"] = kb
                         d["kwayisi"] = True
-                        break
             # NGX/NSE bare tickers: Yahoo may resolve to a WRONG instrument;
             # prefer the EOD listing data ONLY when the Yahoo currency clearly
             # mismatches the local currency (USD for KES). Real history in the
@@ -1131,6 +1151,40 @@ class Handler(SimpleHTTPRequestHandler):
             self.json(rates())
         elif path.path == "/api/health":
             self.json({"ok": True, "time": time.time()})
+        elif path.path == "/api/indices":
+            # real market indices tape (EGX 30, JSE Top 40, JSE All-Share) +
+            # NGX/NSE basket proxies from real constituent quotes
+            try:
+                import indices_api
+                def _idx_quote(symbols):
+                    out = {}
+                    for s in symbols:
+                        try:
+                            # use the snap cache first (fast), else live quote
+                            qc = cache_get("snap:" + s)
+                            q = json.loads(qc) if qc else quote_one(s)
+                            if q and q.get("price") is not None:
+                                out[s] = {"regularMarketPrice": q["price"],
+                                          "regularMarketChange": q.get("change"),
+                                          "regularMarketChangePercent": q.get("changePct"),
+                                          "regularMarketPreviousClose": q.get("previousClose"),
+                                          "marketState": q.get("marketState")}
+                        except Exception:
+                            continue
+                    return out
+                # basket constituents from live listing quotes
+                baskets = {}
+                for exx in ("NGX", "NSE"):
+                    cons = []
+                    for s in get_listing(exx)[:40]:
+                        if s.get("price") is not None and s.get("chgPct") is not None:
+                            cons.append({"regularMarketPrice": s["price"],
+                                         "regularMarketChangePercent": s.get("chgPct")})
+                    if len(cons) >= 5:
+                        baskets[exx] = cons
+                self.json(indices_api.build_tape(_idx_quote, basket_constituents=baskets))
+            except Exception as e:
+                self.json({"asOf": time.time(), "entries": [], "note": "indices unavailable: %s" % str(e)[:80]})
         else:
             super().do_GET()
 
