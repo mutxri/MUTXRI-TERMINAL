@@ -788,6 +788,21 @@ def eod_bars(sym):
     return None
 
 # ---------------- HTTP handler ----------------
+def _sanitize(obj):
+    """Recursively replace NaN/Infinity with None (invalid JSON -> null)."""
+    import math
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    if isinstance(obj, tuple):
+        return [_sanitize(v) for v in obj]
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+    return obj
+
+
 class Handler(SimpleHTTPRequestHandler):
     def log_message(self, *a):  # quiet
         pass
@@ -1247,7 +1262,13 @@ class Handler(SimpleHTTPRequestHandler):
             super().do_GET()
 
     def json(self, obj):
-        body = json.dumps(obj).encode()
+        # strict JSON: NaN/Infinity are invalid JSON and crash the browser's
+        # res.json() - sanitize to null so a bad number can never blank an
+        # entire listing/watchlist again
+        try:
+            body = json.dumps(obj, allow_nan=False).encode()
+        except (ValueError, TypeError):
+            body = json.dumps(_sanitize(obj)).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
