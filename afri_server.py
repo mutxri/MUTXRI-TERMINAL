@@ -752,6 +752,9 @@ class Handler(SimpleHTTPRequestHandler):
                         "url": ((af or {}).get("statements") or {}).get("url"),
                         "data": st,
                     }
+                    # real valuation/quality ratios from statement + price
+                    ratios = metrics_mod.compute_ratios(st, out.get("stock_price"))
+                    out.update(ratios)
                 own = ownership_for(ex, sym, name)
                 if own:
                     out["ownership"] = own

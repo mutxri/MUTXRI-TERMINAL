@@ -1,4 +1,4 @@
-# AFRI Terminal — African Markets Research Terminal
+# MUTXRI CAPITAL — African Markets Research Terminal
 
 A Godel-Terminal-style financial research terminal for African markets: **NSE Nairobi (Kenya), NGX Lagos (Nigeria), JSE Johannesburg (South Africa), EGX Cairo (Egypt)**.
 

@@ -34,6 +34,49 @@ def _price_on(bars, ts):
     return bars[0]["close"]
 
 
+def compute_ratios(st, price):
+    """Financial ratios from statement data + price. Real figures only -
+    None when the underlying statement field is absent."""
+    r = {}
+    if not st:
+        return r
+    rev = st.get("revenue")
+    gp = st.get("gross_profit")
+    op = st.get("operating_profit")
+    pat = st.get("profit_after_tax")
+    eps = st.get("eps")
+    ta = st.get("total_assets")
+    tl = st.get("total_liabilities")
+    cash = st.get("cash_and_equivalents")
+    ocf = st.get("operating_cash_flow")
+    # equity = assets - liabilities (accounting identity)
+    eq = (ta - tl) if (ta is not None and tl is not None) else None
+
+    if rev and rev != 0:
+        if gp is not None:
+            r["gross_margin"] = round(gp / rev * 100, 2)
+        if op is not None:
+            r["operating_margin"] = round(op / rev * 100, 2)
+        if pat is not None:
+            r["profit_margin"] = round(pat / rev * 100, 2)
+        if ocf is not None:
+            r["fcf_margin"] = round(ocf / rev * 100, 2)
+    if price and eps:
+        r["pe_ratio"] = round(price / eps, 2)
+        r["earnings_yield"] = round(eps / price * 100, 2)
+    if pat is not None and ta:
+        r["return_on_assets"] = round(pat / ta * 100, 2)
+    if pat is not None and eq:
+        r["return_on_equity"] = round(pat / eq * 100, 2)
+    if eq and eq != 0:
+        if tl is not None:
+            r["debt_to_equity"] = round(tl / eq, 2)
+        r["shareholders_equity"] = eq
+    if cash is not None:
+        r["total_cash"] = cash
+    return r
+
+
 def compute_metrics(bars, dividends=None, meta=None):
     """bars: list of {time, open, high, low, close, volume} (daily, ascending).
     dividends: list of {amount, date} (optional).

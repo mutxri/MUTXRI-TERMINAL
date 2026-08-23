@@ -52,6 +52,18 @@ def _find_amount(txt, patterns):
             return parse_amount(m.group(0))
     return None
 
+
+def _find_amount_plain(txt, patterns):
+    """Like _find_amount but NEVER applies a million/billion multiplier
+    (per-share values: EPS, DPS). Returns the raw number."""
+    for p in patterns:
+        m = re.search(p, txt, re.I)
+        if m:
+            # strip currency prefix and scale suffix: 'N0.39' -> 0.39
+            digits = re.sub(r"[^\d.]", "", m.group(1))
+            return to_num(digits)
+    return None
+
 def extract_statements(txt):
     """Parse the narrative statements from an AF document page text."""
     st = {}
@@ -75,8 +87,8 @@ def extract_statements(txt):
     st["gross_profit"] = _find_amount(isec, [rf"[Gg]ross profit (?:of|was|reached|stood at|jumped to|rose to|grew to|climbed to)[^,]{{0,40}}?({N})"])
     st["operating_profit"] = _find_amount(isec, [rf"[Oo]perating profit {VERBS}[^,]{{0,40}}?({N})"])
     st["profit_after_tax"] = _find_amount(isec, [rf"[Pp]rofit (?:for the period|after tax|for the year|attributable)[^,]{{0,60}}?(?:was|stood at|reached|jumped|rocketed|rose|amounted to|skyrocketed|surged)[^,]{{0,40}}?({N})"])
-    st["eps"] = _find_amount(isec, [rf"[Bb]asic earnings per share \(EPS\) of ({N})",
-                                    rf"[Ee]arnings per share (?:of|was) ({N})"])
+    st["eps"] = _find_amount_plain(isec, [rf"[Bb]asic earnings per share \(EPS\) of ({N})",
+                                          rf"[Ee]arnings per share (?:of|was) ({N})"])
     # ---- Balance sheet ----
     bsec = ""
     i = txt.find("Condensed Statement of Financial Position")
