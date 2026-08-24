@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MUTXRI CAPITAL</title>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="tickerfix.js"></script>
 <style>
   :root{
     --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
@@ -201,7 +202,7 @@ function renderWatchlist(filter){
     const cur = s.currency || (q.currency || '');
     const pr = price != null ? Number(price).toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
     const cls = chg === null || chg === undefined ? '' : (chg >= 0 ? 'up' : 'down');
-    const sign = chg === null || chg === undefined ? '' : (chg >= 0 ? '+' : '') + Number(chg).toFixed(2) + '%';
+    const sign = chg === null || chg === undefined ? '' : TickerFix.fmtPct(chg);
     const sym = stockTicker(s);
     const volTxt = vol != null ? Number(vol).toLocaleString() : '';
     return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
@@ -260,9 +261,9 @@ function tapeItem(s){
   const chg = q.changePct != null ? q.changePct : s.chgPct;
   if(price == null) return '';
   const tkr = stockTicker(s);
-  const cls = chg >= 0 ? 'up' : 'down';
+  const cls = TickerFix.pctClass(chg);
   const sign = chg >= 0 ? '+' : '';
-  return `<span class="tape-item"><span class="sym">${esc(tkr)}</span><span class="pr">${Number(price).toLocaleString(undefined,{maximumFractionDigits:2})}</span><span class="chg ${cls}">${sign}${Number(chg).toFixed(2)}%</span></span>`;
+  return `<span class="tape-item"><span class="sym">${esc(tkr)}</span><span class="pr">${Number(price).toLocaleString(undefined,{maximumFractionDigits:2})}</span><span class="chg ${cls}">${TickerFix.fmtPct(chg)}</span></span>`;
 }
 function buildTapeFromListing(ex){
   // instant: use the listing's own price data (EOD) - no network wait
@@ -271,12 +272,14 @@ function buildTapeFromListing(ex){
   const items = syms.map(tapeItem).filter(Boolean).join('');
   $('tape').innerHTML = items + items;
   // real indices on top (EGX 30, JSE Top 40, JSE All-Share + NGX/NSE baskets)
-  fetch('static_data/indices.json').then(r => r.json()).then(d => {
+  TickerFix.fetchJSONSafe('static_data/indices.json').then(res => {
+    if(!res.ok) return;
+    const d = res.data;
     if(!d || !d.entries || !d.entries.length) return;
     const ix = d.entries.map(e => {
       const cls = e.changePct >= 0 ? 'up' : 'down';
       const sign = e.changePct >= 0 ? '+' : '';
-      const pct = e.changePct != null ? sign + e.changePct.toFixed(2) + '%' : '—';
+      const pct = e.changePct != null ? TickerFix.fmtPct(e.changePct) : '—';
       const price = e.price != null ? e.price.toLocaleString(undefined,{maximumFractionDigits:2}) : '';
       const tag = e.kind === 'basket' ? ' (basket)' : '';
       return `<span class="tape-item" style="color:var(--tx2)"><b style="color:var(--acc)">${esc(e.label)}${esc(tag)}</b> <span style="color:#fff">${esc(price)}</span> <span class="${cls}">${esc(pct)}</span></span>`;
