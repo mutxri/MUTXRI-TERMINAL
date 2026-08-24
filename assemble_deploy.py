@@ -30,11 +30,8 @@ shutil.copy(os.path.join(BASE, "static_data", "afri_screener_static.html"),
             os.path.join(DEPLOY, "features", "panels", "afri_screener.html"))
 # copy the rest of the panels (static snapshot versions where they exist,
 # otherwise originals - they degrade gracefully to SAMPLE data)
-STATIC_PANELS = ["afri_bnd.html", "afri_reg.html", "afri_fx.html", "afri_glco.html", "afri_ratings.html", "afri_tas.html"]
-for p in ["afri_financials.html"]:
-    src = os.path.join(BASE, "features", "panels", p)
-    if os.path.exists(src):
-        shutil.copy(src, os.path.join(DEPLOY, "features", "panels", p))
+STATIC_PANELS = ["afri_bnd.html", "afri_reg.html", "afri_fx.html", "afri_glco.html", "afri_ratings.html", "afri_tas.html", "afri_financials.html"]
+# (all panels now have static snapshot versions; nothing extra to copy)
 # static snapshot panels read static_data/*.json
 for p in STATIC_PANELS:
     src = os.path.join(BASE, "static_data", p)
