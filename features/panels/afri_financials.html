@@ -93,6 +93,7 @@
 <script>
 (function(){
   "use strict";
+  window.STATIC_MODE = true;
   var state={ticker:"SCOM",statement:"income",period:"annual"};
 
   // ---- VERIFIED REAL FILINGS (links only, no fabricated numbers) ----------
@@ -146,6 +147,26 @@
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
 
   function filingsFor(t){return FILINGS[t]||null;}
+
+
+  function renderFromSnap(snap){
+    // find the company: match ticker exactly, or slug tail
+    var tl=state.ticker.toUpperCase(), key=null, rec=null;
+    for(var k in snap){ var c=snap[k];
+      if(c.ticker===tl || c.slug.split("-").pop().toUpperCase()===tl){ key=k; rec=c; break; }
+      if(c.name && c.name.toUpperCase().indexOf(tl)>=0){ key=k; rec=c; break; }
+    }
+    if(!rec){ renderScaffold({filings:[]}); setSrc("no statement in snapshot for "+state.ticker); return; }
+    // build a fake /api/financials response from the snapshot data
+    var rows=[];
+    var map={revenue:["revenue","Revenue"],gross_profit:["grossProfit","Gross Profit"],
+             operating_profit:["operatingProfit","Operating Profit (EBIT)"],
+             profit_after_tax:["netProfit","Net Profit"]};
+    for(var f in map){ if(rec.data[f]!=null) rows.push({key:map[f][0],label:map[f][1],values:[rec.data[f]]}); }
+    renderScaffold({name:rec.name,currency:rec.currency,values:rows.length?rows:null});
+    setSrc("FILED (static snapshot)");
+  }
+  function setSrc(s){ var el=document.getElementById("src"); if(el) el.textContent=s; }
 
   function renderScaffold(rec){
     // Always renders the statement scaffold with dashes (no fabricated numbers)
@@ -217,6 +238,15 @@
     // (NEVER fabricated statement numbers)
     var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
             "&statement="+state.statement+"&period="+state.period;
+    if(window.STATIC_MODE){
+      // static snapshot: look up the ticker in the bundled dataset
+      var snap=window.__FIN_SNAP;
+      if(!snap){
+        return fetch("../../static_data/financials_all.json").then(function(r){return r.json();})
+          .then(function(d){window.__FIN_SNAP=d;renderFromSnap(d);})
+          .catch(function(){renderScaffold({filings:[]});});
+      } else { renderFromSnap(snap); return; }
+    }
     fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
       var fil=filingsFor(state.ticker)||{};
       if(!d||d.available===false){
