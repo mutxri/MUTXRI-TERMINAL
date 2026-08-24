@@ -258,12 +258,73 @@ def fetch_news(limit=40):
     cache_put(key, TTL["news"], json.dumps(out))
     return out
 
+# ---------------- MongoDB Atlas data layer (optional; falls back to local JSON) ----------------
+# The hosted backend reads the dataset from MongoDB Atlas; local dev keeps using
+# the checked-in JSON files. Set MONGODB_URI to enable, leave empty for local.
+_MONGO_URI = os.environ.get("MONGODB_URI", "")
+_mongo_db = None
+_mongo_ok = False
+try:
+    if _MONGO_URI:
+        import urllib.parse as _up
+        from pymongo import MongoClient as _MC
+        _mongo_client = _MC(_MONGO_URI, serverSelectionTimeoutMS=8000)
+        _mongo_db = _mongo_client["terminal"]
+        _mongo_client.admin.command("ping")
+        _mongo_ok = True
+        print("MongoDB Atlas connected")
+    else:
+        print("MongoDB disabled (no MONGODB_URI) - using local JSON")
+except Exception as _e:
+    _mongo_ok = False
+    print("MongoDB unavailable:", str(_e)[:80])
+
+def _mongo_listing(ex):
+    """Load listings for an exchange from Mongo if available."""
+    if not _mongo_ok:
+        return None
+    try:
+        coll = _mongo_db[f"stocks_{ex}"]
+        docs = list(coll.find({}))
+        if not docs:
+            return None
+        out = []
+        for d in docs:
+            d.pop("_id", None)
+            out.append(d)
+        return out
+    except Exception:
+        return None
+
+def _mongo_fundamentals():
+    """Load fundamentals map from Mongo if available."""
+    if not _mongo_ok:
+        return None
+    try:
+        coll = _mongo_db["fundamentals"]
+        out = {}
+        for d in coll.find({}):
+            key = d.pop("_id", None)
+            if key:
+                out[key] = d
+        return out or None
+    except Exception:
+        return None
+
 # ---------------- Full listings (stocks.json) ----------------
 try:
     with open("stocks.json", encoding="utf-8") as f:
         _LISTINGS = json.load(f)["stocks"]
 except Exception:
     _LISTINGS = {}
+
+# prefer Mongo if it has fresher data (hosted backend)
+_mongo_listings = {ex: _mongo_listing(ex) for ex in ("JSE", "EGX", "NGX", "NSE")}
+if _mongo_ok and any(_mongo_listings.values()):
+    for ex, docs in _mongo_listings.items():
+        if docs:
+            _LISTINGS[ex] = docs
+    print("Listings loaded from MongoDB Atlas")
 
 def get_listing(ex):
     return _LISTINGS.get(ex, [])
@@ -391,6 +452,12 @@ try:
         _FUND = json.load(f).get("companies", {})
 except Exception:
     _FUND = {}
+
+# prefer Mongo fundamentals (hosted backend reads the cloud dataset)
+_mf = _mongo_fundamentals()
+if _mf:
+    _FUND = _mf
+    print("Fundamentals loaded from MongoDB Atlas")
 
 # IR-crawled statements (sidecar from mass_ir_crawler) - merged on top of AF data
 try:
