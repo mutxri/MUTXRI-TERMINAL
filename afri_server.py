@@ -19,7 +19,8 @@ except Exception as _e:
     _FEATURES_OK = False
     _FEATURES_ERR = str(_e)
 
-HOST, PORT = "127.0.0.1", 8081
+HOST, PORT = "0.0.0.0", int(os.environ.get("PORT", "8081"))
+ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
 YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={rng}&interval={ivl}"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
@@ -1259,6 +1260,8 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self.json({"asOf": time.time(), "entries": [], "note": "indices unavailable: %s" % str(e)[:80]})
         else:
+            # static files (index.html, panels, static_data) - add CORS so the
+            # GitHub Pages origin can load them cross-origin if needed
             super().do_GET()
 
     def json(self, obj):
@@ -1271,10 +1274,20 @@ class Handler(SimpleHTTPRequestHandler):
             body = json.dumps(_sanitize(obj)).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
+        self.send_header("Vary", "Origin")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        # CORS preflight (browsers send this before cross-origin GETs)
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Vary", "Origin")
+        self.end_headers()
 
 if __name__ == "__main__":
     print(f"AFRI Terminal server on http://{HOST}:{PORT}/  (Ctrl+C to stop)")

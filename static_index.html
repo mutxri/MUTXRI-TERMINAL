@@ -118,6 +118,22 @@
 </footer>
 
 <script>
+// ===== STATIC BUILD SHIM (GitHub Pages) =====
+// Live endpoints (chart/metrics/quotes) are NOT available in the static
+// snapshot build - respond honestly instead of erroring.
+const __origFetch = window.fetch;
+window.fetch = function(url, opts){
+  const u = String(url);
+  if(u.indexOf('/api/chart') === 0 || u.indexOf('/api/metrics') === 0 || u.indexOf('/api/quotes') === 0){
+    return Promise.resolve(new Response(JSON.stringify({
+      error: 'static snapshot build: live market data not available on GitHub Pages',
+      bars: [], rows: [], noData: true
+    }), {status: 200, headers: {'Content-Type': 'application/json'}}));
+  }
+  return __origFetch(url, opts);
+};
+// ===== END STATIC SHIM =====
+
 // ===== BACKEND CONFIG (GitHub Pages deployment) =====
 // Empty string = local/snapshot mode. Set to deployed backend URL (NO trailing
 // slash) to route all /api/* calls to the live server.
@@ -172,7 +188,7 @@ PANELS.forEach((p, i) => {
 // ===== Load listing =====
 async function loadListing(ex){
   try{
-    const r = await fetch('/api/listing?exchange=' + ex);
+    const r = await fetch('static_data/listing_' + ex + '.json');
     const d = await r.json();
     listing[ex] = d.stocks || [];
     $('wlEx').textContent = ex + ' · ' + listing[ex].length;
@@ -270,7 +286,7 @@ function buildTapeFromListing(ex){
   const items = syms.map(tapeItem).filter(Boolean).join('');
   $('tape').innerHTML = items + items;
   // real indices on top (EGX 30, JSE Top 40, JSE All-Share + NGX/NSE baskets)
-  fetch('/api/indices').then(r => r.json()).then(d => {
+  fetch('static_data/indices.json').then(r => r.json()).then(d => {
     if(!d || !d.entries || !d.entries.length) return;
     const ix = d.entries.map(e => {
       const cls = e.changePct >= 0 ? 'up' : 'down';
