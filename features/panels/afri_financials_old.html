@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MUTXRI CAPITAL - Financial Statements</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--acc2:#1ecfb0;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--tx);font-family:var(--ui);font-size:13px;padding:14px}
+  h1{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--acc);text-transform:uppercase;margin-bottom:12px}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .toolbar input{background:var(--bg4);border:1px solid var(--line2);border-radius:2px;color:var(--tx);font-family:var(--mono);font-size:12px;padding:6px 10px;outline:none;min-width:200px}
+  .toolbar button{background:var(--bg3);border:1px solid var(--line2);border-radius:2px;color:var(--tx2);font-family:var(--mono);font-size:11px;padding:6px 14px;cursor:pointer;letter-spacing:.05em}
+  .toolbar button:hover{color:var(--acc);border-color:var(--acc)}
+  .status{font-family:var(--mono);font-size:10px;color:var(--tx3)}
+  .status b{color:var(--acc)}
+  .company{margin-bottom:14px}
+  .company .nm{font-size:16px;font-weight:700;color:var(--tx)}
+  .company .desc{font-size:11px;color:var(--tx2);line-height:1.55;margin-top:4px;max-width:900px}
+  .stmt{border:1px solid var(--line2);border-radius:3px;margin-bottom:12px;overflow:hidden}
+  .stmt-head{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg3);border-bottom:1px solid var(--line2);font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.06em}
+  .stmt-head .period{color:var(--tx3);font-size:10px}
+  .stmt table{width:100%;border-collapse:collapse}
+  .stmt td{padding:6px 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px}
+  .stmt td:first-child{color:var(--tx2)}
+  .stmt td:last-child{text-align:right;color:var(--tx)}
+  .stmt tr:last-child td{border-bottom:none}
+  a{color:var(--acc2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .empty{color:var(--tx3);font-family:var(--mono);font-size:12px;padding:20px;border:1px dashed var(--line2);border-radius:3px}
+  .fmt{color:var(--tx3);font-size:9px}
+</style>
+</head>
+<body>
+<h1>Financial Statements</h1>
+<div class="toolbar">
+  <input id="q" placeholder="search ticker or company…" autocomplete="off">
+  <button id="go">VIEW</button>
+  <span class="status" id="status">enter a ticker to see its financial statements</span>
+</div>
+<div id="out"><div class="empty">Enter a ticker (e.g. MTNN, DANGCEM, SCOM, SOL.JO, COMI.CA) to view income statement, balance sheet and cash flow.</div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const MONEY = new Intl.NumberFormat('en-US', {maximumFractionDigits:0});
+
+function fmt(v){
+  if(v === null || v === undefined) return '—';
+  if(typeof v === 'number'){
+    // consistent B/M/T scaling (same as the main metrics panel)
+    const sign = v < 0 ? '-' : '';
+    const a = Math.abs(v);
+    if(a >= 1e12) return sign + (a/1e12).toFixed(1) + 'T';
+    if(a >= 1e9) return sign + (a/1e9).toFixed(1) + 'B';
+    if(a >= 1e6) return sign + (a/1e6).toFixed(1) + 'M';
+    if(a >= 1e3) return sign + (a/1e3).toFixed(1) + 'K';
+    return sign + a.toFixed(1);
+  }
+  return v;
+}
+
+async function lookup(){
+  const q = $('q').value.trim();
+  if(!q) return;
+  $('status').textContent = 'loading ' + q + '…';
+  // auto-detect exchange from symbol suffix
+  let ex = '';
+  const up = q.toUpperCase();
+  if(up.endsWith('.JO')) ex = 'JSE';
+  else if(up.endsWith('.CA')) ex = 'EGX';
+  else {
+    // try to match against known NGX/NSE tickers via the listing API
+    try{
+      const r = await fetch('/api/listing?exchange=NGX');
+      const d = await r.json();
+      if((d.stocks||[]).some(s => (s.ticker||'').toUpperCase() === up)) ex = 'NGX';
+      if(!ex){
+        const r2 = await fetch('/api/listing?exchange=NSE');
+        const d2 = await r2.json();
+        if((d2.stocks||[]).some(s => (s.ticker||'').toUpperCase() === up)) ex = 'NSE';
+      }
+    }catch(e){}
+  }
+  const r = await fetch('/api/metrics?symbol=' + encodeURIComponent(q) + '&exchange=' + ex + '&name=');
+  const d = await r.json();
+  if(d.error || !d.stock_price){ $('out').innerHTML = `<div class="empty">no data for ${esc(q)} — try MTNN, DANGCEM, SCOM, SOL.JO, COMI.CA</div>`; $('status').textContent = 'no data'; return; }
+  render(d);
+}
+
+function render(d){
+  let html = '';
+  html += `<div class="company"><div class="nm">${esc(d.symbol)} · ${esc(d.name||'')}</div>`;
+  if(d.description) html += `<div class="desc">${esc(d.description)}</div>`;
+  html += `<div class="status" style="margin-top:6px">PRICE <b>${d.stock_price != null ? MONEY.format(d.stock_price) : '—'}</b> ${esc(d.currency||'')} · EXCHANGE ${esc(d.exchange||'—')} · ${d.revenue ? 'REVENUE <b>'+esc(d.revenue)+'</b>' : ''}${d.employees ? ' · EMPLOYEES <b>'+MONEY.format(d.employees)+'</b>' : ''}</div></div>`;
+
+  const st = d.statements;
+  if(st && st.data){
+    const s = st.data;
+    const period = (st.period||'') + ' ' + (st.year||'');
+    const src = st.url || '';
+    // income statement
+    const inc = [['Revenue', s.revenue], ['Gross Profit', s.gross_profit], ['Operating Profit', s.operating_profit],
+                 ['Profit After Tax', s.profit_after_tax], ['EPS', s.eps]];
+    if(inc.some(([,v]) => v != null)){
+      html += stmtTable('INCOME STATEMENT', period, inc, src);
+    }
+    // balance sheet
+    const bal = [['Total Assets', s.total_assets], ['Total Liabilities', s.total_liabilities],
+                 ['Shareholders Equity', s.shareholders_equity], ['Cash & Equivalents', s.cash_and_equivalents]];
+    if(bal.some(([,v]) => v != null)){
+      html += stmtTable('BALANCE SHEET', period, bal, src);
+    }
+    // cash flow
+    const cf = [['Operating Cash Flow', s.operating_cash_flow], ['Investing Cash Flow', s.investing_cash_flow],
+                ['Financing Cash Flow', s.financing_cash_flow], ['Dividends Paid', s.dividends_paid]];
+    if(cf.some(([,v]) => v != null)){
+      html += stmtTable('CASH FLOW', period, cf, src);
+    }
+    // ratios
+    const ratios = [['PE Ratio', d.pe_ratio], ['Earnings Yield', d.earnings_yield], ['Gross Margin', d.gross_margin],
+                    ['Operating Margin', d.operating_margin], ['Profit Margin', d.profit_margin],
+                    ['Return on Assets', d.return_on_assets], ['Return on Equity', d.return_on_equity],
+                    ['Debt/Equity', d.debt_to_equity], ['Free Float', s.free_float]];
+    const r2 = ratios.filter(([,v]) => v != null).map(([k,v]) => [k, typeof v === 'number' ? (k.includes('Margin')||k.includes('ROA')||k.includes('ROE') ? v+'%' : v) : v]);
+    if(r2.length){
+      html += stmtTable('RATIOS', period, r2, '');
+    }
+  } else {
+    html += `<div class="empty">No financial statements available for ${esc(d.symbol)} on the free feed. ${esc(d.exchange||'')} statements need a licensed data source.</div>`;
+  }
+
+  // shareholders
+  if(d.ownership && d.ownership.shareholders){
+    const sh = d.ownership.shareholders.map(s => [s.holder, s.stake]);
+    html += stmtTable('MAJOR SHAREHOLDERS · ' + (d.ownership.company||''), '', sh, '') +
+      `<div class="fmt" style="padding:6px 12px">source: ${esc(d.ownership.source||'')}</div>`;
+  }
+  $('out').innerHTML = html;
+  $('status').innerHTML = d.symbol + ' · ' + (d.exchange||'') + ' · statements ' + (st ? 'AVAILABLE' : 'n/a') + ' · <b>LIVE</b>';
+}
+
+function stmtTable(title, period, rows, src){
+  const real = rows.filter(([,v]) => v !== null && v !== undefined && v !== '');
+  if(!real.length) return '';
+  return `<div class="stmt">
+    <div class="stmt-head"><span>${esc(title)}</span><span class="period">${esc(period)}</span></div>
+    <table>${real.map(([k,v]) => `<tr><td>${esc(k)}</td><td>${esc(fmt(v))}</td></tr>`).join('')}</table>
+    ${src ? `<div class="fmt" style="padding:6px 12px"><a href="${esc(src)}" target="_blank">view filing ↗</a></div>` : ''}
+  </div>`;
+}
+
+$('go').onclick = lookup;
+$('q').addEventListener('keydown', e => { if(e.key === 'Enter') lookup(); });
+</script>
+</body>
+</html>
