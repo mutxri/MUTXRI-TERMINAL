@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MUTXRI CAPITAL — Documentation</title>
+<style>
+:root{
+  --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --line:#1f1f1f;
+  --acc:#33e29a; --teal:#1ecfb0; --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
+  --down:#f87171; --warn:#e0a340;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:'Courier New',monospace;padding:24px;line-height:1.7}
+.wrap{max-width:900px;margin:0 auto}
+h1{color:var(--acc);font-size:22px;letter-spacing:.12em;padding:10px 0;border-bottom:1px solid var(--line)}
+h2{color:var(--teal);font-size:15px;letter-spacing:.08em;padding:18px 0 8px}
+h3{color:var(--tx);font-size:12px;padding:10px 0 4px}
+p{color:var(--tx2);font-size:12px;padding:3px 0}
+code{background:var(--bg3);border:1px solid var(--line);padding:1px 6px;border-radius:2px;color:var(--acc);font-size:11px}
+pre{background:var(--bg3);border:1px solid var(--line);padding:12px;border-radius:4px;overflow-x:auto;font-size:11px;color:var(--tx);margin:8px 0}
+table{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0}
+th{color:var(--acc);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:6px 8px;border-bottom:1px solid #151515;color:var(--tx2)}
+a{color:var(--acc)}
+.badge{display:inline-block;padding:1px 8px;border-radius:2px;font-size:10px;border:1px solid rgba(51,226,154,.4);color:var(--acc);margin-left:6px}
+.warn{color:var(--warn)}
+.up{color:var(--acc)} .down{color:var(--down)}
+.nav{display:flex;gap:16px;padding:12px 0;font-size:11px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.nav a{color:var(--tx2);text-decoration:none}
+.nav a:hover{color:var(--acc)}
+.footer{color:var(--tx3);font-size:10px;padding:20px 0 40px;border-top:1px solid var(--line);margin-top:30px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>MUTXRI CAPITAL — DOCUMENTATION</h1>
+<div class="nav">
+  <a href="./">← Terminal</a>
+  <a href="#overview">Overview</a>
+  <a href="#usage">Usage</a>
+  <a href="#data">Data Sources</a>
+  <a href="#api">API</a>
+  <a href="#limits">Limits</a>
+  <a href="#deploy">Deployment</a>
+</div>
+
+<h2 id="overview">1 · Overview</h2>
+<p>MUTXRI CAPITAL is a financial terminal for African equity markets — a
+Bloomberg/Godel-style shell covering four exchanges:</p>
+<table>
+  <tr><th>Exchange</th><th>Country</th><th>Currency</th><th>Securities</th></tr>
+  <tr><td>JSE</td><td>South Africa</td><td>ZAR (ZAc)</td><td>431</td></tr>
+  <tr><td>EGX</td><td>Egypt</td><td>EGP</td><td>374</td></tr>
+  <tr><td>NGX</td><td>Nigeria</td><td>NGN</td><td>156</td></tr>
+  <tr><td>NSE</td><td>Kenya</td><td>KES</td><td>69</td></tr>
+</table>
+<p><b>1,030 securities, 0 duplicate tickers.</b> Every security is classified
+into a real industry sector (0 "Other" cells).</p>
+
+<h2 id="usage">2 · Usage</h2>
+<h3>Exchange tabs</h3>
+<p>Click <b>JSE / EGX / NGX / NSE</b> to switch markets. The tape, watchlist
+and heatmap update instantly.</p>
+<h3>Watchlist</h3>
+<p>Scrollable list of all securities with price, change % and volume. Click any
+row to open the stock panel on the right.</p>
+<h3>Stock panel (right)</h3>
+<ul>
+  <li><b>Quote:</b> price, change, open/high/low, 52-week range, state</li>
+  <li><b>Chart:</b> CANDLE / LINE / AREA with timeframes <b>1D · 1M · 1Y · 10Y · ALL</b> in one row</li>
+  <li><b>Full metrics:</b> 70+ fields — price changes (1D→20Y), total returns,
+      CAGR, 52W ranges, RSI, moving averages, ATR, dividends, valuation</li>
+  <li><b>Company info:</b> description, sector, employees, revenue</li>
+  <li><b>Major shareholders:</b> 128 companies covered</li>
+</ul>
+<h3>Center tabs</h3>
+<table>
+  <tr><th>Tab</th><th>What it shows</th></tr>
+  <tr><td>HEATMAP</td><td>Sector treemap of the active exchange — every stock as a sized cell</td></tr>
+  <tr><td>SCREENER</td><td>Filter stocks by exchange, sector, price range</td></tr>
+  <tr><td>FINANCIALS</td><td>Income statement / balance sheet / cash flow + verified filing PDF links</td></tr>
+  <tr><td>REG · GLCO · BND · FX · TAS · RATINGS</td><td>Regulatory, commodities, bonds, FX, and ratings panels</td></tr>
+</table>
+
+<h2 id="data">3 · Data sources</h2>
+<table>
+  <tr><th>Source</th><th>Used for</th><th>Honesty label</th></tr>
+  <tr><td>Yahoo Finance</td><td>JSE/EGX live quotes &amp; history</td><td>LIVE (delayed)</td></tr>
+  <tr><td>kwayisi (afx.kwayisi.org)</td><td>NGX/NSE EOD board + period returns</td><td>EOD</td></tr>
+  <tr><td>African Financials</td><td>NGX/NSE statements, descriptions</td><td>FILED</td></tr>
+  <tr><td>Company IR sites</td><td>Verified annual-report PDF links</td><td>FILED</td></tr>
+  <tr><td>Official exchange listings</td><td>Security universe (verified)</td><td>VERIFIED</td></tr>
+</table>
+<p class="warn">No number is fabricated. Missing data renders as "—" or an
+honest "no market data" message — never a guessed figure.</p>
+
+<h2 id="api">4 · API endpoints</h2>
+<table>
+  <tr><th>Endpoint</th><th>Description</th></tr>
+  <tr><td><code>/api/listing?exchange=X</code></td><td>Full security list for an exchange</td></tr>
+  <tr><td><code>/api/heatmap?exchange=X</code></td><td>Heatmap cells (price, sector, volume)</td></tr>
+  <tr><td><code>/api/chart?symbol=X&range=R&interval=I</code></td><td>OHLCV bars</td></tr>
+  <tr><td><code>/api/quotes?symbols=A,B</code></td><td>Live quotes</td></tr>
+  <tr><td><code>/api/metrics?symbol=X&exchange=E</code></td><td>Full 70-field metrics suite</td></tr>
+  <tr><td><code>/api/financials?ticker=X&statement=income|balance|cashflow</code></td><td>Financial statements</td></tr>
+  <tr><td><code>/api/indices</code></td><td>Market indices tape (EGX 30, JSE Top 40, + baskets)</td></tr>
+  <tr><td><code>/api/fx · /api/news · /api/rates</code></td><td>FX rates, news, interest rates</td></tr>
+  <tr><td><code>/api/health</code></td><td>Server health check</td></tr>
+</table>
+
+<h2 id="limits">5 · Known limits (honest)</h2>
+<h3>JSE/EGX financial statements</h3>
+<p>No free structured source exists for South African or Egyptian financial
+statements. African Financials covers 0 SA/Egypt companies. Company IR PDFs
+are mostly image scans. Paths forward: OCR, or a licensed feed
+(Twelve Data ~$8/mo).</p>
+<h3>NGX/NSE intraday history</h3>
+<p>Yahoo dropped Kenyan/Nigerian tickers. The terminal shows honest EOD
+period-return history (1W/1M/3M/6M/1Y) — real published returns, never
+fabricated candles.</p>
+<h3>Delisted / suspended stocks</h3>
+<p>22 securities (Uchumi, Mumias, DUNLOP, UBN, KPLC prefs...) have no quotes
+on any free feed — the market itself produces no data. Shown honestly with
+status.</p>
+<h3>14/190 NGX/NSE statements</h3>
+<p>Their PDFs use unusual formats (quarterly management reports, encoded text
+layers). Filing PDF links are shown instead.</p>
+
+<h2 id="deploy">6 · Deployment</h2>
+<h3>Local (live)</h3>
+<pre>cd /d/mutxri-terminal
+python afri_server.py     # -> http://127.0.0.1:8081/</pre>
+<h3>GitHub Pages (this site — static snapshot)</h3>
+<p>This site serves a data snapshot (EOD listings, heatmaps, indices). Live
+quotes/charts are available on the local server. The badge in the footer tells
+you the mode: <span class="up">● LIVE</span> or <span class="warn">● SNAPSHOT</span>.</p>
+<h3>Going fully live</h3>
+<p>Host <code>afri_server.py</code> on Render/Fly (PORT env supported, CORS
+enabled), set <code>API_BASE</code> in index.html, redeploy. See the repo
+README for the full guide.</p>
+
+<h2 id="commands">7 · Command bar</h2>
+<p>Type <code>`</code> then a command:</p>
+<table>
+  <tr><th>Command</th><th>Action</th></tr>
+  <tr><td><code>HELP</code></td><td>List commands</td></tr>
+  <tr><td><code>DES</code></td><td>Company description &amp; profile</td></tr>
+  <tr><td><code>FA</code></td><td>Financial statements</td></tr>
+  <tr><td><code>CF</code></td><td>Cash flow</td></tr>
+  <tr><td><code>DIV</code></td><td>Dividends</td></tr>
+  <tr><td><code>WEI</code></td><td>Weightings</td></tr>
+  <tr><td><code>FX</code></td><td>Foreign exchange</td></tr>
+  <tr><td><code>NEWS</code></td><td>Market news</td></tr>
+</table>
+
+<div class="footer">MUTXRI CAPITAL · Documentation v1.0 · 24 Aug 2026 · Godel palette (#33e29a mint / #1ecfb0 teal) · honest data policy: never fabricate, always label</div>
+</div>
+</body>
+</html>
