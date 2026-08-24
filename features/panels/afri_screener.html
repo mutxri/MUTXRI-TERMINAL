@@ -86,7 +86,7 @@
 <script>
 (function(){
   "use strict";
-  var ENDPOINT="/api/screener", LS="afri_screener_filters";
+  var ENDPOINT="../../static_data/screener", LS="afri_screener_filters";
   var COLS=[
     {k:"ticker",l:"Ticker",n:false},{k:"name",l:"Company",n:false},
     {k:"exchange",l:"Exch",n:false},{k:"sector",l:"Sector",n:false},
@@ -177,8 +177,8 @@
     p.push("sort="+state.sort,"dir="+state.dir);return p.join("&");}
   function run(){
     var f=readFilters();save(f);
-    fetch(ENDPOINT+"?"+q(f)).then(function(r){if(!r.ok)throw 0;return r.json();})
-      .then(function(d){state.rows=d.stocks||[];$("src").textContent="source: /api/screener";sectors(state.rows);body();})
+    fetch((window.STATIC_MODE ? ENDPOINT+"_"+state.ex+".json" : ENDPOINT+"?"+q(f))).then(function(r){if(!r.ok)throw 0;return r.json();})
+      .then(function(d){state.rows=d.stocks||[];$("src").textContent=window.STATIC_MODE?"source: static snapshot":"source: /api/screener";sectors(state.rows);body();})
       .catch(function(){state.rows=localFilter(SAMPLE_STOCKS,f);$("src").textContent="source: SAMPLE DATA (server not reachable)";body();});
   }
   function csv(){
