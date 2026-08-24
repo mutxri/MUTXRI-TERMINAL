@@ -119,22 +119,6 @@
 </footer>
 
 <script>
-// ===== STATIC BUILD SHIM (GitHub Pages) =====
-// Live endpoints (chart/metrics/quotes) are NOT available in the static
-// snapshot build - respond honestly instead of erroring.
-const __origFetch = window.fetch;
-window.fetch = function(url, opts){
-  const u = String(url);
-  if(u.indexOf('/api/chart') === 0 || u.indexOf('/api/metrics') === 0 || u.indexOf('/api/quotes') === 0){
-    return Promise.resolve(new Response(JSON.stringify({
-      error: 'static snapshot build: live market data not available on GitHub Pages',
-      bars: [], rows: [], noData: true
-    }), {status: 200, headers: {'Content-Type': 'application/json'}}));
-  }
-  return __origFetch(url, opts);
-};
-// ===== END STATIC SHIM =====
-
 // ===== BACKEND CONFIG (GitHub Pages deployment) =====
 // Empty string = local/snapshot mode. Set to deployed backend URL (NO trailing
 // slash) to route all /api/* calls to the live server.
