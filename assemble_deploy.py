@@ -13,6 +13,9 @@ os.makedirs(DEPLOY)
 # index.html (static build)
 shutil.copy(os.path.join(BASE, "static_index.html"), os.path.join(DEPLOY, "index.html"))
 
+# tickerfix.js (NaN/404/tape fixes - must ship with the page)
+shutil.copy(os.path.join(BASE, "tickerfix.js"), os.path.join(DEPLOY, "tickerfix.js"))
+
 # documentation page
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 

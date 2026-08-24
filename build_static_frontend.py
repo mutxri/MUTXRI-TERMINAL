@@ -24,10 +24,14 @@ t = t.replace(
     "fetch('static_data/listing_' + ex + '.json')",
 )
 
-# 2. indices remap
+# 2. indices remap (both plain fetch and TickerFix.fetchJSONSafe forms)
 t = t.replace(
     "fetch('/api/indices')",
     "fetch('static_data/indices.json')",
+)
+t = t.replace(
+    "TickerFix.fetchJSONSafe('/api/indices')",
+    "TickerFix.fetchJSONSafe('static_data/indices.json')",
 )
 
 # 3. The API_BASE shim (from index.html) already exists and handles remaining
