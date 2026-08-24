@@ -211,10 +211,13 @@
       var s=sr.item.sector;
       want["sec_"+s.sector]={type:"sector",x:sr.x,y:sr.y,w:sr.w,h:sr.h,sector:s.sector};
       var cellItems=s.cells.map(function(c){return {value:Math.max(1,c.weight||1), cell:c};});
+      var cw = cellItems.reduce(function(s,it){return s+it.value;},0);
+      var minV = cw / Math.max(1, cellItems.length) * 0.08;
+      cellItems = cellItems.map(function(it){ return {value: Math.max(it.value, minV), cell: it.cell}; });
       var ix=sr.x+pad, iy=sr.y+labelH, iw=Math.max(0,sr.w-pad*2), ih=Math.max(0,sr.h-labelH-pad);
       squarify(cellItems, ix, iy, iw, ih).forEach(function(cr){
         var c=cr.item.cell;
-        want["cell_"+s.sector+"_"+c.ticker]={type:"cell",x:cr.x,y:cr.y,w:cr.w,h:cr.h,c:c};
+        var MINP=3;want["cell_"+s.sector+"_"+c.ticker]={type:"cell",x:cr.x,y:cr.y,w:Math.max(cr.w,MINP),h:Math.max(cr.h,MINP),c:c};
       });
     });
 
@@ -259,8 +262,10 @@
   }
   function normalize(rows){
     return rows.map(function(x){
+      var rawW = x.weight||x.volume||x.mcap||1;
+      var w = Math.max(1, Math.log10(1 + rawW));
       return {ticker:x.short||x.ticker||(x.sym||"").split(".")[0],name:x.name,
-        chgPct:(x.chgPct==null?null:Number(x.chgPct)),weight:x.volume||x.weight||x.mcap||1,
+        chgPct:(x.chgPct==null?null:Number(x.chgPct)),weight:w,
         sector:x.sector||"Other",eod:!!x.eod||!!EOD_MARKETS[activeEx]};
     });
   }

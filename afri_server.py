@@ -545,6 +545,7 @@ def _heatmap_partial(ex):
                 "sym": s["sym"], "code": s.get("code"), "name": s["name"],
                 "short": s.get("short") or s.get("ticker"), "price": d.get("price"),
                 "chgPct": d.get("changePct"), "volume": d.get("volume"),
+                "weight": (d.get("price") or 0) * (d.get("volume") or 0),
                 "sector": s.get("sector") or classify_sector(s["name"]),
                 "currency": s.get("currency"), "logo": company_domain(s["name"]),
             })
@@ -557,8 +558,9 @@ def _heatmap_partial(ex):
             out.append({
                 "sym": None, "code": None, "name": s["name"],
                 "short": s.get("ticker"), "price": s.get("price"), "chgPct": s.get("chgPct"),
-                "volume": vol, "sector": s.get("sector") or classify_sector(s["name"]),
-                "currency": s.get("currency"), "date": s.get("date"), "logo": company_domain(s["name"]),
+                    "volume": vol, "weight": (s.get("price") or 0) * vol,
+                    "sector": s.get("sector") or classify_sector(s["name"]),
+                    "currency": s.get("currency"), "date": s.get("date"), "logo": company_domain(s["name"]),
             })
     return out
 
@@ -576,10 +578,19 @@ def _heatmap_build(ex):
                 # prefer the curated sector from stocks.json (already classified),
                 # fall back to on-the-fly classification
                 sec = s.get("sector") or classify_sector(s["name"])
+                price = d.get("price")
+                try:
+                    vol = float(d.get("volume") or 0)
+                except (TypeError, ValueError):
+                    vol = 0
                 out.append({
                     "sym": s["sym"], "code": s.get("code"), "name": s["name"],
-                    "short": s.get("short") or s.get("ticker"), "price": d.get("price"), "chgPct": d.get("changePct"),
-                    "volume": d.get("volume"), "sector": sec,
+                    "short": s.get("short") or s.get("ticker"), "price": price, "chgPct": d.get("changePct"),
+                    "volume": vol,
+                    # dollar volume = proper heatmap size metric (spreads 23-share
+                    # stocks vs 5.8M-share stocks by real traded value)
+                    "weight": (price or 0) * vol,
+                    "sector": sec,
                     "currency": s.get("currency"), "logo": company_domain(s["name"]),
                 })
         else:
@@ -591,8 +602,9 @@ def _heatmap_build(ex):
                 out.append({
                     "sym": None, "code": None, "name": s["name"],
                     "short": s.get("ticker"), "price": s.get("price"), "chgPct": s.get("chgPct"),
-                    "volume": vol, "sector": s.get("sector") or classify_sector(s["name"]),
-                    "currency": s.get("currency"), "date": s.get("date"), "logo": company_domain(s["name"]),
+                        "volume": vol, "weight": (s.get("price") or 0) * vol,
+                        "sector": s.get("sector") or classify_sector(s["name"]),
+                        "currency": s.get("currency"), "date": s.get("date"), "logo": company_domain(s["name"]),
                 })
         cache_put("heatmap:" + ex, 90, json.dumps(out))
         _heatmap_stale[ex] = out
