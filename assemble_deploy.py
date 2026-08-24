@@ -19,6 +19,9 @@ shutil.copy(os.path.join(BASE, "tickerfix.js"), os.path.join(DEPLOY, "tickerfix.
 # documentation page
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 
+# links hub page
+shutil.copy(os.path.join(BASE, "LINKS.html"), os.path.join(DEPLOY, "LINKS.html"))
+
 # panels (static heatmap + static screener + the shell's other panels for completeness)
 os.makedirs(os.path.join(DEPLOY, "features", "panels"), exist_ok=True)
 shutil.copy(os.path.join(BASE, "static_data", "afri_heatmap_static.html"),
