@@ -13,6 +13,9 @@ os.makedirs(DEPLOY)
 # index.html (static build)
 shutil.copy(os.path.join(BASE, "static_index.html"), os.path.join(DEPLOY, "index.html"))
 
+# documentation page
+shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
+
 # panels (static heatmap + the shell's other panels for completeness)
 os.makedirs(os.path.join(DEPLOY, "features", "panels"), exist_ok=True)
 shutil.copy(os.path.join(BASE, "static_data", "afri_heatmap_static.html"),
