@@ -151,10 +151,11 @@
 
   function renderFromSnap(snap){
     // find the company: match ticker exactly, or slug tail
-    var tl=state.ticker.toUpperCase(), key=null, rec=null;
+    var tl=state.ticker.toUpperCase(), key=null, rec=null, tll=tl.toLowerCase();
     for(var k in snap){ var c=snap[k];
-      if(c.ticker===tl || c.slug.split("-").pop().toUpperCase()===tl){ key=k; rec=c; break; }
-      if(c.name && c.name.toUpperCase().indexOf(tl)>=0){ key=k; rec=c; break; }
+      var core=(c.slug||"").split("-").pop().toLowerCase();
+      if(c.ticker===tl || core===tll || tll.indexOf(core)===0 || core.indexOf(tll)===0 ||
+         (c.name && c.name.toUpperCase().indexOf(tl)>=0)){ key=k; rec=c; break; }
     }
     if(!rec){ renderScaffold({filings:[]}); setSrc("no statement in snapshot for "+state.ticker); return; }
     // build a fake /api/financials response from the snapshot data
