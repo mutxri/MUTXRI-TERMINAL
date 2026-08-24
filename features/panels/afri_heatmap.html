@@ -73,7 +73,7 @@
 <script>
 (function(){
   "use strict";
-  var ENDPOINT="../../static_data/heatmap";
+  var ENDPOINT="/api/heatmap";
   var EXCHANGES=["JSE","EGX","NGX","NSE"];
   var EOD_MARKETS={NGX:true,NSE:true};
   var POLL_MS=15000;
@@ -211,8 +211,10 @@
       var s=sr.item.sector;
       want["sec_"+s.sector]={type:"sector",x:sr.x,y:sr.y,w:sr.w,h:sr.h,sector:s.sector};
       var cellItems=s.cells.map(function(c){return {value:Math.max(1,c.weight||1), cell:c};});
+      // ensure every cell is at least visible: scale small weights up so no
+      // stock renders below ~2px (raw share volumes span 23 -> 5.8M = 250k:1)
       var cw = cellItems.reduce(function(s,it){return s+it.value;},0);
-      var minV = cw / Math.max(1, cellItems.length) * 0.08;
+      var minV = cw / Math.max(1, cellItems.length) * 0.08; // 8% of the mean
       cellItems = cellItems.map(function(it){ return {value: Math.max(it.value, minV), cell: it.cell}; });
       var ix=sr.x+pad, iy=sr.y+labelH, iw=Math.max(0,sr.w-pad*2), ih=Math.max(0,sr.h-labelH-pad);
       squarify(cellItems, ix, iy, iw, ih).forEach(function(cr){
@@ -263,6 +265,8 @@
   function normalize(rows){
     return rows.map(function(x){
       var rawW = x.weight||x.volume||x.mcap||1;
+      // log-scale the size metric: dollar volumes span 20K -> 50B (2.5M:1),
+      // raw ratios make the small caps invisible. log10 compresses to ~6:1.
       var w = Math.max(1, Math.log10(1 + rawW));
       return {ticker:x.short||x.ticker||(x.sym||"").split(".")[0],name:x.name,
         chgPct:(x.chgPct==null?null:Number(x.chgPct)),weight:w,
@@ -270,7 +274,7 @@
     });
   }
   function load(){
-    fetch(ENDPOINT+"_"+encodeURIComponent(activeEx)+".json")
+    fetch(ENDPOINT+"?exchange="+encodeURIComponent(activeEx))
       .then(function(r){if(!r.ok)throw 0;return r.json();})
       .then(function(d){
         var rows;
