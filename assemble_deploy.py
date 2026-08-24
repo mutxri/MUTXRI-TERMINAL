@@ -19,13 +19,14 @@ shutil.copy(os.path.join(BASE, "tickerfix.js"), os.path.join(DEPLOY, "tickerfix.
 # documentation page
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 
-# panels (static heatmap + the shell's other panels for completeness)
+# panels (static heatmap + static screener + the shell's other panels for completeness)
 os.makedirs(os.path.join(DEPLOY, "features", "panels"), exist_ok=True)
 shutil.copy(os.path.join(BASE, "static_data", "afri_heatmap_static.html"),
             os.path.join(DEPLOY, "features", "panels", "afri_heatmap.html"))
-# copy the rest of the panels (static versions of screener/financials would need
-# remapping; copy originals - they degrade gracefully to SAMPLE data)
-for p in ["afri_screener.html", "afri_financials.html", "afri_reg.html", "afri_glco.html",
+shutil.copy(os.path.join(BASE, "static_data", "afri_screener_static.html"),
+            os.path.join(DEPLOY, "features", "panels", "afri_screener.html"))
+# copy the rest of the panels (originals - they degrade gracefully to SAMPLE data)
+for p in ["afri_financials.html", "afri_reg.html", "afri_glco.html",
           "afri_bnd.html", "afri_fx.html", "afri_tas.html", "afri_ratings.html"]:
     src = os.path.join(BASE, "features", "panels", p)
     if os.path.exists(src):

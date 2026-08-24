@@ -34,9 +34,11 @@ t = t.replace(
     "TickerFix.fetchJSONSafe('static_data/indices.json')",
 )
 
-# 3. The API_BASE shim (from index.html) already exists and handles remaining
-#    /api/* calls: with API_BASE="" it returns the honest snapshot error.
-#    We must NOT add another fetch override (duplicate const __origFetch = SyntaxError).
+# 3. screener snapshot (static build): /api/screener -> static_data/screener_X.json
+t = t.replace(
+    "fetch(ENDPOINT+\"?\"+q(f)",
+    "fetch('static_data/screener_' + activeEx + '.json?' + q(f)",
+)
 
 # 4. Make the snapshot mode explicit for the static build: set API_BASE=""
 #    (it already defaults to "" - ensure no accidental value)
