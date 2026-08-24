@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """build_static_frontend.py - produce a static index.html for GitHub Pages.
-Remaps /api/* fetches to static_data/*.json snapshots. Live endpoints
-(chart/metrics/quotes) show an honest 'static snapshot' note.
+Remaps /api/listing + /api/indices to static_data/*.json snapshots.
+Live endpoints (chart/metrics/quotes) show an honest 'snapshot' note via the
+single API_BASE shim already in index.html - NO duplicate shim is added here
+(that caused a '__origFetch already declared' SyntaxError that blanked the page).
 """
 import re, os
 
@@ -17,7 +19,6 @@ t = re.sub(
     "fetch('static_data/listing_' + ex + '.json')",
     t,
 )
-# also any other listing fetch forms
 t = t.replace(
     "fetch('/api/listing?exchange=' + ex)",
     "fetch('static_data/listing_' + ex + '.json')",
@@ -29,32 +30,19 @@ t = t.replace(
     "fetch('static_data/indices.json')",
 )
 
-# 3. add a fetch shim BEFORE the app script: any remaining /api/ call that is
-#    not snapshot-able gets an honest static-mode response
-shim = """
-// ===== STATIC BUILD SHIM (GitHub Pages) =====
-// Live endpoints (chart/metrics/quotes) are NOT available in the static
-// snapshot build - respond honestly instead of erroring.
-const __origFetch = window.fetch;
-window.fetch = function(url, opts){
-  const u = String(url);
-  if(u.indexOf('/api/chart') === 0 || u.indexOf('/api/metrics') === 0 || u.indexOf('/api/quotes') === 0){
-    return Promise.resolve(new Response(JSON.stringify({
-      error: 'static snapshot build: live market data not available on GitHub Pages',
-      bars: [], rows: [], noData: true
-    }), {status: 200, headers: {'Content-Type': 'application/json'}}));
-  }
-  return __origFetch(url, opts);
-};
-// ===== END STATIC SHIM =====
-"""
-# insert shim right after '<script>'
-t = t.replace("<script>", "<script>" + shim, 1)
+# 3. The API_BASE shim (from index.html) already exists and handles remaining
+#    /api/* calls: with API_BASE="" it returns the honest snapshot error.
+#    We must NOT add another fetch override (duplicate const __origFetch = SyntaxError).
+
+# 4. Make the snapshot mode explicit for the static build: set API_BASE=""
+#    (it already defaults to "" - ensure no accidental value)
+t = re.sub(r'const API_BASE = "[^"]*";', 'const API_BASE = "";', t, count=1)
 
 open(DST, "w", encoding="utf-8").write(t)
 print(f"static_index.html written ({len(t)} chars)")
 
-# verify the remaps landed
-print("listing remap:", "static_data/listing_" in t)
-print("indices remap:", "static_data/indices.json" in t)
-print("shim present:", "STATIC BUILD SHIM" in t)
+# verify: exactly ONE __origFetch declaration, remaps landed
+print("listing remap:", t.count("static_data/listing_"))
+print("indices remap:", t.count("static_data/indices.json"))
+print("__origFetch declarations:", t.count("const __origFetch"))
+print("shim blocks:", t.count("STATIC BUILD SHIM"))
