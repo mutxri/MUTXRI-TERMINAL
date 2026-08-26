@@ -1114,6 +1114,7 @@ class Handler(SimpleHTTPRequestHandler):
             # stocks.json records lack exchange/sector/price — enrich from the listing + quote cache
             def _load_screener_stocks():
                 out = []
+                _scr_cache["ts"] = time.time()
                 for ex in ("JSE", "EGX", "NGX", "NSE"):
                     # cached heatmap only (never trigger a full Yahoo rebuild here)
                     hit = cache_get("heatmap:" + ex)
@@ -1143,10 +1144,11 @@ class Handler(SimpleHTTPRequestHandler):
             # quote_lookup returns the enriched record so the handler's
             # quote.get("chgPct")/volume reads work (Claude's handler reads
             # those from the quote, price falls back to the stock record)
-            _scr_cache = {}
+            _scr_cache = {"ts": 0.0}
 
             def _load_screener_stocks():
-                if "list" in _scr_cache:
+                # 60s TTL so the screener tracks the heatmap cache as it warms
+                if "list" in _scr_cache and time.time() - _scr_cache["ts"] < 60:
                     return _scr_cache["list"]
                 out = []
                 for ex in ("JSE", "EGX", "NGX", "NSE"):
@@ -1192,8 +1194,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return out
 
             def _quote_lookup(sym):
-                if "index" not in _scr_cache:
+                if "index" not in _scr_cache or time.time() - _scr_cache["ts"] > 60:
                     _scr_cache["index"] = {s.get("sym"): s for s in _load_screener_stocks()}
+                    _scr_cache["ts"] = time.time()
                 return _scr_cache["index"].get(sym)
             self.json(screener_api.handle_screener(
                 params,
