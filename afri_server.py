@@ -311,6 +311,13 @@ def _mongo_fundamentals():
     except Exception:
         return None
 
+# ---------------- Email accounts (auth_api) ----------------
+try:
+    import auth_api
+    auth_api._init(_mongo_db, _mongo_ok)
+except Exception as _ae:
+    print("auth_api init failed:", str(_ae)[:60])
+
 # ---------------- Full listings (stocks.json) ----------------
 try:
     with open("stocks.json", encoding="utf-8") as f:
@@ -1304,6 +1311,9 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self.json({"ticker": ticker, "statement": statement, "available": False,
                            "rows": [], "note": "financials unavailable: %s" % str(e)[:60]})
+        elif path.path.startswith("/api/auth/"):
+            q = urllib.parse.parse_qs(path.query)
+            self.json(auth_api.handle_auth(path.path, q))
         elif path.path == "/api/indices":
             # real market indices tape (EGX 30, JSE Top 40, JSE All-Share) +
             # NGX/NSE basket proxies from real constituent quotes
