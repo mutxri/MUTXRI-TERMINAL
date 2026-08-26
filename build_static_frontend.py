@@ -42,7 +42,7 @@ t = t.replace(
 
 # 4. Make the snapshot mode explicit for the static build: set API_BASE=""
 #    (it already defaults to "" - ensure no accidental value)
-t = re.sub(r'const API_BASE = "[^"]*";', 'const API_BASE = "https://75f1f98fe76c2e.lhr.life";', t, count=1)
+t = re.sub(r'const API_BASE = "[^"]*";', 'const API_BASE = "https://d391c0f5c2d5d4.lhr.life";', t, count=1)
 
 open(DST, "w", encoding="utf-8").write(t)
 print(f"static_index.html written ({len(t)} chars)")
