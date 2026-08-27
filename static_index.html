@@ -337,6 +337,11 @@ function setSignedIn(email, name){
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 let currentEx = 'JSE';
+// support ?ex=NGX deep-link (landing dropdown passes the exchange)
+try{
+ const _pex = new URLSearchParams(location.search).get('ex');
+ if(_pex && ['JSE','EGX','NGX','NSE'].includes(_pex.toUpperCase())) currentEx = _pex.toUpperCase();
+}catch(e){}
 let listing = {};
 
 // ===== Company logos =====
@@ -469,6 +474,9 @@ document.querySelectorAll('.exch-tab').forEach(t => {
     }
   };
 });
+
+// sync the active tab to the (possibly URL-set) currentEx
+document.querySelectorAll('.exch-tab').forEach(x => x.classList.toggle('active', x.dataset.ex === currentEx));
 
 // ===== Tape helpers =====
 function tapeItem(s){
@@ -863,7 +871,7 @@ function renderChart(d, sym){
     fs.style.color = live ? 'var(--acc)' : 'var(--warn)';
   }
 })();
-loadListing('JSE');
+loadListing(currentEx);  // honor ?ex= deep-link (defaults JSE)
 
 </script>
 </body>
