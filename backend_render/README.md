@@ -1,3 +1,3 @@
-# MUTXRI CAPITAL backend
+# MUTXRI TERMINAL backend
 
-Python stdlib server for the MUTXRI CAPITAL terminal. Run: `python afri_server.py`
+Python stdlib server for the MUTXRI TERMINAL terminal. Run: `python afri_server.py`

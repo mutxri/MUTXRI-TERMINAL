@@ -27,6 +27,10 @@ with open(os.path.join(DEPLOY, "CNAME"), "w", encoding="utf-8") as _c:
 # documentation page (root-level, linked from landing)
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 
+# 404 page
+if os.path.exists(os.path.join(BASE, "404.html")):
+    shutil.copy(os.path.join(BASE, "404.html"), os.path.join(DEPLOY, "404.html"))
+
 # links hub page
 shutil.copy(os.path.join(BASE, "LINKS.html"), os.path.join(DEPLOY, "LINKS.html"))
 
