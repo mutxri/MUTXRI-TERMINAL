@@ -36,7 +36,7 @@
   .hm-tab .cnt{color:var(--tx3);font-size:9px;margin-left:4px;}
   #canvas{position:relative;width:100%;height:520px;background:var(--bg);overflow:hidden;}
   .sector{position:absolute;overflow:hidden;pointer-events:none;}
-  .sector-label{position:absolute;top:0;left:0;right:0;height:16px;font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:var(--tx2);background:rgba(10,10,10,.85);padding:2px 6px;z-index:2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono);}
+  .sector-label{position:absolute;top:0;left:0;right:0;height:16px;font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:var(--tx2);background:rgba(10,10,10,.85);padding:2px 6px;z-index:2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono);pointer-events:auto;}
   .cell{position:absolute;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;cursor:pointer;
     transition:left .5s ease,top .5s ease,width .5s ease,height .5s ease,background-color .6s ease;border:1px solid rgba(0,0,0,.35);}
   .cell:hover{outline:1px solid var(--acc);outline-offset:-1px;z-index:3;}
@@ -49,6 +49,25 @@
   .sw{width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px;border-radius:1px;}
   .legend .item{color:var(--tx2);font-size:10px;display:inline-flex;align-items:center;}
   .foot{padding:6px 14px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+  /* sector drill-down panel */
+  #sectorPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;display:none;align-items:center;justify-content:center;}
+  #sectorPanel.open{display:flex;}
+  .sp-box{background:var(--bg2);border:1px solid var(--line2);border-radius:4px;width:min(720px,92vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,.8);}
+  .sp-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line2);}
+  .sp-head .sp-title{font-size:14px;font-weight:700;letter-spacing:.05em;color:var(--tx);}
+  .sp-head .sp-sub{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-top:2px;}
+  .sp-head .sp-close{margin-left:auto;cursor:pointer;color:var(--tx3);font-size:18px;padding:2px 8px;border-radius:2px;}
+  .sp-head .sp-close:hover{color:var(--tx);background:var(--bg3);}
+  .sp-stats{display:flex;gap:20px;padding:10px 18px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;color:var(--tx2);}
+  .sp-stats b{color:var(--acc);font-weight:700;}
+  .sp-list{overflow-y:auto;padding:4px 0;}
+  .sp-row{display:grid;grid-template-columns:64px 1fr 90px 90px;gap:8px;align-items:center;padding:8px 18px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .1s;font-size:12px;}
+  .sp-row:hover{background:var(--bg3);}
+  .sp-row .tkr{font-family:var(--mono);font-weight:700;color:var(--acc);letter-spacing:.02em;}
+  .sp-row .nm{color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sp-row .px{font-family:var(--mono);text-align:right;color:var(--tx);}
+  .sp-row .chg{font-family:var(--mono);text-align:right;font-weight:700;}
+  .sp-empty{padding:24px;color:var(--tx3);text-align:center;font-size:12px;}
 </style>
 </head>
 <body>
@@ -70,10 +89,23 @@
   </div>
   <div class="foot"><span id="src">-</span><span id="refreshTxt">-</span></div>
 </div>
+<div id="sectorPanel">
+  <div class="sp-box">
+    <div class="sp-head">
+      <div>
+        <div class="sp-title" id="spTitle">-</div>
+        <div class="sp-sub" id="spSub">-</div>
+      </div>
+      <span class="sp-close" onclick="document.getElementById('sectorPanel').classList.remove('open')">&times;</span>
+    </div>
+    <div class="sp-stats" id="spStats"></div>
+    <div class="sp-list" id="spList"></div>
+  </div>
+</div>
 <script>
 (function(){
   "use strict";
-  var ENDPOINT="../../static_data/heatmap";
+  var ENDPOINT="/api/heatmap";
   var EXCHANGES=["JSE","EGX","NGX","NSE"];
   var EOD_MARKETS={NGX:true,NSE:true};
   var POLL_MS=15000;
@@ -202,6 +234,7 @@
   function draw(rows){
     var canvas=$("canvas");
     var W=canvas.clientWidth||900, H=canvas.clientHeight||520;
+    currentRows=rows.slice();
     var sectors=bySector(rows);
     var secItems=sectors.map(function(s){return {value:s.weight, sector:s};});
     var secRects=squarify(secItems, 0, 0, W, H);
@@ -211,8 +244,10 @@
       var s=sr.item.sector;
       want["sec_"+s.sector]={type:"sector",x:sr.x,y:sr.y,w:sr.w,h:sr.h,sector:s.sector};
       var cellItems=s.cells.map(function(c){return {value:Math.max(1,c.weight||1), cell:c};});
+      // ensure every cell is at least visible: scale small weights up so no
+      // stock renders below ~2px (raw share volumes span 23 -> 5.8M = 250k:1)
       var cw = cellItems.reduce(function(s,it){return s+it.value;},0);
-      var minV = cw / Math.max(1, cellItems.length) * 0.08;
+      var minV = cw / Math.max(1, cellItems.length) * 0.08; // 8% of the mean
       cellItems = cellItems.map(function(it){ return {value: Math.max(it.value, minV), cell: it.cell}; });
       var ix=sr.x+pad, iy=sr.y+labelH, iw=Math.max(0,sr.w-pad*2), ih=Math.max(0,sr.h-labelH-pad);
       squarify(cellItems, ix, iy, iw, ih).forEach(function(cr){
@@ -232,11 +267,16 @@
         node.style.left=d.x+"px";node.style.top=d.y+"px";node.style.width=d.w+"px";node.style.height=d.h+"px";
         node.firstChild.textContent=d.sector;
         node.firstChild.style.display=(d.h>28&&d.w>50)?"block":"none";
+        // click a sector label -> drill into the industry (container stays
+        // pointer-events:none so cell clicks pass through; label is clickable)
+        node.firstChild.style.cursor="pointer";
+        node.firstChild.title="View "+d.sector+" securities";
+        node.firstChild.onclick=(function(sec){return function(ev){ev.stopPropagation();openSector(sec);};})(d.sector);
       }else{
         var c=d.c;
         if(!node){node=document.createElement("div");node.className="cell";node.dataset.key=key;
           node.innerHTML='<span class="ct"></span><span class="cc"></span>';node.title=c.name;
-          node.onclick=(function(sym){return function(){if(window.loadSecurity)window.loadSecurity(sym);};})(c.ticker);
+          node.onclick=(function(sec){return function(){openSector(sec);};})(c.sector||"Other");
           canvas.appendChild(node);}
         node.style.left=d.x+"px";node.style.top=d.y+"px";node.style.width=d.w+"px";node.style.height=d.h+"px";
         node.style.background=color(c.chgPct);
@@ -260,9 +300,63 @@
     $("dot").className="dot "+(live?"live":"sample");
     $("statusTxt").textContent=live?"LIVE - polling "+(POLL_MS/1000)+"s":"SAMPLE";
   }
+
+  // ---- sector drill-down: click a sector label or a cell to see the
+  //      securities in that industry ----
+  var currentRows=[];
+  function openSector(sector){
+    var rows=currentRows.filter(function(r){return (r.sector||"Other")===sector;});
+    var panel=$("sectorPanel");
+    $("spTitle").textContent=sector;
+    $("spSub").textContent=activeEx+" \u00b7 "+rows.length+" securities";
+    // aggregate stats
+    var up=rows.filter(function(r){return r.chgPct!=null&&r.chgPct>0;}).length;
+    var down=rows.filter(function(r){return r.chgPct!=null&&r.chgPct<0;}).length;
+    var flat=rows.filter(function(r){return r.chgPct!=null&&r.chgPct===0;}).length;
+    var noD=rows.filter(function(r){return r.chgPct==null;}).length;
+    var avg=rows.filter(function(r){return r.chgPct!=null;});
+    var avgV=avg.length?avg.reduce(function(s,r){return s+r.chgPct;},0)/avg.length:null;
+    $("spStats").innerHTML=
+      '<span>UP <b style="color:var(--up)">'+up+'</b></span>'+
+      '<span>DOWN <b style="color:var(--down)">'+down+'</b></span>'+
+      '<span>FLAT <b>'+flat+'</b></span>'+
+      (noD?'<span>N/A <b>'+noD+'</b></span>':'')+
+      (avgV!=null?'<span>SECTOR AVG <b>'+(avgV>=0?"+":"")+avgV.toFixed(2)+"%</b></span>":"");
+    // rows: ticker / name / price / chg
+    var sorted=rows.slice().sort(function(a,b){return (b.chgPct!=null?b.chgPct:-999)-(a.chgPct!=null?a.chgPct:-999);});
+    if(!sorted.length){$("spList").innerHTML='<div class="sp-empty">no securities in this sector</div>';}
+    else{
+      $("spList").innerHTML=sorted.map(function(r){
+        var cls=r.chgPct==null?"":(r.chgPct>=0?"up":"down");
+        var sign=r.chgPct==null?"":(r.chgPct>=0?"+":"");
+        var px=r.price!=null?Number(r.price).toLocaleString(undefined,{maximumFractionDigits:2}):"—";
+        var sym=r.ticker||"";
+        return '<div class="sp-row" data-sym="'+esc(sym)+'">'+
+          '<span class="tkr">'+esc(sym)+'</span>'+
+          '<span class="nm">'+esc(r.name||"")+'</span>'+
+          '<span class="px">'+esc(px)+'</span>'+
+          '<span class="chg '+cls+'">'+esc(r.chgPct==null?"—":sign+r.chgPct.toFixed(2)+"%")+'</span>'+
+          '</div>';
+      }).join("");
+      // clicking a row opens that security in the terminal
+      Array.prototype.forEach.call($("spList").querySelectorAll(".sp-row"),function(row){
+        row.onclick=function(){
+          var sym=row.getAttribute("data-sym");
+          panel.classList.remove("open");
+          if(window.loadSecurity)window.loadSecurity(sym);
+        };
+      });
+    }
+    panel.classList.add("open");
+  }
+  function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  // close on backdrop click
+  document.addEventListener("click",function(e){if(e.target&&e.target.id==="sectorPanel")e.target.classList.remove("open");});
   function normalize(rows){
     return rows.map(function(x){
       var rawW = x.weight||x.volume||x.mcap||1;
+      // log-scale the size metric: dollar volumes span 20K -> 50B (2.5M:1),
+      // raw ratios make the small caps invisible. log10 compresses to ~6:1.
       var w = Math.max(1, Math.log10(1 + rawW));
       return {ticker:x.short||x.ticker||(x.sym||"").split(".")[0],name:x.name,
         chgPct:(x.chgPct==null?null:Number(x.chgPct)),weight:w,
@@ -270,7 +364,7 @@
     });
   }
   function load(){
-    fetch(ENDPOINT+"_"+encodeURIComponent(activeEx)+".json")
+    fetch('../../static_data/heatmap_' + activeEx + '.json')
       .then(function(r){if(!r.ok)throw 0;return r.json();})
       .then(function(d){
         var rows;
