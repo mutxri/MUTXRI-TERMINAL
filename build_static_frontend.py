@@ -54,6 +54,11 @@ t = t.replace(
 #    (it already defaults to "" - ensure no accidental value)
 t = re.sub(r'const API_BASE = "[^"]*";', 'const API_BASE = "";', t, count=1)
 
+# 5. panel links: /features/panels/*.html -> features/panels/*.html (relative)
+#    so the terminal works from ANY path (root or /terminal/)
+t = t.replace("'/features/panels/", "'features/panels/")
+t = t.replace('"/features/panels/', '"features/panels/')
+
 open(DST, "w", encoding="utf-8").write(t)
 print(f"static_index.html written ({len(t)} chars)")
 

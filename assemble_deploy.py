@@ -10,24 +10,28 @@ if os.path.exists(DEPLOY):
     shutil.rmtree(DEPLOY)
 os.makedirs(DEPLOY)
 
-# index.html (static build)
-shutil.copy(os.path.join(BASE, "static_index.html"), os.path.join(DEPLOY, "index.html"))
+# ================= TERMINAL (served at /terminal/) =================
+TERM = os.path.join(DEPLOY, "terminal")
+os.makedirs(TERM, exist_ok=True)
+
+# index.html (static build) - terminal entry
+shutil.copy(os.path.join(BASE, "static_index.html"), os.path.join(TERM, "index.html"))
 
 # tickerfix.js (NaN/404/tape fixes - must ship with the page)
-shutil.copy(os.path.join(BASE, "tickerfix.js"), os.path.join(DEPLOY, "tickerfix.js"))
+shutil.copy(os.path.join(BASE, "tickerfix.js"), os.path.join(TERM, "tickerfix.js"))
 
 # custom domain declaration for GitHub Pages
 with open(os.path.join(DEPLOY, "CNAME"), "w", encoding="utf-8") as _c:
     _c.write("mutxriterminal.com\n")
 
-# documentation page
+# documentation page (root-level, linked from landing)
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 
 # links hub page
 shutil.copy(os.path.join(BASE, "LINKS.html"), os.path.join(DEPLOY, "LINKS.html"))
 
 # panels (static heatmap + static screener + the shell's other panels for completeness)
-os.makedirs(os.path.join(DEPLOY, "features", "panels"), exist_ok=True)
+os.makedirs(os.path.join(TERM, "features", "panels"), exist_ok=True)
 # build the static heatmap from the LIVE panel source: remap /api/heatmap ->
 # static_data/heatmap_X.json so the deployed heatmap shows the real snapshot
 # (with sector drill-down) instead of falling back to SAMPLE data.
@@ -41,11 +45,11 @@ _hm = _hm.replace(
     'fetch(ENDPOINT + "?exchange=" + encodeURIComponent(activeEx))',
     "fetch('../../static_data/heatmap_' + activeEx + '.json')",
 )
-with open(os.path.join(DEPLOY, "features", "panels", "afri_heatmap.html"), "w", encoding="utf-8") as _f:
+with open(os.path.join(TERM, "features", "panels", "afri_heatmap.html"), "w", encoding="utf-8") as _f:
     _f.write(_hm)
 print("  static heatmap: remapped to static_data/heatmap_X.json + drill-down")
 shutil.copy(os.path.join(BASE, "static_data", "afri_screener_static.html"),
-            os.path.join(DEPLOY, "features", "panels", "afri_screener.html"))
+            os.path.join(TERM, "features", "panels", "afri_screener.html"))
 # copy the rest of the panels (static snapshot versions where they exist,
 # otherwise originals - they degrade gracefully to SAMPLE data)
 STATIC_PANELS = ["afri_bnd.html", "afri_reg.html", "afri_fx.html", "afri_glco.html", "afri_ratings.html", "afri_tas.html", "afri_financials.html"]
@@ -54,13 +58,24 @@ STATIC_PANELS = ["afri_bnd.html", "afri_reg.html", "afri_fx.html", "afri_glco.ht
 for p in STATIC_PANELS:
     src = os.path.join(BASE, "static_data", p)
     if os.path.exists(src):
-        shutil.copy(src, os.path.join(DEPLOY, "features", "panels", p))
+        shutil.copy(src, os.path.join(TERM, "features", "panels", p))
         print(f"  static panel: {p}")
 
 # static data
 shutil.copytree(os.path.join(BASE, "static_data"),
-                os.path.join(DEPLOY, "static_data"),
+                os.path.join(TERM, "static_data"),
                 ignore=shutil.ignore_patterns("afri_heatmap_static.html"))
+
+# ================= LANDING PAGE (served at /) =================
+# landing/index.html -> root index.html
+LANDING = os.path.join(BASE, "landing")
+if os.path.isdir(LANDING):
+    shutil.copy(os.path.join(LANDING, "index.html"), os.path.join(DEPLOY, "index.html"))
+    # screenshots (assets/)
+    if os.path.isdir(os.path.join(LANDING, "assets")):
+        shutil.copytree(os.path.join(LANDING, "assets"),
+                        os.path.join(DEPLOY, "assets"), dirs_exist_ok=True)
+    print("  landing page at root + terminal at /terminal/")
 
 # .nojekyll (critical - prevents Jekyll stripping)
 open(os.path.join(DEPLOY, ".nojekyll"), "w").write("")
