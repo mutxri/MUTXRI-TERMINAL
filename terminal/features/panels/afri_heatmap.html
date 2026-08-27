@@ -42,8 +42,17 @@
   .cell:hover{outline:1px solid var(--acc);outline-offset:-1px;z-index:3;}
   .cell .ct{font-weight:700;line-height:1.05;}
   .cell .cc{line-height:1.15;opacity:.92;}
-  .flash{animation:flash .6s ease;}
-  @keyframes flash{0%{filter:brightness(1.85);}100%{filter:brightness(1);}}
+  .flash{animation:flash .7s ease;}
+  @keyframes flash{0%{filter:brightness(2.2);}40%{filter:brightness(1.35);}100%{filter:brightness(1);}}
+  .cell.enter{animation:enter .6s cubic-bezier(.2,.9,.3,1.4);}
+  @keyframes enter{0%{transform:scale(.3);opacity:0;}70%{transform:scale(1.08);opacity:1;}100%{transform:scale(1);opacity:1;}}
+  .sector{animation:secEnter .7s ease;}
+  @keyframes secEnter{0%{opacity:0;}100%{opacity:1;}}
+  /* subtle continuous 'alive' shimmer on every cell (Godel-style data flow) */
+  .cell::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.05) 45%,transparent 60%);
+    background-size:250% 100%;animation:shimmer 5.5s linear infinite;}
+  @keyframes shimmer{0%{background-position:120% 0;}100%{background-position:-120% 0;}}
   .legend{display:flex;align-items:center;gap:14px;padding:8px 14px;border-top:1px solid var(--line);flex-wrap:wrap;}
   .legend .lg{color:var(--tx3);font-size:10px;}
   .sw{width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px;border-radius:1px;}
@@ -279,10 +288,11 @@
         node.firstChild.onclick=(function(sec){return function(ev){ev.stopPropagation();openSector(sec);};})(d.sector);
       }else{
         var c=d.c;
-        if(!node){node=document.createElement("div");node.className="cell";node.dataset.key=key;
+        if(!node){node=document.createElement("div");node.className="cell enter";node.dataset.key=key;
           node.innerHTML='<span class="ct"></span><span class="cc"></span>';node.title=c.name;
           node.onclick=(function(sec){return function(){openSector(sec);};})(c.sector||"Other");
           canvas.appendChild(node);}
+        else if(node.classList.contains("enter")){node.classList.remove("enter");}
         node.style.left=d.x+"px";node.style.top=d.y+"px";node.style.width=d.w+"px";node.style.height=d.h+"px";
         node.style.background=color(c.chgPct);
         var tc=txtColor(c.chgPct);
