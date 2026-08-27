@@ -137,12 +137,6 @@ body{
 .rightinfo .qgrid span:nth-child(odd){color:var(--tx3)}
 .rightinfo .qgrid span:nth-child(even){text-align:right;color:var(--tx)}
 
-/* ---------- auth modal ---------- */
-#authModal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;
-  align-items:center;justify-content:center}
-#authModal input{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
-  font-family:inherit;font-size:11px;padding:7px;border-radius:2px;box-sizing:border-box}
-
 /* ---------- status ---------- */
 .status{display:flex;align-items:center;gap:var(--s4);height:30px;padding:0 var(--s4);
   border-top:1px solid var(--line2);background:var(--bg2);color:var(--tx3);font-size:10px}
@@ -178,9 +172,6 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <span>&#9906;</span>
       <input id="q" placeholder="Search ticker or command…" autocomplete="off" aria-label="Search">
     </label>
-    <div class="acct" id="acctBox">
-      <button id="acctBtn" onclick="toggleAuth()">SIGN IN</button>
-    </div>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
   </header>
 
@@ -208,27 +199,6 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
-  </div>
-
-  <!-- AUTH MODAL -->
-  <div id="authModal" style="display:none">
-    <div style="background:var(--bg2);border:1px solid var(--line2);border-radius:6px;padding:24px;width:320px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <b style="color:var(--acc);letter-spacing:.1em" id="authTitle">SIGN IN</b>
-        <span onclick="toggleAuth()" style="cursor:pointer;color:var(--tx3)">✕</span>
-      </div>
-      <div style="display:flex;gap:6px;margin-bottom:14px">
-        <button onclick="authMode('login')" id="authTabLogin" style="flex:1;background:var(--bg3);border:1px solid var(--acc);color:var(--acc);font-family:inherit;font-size:10px;padding:5px;border-radius:2px;cursor:pointer">LOGIN</button>
-        <button onclick="authMode('signup')" id="authTabSignup" style="flex:1;background:var(--bg3);border:1px solid var(--line2);color:var(--tx2);font-family:inherit;font-size:10px;padding:5px;border-radius:2px;cursor:pointer">SIGN UP</button>
-      </div>
-      <div id="authNameRow" style="display:none;margin-bottom:10px">
-        <input id="authName" placeholder="name (optional)" style="width:100%;margin-bottom:10px">
-      </div>
-      <input id="authEmail" placeholder="email" style="width:100%;margin-bottom:10px">
-      <input id="authPass" type="password" placeholder="password (min 6)" style="width:100%;margin-bottom:14px">
-      <button onclick="authSubmit()" style="width:100%;background:var(--acc);color:#000;font-family:inherit;font-size:11px;font-weight:bold;padding:8px;border:none;border-radius:2px;cursor:pointer">GO</button>
-      <div id="authMsg" style="color:var(--warn);font-size:10px;margin-top:10px;min-height:14px"></div>
-    </div>
   </div>
 
   <!-- STATUS -->
@@ -261,97 +231,6 @@ window.fetch = function(url, opts){
 window.API_BASE = API_BASE;
 // ===== END BACKEND CONFIG =====
 
-
-// ===== Email accounts (auth) =====
-let authMode_ = 'login';
-function toggleAuth(){
-  const m = document.getElementById('authModal');
-  const on = m.style.display === 'flex';
-  m.style.display = on ? 'none' : 'flex';
-  if(!on){ authMode('login'); document.getElementById('authMsg').textContent=''; }
-}
-function authMode(mode){
-  authMode_ = mode;
-  document.getElementById('authTitle').textContent = mode === 'login' ? 'SIGN IN' : 'CREATE ACCOUNT';
-  document.getElementById('authNameRow').style.display = mode === 'signup' ? 'block' : 'none';
-  const tl = document.getElementById('authTabLogin'), ts = document.getElementById('authTabSignup');
-  tl.style.borderColor = mode === 'login' ? 'var(--acc)' : 'var(--line2)';
-  tl.style.color = mode === 'login' ? 'var(--acc)' : 'var(--tx2)';
-  ts.style.borderColor = mode === 'signup' ? 'var(--acc)' : 'var(--line2)';
-  ts.style.color = mode === 'signup' ? 'var(--acc)' : 'var(--tx2)';
-  document.getElementById('authMsg').textContent = '';
-}
-function authApi(action, params){
-  const url = window.API_BASE ? window.API_BASE + '/api/auth/' + action + '?' + new URLSearchParams(params) : '/api/auth/' + action + '?' + new URLSearchParams(params);
-  return fetch(url).then(r => r.json());
-}
-function authSubmit(){
-  const email = document.getElementById('authEmail').value.trim();
-  const pass = document.getElementById('authPass').value;
-  const name = document.getElementById('authName').value.trim();
-  const msg = document.getElementById('authMsg');
-  if(!email || !pass){ msg.textContent = 'email and password required'; return; }
-  const params = {email, password: pass};
-  if(authMode_ === 'signup'){ params.name = name; }
-  authApi(authMode_, params).then(res => {
-    if(res.ok){
-      localStorage.setItem('mutxri_token', res.token);
-      localStorage.setItem('mutxri_email', res.email);
-      setSignedIn(res.email, res.name);
-      toggleAuth();
-    } else {
-      msg.textContent = res.error || 'failed';
-    }
-  }).catch(() => { msg.textContent = 'auth service unavailable (static mode)'; });
-}
-function signOut(){
-  const token = localStorage.getItem('mutxri_token');
-  if(token) authApi('logout', {token}).catch(()=>{});
-  localStorage.removeItem('mutxri_token');
-  localStorage.removeItem('mutxri_email');
-  const b = document.getElementById('acctBtn');
-  b.textContent = 'SIGN IN';
-  b.style.color = 'var(--acc)';
-  b.onclick = toggleAuth;
-}
-function setSignedIn(email, name){
-  const b = document.getElementById('acctBtn');
-  b.textContent = (name || email.split('@')[0]).toUpperCase();
-  b.style.color = 'var(--acc)';
-  b.onclick = signOut;
-}
-// restore session on load
-(function(){
-  const token = localStorage.getItem('mutxri_token');
-  if(token){
-    const url = window.API_BASE ? window.API_BASE + '/api/auth/me?token=' + token : '/api/auth/me?token=' + token;
-    fetch(url).then(r => r.json()).then(res => {
-      if(res.ok) setSignedIn(res.email, res.name);
-      else { localStorage.removeItem('mutxri_token'); }
-    }).catch(()=>{});
-  }
-})();
-// ===== END auth =====
-
-
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-let currentEx = 'JSE';
-// support ?ex=NGX deep-link (landing dropdown passes the exchange)
-try{
- const _pex = new URLSearchParams(location.search).get('ex');
- if(_pex && ['JSE','EGX','NGX','NSE'].includes(_pex.toUpperCase())) currentEx = _pex.toUpperCase();
-}catch(e){}
-let listing = {};
-
-// ===== Company logos =====
-let LOGO_MAP = {};
-try{
-  fetch((window.API_BASE ? window.API_BASE : '') + 'static_data/logos.json')
-    .then(r => r.ok ? r.json() : Promise.reject())
-    .then(d => { LOGO_MAP = d || {}; })
-    .catch(() => {});
-}catch(e){}
 
 // ===== Clock (exchange capital-city timezone) =====
 const EX_TZ = {
