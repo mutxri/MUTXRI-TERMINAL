@@ -192,7 +192,16 @@
     var s=$("fEx");for(var i=0;i<s.options.length;i++)s.options[i].selected=false;$("fSec").value="";
     try{localStorage.removeItem(LS);}catch(e){}run();}
   window.showScreener=function(){var el=$("screener");if(el)el.scrollIntoView({behavior:"smooth"});};
-  function init(){sectors(SAMPLE_STOCKS);restore();head();
+  function init(){
+    sectors(SAMPLE_STOCKS);restore();head();
+    // honor ?ex= deep-link from the terminal (landing exchange dropdown) -
+    // set AFTER restore() so the URL param wins over saved filters
+    try{
+      var _pex = new URLSearchParams(location.search).get("ex");
+      if(_pex && ["JSE","EGX","NGX","NSE"].indexOf(_pex.toUpperCase()) >= 0){
+        var s=$("fEx");for(var i=0;i<s.options.length;i++)s.options[i].selected=(s.options[i].value===_pex.toUpperCase());
+      }
+    }catch(e){}
     $("bRun").onclick=run;$("bCsv").onclick=csv;$("bReset").onclick=reset;run();}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
