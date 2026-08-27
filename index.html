@@ -1,870 +1,452 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI CAPITAL — African Markets Terminal</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oxygen+Mono&family=Sofia+Sans+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<meta name="description" content="MUTXRI CAPITAL is a financial terminal for African markets. 1,030 securities across JSE, NGX, NSE and EGX. Real quotes, heatmaps, financials, filings and news in one workspace." />
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
 :root{
-  /* Godel tokens — unchanged */
-  --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
-  --line:#1a1a1a; --line2:#262626;
-  --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
-  --acc:#33e29a; --acc2:#1ecfb0; --up:#33e29a; --down:#f87171; --warn:#e0a340;
-  --mint-dim:rgba(51,226,154,.10); --mint-line:rgba(51,226,154,.35);
-  /* refinement: one spacing scale, used everywhere */
-  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
-  --mono:'Oxygen Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
-  --ui:'Inter',system-ui,sans-serif;
-  --brand:'Sofia Sans Semi Condensed','Inter',sans-serif;
+  --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+  --line:#1a1a1a;--line2:#262626;
+  --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+  --up:#33e29a;--down:#f87171;--acc:#33e29a;
+  --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{
-  background:var(--bg);color:var(--tx);font-family:var(--mono);font-size:12px;
-  -webkit-font-smoothing:antialiased;
-  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;
-}
-.term{height:100vh;display:grid;grid-template-rows:auto auto 1fr auto;overflow:hidden}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--tx);font-family:var(--ui);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;}
+a{color:var(--acc);text-decoration:none;}
+.container{max-width:1120px;margin:0 auto;padding:0 24px;}
 
-/* ---------- top bar ---------- */
-.topbar{display:flex;align-items:center;gap:var(--s5);padding:0 var(--s4);height:52px;
-  border-bottom:1px solid var(--line2);background:var(--bg2)}
-.brand{display:flex;align-items:center;gap:var(--s3);cursor:pointer}
-.mark{width:30px;height:30px;border:1.5px solid var(--acc);border-radius:3px;
-  display:grid;place-items:center;font-family:var(--brand);font-weight:700;
-  font-size:14px;color:var(--acc);letter-spacing:.02em}
-.brandname{font-family:var(--brand);font-weight:700;font-size:17px;letter-spacing:.14em}
-.brandname small{display:block;font-size:8px;letter-spacing:.34em;color:var(--tx3);
-  font-weight:600;margin-top:-2px}
-.exch{display:flex;gap:var(--s1);margin-left:var(--s2)}
-.exch-tab{background:none;border:0;color:var(--tx3);font-family:var(--mono);
-  font-size:11px;letter-spacing:.06em;padding:var(--s1) var(--s3);border-radius:2px;
-  cursor:pointer;transition:color .15s,background .15s}
-.exch-tab:hover{color:var(--tx2)}
-.exch-tab.active{color:#00160e;background:var(--acc);font-weight:600}
-.search{margin-left:auto;display:flex;align-items:center;gap:var(--s2);
-  background:var(--bg3);border:1px solid var(--line2);border-radius:3px;
-  padding:var(--s2) var(--s3);width:260px;transition:border-color .15s}
-.search:focus-within{border-color:var(--mint-line)}
-.search span{color:var(--tx3);font-size:11px}
-.search input{background:none;border:0;outline:0;color:var(--tx);font-family:var(--mono);
-  font-size:12px;width:100%}
-.search input::placeholder{color:var(--tx3)}
-.acct button{background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
-  font-family:inherit;font-size:10px;padding:var(--s1) 10px;border-radius:2px;cursor:pointer;
-  transition:border-color .15s,color .15s}
-.acct button:hover{border-color:var(--mint-line)}
-.clock{display:flex;align-items:center;gap:var(--s2);color:var(--tx2);font-size:11px}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--acc);
-  box-shadow:0 0 0 0 rgba(51,226,154,.5);animation:pulse 2.4s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(51,226,154,.45)}70%{box-shadow:0 0 0 5px rgba(51,226,154,0)}100%{box-shadow:0 0 0 0 rgba(51,226,154,0)}}
+/* ---------- nav ---------- */
+.nav{position:sticky;top:0;z-index:50;background:rgba(0,0,0,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:58px;}
+.logo{font-family:var(--mono);font-size:14px;letter-spacing:.06em;color:var(--tx);}
+.logo b{color:var(--acc);font-weight:700;}
+.nav-links{display:flex;align-items:center;gap:26px;font-size:13px;color:var(--tx2);}
+.nav-links a{color:var(--tx2);transition:color .15s;}
+.nav-links a:hover{color:var(--tx);}
+.nav-cta{display:flex;gap:10px;align-items:center;}
+.btn{font-family:var(--mono);font-size:12px;letter-spacing:.05em;padding:8px 18px;border-radius:3px;cursor:pointer;transition:all .15s;border:1px solid var(--line2);background:var(--bg3);color:var(--tx);}
+.btn:hover{border-color:var(--acc);color:var(--acc);}
+.btn-primary{background:var(--acc);border-color:var(--acc);color:#00160e;font-weight:700;}
+.btn-primary:hover{background:#5cf0b4;color:#00160e;}
+.btn-ghost{background:transparent;border-color:var(--line2);color:var(--tx2);}
+.btn-ghost:hover{color:var(--tx);border-color:var(--tx3);}
 
-/* ---------- tape ---------- */
-.tape{display:flex;align-items:center;height:34px;border-bottom:1px solid var(--line2);
-  background:var(--bg);overflow:hidden;white-space:nowrap;padding-left:var(--s4)}
-.tape-inner{display:inline-flex;align-items:center;gap:0;will-change:transform;
-  animation:tape-scroll 45s linear infinite}
-.tape-inner:hover{animation-play-state:paused}
-@keyframes tape-scroll{
-  0%{transform:translateX(0)}
-  100%{transform:translateX(-50%)}
-}
-.tape-item{display:inline-flex;align-items:baseline;gap:var(--s2);padding:0 var(--s4);
-  border-right:1px solid var(--line);font-size:11px}
-.tape-item .sym{color:var(--tx2);font-weight:500}
-.tape-item .pr{color:var(--tx)}
-.up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--tx3)}
+/* ---------- hero ---------- */
+.hero{padding:96px 0 72px;position:relative;overflow:hidden;}
+.hero::before{content:"";position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:900px;height:500px;background:radial-gradient(ellipse at center,rgba(51,226,154,.07),transparent 65%);pointer-events:none;}
+.hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--acc);text-transform:uppercase;margin-bottom:18px;}
+.hero h1{font-size:52px;line-height:1.12;font-weight:800;letter-spacing:-.02em;margin-bottom:20px;}
+.hero h1 .grad{background:linear-gradient(90deg,#33e29a,#1ecfb0);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.hero p.sub{font-size:17px;color:var(--tx2);max-width:640px;margin-bottom:34px;}
+.hero-cta{display:flex;gap:14px;margin-bottom:40px;flex-wrap:wrap;}
+.hero-stats{display:flex;gap:44px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:26px;}
+.stat .n{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--tx);}
+.stat .n b{color:var(--acc);}
+.stat .l{font-size:12px;color:var(--tx3);margin-top:2px;}
 
-/* ---------- main grid ---------- */
-.main{display:grid;grid-template-columns:232px 1fr 288px;min-height:0}
-.rail{border-right:1px solid var(--line2);background:var(--bg2);
-  display:flex;flex-direction:column;min-height:0}
-.rail.right{border-right:0;border-left:1px solid var(--line2)}
-.eyebrow{color:var(--tx3);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
-  padding:var(--s3) var(--s4) var(--s2)}
+/* ---------- terminal preview ---------- */
+.terminal-frame{margin-top:56px;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--bg2);box-shadow:0 24px 80px rgba(0,0,0,.6);}
+.tf-bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--bg3);}
+.tf-dot{width:10px;height:10px;border-radius:50%;}
+.tf-dot.r{background:#f87171;}.tf-dot.y{background:#e0a340;}.tf-dot.g{background:#33e29a;}
+.tf-url{font-family:var(--mono);font-size:11px;color:var(--tx3);margin-left:12px;letter-spacing:.03em;}
+.tf-body{position:relative;height:430px;background:var(--bg);}
+.tf-body iframe{width:100%;height:100%;border:0;display:block;}
+.tf-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,.2),rgba(0,0,0,.55));}
+.tf-overlay .btn{font-size:14px;padding:12px 28px;}
 
-/* watchlist */
-.wl{overflow-y:auto;min-height:0;flex:1}
-.wl-head{display:flex;justify-content:space-between;padding:var(--s2) var(--s4);font-size:10px;
-  color:var(--tx3);border-bottom:1px solid var(--line);letter-spacing:.05em}
-.wl-row{display:grid;grid-template-columns:26px 1fr auto;gap:2px var(--s3);
-  align-items:center;padding:var(--s2) var(--s4);border-bottom:1px solid var(--line);
-  cursor:pointer;transition:background .12s}
-.wl-row:hover{background:var(--bg3)}
-.wl-row.active{background:var(--bg3);box-shadow:inset 2px 0 0 var(--acc)}
-.wl-logo-cell{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:center}
-.wl-logo{width:22px;height:22px;border-radius:3px;background:var(--bg4);object-fit:contain;padding:2px}
-.wl-mono{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
-  border:1px solid var(--line2);border-radius:3px;color:var(--acc);font-size:10px;font-weight:700;
-  background:var(--bg3);letter-spacing:.02em}
-.wl-main{grid-column:2;min-width:0}
-.wl-main .sym{font-weight:500;color:var(--tx);letter-spacing:.02em}
-.wl-main .nm{font-family:var(--ui);font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wl-price{grid-column:3;text-align:right}
-.wl-price .pr{color:var(--tx);font-size:11px}
-.wl-price .chg{font-size:10.5px}
+/* ---------- capability cards ---------- */
+.section{padding:80px 0;}
+.section-head{margin-bottom:44px;}
+.section-head .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--acc);text-transform:uppercase;margin-bottom:10px;}
+.section-head h2{font-size:32px;font-weight:800;letter-spacing:-.01em;margin-bottom:10px;}
+.section-head p{color:var(--tx2);max-width:620px;font-size:15px;}
+.caps{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;}
+.cap{border:1px solid var(--line);border-radius:6px;padding:24px;background:var(--bg2);transition:border-color .2s,transform .2s;cursor:pointer;position:relative;overflow:hidden;}
+.cap:hover{border-color:var(--acc);transform:translateY(-2px);}
+.cap::after{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--acc),transparent);opacity:0;transition:opacity .2s;}
+.cap:hover::after{opacity:1;}
+.cap .code{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.1em;margin-bottom:14px;}
+.cap h3{font-size:17px;font-weight:700;margin-bottom:8px;}
+.cap p{font-size:13.5px;color:var(--tx2);}
+.cap .more{margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--tx3);}
 
-/* ---------- center panel ---------- */
-.panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--line2);padding:0 var(--s3);
-  overflow-x:auto}
-.ctab{background:none;border:0;color:var(--tx3);font-family:var(--mono);
-  font-size:11px;letter-spacing:.05em;padding:var(--s3) var(--s3);cursor:pointer;
-  position:relative;white-space:nowrap;transition:color .15s}
-.ctab:hover{color:var(--tx2)}
-.ctab.active{color:var(--tx)}
-.ctab.active::after{content:"";position:absolute;left:var(--s3);
-  right:var(--s3);bottom:-1px;height:2px;background:var(--acc)}
-.stage{flex:1;min-height:0}
-.stage iframe{width:100%;height:100%;border:0;display:block;background:var(--bg)}
+/* ---------- feature blocks ---------- */
+.feature{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;padding:56px 0;border-top:1px solid var(--line);}
+.feature:nth-child(even){direction:rtl;}
+.feature>*{direction:ltr;}
+.f-text .code{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.1em;margin-bottom:12px;}
+.f-text h3{font-size:26px;font-weight:800;margin-bottom:12px;}
+.f-text p{color:var(--tx2);font-size:14.5px;margin-bottom:18px;}
+.f-text .feats{list-style:none;margin-bottom:22px;}
+.f-text .feats li{font-size:13.5px;color:var(--tx2);padding:5px 0;padding-left:20px;position:relative;}
+.f-text .feats li::before{content:"▸";position:absolute;left:0;color:var(--acc);}
+.f-shot{border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--bg3);aspect-ratio:16/10;display:flex;align-items:center;justify-content:center;min-height:260px;position:relative;}
+.f-shot .shot-placeholder{color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center;padding:20px;}
+.f-shot img{width:100%;height:100%;object-fit:cover;display:block;}
+.f-shot .shot-tag{position:absolute;bottom:10px;left:10px;font-family:var(--mono);font-size:10px;color:var(--acc);background:rgba(0,0,0,.7);padding:3px 8px;border-radius:3px;border:1px solid var(--line2);}
 
-/* ---------- right rail ---------- */
-.rightinfo{flex:1;overflow-y:auto;padding:0;font-family:var(--mono);font-size:11px;color:var(--tx2)}
-.rightinfo .qhead{padding:var(--s4) var(--s4) var(--s2);border-bottom:1px solid var(--line)}
-.rightinfo .qsym{font-size:16px;font-weight:500;color:var(--tx)}
-.rightinfo .qname{font-family:var(--ui);font-size:11px;color:var(--tx3);margin-top:2px}
-.rightinfo .qpx{font-size:24px;margin-top:var(--s3);color:var(--tx)}
-.rightinfo .qchg{font-size:13px;margin-top:2px}
-.rightinfo .qgrid{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;padding:var(--s2) var(--s4);
-  font-size:10px;font-family:var(--mono)}
-.rightinfo .qgrid span:nth-child(odd){color:var(--tx3)}
-.rightinfo .qgrid span:nth-child(even){text-align:right;color:var(--tx)}
+/* ---------- demo section ---------- */
+.demo{padding:80px 0;border-top:1px solid var(--line);}
+.demo-inner{background:linear-gradient(135deg,var(--bg3),var(--bg2));border:1px solid var(--line2);border-radius:10px;padding:56px;text-align:center;}
+.demo-inner h2{font-size:30px;font-weight:800;margin-bottom:12px;}
+.demo-inner p{color:var(--tx2);max-width:560px;margin:0 auto 28px;font-size:15px;}
+.demo-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+.demo-meta{font-family:var(--mono);font-size:11px;color:var(--tx3);margin-top:18px;}
+
+/* ---------- used by ---------- */
+.usedby{padding:56px 0;border-top:1px solid var(--line);}
+.usedby .lbl{font-family:var(--mono);font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.12em;text-align:center;margin-bottom:22px;}
+.usedby-row{display:flex;justify-content:center;gap:36px;flex-wrap:wrap;color:var(--tx3);font-size:14px;}
+.usedby-row span{font-family:var(--mono);letter-spacing:.03em;}
 
 /* ---------- auth modal ---------- */
-#authModal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;
-  align-items:center;justify-content:center}
-#authModal input{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
-  font-family:inherit;font-size:11px;padding:7px;border-radius:2px;box-sizing:border-box}
+#authModal{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;display:none;align-items:center;justify-content:center;}
+#authModal.open{display:flex;}
+.auth-box{background:var(--bg2);border:1px solid var(--line2);border-radius:8px;width:min(400px,92vw);padding:32px;position:relative;}
+.auth-close{position:absolute;top:14px;right:16px;color:var(--tx3);cursor:pointer;font-size:20px;background:none;border:0;}
+.auth-close:hover{color:var(--tx);}
+.auth-tabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--line);}
+.auth-tab{flex:1;text-align:center;padding:10px;font-family:var(--mono);font-size:12px;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;}
+.auth-tab.on{color:var(--acc);border-bottom-color:var(--acc);}
+.auth-form label{display:block;font-size:12px;color:var(--tx3);margin:14px 0 6px;font-family:var(--mono);}
+.auth-form input{width:100%;padding:11px 14px;background:var(--bg3);border:1px solid var(--line2);border-radius:4px;color:var(--tx);font-family:var(--mono);font-size:13px;outline:none;}
+.auth-form input:focus{border-color:var(--acc);}
+.auth-form .btn{width:100%;margin-top:22px;padding:12px;}
+.auth-msg{font-size:12px;margin-top:14px;text-align:center;font-family:var(--mono);}
+.auth-msg.ok{color:var(--up);}
+.auth-msg.err{color:var(--down);}
+.auth-note{margin-top:18px;font-size:11.5px;color:var(--tx3);text-align:center;line-height:1.5;}
 
-/* ---------- status ---------- */
-.status{display:flex;align-items:center;gap:var(--s4);height:30px;padding:0 var(--s4);
-  border-top:1px solid var(--line2);background:var(--bg2);color:var(--tx3);font-size:10px}
-.status .live{color:var(--acc)}
-.status .warn{color:var(--warn)}
-.status .spacer{margin-left:auto}
-.status .cmd{display:flex;align-items:center;gap:4px}
-.status .cmd b{color:var(--acc)}
-.status .cmd input{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
-  font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:2px;outline:0;width:160px}
-.status .cmd input::placeholder{color:var(--tx3)}
-kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
-  border-radius:2px;padding:1px 5px;color:var(--tx2);font-size:10px}
+/* ---------- footer ---------- */
+.footer{border-top:1px solid var(--line);padding:40px 0;color:var(--tx3);font-size:12.5px;}
+.footer-inner{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;}
+.footer a{color:var(--tx2);}
+.footer a:hover{color:var(--acc);}
+.footer .mono{font-family:var(--mono);font-size:11px;}
 
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
-::-webkit-scrollbar-track{background:transparent}
+@media (max-width:860px){
+  .hero h1{font-size:36px;}
+  .feature{grid-template-columns:1fr;gap:28px;direction:ltr !important;}
+  .nav-links{display:none;}
+  .hero{padding:64px 0 48px;}
+  .hero-stats{gap:24px;}
+  .stat .n{font-size:20px;}
+}
 </style>
 </head>
 <body>
-<div class="term">
 
-  <!-- TOP BAR -->
-  <header class="topbar">
-    <div class="brand" onclick="location.href='/'">
-      <div class="mark">MX</div>
-      <div class="brandname">MUTXRI<small>CAPITAL</small></div>
+<!-- ================= NAV ================= -->
+<div class="nav">
+  <div class="container nav-inner">
+    <div class="logo">MUTXRI <b>CAPITAL</b></div>
+    <div class="nav-links">
+      <a href="#capabilities">Capabilities</a>
+      <a href="#features">Features</a>
+      <a href="#demo">Demo</a>
+      <a href="#coverage">Coverage</a>
     </div>
-    <nav class="exch" id="exchTabs">
-      <button class="exch-tab active" data-ex="JSE">JSE</button>
-      <button class="exch-tab" data-ex="EGX">EGX</button>
-      <button class="exch-tab" data-ex="NGX">NGX</button>
-      <button class="exch-tab" data-ex="NSE">NSE</button>
-    </nav>
-    <label class="search">
-      <span>&#9906;</span>
-      <input id="q" placeholder="Search ticker or command…" autocomplete="off" aria-label="Search">
-    </label>
-    <div class="acct" id="acctBox">
-      <button id="acctBtn" onclick="toggleAuth()">SIGN IN</button>
-    </div>
-    <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
-  </header>
-
-  <!-- TAPE -->
-  <div class="tape"><div class="tape-inner" id="tape"></div></div>
-
-  <!-- MAIN -->
-  <div class="main">
-
-    <!-- WATCHLIST -->
-    <aside class="rail">
-      <div class="wl-head"><span id="wlEx">JSE</span><span id="wlState"></span></div>
-      <div class="wl" id="wlList"></div>
-    </aside>
-
-    <!-- CENTER PANEL -->
-    <section class="panel">
-      <nav class="tabs" id="centerTabs"></nav>
-      <div class="stage"><iframe id="stageFrame" src="/features/panels/afri_heatmap.html"></iframe></div>
-    </section>
-
-    <!-- RIGHT RAIL -->
-    <aside class="rail right">
-      <div class="eyebrow">Market</div>
-      <div class="rightinfo" id="rightInfo"></div>
-    </aside>
-
-  </div>
-
-  <!-- AUTH MODAL -->
-  <div id="authModal" style="display:none">
-    <div style="background:var(--bg2);border:1px solid var(--line2);border-radius:6px;padding:24px;width:320px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <b style="color:var(--acc);letter-spacing:.1em" id="authTitle">SIGN IN</b>
-        <span onclick="toggleAuth()" style="cursor:pointer;color:var(--tx3)">✕</span>
-      </div>
-      <div style="display:flex;gap:6px;margin-bottom:14px">
-        <button onclick="authMode('login')" id="authTabLogin" style="flex:1;background:var(--bg3);border:1px solid var(--acc);color:var(--acc);font-family:inherit;font-size:10px;padding:5px;border-radius:2px;cursor:pointer">LOGIN</button>
-        <button onclick="authMode('signup')" id="authTabSignup" style="flex:1;background:var(--bg3);border:1px solid var(--line2);color:var(--tx2);font-family:inherit;font-size:10px;padding:5px;border-radius:2px;cursor:pointer">SIGN UP</button>
-      </div>
-      <div id="authNameRow" style="display:none;margin-bottom:10px">
-        <input id="authName" placeholder="name (optional)" style="width:100%;margin-bottom:10px">
-      </div>
-      <input id="authEmail" placeholder="email" style="width:100%;margin-bottom:10px">
-      <input id="authPass" type="password" placeholder="password (min 6)" style="width:100%;margin-bottom:14px">
-      <button onclick="authSubmit()" style="width:100%;background:var(--acc);color:#000;font-family:inherit;font-size:11px;font-weight:bold;padding:8px;border:none;border-radius:2px;cursor:pointer">GO</button>
-      <div id="authMsg" style="color:var(--warn);font-size:10px;margin-top:10px;min-height:14px"></div>
+    <div class="nav-cta">
+      <button class="btn btn-ghost" onclick="openAuth('login')">Log in</button>
+      <button class="btn btn-primary" onclick="openAuth('signup')">Sign up</button>
     </div>
   </div>
-
-  <!-- STATUS -->
-  <footer class="status">
-    <span id="feedState">● SNAPSHOT</span>
-    <span>JSE / EGX intraday · NGX / NSE end-of-day</span>
-    <span class="spacer">Type <kbd>`</kbd> + command · <kbd>HELP</kbd></span>
-    <span class="cmd"><b>`</b><input id="cmd" placeholder="HELP" spellcheck="false"></span>
-  </footer>
-
 </div>
 
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-<script src="tickerfix.js"></script>
+<!-- ================= HERO ================= -->
+<div class="hero">
+  <div class="container">
+    <div class="eyebrow">African Markets Terminal</div>
+    <h1>Every African market.<br><span class="grad">One terminal.</span></h1>
+    <p class="sub">MUTXRI CAPITAL is a browser-based financial terminal covering <b style="color:var(--tx)">1,030 securities</b> across the JSE, NGX, NSE and EGX. Real-time quotes, interactive heatmaps, audited financials, filings and news — built for research teams, analysts and CFOs who need the full picture without the $30,000 seat.</p>
+    <div class="hero-cta">
+      <button class="btn btn-primary" onclick="openAuth('signup')">Try It Now</button>
+      <a class="btn btn-ghost" href="#demo">Get a Demo</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><div class="n"><b>1,030</b></div><div class="l">Securities covered</div></div>
+      <div class="stat"><div class="n"><b>4</b></div><div class="l">African exchanges</div></div>
+      <div class="stat"><div class="n"><b>196+</b></div><div class="l">JSE financial statements</div></div>
+      <div class="stat"><div class="n"><b>24</b></div><div class="l">Industry sectors mapped</div></div>
+    </div>
+    <div class="terminal-frame">
+      <div class="tf-bar">
+        <span class="tf-dot r"></span><span class="tf-dot y"></span><span class="tf-dot g"></span>
+        <span class="tf-url">mutxriterminal.com — the live terminal</span>
+      </div>
+      <div class="tf-body">
+        <iframe src="terminal/" loading="lazy" title="MUTXRI CAPITAL terminal"></iframe>
+        <div class="tf-overlay">
+          <button class="btn btn-primary" onclick="openAuth('signup')">Open the Terminal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= CAPABILITIES ================= -->
+<div class="section" id="capabilities">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Capabilities</div>
+      <h2>Built for the African research workflow.</h2>
+      <p>Every panel is data-driven from official exchange sources. Hover any capability to see what it does — then try it in the live terminal.</p>
+    </div>
+    <div class="caps">
+      <div class="cap">
+        <div class="code">WL · WATCHLIST</div>
+        <h3>Quote Monitor</h3>
+        <p>Streaming watchlists across JSE, NGX, NSE and EGX with real prices, change, volume and currency, plus official company logos on every row.</p>
+        <div class="more">Type a ticker to filter →</div>
+      </div>
+      <div class="cap">
+        <div class="code">HM · HEATMAP</div>
+        <h3>Interactive Heatmap</h3>
+        <p>Every security in a squarified treemap, grouped by industry. Click any sector to drill into the securities that make it up — with aggregate moves.</p>
+        <div class="more">Click a sector to drill down →</div>
+      </div>
+      <div class="cap">
+        <div class="code">SC · SCREENER</div>
+        <h3>Stock Screener</h3>
+        <p>Filter the full universe by exchange, sector, price and performance. Find the movers, the laggards, and the names nobody is watching yet.</p>
+        <div class="more">Data-driven sector filter →</div>
+      </div>
+      <div class="cap">
+        <div class="code">FI · FINANCIALS</div>
+        <h3>Audited Financials</h3>
+        <p>Income statement, balance sheet and cash flow extracted from official audited statements — JSE via the exchange's own portal, NGX/NSE via AfricanFinancials.</p>
+        <div class="more">Line items, verified →</div>
+      </div>
+      <div class="cap">
+        <div class="code">CO · COMPANY INFO</div>
+        <h3>Investor Information Sheet</h3>
+        <p>Founded, listed date, year-end, transfer secretary, dividends, major shareholders and business description for every covered company.</p>
+        <div class="more">Click any security →</div>
+      </div>
+      <div class="cap">
+        <div class="code">RG · REG NEWS</div>
+        <h3>Filings &amp; Regulatory</h3>
+        <p>Filings registry and regulatory announcements tied to each company, with source documents linked directly.</p>
+        <div class="more">Source-linked →</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FEATURES ================= -->
+<div class="section" id="features" style="padding-top:0;">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">In the workspace</div>
+      <h2>See it in action.</h2>
+      <p>The terminal is live at mutxriterminal.com. These are the real panels.</p>
+    </div>
+
+    <div class="feature">
+      <div class="f-text">
+        <div class="code">WL · QUOTE MONITOR</div>
+        <h3>Every security, one screen.</h3>
+        <p>Real prices with per-exchange currencies — ZAc, KES, NGN, EGP — official tickers, and company logos to the left of every price. Animated tape scrolls the whole market.</p>
+        <ul class="feats">
+          <li>Official tickers per exchange (ABBEYBANK, ABG, COMI, SCOM)</li>
+          <li>Animated tape with correct security stickers</li>
+          <li>Logos for 500+ companies, monogram fallback</li>
+          <li>Type-to-filter across the full universe</li>
+        </ul>
+        <button class="btn btn-ghost" onclick="openAuth('signup')">Try It Now</button>
+      </div>
+      <div class="f-shot">
+        <img src="assets/shot-watchlist.png" alt="Watchlist screenshot" onerror="this.style.display='none';document.getElementById('wl-ph').style.display='flex'">
+        <div id="wl-ph" class="shot-placeholder" style="display:none">Watchlist panel — real prices, logos, animated tape</div>
+        <span class="shot-tag">WATCHLIST · LIVE</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="f-text">
+        <div class="code">HM · INTERACTIVE HEATMAP</div>
+        <h3>Industries at a glance, drill in.</h3>
+        <p>All 329 JSE names in a treemap, sized by weight and colored by day change. Click any sector — Banks, Mining, Retail — to see every security in that industry with its move.</p>
+        <ul class="feats">
+          <li>Squarified treemap, log10-scaled cell size</li>
+          <li>Sector labels clickable → full drill-down panel</li>
+          <li>UP / DOWN / FLAT counts + sector average</li>
+          <li>Swap JSE / EGX / NGX / NSE instantly</li>
+        </ul>
+        <button class="btn btn-ghost" onclick="openAuth('signup')">Try It Now</button>
+      </div>
+      <div class="f-shot">
+        <img src="assets/shot-heatmap.png" alt="Heatmap screenshot" onerror="this.style.display='none';document.getElementById('hm-ph').style.display='flex'">
+        <div id="hm-ph" class="shot-placeholder" style="display:none">Heatmap — industry-grouped, click to drill down</div>
+        <span class="shot-tag">HEATMAP · INTERACTIVE</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="f-text">
+        <div class="code">FI · FINANCIALS</div>
+        <h3>Real numbers from audited statements.</h3>
+        <p>JSE financials are extracted directly from the exchange's official client portal — 196 companies with income, balance sheet and cash flow line items, verified against published figures.</p>
+        <ul class="feats">
+          <li>Official JSE AFS source (clientportal.jse.co.za)</li>
+          <li>Standardized line items across companies</li>
+          <li>Verified sample: Absa, Capitec, Standard Bank match published</li>
+          <li>NGX/NSE via AfricanFinancials fundamentals</li>
+        </ul>
+        <button class="btn btn-ghost" onclick="openAuth('signup')">Try It Now</button>
+      </div>
+      <div class="f-shot">
+        <img src="assets/shot-financials.png" alt="Financials screenshot" onerror="this.style.display='none';document.getElementById('fi-ph').style.display='flex'">
+        <div id="fi-ph" class="shot-placeholder" style="display:none">Financials — audited line items</div>
+        <span class="shot-tag">FINANCIALS · AUDITED</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="f-text">
+        <div class="code">CO · COMPANY INFO</div>
+        <h3>The investor sheet, on demand.</h3>
+        <p>Click any security for the full picture: quote, sector, industry, founded, listed, year-end, transfer secretary, dividends, shareholders with sources — and honest "—" where no verified free source exists.</p>
+        <ul class="feats">
+          <li>Major shareholders with source attribution</li>
+          <li>Dividend history where available</li>
+          <li>No fabricated data — gaps shown honestly</li>
+        </ul>
+        <button class="btn btn-ghost" onclick="openAuth('signup')">Try It Now</button>
+      </div>
+      <div class="f-shot">
+        <img src="assets/shot-company.png" alt="Company info screenshot" onerror="this.style.display='none';document.getElementById('co-ph').style.display='flex'">
+        <div id="co-ph" class="shot-placeholder" style="display:none">Company info — investor sheet</div>
+        <span class="shot-tag">COMPANY INFO · SOURCED</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DEMO ================= -->
+<div class="demo" id="demo">
+  <div class="container">
+    <div class="demo-inner">
+      <h2>See the terminal end-to-end.</h2>
+      <p>Watch how the research workflow runs — quotes, heatmaps, financials and filings in one workspace. Or skip straight in and open the live terminal.</p>
+      <div class="demo-btns">
+        <a class="btn btn-primary" href="terminal/" target="_blank">Open the Terminal</a>
+        <button class="btn btn-ghost" onclick="openAuth('signup')">Create a Free Account</button>
+      </div>
+      <div class="demo-meta">No credit card · Browser-based · Works on any screen</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= USED BY / COVERAGE ================= -->
+<div class="usedby" id="coverage">
+  <div class="container">
+    <div class="lbl">Coverage</div>
+    <div class="usedby-row">
+      <span>JSE · 431</span><span>EGX · 374</span><span>NGX · 152</span><span>NSE · 69</span>
+      <span>ZAR · KES · NGN · EGP</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FOOTER ================= -->
+<div class="footer">
+  <div class="container footer-inner">
+    <div><span class="mono">MUTXRI <b style="color:var(--acc)">CAPITAL</b></span> — African Markets Terminal</div>
+    <div class="mono"><a href="https://mutxriterminal.com/" target="_blank">mutxriterminal.com</a> · <a href="mailto:hello@mutxriterminal.com">hello@mutxriterminal.com</a></div>
+    <div class="mono">Data: official exchange sources · Audited statements</div>
+  </div>
+</div>
+
+<!-- ================= AUTH MODAL ================= -->
+<div id="authModal">
+  <div class="auth-box">
+    <button class="auth-close" onclick="closeAuth()">&times;</button>
+    <div class="auth-tabs">
+      <div class="auth-tab on" id="tab-login" onclick="switchAuth('login')">LOG IN</div>
+      <div class="auth-tab" id="tab-signup" onclick="switchAuth('signup')">SIGN UP</div>
+    </div>
+    <form class="auth-form" id="authForm" onsubmit="return submitAuth(event)">
+      <label>EMAIL</label>
+      <input type="email" id="authEmail" required placeholder="you@company.com" />
+      <label>PASSWORD</label>
+      <input type="password" id="authPass" required minlength="6" placeholder="••••••••" />
+      <button class="btn btn-primary" type="submit" id="authSubmit">LOG IN</button>
+    </form>
+    <div class="auth-msg" id="authMsg"></div>
+    <div class="auth-note" id="authNote">New here? <a href="#" onclick="switchAuth('signup');return false;">Create an account</a> — no credit card needed.</div>
+  </div>
+</div>
+
 <script>
+// ===== auth =====
+var AUTH_MODE = "login";
+var API = window.API_BASE ? window.API_BASE : "";  // set to backend URL when live
 
-// ===== BACKEND CONFIG (GitHub Pages deployment) =====
-// Empty string = local/snapshot mode. Set to deployed backend URL (NO trailing
-// slash) to route all /api/* calls to the live server.
-const API_BASE = "";
-const __origFetch = window.fetch;
-window.fetch = function(url, opts){
-  const u = String(url);
-  const isApi = u.indexOf('/api/') === 0;
-  if(isApi && API_BASE){
-    return __origFetch(API_BASE + u, opts);
-  }
-  return __origFetch(url, opts);
-};
-window.API_BASE = API_BASE;
-// ===== END BACKEND CONFIG =====
-
-
-// ===== Email accounts (auth) =====
-let authMode_ = 'login';
-function toggleAuth(){
-  const m = document.getElementById('authModal');
-  const on = m.style.display === 'flex';
-  m.style.display = on ? 'none' : 'flex';
-  if(!on){ authMode('login'); document.getElementById('authMsg').textContent=''; }
+function openAuth(mode){
+  switchAuth(mode || "login");
+  document.getElementById("authModal").classList.add("open");
 }
-function authMode(mode){
-  authMode_ = mode;
-  document.getElementById('authTitle').textContent = mode === 'login' ? 'SIGN IN' : 'CREATE ACCOUNT';
-  document.getElementById('authNameRow').style.display = mode === 'signup' ? 'block' : 'none';
-  const tl = document.getElementById('authTabLogin'), ts = document.getElementById('authTabSignup');
-  tl.style.borderColor = mode === 'login' ? 'var(--acc)' : 'var(--line2)';
-  tl.style.color = mode === 'login' ? 'var(--acc)' : 'var(--tx2)';
-  ts.style.borderColor = mode === 'signup' ? 'var(--acc)' : 'var(--line2)';
-  ts.style.color = mode === 'signup' ? 'var(--acc)' : 'var(--tx2)';
-  document.getElementById('authMsg').textContent = '';
+function closeAuth(){
+  document.getElementById("authModal").classList.remove("open");
+  document.getElementById("authMsg").textContent = "";
 }
-function authApi(action, params){
-  const url = window.API_BASE ? window.API_BASE + '/api/auth/' + action + '?' + new URLSearchParams(params) : '/api/auth/' + action + '?' + new URLSearchParams(params);
-  return fetch(url).then(r => r.json());
+document.getElementById("authModal").addEventListener("click", function(e){
+  if(e.target.id === "authModal") closeAuth();
+});
+function switchAuth(mode){
+  AUTH_MODE = mode;
+  document.getElementById("tab-login").classList.toggle("on", mode === "login");
+  document.getElementById("tab-signup").classList.toggle("on", mode === "signup");
+  document.getElementById("authSubmit").textContent = mode === "login" ? "LOG IN" : "CREATE ACCOUNT";
+  document.getElementById("authNote").innerHTML = mode === "login"
+    ? 'New here? <a href="#" onclick="switchAuth(\'signup\');return false;">Create an account</a> — no credit card needed.'
+    : 'Already have an account? <a href="#" onclick="switchAuth(\'login\');return false;">Log in</a>.';
 }
-function authSubmit(){
-  const email = document.getElementById('authEmail').value.trim();
-  const pass = document.getElementById('authPass').value;
-  const name = document.getElementById('authName').value.trim();
-  const msg = document.getElementById('authMsg');
-  if(!email || !pass){ msg.textContent = 'email and password required'; return; }
-  const params = {email, password: pass};
-  if(authMode_ === 'signup'){ params.name = name; }
-  authApi(authMode_, params).then(res => {
-    if(res.ok){
-      localStorage.setItem('mutxri_token', res.token);
-      localStorage.setItem('mutxri_email', res.email);
-      setSignedIn(res.email, res.name);
-      toggleAuth();
+function submitAuth(e){
+  e.preventDefault();
+  var email = document.getElementById("authEmail").value.trim();
+  var pass = document.getElementById("authPass").value;
+  var msg = document.getElementById("authMsg");
+  msg.className = "auth-msg";
+  msg.textContent = "";
+  if(!API){
+    // landing page runs without the backend - tell the user where to go
+    if(AUTH_MODE === "signup"){
+      msg.className = "auth-msg ok";
+      msg.textContent = "Accounts are enabled on the terminal. Open mutxriterminal.com and use SIGN IN there.";
     } else {
-      msg.textContent = res.error || 'failed';
+      msg.className = "auth-msg ok";
+      msg.textContent = "Log in at mutxriterminal.com — the terminal's SIGN IN button uses the same account system.";
     }
-  }).catch(() => { msg.textContent = 'auth service unavailable (static mode)'; });
-}
-function signOut(){
-  const token = localStorage.getItem('mutxri_token');
-  if(token) authApi('logout', {token}).catch(()=>{});
-  localStorage.removeItem('mutxri_token');
-  localStorage.removeItem('mutxri_email');
-  const b = document.getElementById('acctBtn');
-  b.textContent = 'SIGN IN';
-  b.style.color = 'var(--acc)';
-  b.onclick = toggleAuth;
-}
-function setSignedIn(email, name){
-  const b = document.getElementById('acctBtn');
-  b.textContent = (name || email.split('@')[0]).toUpperCase();
-  b.style.color = 'var(--acc)';
-  b.onclick = signOut;
-}
-// restore session on load
-(function(){
-  const token = localStorage.getItem('mutxri_token');
-  if(token){
-    const url = window.API_BASE ? window.API_BASE + '/api/auth/me?token=' + token : '/api/auth/me?token=' + token;
-    fetch(url).then(r => r.json()).then(res => {
-      if(res.ok) setSignedIn(res.email, res.name);
-      else { localStorage.removeItem('mutxri_token'); }
-    }).catch(()=>{});
+    return false;
   }
-})();
-// ===== END auth =====
-
-
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-let currentEx = 'JSE';
-let listing = {};
-
-// ===== Company logos =====
-let LOGO_MAP = {};
-try{
-  fetch((window.API_BASE ? window.API_BASE : '') + 'static_data/logos.json')
-    .then(r => r.ok ? r.json() : Promise.reject())
-    .then(d => { LOGO_MAP = d || {}; })
-    .catch(() => {});
-}catch(e){}
-
-// ===== Clock =====
-setInterval(() => {
-  const d = new Date();
-  $('clock').textContent = d.toLocaleTimeString('en-GB', {hour12:false});
-}, 1000);
-
-// ===== Tabs (Claude's panels, untouched, embedded) =====
-const PANELS = [
-  {id:'heatmap', label:'HEATMAP', url:'/features/panels/afri_heatmap.html'},
-  {id:'screener',label:'SCREENER', url:'/features/panels/afri_screener.html'},
-  {id:'financials',label:'FINANCIALS', url:'/features/panels/afri_financials.html'},
-  {id:'reg',     label:'REG',      url:'/features/panels/afri_reg.html'},
-  {id:'glco',    label:'GLCO',     url:'/features/panels/afri_glco.html'},
-  {id:'bnd',     label:'BND',      url:'/features/panels/afri_bnd.html'},
-  {id:'fx',      label:'FX',       url:'/features/panels/afri_fx.html'},
-  {id:'tas',     label:'TAS',      url:'/features/panels/afri_tas.html'},
-  {id:'ratings', label:'RATINGS',  url:'/features/panels/afri_ratings.html'},
-];
-PANELS.forEach((p, i) => {
-  const t = document.createElement('div');
-  t.className = 'ctab' + (i === 0 ? ' active' : '');
-  t.textContent = p.label;
-  t.onclick = () => {
-    document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    $('stageFrame').src = p.url;
-  };
-  $('centerTabs').appendChild(t);
-});
-
-// ===== Load listing =====
-async function loadListing(ex){
-  try{
-    const r = await fetch('static_data/listing_' + ex + '.json');
-    const d = await r.json();
-    listing[ex] = d.stocks || [];
-    $('wlEx').textContent = ex + ' · ' + listing[ex].length;
-    renderWatchlist($('q').value);
-    buildTape(ex);            // tape now shows the new exchange immediately
-    primeQuotes(ex);          // then refresh with live quotes
-  }catch(e){ console.error('listing fail', e); }
-}
-
-function stockTicker(s){
-  return s.ticker || s.short || s.code || (s.sym || '').split('.')[0] || (s.name || '').split(' ')[0].toUpperCase();
-}
-
-function renderWatchlist(filter){
-  const list = listing[currentEx] || [];
-  const f = (filter || '').toUpperCase();
-  const rows = f ? list.filter(s => stockTicker(s).includes(f) || (s.name||'').toUpperCase().includes(f)) : list.filter(s => s.instrument !== 'structured');
-  const el = $('wlList');
-  el.innerHTML = rows.slice(0, 300).map(s => {
-    // JSE/EGX: quote from cache; NGX/NSE: EOD data embedded in the listing
-    const q = quotes[s.sym] || {};
-    const price = q.price != null ? q.price : s.price;
-    const chg = q.changePct != null ? q.changePct : s.chgPct;
-    const vol = q.volume != null ? q.volume : s.volume;
-    const cur = s.currency || (q.currency || '');
-    const pr = price != null ? Number(price).toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
-    const cls = chg === null || chg === undefined ? '' : (chg >= 0 ? 'up' : 'down');
-    const sign = chg === null || chg === undefined ? '' : TickerFix.fmtPct(chg);
-    const sym = stockTicker(s);
-    const volTxt = vol != null ? (Number(String(vol).replace(/,/g,'')).toLocaleString() || String(vol)) : '';
-    // logo: official domain -> favicon service; monogram fallback (no broken images)
-    const dom = (LOGO_MAP[s.sym] || LOGO_MAP[s.ticker] || LOGO_MAP[sym] || '').replace(/^www\./, '');
-    const logoHtml = dom
-      ? `<img class="wl-logo" loading="lazy" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
-      : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
-    return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
-      <span class="wl-logo-cell">${logoHtml}</span>
-      <span class="wl-main">
-        <span class="sym">${esc(sym)}</span>
-        <span class="nm">${esc(s.name||'')}</span>
-      </span>
-      <span class="wl-price">
-        <span class="pr">${pr} <small style="color:var(--tx3)">${esc(cur)}</small></span>
-        <span class="chg ${cls}">${sign}</span>
-      </span>
-    </div>`;
-  }).join('') || '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px">no stocks</div>';
-}
-
-// ===== Quotes =====
-let quotes = {};
-async function primeQuotes(ex){
-  const syms = (listing[ex]||[]).filter(s => s.sym).slice(0, 80).map(s => s.sym);
-  if(!syms.length) return;
-  try{
-    const r = await fetch('/api/quotes?symbols=' + syms.join(','));
-    const d = await r.json();
-    Object.assign(quotes, d);
-    renderWatchlist($('q').value);
-    buildTape(ex);
-  }catch(e){ console.error('quotes fail', e); }
-}
-
-// ===== Ticker tape =====
-function buildTape(ex){
-  // live-quotes version: refresh with fetched quotes
-  buildTapeFromListing(ex);
-}
-
-// ===== Exchange tabs =====
-document.querySelectorAll('.exch-tab').forEach(t => {
-  t.onclick = () => {
-    document.querySelectorAll('.exch-tab').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    currentEx = t.dataset.ex;
-    if(!listing[currentEx]) {
-      // immediate tape from the new exchange's own data, then refresh
-      buildTapeFromListing(currentEx);
-      renderWatchlist($('q').value);
-      loadListing(currentEx);
+  var url = API + "api/auth/" + AUTH_MODE;
+  fetch(url, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({email: email, password: pass})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d && d.ok){
+      msg.className = "auth-msg ok";
+      msg.textContent = AUTH_MODE === "signup" ? "Account created. Welcome to MUTXRI CAPITAL." : "Logged in. Welcome back.";
+      setTimeout(function(){ closeAuth(); window.open("terminal/", "_blank"); }, 800);
     } else {
-      buildTapeFromListing(currentEx);
-      renderWatchlist($('q').value);
-      primeQuotes(currentEx);
+      msg.className = "auth-msg err";
+      msg.textContent = (d && d.error) || "Something went wrong. Try again.";
     }
-  };
-});
-
-// ===== Tape helpers =====
-function tapeItem(s){
-  const q = quotes[s.sym] || {};
-  const price = q.price != null ? q.price : s.price;
-  const chg = q.changePct != null ? q.changePct : s.chgPct;
-  if(price == null) return '';
-  const tkr = stockTicker(s);
-  const cls = TickerFix.pctClass(chg);
-  const sign = chg >= 0 ? '+' : '';
-  return `<span class="tape-item"><span class="sym">${esc(tkr)}</span><span class="pr">${Number(price).toLocaleString(undefined,{maximumFractionDigits:2})}</span><span class="chg ${cls}">${TickerFix.fmtPct(chg)}</span></span>`;
-}
-function buildTapeFromListing(ex){
-  // instant: use the listing's own price data (EOD) - no network wait
-  // only real common stocks (skip structured notes, prefs, bonds, ETFs)
-  const syms = (listing[ex]||[]).filter(s => (s.instrument !== 'structured') && (s.sym || s.ticker)).slice(0, 40);
-  const items = syms.map(tapeItem).filter(Boolean).join('');
-  $('tape').innerHTML = items + items;
-  // real indices on top (EGX 30, JSE Top 40, JSE All-Share + NGX/NSE baskets)
-  TickerFix.fetchJSONSafe('static_data/indices.json').then(res => {
-    if(!res.ok) return;
-    const d = res.data;
-    if(!d || !d.entries || !d.entries.length) return;
-    const ix = d.entries.map(e => {
-      const cls = e.changePct >= 0 ? 'up' : 'down';
-      const sign = e.changePct >= 0 ? '+' : '';
-      const pct = e.changePct != null ? TickerFix.fmtPct(e.changePct) : '—';
-      const price = e.price != null ? e.price.toLocaleString(undefined,{maximumFractionDigits:2}) : '';
-      const tag = e.kind === 'basket' ? ' (basket)' : '';
-      return `<span class="tape-item" style="color:var(--tx2)"><b style="color:var(--acc)">${esc(e.label)}${esc(tag)}</b> <span style="color:#fff">${esc(price)}</span> <span class="${cls}">${esc(pct)}</span></span>`;
-    }).join('');
-    $('tape').innerHTML = ix + (items + items);
-  }).catch(() => {});
-}
-
-// ===== Search =====
-$('q').addEventListener('input', e => renderWatchlist(e.target.value));
-
-// ===== Command bar =====
-$('cmd').addEventListener('keydown', e => {
-  if(e.key !== 'Enter') return;
-  const v = $('cmd').value.trim().toUpperCase();
-  $('cmd').value = '';
-  if(!v) return;
-  const parts = v.split(' ');
-  const code = parts[parts.length - 1];
-  const idx = PANELS.findIndex(p => p.id === code.toLowerCase() || p.label === code);
-  if(idx >= 0){
-    document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.ctab')[idx].classList.add('active');
-    $('stageFrame').src = PANELS[idx].url;
-  } else if(v === 'HELP'){
-    $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
-      '<div style="padding:8px 0;color:var(--tx3)">Type a panel code (HEATMAP, SCREEN, REG, GLCO, BND, FX, TAS, RATINGS) then Enter.</div>';
-  } else {
-    $('rightInfo').innerHTML = `<div style="color:var(--down)">unknown: ${esc(v)}</div>`;
-  }
-});
-
-// ===== Static-market panel (snapshot mode): full investor info sheet =====
-function renderMarketStatic(rec, info){
-  const chg = rec.chgPct;
-  const cls = chg === null || chg === undefined ? '' : (chg >= 0 ? 'up' : 'down');
-  const sign = chg === null || chg === undefined ? '' : (chg >= 0 ? '+' : '');
-  const px = rec.price != null ? Number(rec.price).toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
-  const chgTxt = chg === null || chg === undefined ? '' : sign + Number(chg).toFixed(2) + '%';
-  const vol = rec.volume != null ? Number(String(rec.volume).replace(/,/g,'')).toLocaleString() : '—';
-  const i = info || {};
-  const dash = '—';
-  const row = (k, v) => `<span>${esc(k)}</span><span>${esc(v != null && v !== '' ? v : dash)}</span>`;
-  // dividends compact
-  let divTxt = dash;
-  if(Array.isArray(i.dividends) && i.dividends.length){
-    const d = i.dividends;
-    const last = d[d.length-1];
-    divTxt = (typeof last === 'object' && last !== null) ? (last.year ? 'FY' + last.year : '') + ' ' + (last.amount != null ? last.amount : '') : String(d.length) + ' paid';
-  }
-  let html = `
-    <div class="qhead">
-      <div class="qsym">${esc(rec.ticker || sym0(rec))}</div>
-      <div class="qname">${esc(rec.name||i.name||'')}</div>
-      <div class="qpx">${px} <span style="font-size:11px;color:var(--tx3)">${esc(rec.currency||'')}</span></div>
-      <div class="qchg ${cls}">${chgTxt}</div>
-    </div>
-    <div class="qgrid">
-      ${row('PRICE', px)}
-      ${row('CHANGE', chgTxt || dash)}
-      ${row('VOLUME', vol)}
-      ${row('SECTOR', rec.sector || i.sector || dash)}
-      ${row('INDUSTRY', i.industry || dash)}
-      ${row('COUNTRY', i.country || dash)}
-      ${row('FOUNDED', i.founded || dash)}
-      ${row('LISTED', i.listed || dash)}
-      ${row('YEAR END', i.year_end || dash)}
-      ${row('EXCHANGE', i.exchange || dash)}
-      ${row('PHONE', i.phone || dash)}
-      ${row('TRANSFER SEC', i.transfer_secretary || dash)}
-      ${row('DIVIDENDS', divTxt)}
-      ${row('STATEMENTS', i.statements ? 'filed' : dash)}
-    </div>`;
-  if(i.description){
-    html += `<div style="padding:10px 16px;border-top:1px solid var(--line);font-family:var(--ui);font-size:11px;color:var(--tx2);line-height:1.55">${esc(i.description)}</div>`;
-  }
-  if(Array.isArray(i.shareholders) && i.shareholders.length){
-    html += `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--tx3);font-size:10px;letter-spacing:.1em;font-weight:700">MAJOR SHAREHOLDERS ${i.shareholder_source ? '· ' + esc(String(i.shareholder_source)) : ''}</div>`;
-    i.shareholders.forEach(sh => {
-      const h = (typeof sh === 'object' && sh !== null) ? sh.holder : sh;
-      const s = (typeof sh === 'object' && sh !== null) ? (sh.stake || sh.pct || '') : '';
-      html += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(String(h))}</span><span style="color:var(--acc);font-family:var(--mono)">${esc(String(s))}</span></div>`;
-    });
-  }
-  html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend · CEO/employees where absent have no verified free source</div>`;
-  $('rightInfo').innerHTML = html;
-}
-function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
-
-function openStock(sym){
-  if(!sym) return;
-  const ex = currentEx;
-  const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
-  $('rightInfo').innerHTML = `<div style="padding:6px 0;color:var(--acc);font-weight:700">${esc(sym)}</div>
-    <div style="padding:4px 0;color:var(--tx3)">Loading…</div>`;
-  if(!window.API_BASE){
-    fetch('static_data/market_' + ex + '.json').then(r => { if(!r.ok) throw 0; return r.json(); })
-      .then(d => {
-        const rows = d.stocks || [];
-        const rec = rows.find(x => x.sym === sym || x.ticker === sym || (x.name||'') === sym)
-                || rows.find(x => (x.sym||'').split('.')[0] === sym.split('.')[0]);
-        if(!rec){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no snapshot data for ${esc(sym)}</div>`; return; }
-        // company info from company_info.json (merged fundamentals + ownership)
-        fetch('static_data/company_info.json').then(r2 => { if(!r2.ok) throw 0; return r2.json(); })
-          .then(ci => {
-            const lookup = (rec.sym||'') + '|' + (rec.ticker||'') + '|' + (rec.sym||'').split('.')[0] + '|' + (rec.name||'');
-            let info = null;
-            for (const k of [rec.sym, rec.ticker, (rec.sym||'').split('.')[0], (rec.name||'')]) {
-              if (k && ci[k]) { info = ci[k]; break; }
-            }
-            renderMarketStatic(rec, info);
-          })
-          .catch(() => renderMarketStatic(rec, null));
-      })
-      .catch(() => { $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no market snapshot for ${esc(sym)}</div>`; });
-    return;
-  }
-  fetch('/api/chart?symbol=' + encodeURIComponent(sym) + '&range=1y&interval=1d')
-    .then(r => r.json())
-    .then(d => {
-      if(d.error){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--down);font-family:var(--mono);font-size:11px">${esc(d.error)}</div>`; return; }
-      if(d.noData){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx2);font-family:var(--mono);font-size:11px">
-        <div style="color:var(--acc);font-weight:700;margin-bottom:6px">${esc(sym)} · ${esc(d.name||'')}</div>
-        <div style="color:var(--tx3);line-height:1.6">${esc(d.message||'No market data available for this security.')}</div></div>`; return; }
-      currentChartSym = sym;
-      try{ renderStockInfo(d); }catch(e){ console.error('info fail', e); }
-      try{ renderChart(d, sym); }catch(e){ console.error('chart fail', e); }
-      try{ loadMetrics(sym, ex, stock && stock.name); }catch(e){ console.error('metrics fail', e); }
-    })
-    .catch(e => $('rightInfo').innerHTML = `<div style="color:var(--down)">${esc(String(e))}</div>`);
-}
-
-function loadMetrics(sym, ex, name){
-  const params = new URLSearchParams({symbol: sym, exchange: ex||'', name: name||''});
-  fetch('/api/metrics?' + params.toString())
-    .then(r => r.json())
-    .then(d => {
-      if(d.error || !d.stock_price) return;
-      let html = '<div style="padding:10px 12px;border-top:1px solid var(--line)">';
-      html += `<div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">FULL METRICS</div>`;
-
-      // --- company description ---
-      if(d.description){
-        html += `<div style="font-size:11px;color:var(--tx2);line-height:1.55;padding:4px 0 8px">${esc(d.description)}</div>`;
-      }
-
-      const groups = [
-        ['IDENTITY', [['Exchange', d.exchange], ['Country', d.country], ['Currency', d.currency], ['Sector', d.sector], ['Industry', d.industry], ['Founded', d.founded], ['Employees', d.employees != null ? Number(d.employees).toLocaleString() : null], ['Revenue', d.revenue != null ? fmtMoney(d.revenue) : null], ['ISIN', d.isin]]],
-        ['PRICE', [['Stock Price', d.stock_price], ['Open', d.open_price], ['High', d.high_price], ['Low', d.low_price], ['Previous Close', d.previous_close], ['Volume', d.volume != null ? Number(d.volume).toLocaleString() : null], ['Avg Volume (20d)', d.avg_volume != null ? Number(d.avg_volume).toLocaleString() : null], ['Dollar Volume', d.dollar_volume != null ? Number(d.dollar_volume).toLocaleString(undefined,{maximumFractionDigits:0}) : null], ['Price Date', d.stock_price_date ? new Date(d.stock_price_date).toISOString().slice(0,10) : null]]],
-        ['PRICE CHANGE', [['1D', d.price_change_1D], ['1W', d.price_change_1W], ['1M', d.price_change_1M], ['3M', d.price_change_3M], ['6M', d.price_change_6M], ['YTD', d.price_change_YTD], ['1Y', d.price_change_1Y], ['3Y', d.price_change_3Y], ['5Y', d.price_change_5Y], ['10Y', d.price_change_10Y], ['15Y', d.price_change_15Y], ['20Y', d.price_change_20Y]]],
-        ['TOTAL RETURN', [['1W', d.total_return_1W], ['1M', d.total_return_1M], ['3M', d.total_return_3M], ['6M', d.total_return_6M], ['YTD', d.total_return_YTD], ['1Y', d.total_return_1Y], ['3Y', d.total_return_3Y], ['5Y', d.total_return_5Y], ['10Y', d.total_return_10Y], ['15Y', d.total_return_15Y], ['20Y', d.total_return_20Y]]],
-        ['CAGR', [['1Y', d.return_cagr_1Y], ['3Y', d.return_cagr_3Y], ['5Y', d.return_cagr_5Y], ['10Y', d.return_cagr_10Y], ['15Y', d.return_cagr_15Y], ['20Y', d.return_cagr_20Y]]],
-        ['RANGES', [['52W High', d.fifty_two_week_high], ['52W High Date', d.fifty_two_week_high_date ? new Date(d.fifty_two_week_high_date).toISOString().slice(0,10) : null], ['52W Low', d.fifty_two_week_low], ['52W Low Date', d.fifty_two_week_low_date ? new Date(d.fifty_two_week_low_date).toISOString().slice(0,10) : null], ['Change vs 52W High', d.price_change_52w_high], ['Change vs 52W Low', d.price_change_52w_low], ['Position in Range', d.position_in_range], ['All-Time High', d.all_time_high], ['ATH Date', d.all_time_high_date ? new Date(d.all_time_high_date).toISOString().slice(0,10) : null], ['ATH Change', d.all_time_high_change], ['All-Time Low', d.all_time_low], ['ATL Date', d.all_time_low_date ? new Date(d.all_time_low_date).toISOString().slice(0,10) : null], ['ATL Change', d.all_time_low_change]]],
-        ['TECHNICAL', [['RSI (14)', d.rsi_14], ['Weekly RSI', d.rsi_weekly], ['Monthly RSI', d.rsi_monthly], ['ATR (14)', d.atr_14], ['Beta (5Y)', d.beta_5y], ['20-Day MA', d.ma_20], ['50-Day MA', d.ma_50], ['150-Day MA', d.ma_150], ['200-Day MA', d.ma_200], ['Price vs 20D MA', d.price_change_20d_ma], ['Price vs 50D MA', d.price_change_50d_ma], ['Price vs 150D MA', d.price_change_150d_ma], ['Price vs 200D MA', d.price_change_200d_ma], ['50 vs 200 MA', d.ma_50_vs_200]]],
-        ['VALUATION (real)', [['PE Ratio', d.pe_ratio], ['Earnings Yield', d.earnings_yield], ['Gross Margin', d.gross_margin], ['Operating Margin', d.operating_margin], ['Profit Margin', d.profit_margin], ['FCF Margin', d.fcf_margin], ['ROA', d.return_on_assets], ['ROE', d.return_on_equity], ['Debt/Equity', d.debt_to_equity]]],
-        ['DIVIDENDS', [['Yield', d.dividend_yield], ['DPS', d.dividend_per_share], ['Last Dividend', d.last_dividend], ['Growth', d.dividend_growth], ['Payment Years', d.dividend_payment_years]]],
-      ];
-
-      // financial statements section (income statement / balance sheet / cash flow)
-      if(d.statements && d.statements.data){
-        const s = d.statements.data;
-        const period = (d.statements.period||'') + ' ' + (d.statements.year||'');
-        const rows = [
-          ['Revenue', s.revenue], ['Gross Profit', s.gross_profit], ['Operating Profit', s.operating_profit],
-          ['Profit After Tax', s.profit_after_tax], ['EPS', s.eps], ['Total Assets', s.total_assets],
-          ['Total Liabilities', s.total_liabilities], ['Shareholders Equity', s.shareholders_equity],
-          ['Cash & Equivalents', s.cash_and_equivalents], ['Operating Cash Flow', s.operating_cash_flow],
-          ['Investing Cash Flow', s.investing_cash_flow], ['Financing Cash Flow', s.financing_cash_flow],
-          ['Dividends Paid', s.dividends_paid], ['Free Float', s.free_float ? s.free_float + '%' : null],
-        ];
-        const real = rows.filter(([,v]) => v !== null && v !== undefined);
-        if(real.length){
-          html += `<div style="color:var(--tx3);font-size:10px;letter-spacing:.1em;padding:8px 0 4px;font-weight:700">FINANCIAL STATEMENTS <span style="color:var(--tx3);font-weight:400">· ${esc(period)} · ${esc(d.currency||'')}</span></div>`;
-          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-family:var(--mono);font-size:10px">';
-          real.forEach(([k, v]) => {
-            const val = typeof v === 'number' ? v.toLocaleString(undefined,{maximumFractionDigits:2}) : String(v);
-            html += `<span style="color:var(--tx3)">${esc(k)}</span><span style="text-align:right;color:var(--tx)">${esc(val)}</span>`;
-          });
-          html += '</div>';
-          if(d.statements.url){
-            html += `<div style="padding:4px 0 0;font-size:9px"><a href="${esc(d.statements.url)}" target="_blank" style="color:var(--acc2)">view filing ↗</a></div>`;
-          }
-        }
-      }
-
-      groups.forEach(([title, rows]) => {
-        const real = rows.filter(([,v]) => v !== null && v !== undefined);
-        if(!real.length) return;
-        html += `<div style="color:var(--tx3);font-size:10px;letter-spacing:.1em;padding:8px 0 4px;font-weight:700">${title}</div>`;
-        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-family:var(--mono);font-size:10px">';
-        real.forEach(([k, v]) => {
-          const val = typeof v === 'number' ? v.toLocaleString(undefined,{maximumFractionDigits:2}) : String(v);
-          html += `<span style="color:var(--tx3)">${esc(k)}</span><span style="text-align:right;color:var(--tx)">${esc(val)}</span>`;
-        });
-        html += '</div>';
-      });
-
-      // ownership
-      if(d.ownership && d.ownership.shareholders){
-        html += `<div style="color:var(--tx3);font-size:10px;letter-spacing:.1em;padding:8px 0 4px;font-weight:700">MAJOR SHAREHOLDERS · ${esc(d.ownership.company||'')}</div>`;
-        d.ownership.shareholders.forEach(sh => {
-          html += `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px"><span style="color:var(--tx2)">${esc(sh.holder)}</span><span style="color:var(--acc);font-family:var(--mono)">${esc(sh.stake)}</span></div>`;
-        });
-        html += `<div style="padding:4px 0 0;color:var(--tx3);font-size:8px">${esc(d.ownership.source||'')}</div>`;
-      }
-      html += '</div>';
-      $('rightInfo').insertAdjacentHTML('beforeend', html);
-    })
-    .catch(() => {});
-}
-
-let currentChartSym = null;
-let currentChartData = null;
-let chartObj = null;
-let chartType = 'candle';
-
-function fmtMoney(v){
-  // consistent money display: 12.3B / 950.0M / 4.3T - honest dash when missing
-  if(v == null || v === '' || isNaN(v)) return '—';
-  const f = Number(v);
-  const sign = f < 0 ? '-' : '';
-  const a = Math.abs(f);
-  if(a >= 1e12) return sign + (a/1e12).toFixed(1) + 'T';
-  if(a >= 1e9) return sign + (a/1e9).toFixed(1) + 'B';
-  if(a >= 1e6) return sign + (a/1e6).toFixed(1) + 'M';
-  if(a >= 1e3) return sign + (a/1e3).toFixed(1) + 'K';
-  return sign + a.toFixed(1);
-}
-
-function renderStockInfo(d){
-  const price = d.regularMarketPrice != null ? d.regularMarketPrice.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
-  const prev = d.chartPreviousClose;
-  const chg = (price !== '—' && prev) ? ((d.regularMarketPrice - prev) / prev * 100) : null;
-  const chgTxt = chg === null ? '' : (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
-  const chgCls = chg === null ? '' : (chg >= 0 ? 'up' : 'down');
-  const bars = d.bars || [];
-  const last = bars.length ? bars[bars.length-1] : null;
-  const html = `
-    <div style="padding:8px 12px;border-bottom:1px solid var(--line)">
-      <div style="color:var(--acc);font-weight:700;font-size:15px">${esc(currentChartSym)}</div>
-      <div style="color:var(--tx2);font-size:11px;padding:2px 0">${esc(d.name||'')}</div>
-      <div style="font-size:20px;font-weight:700;padding:4px 0">${price} <span style="font-size:11px;color:var(--tx3)">${esc(d.currency||'')}</span></div>
-      <div class="chg ${chgCls}" style="font-size:12px">${chgTxt}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;padding:8px 0 2px;font-family:var(--mono);font-size:10px">
-        <span style="color:var(--tx3)">OPEN</span><span style="text-align:right">${last && last.open != null ? last.open.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
-        <span style="color:var(--tx3)">HIGH</span><span style="text-align:right">${last && last.high != null ? last.high.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
-        <span style="color:var(--tx3)">LOW</span><span style="text-align:right">${last && last.low != null ? last.low.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
-        <span style="color:var(--tx3)">PREV CLOSE</span><span style="text-align:right">${prev != null ? prev.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
-        <span style="color:var(--tx3)">VOLUME</span><span style="text-align:right">${d.regularMarketVolume != null ? d.regularMarketVolume.toLocaleString() : (last && last.volume ? last.volume.toLocaleString() : '—')}</span>
-        <span style="color:var(--tx3)">52W HIGH</span><span style="text-align:right">${d.fiftyTwoWeekHigh != null ? d.fiftyTwoWeekHigh.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
-        <span style="color:var(--tx3)">52W LOW</span><span style="text-align:right">${d.fiftyTwoWeekLow != null ? d.fiftyTwoWeekLow.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
-        <span style="color:var(--tx3)">STATE</span><span style="text-align:right">${esc(d.marketState||'?')}</span>
-      </div>
-      <div style="display:flex;gap:4px;padding:8px 0 4px;align-items:center;white-space:nowrap;overflow-x:auto">
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('1d')">1D</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('1mo')">1M</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('1y')">1Y</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('10y')">10Y</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('max')">ALL</button>
-        <span style="width:8px"></span>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartType('candle')">CANDLE</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartType('line')">LINE</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartType('area')">AREA</button>
-      </div>
-    </div>
-    <div id="chartBox" style="height:260px;position:relative"></div>`;
-  $('rightInfo').innerHTML = html;
-}
-
-function setChartType(t){
-  chartType = t;
-  if(currentChartData) renderChart(currentChartData, currentChartSym);
-}
-
-// ===== Chart timeframes: 1D 5D 1M 3M 6M YTD 1Y 3Y 5Y =====
-let currentChartRange = '1y';
-const RANGE_INTERVALS = {
-  '1d':  ['1d',  '5m'],
-  '1mo': ['1mo', '1h'],
-  '1y':  ['1y',  '1d'],
-  '10y': ['10y', '1d'],
-  'max': ['max', '1mo'],   // all available history (monthly bars, back to ~2000)
-};
-function setChartRange(r){
-  if(!currentChartSym) return;
-  currentChartRange = r;
-  const [rng, ivl] = RANGE_INTERVALS[r] || ['1y', '1d'];
-  fetch('/api/chart?symbol=' + encodeURIComponent(currentChartSym) + '&range=' + rng + '&interval=' + ivl)
-    .then(res => res.json())
-    .then(d => {
-      if(d.error || !d.bars || !d.bars.length){ return; }
-      // kwayisi/NGX-NSE history: filter bars to the selected range window
-      if(d.kwayisi){
-        const now = Date.now() / 1000;
-        const DAY = 86400;
-        // NSE/NGX have EOD period returns (1W/1M/3M/6M/1Y/YTD) - no intraday
-        const windows = {'1d': 7, '1mo': 30, '1y': 365, '10y': 365, 'max': 365};
-        const win = windows[r] || 365;
-        d.bars = d.bars.filter(b => now - b.time <= win * DAY);
-        if(!d.bars.length) d.bars = d.bars.slice(-1);
-      }
-      currentChartData = d;
-      renderChart(d, currentChartSym);
-      // highlight the active range button
-      document.querySelectorAll('.ctab').forEach(b => b.style.outline = '');
-      const btn = [...document.querySelectorAll('.ctab')].find(b => b.textContent === r.toUpperCase() || (r === '1mo' && b.textContent === '1M'));
-      if(btn) btn.style.outline = '1px solid var(--acc)';
-    })
-    .catch(() => {});
-}
-
-function renderChart(d, sym){
-  const bars = d.bars || [];
-  if(!bars.length){ return; }
-  const box = document.getElementById('chartBox');
-  if(!box) return;
-  if(chartObj){ chartObj.remove(); chartObj = null; }
-  currentChartData = d;
-  const MINT = '#33e29a', RED = '#f87171';
-  const cw = box.clientWidth || box.parentElement?.clientWidth || 320;
-  const ch = box.clientHeight || 260;
-  chartObj = LightweightCharts.createChart(box, {
-    layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
-    grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
-    rightPriceScale:{borderColor:'#262626'},
-    timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:4},
-    crosshair:{mode:1},
-    localization:{priceFormatter:p=>p.toFixed(2)},
-    width: Math.max(cw, 120),
-    height: Math.max(ch, 120),
+  }).catch(function(){
+    msg.className = "auth-msg err";
+    msg.textContent = "Auth service offline. Open mutxriterminal.com to sign in there.";
   });
-  let series;
-  if(chartType === 'candle'){
-    series = chartObj.addCandlestickSeries({
-      upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
-      wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
-    });
-    series.setData(bars.map(b=>({time:b.time, open:b.open, high:b.high, low:b.low, close:b.close})));
-  } else if(chartType === 'line'){
-    series = chartObj.addLineSeries({ color:MINT, lineWidth:2, priceLineColor:MINT });
-    series.setData(bars.map(b=>({time:b.time, value:b.close})));
-  } else {
-    series = chartObj.addAreaSeries({
-      lineColor:MINT, topColor:'rgba(51,226,154,.22)', bottomColor:'rgba(51,226,154,0)',
-      lineWidth:2, priceLineColor:MINT,
-    });
-    series.setData(bars.map(b=>({time:b.time, value:b.close})));
-  }
-  if(chartType !== 'candle'){
-    const vol = chartObj.addHistogramSeries({ priceFormat:{type:'volume'}, priceScaleId:'vol' });
-    chartObj.priceScale('vol').applyOptions({scaleMargins:{top:0.82,bottom:0}});
-    vol.setData(bars.map(b=>({time:b.time, value:b.volume, color:b.close >= b.open ? 'rgba(51,226,154,.35)' : 'rgba(248,113,113,.35)'})));
-  }
-  chartObj.timeScale().fitContent();
+  return false;
 }
-
-// ===== Init =====
-
-// honest feed state: LIVE only when a backend is configured
-(function(){
-  const live = !!window.API_BASE;
-  const fs = document.getElementById('feedState');
-  if(fs){
-    fs.textContent = live ? '\u25cf LIVE' : '\u25cf SNAPSHOT';
-    fs.style.color = live ? 'var(--acc)' : 'var(--warn)';
-  }
-})();
-loadListing('JSE');
-
 </script>
 </body>
 </html>
