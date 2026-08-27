@@ -231,6 +231,25 @@ window.fetch = function(url, opts){
 window.API_BASE = API_BASE;
 // ===== END BACKEND CONFIG =====
 
+// ===== App state =====
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+let currentEx = 'JSE';
+// support ?ex=NGX deep-link (landing dropdown passes the exchange)
+try{
+  const _pex = new URLSearchParams(location.search).get('ex');
+  if(_pex && ['JSE','EGX','NGX','NSE'].includes(_pex.toUpperCase())) currentEx = _pex.toUpperCase();
+}catch(e){}
+let listing = {};
+
+// ===== Company logos =====
+let LOGO_MAP = {};
+try{
+  fetch((window.API_BASE ? window.API_BASE : '') + 'static_data/logos.json')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(d => { LOGO_MAP = d || {}; })
+    .catch(() => {});
+}catch(e){}
 
 // ===== Clock (exchange capital-city timezone) =====
 const EX_TZ = {
