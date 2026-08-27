@@ -105,6 +105,22 @@ a{color:var(--acc);text-decoration:none;}
 .usedby-row{display:flex;justify-content:center;gap:36px;flex-wrap:wrap;color:var(--tx3);font-size:14px;}
 .usedby-row span{font-family:var(--mono);letter-spacing:.03em;}
 
+
+/* ---------- history widget ---------- */
+.hist{padding:80px 0;border-top:1px solid var(--line);}
+.hist-box{border:1px solid var(--line2);border-radius:8px;background:var(--bg2);overflow:hidden;}
+.hist-head{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.hist-sym{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--acc);}
+.hist-name{font-size:12px;color:var(--tx2);}
+.hist-spacer{flex:1;}
+.hist-tabs{display:flex;gap:3px;}
+.htab{font-family:var(--mono);font-size:10.5px;color:var(--tx3);padding:4px 10px;border:1px solid var(--line2);border-radius:2px;cursor:pointer;background:var(--bg3);}
+.htab.on{color:var(--acc);border-color:var(--acc);}
+.hist-chart{height:380px;position:relative;}
+.hist-meta{display:flex;gap:24px;padding:10px 18px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px;color:var(--tx3);flex-wrap:wrap;}
+.hist-meta b{color:var(--tx);}
+.hist-meta .up{color:var(--up);}
+
 /* ---------- auth modal ---------- */
 #authModal{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;display:none;align-items:center;justify-content:center;}
 #authModal.open{display:flex;}
@@ -139,13 +155,14 @@ a{color:var(--acc);text-decoration:none;}
   .stat .n{font-size:20px;}
 }
 </style>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
 <!-- ================= NAV ================= -->
 <div class="nav">
   <div class="container nav-inner">
-    <div class="logo">MUTXRI <b>CAPITAL</b></div>
+    <div class="logo">MUTXRI <b>TERMINAL</b></div>
     <div class="nav-links">
       <a href="#capabilities">Capabilities</a>
       <a href="#features">Features</a>
@@ -344,6 +361,30 @@ a{color:var(--acc);text-decoration:none;}
   </div>
 </div>
 
+<!-- ================= HISTORY WIDGET ================= -->
+<div class="hist" id="history">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Price History</div>
+      <h2>Every candle since the IPO.</h2>
+      <p>A real security's full trading history — candlesticks and lines, from its first day to today. Toggle CANDLE / LINE, drag to pan, scroll to zoom. This is Naspers Ltd (JSE: NPN), 26 years of daily bars.</p>
+    </div>
+    <div class="hist-box">
+      <div class="hist-head">
+        <span class="hist-sym" id="histSym">NPN.JO</span>
+        <span class="hist-name" id="histName">Naspers Ltd · JSE · ZAc</span>
+        <span class="hist-spacer"></span>
+        <div class="hist-tabs">
+          <button class="htab on" id="histTabCandle" onclick="histSetType('candle')">CANDLE</button>
+          <button class="htab" id="histTabLine" onclick="histSetType('line')">LINE</button>
+        </div>
+      </div>
+      <div class="hist-chart" id="histChart"></div>
+      <div class="hist-meta" id="histMeta"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ================= USED BY / COVERAGE ================= -->
 <div class="usedby" id="coverage">
   <div class="container">
@@ -358,7 +399,7 @@ a{color:var(--acc);text-decoration:none;}
 <!-- ================= FOOTER ================= -->
 <div class="footer">
   <div class="container footer-inner">
-    <div><span class="mono">MUTXRI <b style="color:var(--acc)">CAPITAL</b></span> — African Markets Terminal</div>
+    <div><span class="mono">MUTXRI <b style="color:var(--acc)">TERMINAL</b></span> — African Markets Terminal</div>
     <div class="mono"><a href="https://mutxriterminal.com/" target="_blank">mutxriterminal.com</a> · <a href="mailto:hello@mutxriterminal.com">hello@mutxriterminal.com</a></div>
     <div class="mono">Data: official exchange sources · Audited statements</div>
   </div>
@@ -385,6 +426,85 @@ a{color:var(--acc);text-decoration:none;}
 </div>
 
 <script>
+// ===== history widget (candles since IPO) =====
+var histChart = null, histSeries = null, histData = [], histType = "candle";
+var HIST_MINT = "#33e29a", HIST_RED = "#f87171";
+
+function histRender(){
+  if(!window.LightweightCharts || !histData.length) return;
+  var box = document.getElementById("histChart");
+  if(!box) return;
+  if(histChart){ histChart.remove(); histChart = null; }
+  var cw = box.clientWidth || 900, ch = box.clientHeight || 380;
+  histChart = LightweightCharts.createChart(box, {
+    width: cw, height: ch,
+    layout: {background: {type: "solid", color: "#0a0a0a"}, textColor: "#9a9a9a",
+             fontFamily: "'Oxygen Mono',monospace", fontSize: 10},
+    grid: {vertLines: {color: "#1a1a1a"}, horzLines: {color: "#1a1a1a"}},
+    crosshair: {mode: 0, vertLine: {color: "#33e29a", width: 1, style: 3},
+                horzLine: {color: "#33e29a", width: 1, style: 3}},
+    rightPriceScale: {borderColor: "#262626"},
+    timeScale: {borderColor: "#262626", rightOffset: 6, barSpacing: 3},
+    autoSize: false,
+  });
+  if(histType === "candle"){
+    histSeries = histChart.addCandlestickSeries({
+      upColor: HIST_MINT, downColor: HIST_RED, borderVisible: false,
+      wickUpColor: HIST_MINT, wickDownColor: HIST_RED,
+    });
+    histSeries.setData(histData);
+  } else {
+    histSeries = histChart.addLineSeries({color: HIST_MINT, lineWidth: 2});
+    histSeries.setData(histData.map(function(b){
+      return {time: b.time, value: b.close};
+    }));
+  }
+  histChart.timeScale().fitContent();
+  window.addEventListener("resize", function(){
+    if(!histChart) return;
+    var b = document.getElementById("histChart");
+    if(b) histChart.applyOptions({width: b.clientWidth || 900, height: b.clientHeight || 380});
+  });
+}
+function histSetType(type){
+  histType = type;
+  document.getElementById("histTabCandle").classList.toggle("on", type === "candle");
+  document.getElementById("histTabLine").classList.toggle("on", type === "line");
+  histRender();
+}
+function histLoad(){
+  fetch("assets/npn_history.json").then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      histData = (d.bars || []).filter(function(b){
+        return b.open != null && b.close != null && b.high != null && b.low != null;
+      }).map(function(b){
+        return {time: b.time, open: b.open, high: b.high, low: b.low, close: b.close};
+      });
+      if(!histData.length){ return; }
+      // meta stats
+      var first = histData[0], last = histData[histData.length - 1];
+      var f = new Date(first.time * 1000), l = new Date(last.time * 1000);
+      var yrs = ((l - f) / (365.25 * 86400 * 1000)).toFixed(1);
+      var total = ((last.close / first.close) - 1) * 100;
+      var hi = Math.max.apply(null, histData.map(function(b){ return b.high; }));
+      var lo = Math.min.apply(null, histData.map(function(b){ return b.low; }));
+      document.getElementById("histMeta").innerHTML =
+        '<span>IPO ' + f.toLocaleDateString("en-GB", {year: "numeric", month: "short", day: "numeric"}) + ' → <b>' + l.toLocaleDateString("en-GB", {year: "numeric", month: "short", day: "numeric"}) + '</b></span>' +
+        '<span>' + yrs + ' years · ' + histData.length.toLocaleString() + ' daily bars</span>' +
+        '<span>First close <b>' + first.close.toLocaleString(undefined, {maximumFractionDigits: 1}) + '</b> ZAc</span>' +
+        '<span>Last close <b>' + last.close.toLocaleString(undefined, {maximumFractionDigits: 1}) + '</b> ZAc</span>' +
+        '<span>Since IPO <b class="' + (total >= 0 ? "up" : "") + '">' + (total >= 0 ? "+" : "") + total.toFixed(0) + '%</b></span>' +
+        '<span>Range <b>' + lo.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' – ' + hi.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</b></span>';
+      histRender();
+    })
+    .catch(function(){ /* data unavailable - widget stays empty */ });
+}
+if(document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded", histLoad);
+} else {
+  histLoad();
+}
+
 // ===== auth =====
 var AUTH_MODE = "login";
 var API = window.API_BASE ? window.API_BASE : "";  // set to backend URL when live
