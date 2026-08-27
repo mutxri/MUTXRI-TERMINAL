@@ -28,8 +28,22 @@ shutil.copy(os.path.join(BASE, "LINKS.html"), os.path.join(DEPLOY, "LINKS.html")
 
 # panels (static heatmap + static screener + the shell's other panels for completeness)
 os.makedirs(os.path.join(DEPLOY, "features", "panels"), exist_ok=True)
-shutil.copy(os.path.join(BASE, "static_data", "afri_heatmap_static.html"),
-            os.path.join(DEPLOY, "features", "panels", "afri_heatmap.html"))
+# build the static heatmap from the LIVE panel source: remap /api/heatmap ->
+# static_data/heatmap_X.json so the deployed heatmap shows the real snapshot
+# (with sector drill-down) instead of falling back to SAMPLE data.
+with open(os.path.join(BASE, "features", "panels", "afri_heatmap.html"), encoding="utf-8") as _f:
+    _hm = _f.read()
+_hm = _hm.replace(
+    'fetch(ENDPOINT+"?exchange="+encodeURIComponent(activeEx))',
+    "fetch('../../static_data/heatmap_' + activeEx + '.json')",
+)
+_hm = _hm.replace(
+    'fetch(ENDPOINT + "?exchange=" + encodeURIComponent(activeEx))',
+    "fetch('../../static_data/heatmap_' + activeEx + '.json')",
+)
+with open(os.path.join(DEPLOY, "features", "panels", "afri_heatmap.html"), "w", encoding="utf-8") as _f:
+    _f.write(_hm)
+print("  static heatmap: remapped to static_data/heatmap_X.json + drill-down")
 shutil.copy(os.path.join(BASE, "static_data", "afri_screener_static.html"),
             os.path.join(DEPLOY, "features", "panels", "afri_screener.html"))
 # copy the rest of the panels (static snapshot versions where they exist,

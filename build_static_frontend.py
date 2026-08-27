@@ -34,7 +34,17 @@ t = t.replace(
     "TickerFix.fetchJSONSafe('static_data/indices.json')",
 )
 
-# 3. screener snapshot (static build): /api/screener -> static_data/screener_X.json
+# 3. heatmap remap: /api/heatmap?exchange=X -> static_data/heatmap_X.json
+t = t.replace(
+    "fetch(ENDPOINT+\"?exchange=\"+encodeURIComponent(activeEx))",
+    "fetch('static_data/heatmap_' + activeEx + '.json')",
+)
+t = t.replace(
+    "fetch(ENDPOINT + \"?exchange=\" + encodeURIComponent(activeEx))",
+    "fetch('static_data/heatmap_' + activeEx + '.json')",
+)
+
+# 4. screener snapshot (static build): /api/screener -> static_data/screener_X.json
 t = t.replace(
     "fetch(ENDPOINT+\"?\"+q(f)",
     "fetch('static_data/screener_' + activeEx + '.json?' + q(f)",
