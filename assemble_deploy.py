@@ -16,6 +16,10 @@ shutil.copy(os.path.join(BASE, "static_index.html"), os.path.join(DEPLOY, "index
 # tickerfix.js (NaN/404/tape fixes - must ship with the page)
 shutil.copy(os.path.join(BASE, "tickerfix.js"), os.path.join(DEPLOY, "tickerfix.js"))
 
+# custom domain declaration for GitHub Pages
+with open(os.path.join(DEPLOY, "CNAME"), "w", encoding="utf-8") as _c:
+    _c.write("mutxriterminal.com\n")
+
 # documentation page
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 
