@@ -169,10 +169,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <div class="brandname">MUTXRI<small>TERMINAL</small></div>
     </div>
     <nav class="exch" id="exchTabs">
-      <button class="exch-tab active" data-ex="JSE">JSE</button>
-      <button class="exch-tab" data-ex="EGX">EGX</button>
-      <button class="exch-tab" data-ex="NGX">NGX</button>
-      <button class="exch-tab" data-ex="NSE">NSE</button>
+      <!-- exchange tabs are rendered dynamically - only the selected exchange shows -->
     </nav>
     <label class="search">
       <span>&#9906;</span>
@@ -463,27 +460,30 @@ function buildTape(ex){
   buildTapeFromListing(ex);
 }
 
-// ===== Exchange tabs =====
-document.querySelectorAll('.exch-tab').forEach(t => {
-  t.onclick = () => {
-    document.querySelectorAll('.exch-tab').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    currentEx = t.dataset.ex;
-    // reload the open panel for the new exchange (every panel is ?ex= aware)
-    const _cur = $('stageFrame').src;
-    $('stageFrame').src = _cur.replace(/[?&]ex=[A-Za-z]+/, '&ex=' + currentEx).replace(/^&/, '?');
-    if(!listing[currentEx]) {
-      // immediate tape from the new exchange's own data, then refresh
-      buildTapeFromListing(currentEx);
-      renderWatchlist($('q').value);
-      loadListing(currentEx);
-    } else {
-      buildTapeFromListing(currentEx);
-      renderWatchlist($('q').value);
-      primeQuotes(currentEx);
-    }
-  };
-});
+// ===== Exchange tabs (only the selected exchange shows - clean UI) =====
+function renderExchTabs(){
+  const nav = $('exchTabs');
+  if(!nav) return;
+  // single tab: just the current exchange (no other initials shown)
+  nav.innerHTML = '<button class="exch-tab active" data-ex="' + esc(currentEx) + '">' + esc(currentEx) + '</button>';
+}
+function switchExchange(ex){
+  currentEx = ex;
+  // reload the open panel for the new exchange (every panel is ?ex= aware)
+  const _cur = $('stageFrame').src;
+  $('stageFrame').src = _cur.replace(/[?&]ex=[A-Za-z]+/, '&ex=' + currentEx).replace(/^&/, '?');
+  if(!listing[currentEx]) {
+    // immediate tape from the new exchange's own data, then refresh
+    buildTapeFromListing(currentEx);
+    renderWatchlist($('q').value);
+    loadListing(currentEx);
+  } else {
+    buildTapeFromListing(currentEx);
+    renderWatchlist($('q').value);
+    primeQuotes(currentEx);
+  }
+}
+renderExchTabs();
 
 // sync the active tab to the (possibly URL-set) currentEx
 document.querySelectorAll('.exch-tab').forEach(x => x.classList.toggle('active', x.dataset.ex === currentEx));
