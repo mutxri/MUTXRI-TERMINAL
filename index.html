@@ -350,11 +350,29 @@ try{
     .catch(() => {});
 }catch(e){}
 
-// ===== Clock =====
-setInterval(() => {
-  const d = new Date();
-  $('clock').textContent = d.toLocaleTimeString('en-GB', {hour12:false});
-}, 1000);
+// ===== Clock (exchange capital-city timezone) =====
+const EX_TZ = {
+  JSE: {tz: 'Africa/Johannesburg', city: 'JHB'},
+  EGX: {tz: 'Africa/Cairo',        city: 'CAI'},
+  NGX: {tz: 'Africa/Lagos',        city: 'LOS'},
+  NSE: {tz: 'Africa/Nairobi',      city: 'NBO'},
+};
+function clockTZ(){
+  const ex = (typeof currentEx !== 'undefined' ? currentEx : 'JSE');
+  const info = EX_TZ[ex] || EX_TZ.JSE;
+  try{
+    const d = new Date();
+    const time = d.toLocaleTimeString('en-GB', {timeZone: info.tz, hour12: false});
+    const date = d.toLocaleDateString('en-GB', {timeZone: info.tz, day: '2-digit', month: 'short'});
+    $('clock').textContent = time + ' ' + info.city;
+    $('clock').title = date + ' · ' + info.tz;
+  }catch(e){
+    const d = new Date();
+    $('clock').textContent = d.toLocaleTimeString('en-GB', {hour12:false});
+  }
+}
+setInterval(clockTZ, 1000);
+clockTZ();
 
 // ===== Tabs (Claude's panels, untouched, embedded) =====
 const PANELS = [
