@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<!-- AFRI Terminal - SCREEN (Equity Screener). Rebuilt to match the rendered design.
+     Godel black+mint, Oxygen Mono. Vanilla JS, no build. Runs standalone on
+     SAMPLE data; uses /api/screener when reachable. Delete SAMPLE_STOCKS when live. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AFRI Terminal - Screener</title>
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#000;color:var(--tx);font-family:var(--ui);font-size:13px;padding:16px;}
+  .scr{border:1px solid var(--line2);background:var(--bg2);border-radius:2px;}
+  .scr-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line2);}
+  .scr-head .t{font-size:12px;letter-spacing:.08em;color:var(--tx2);text-transform:uppercase;}
+  .scr-head .t b{color:var(--acc);font-weight:700;}
+  .scr-count{font-family:var(--mono);font-size:12px;color:var(--tx2);}
+  .scr-filters{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:flex-end;}
+  .fld{display:flex;flex-direction:column;gap:3px;}
+  .fld label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3);}
+  .fld select,.fld input{background:var(--bg4);border:1px solid var(--line2);border-radius:2px;color:var(--tx);font-family:var(--mono);font-size:12px;padding:5px 8px;outline:none;}
+  .fld select:focus,.fld input:focus{border-color:var(--acc);}
+  .fld input{width:80px;}
+  .scr-actions{margin-left:auto;display:flex;gap:8px;}
+  .btn{background:transparent;border:1px solid var(--line2);border-radius:2px;color:var(--tx2);font-family:var(--mono);font-size:11px;padding:6px 12px;cursor:pointer;}
+  .btn:hover{border-color:var(--acc);color:var(--acc);}
+  .btn.primary{background:var(--acc);border-color:var(--acc);color:#00110b;font-weight:700;}
+  .btn.primary:hover{background:#1ecfb0;border-color:#1ecfb0;}
+  table.grid{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;}
+  table.grid th{text-align:left;color:var(--tx3);font-weight:400;font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:8px 12px;border-bottom:1px solid var(--line2);cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0;background:var(--bg2);}
+  table.grid th:hover{color:var(--acc);}
+  table.grid th .ar{color:var(--acc);}
+  table.grid td{padding:7px 12px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  table.grid tr:hover td{background:var(--bg3);}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  .up{color:var(--up);}.down{color:var(--down);}.muted{color:var(--tx3);}
+  .tkr{color:var(--tx);font-weight:700;cursor:pointer;}
+  .tkr:hover{color:var(--acc);}
+  .nm{color:var(--tx2);font-family:var(--ui);}
+  .tag{font-size:9px;padding:1px 5px;border-radius:2px;letter-spacing:.04em;}
+  .tag.live{color:var(--up);border:1px solid rgba(51,226,154,.4);}
+  .tag.eod{color:var(--tx3);border:1px solid var(--line2);}
+  .empty{padding:34px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:12px;}
+  .foot{padding:8px 14px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:10px;display:flex;justify-content:space-between;}
+</style>
+</head>
+<body>
+<div class="scr" id="screener">
+  <div class="scr-head">
+    <div class="t"><b>SCREEN</b> &middot; Equity Screener</div>
+    <div class="scr-count" id="cnt">-</div>
+  </div>
+  <div class="scr-filters">
+    <div class="fld"><label>Exchange</label>
+      <select id="fEx" style="min-width:110px">
+        <option value="">All</option>
+        <option value="JSE">JSE</option><option value="EGX">EGX</option>
+        <option value="NGX">NGX</option><option value="NSE">NSE</option>
+      </select></div>
+    <div class="fld"><label>Sector</label><select id="fSec"><option value="">All</option></select></div>
+    <div class="fld"><label>Price min</label><input id="fPmin" type="number" step="any"/></div>
+    <div class="fld"><label>Price max</label><input id="fPmax" type="number" step="any"/></div>
+    <div class="fld"><label>Chg% min</label><input id="fCmin" type="number" step="any"/></div>
+    <div class="fld"><label>Vol min</label><input id="fVmin" type="number" step="any"/></div>
+    <div class="fld"><label>Div yld min</label><input id="fDmin" type="number" step="any"/></div>
+    <div class="scr-actions">
+      <button class="btn" id="bReset">Reset</button>
+      <button class="btn" id="bCsv">Export CSV</button>
+      <button class="btn primary" id="bRun">Run</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="grid"><thead><tr id="hrow"></tr></thead><tbody id="body"></tbody></table>
+    <div class="empty" id="empty" style="display:none;">No stocks match these filters.</div>
+  </div>
+  <div class="foot"><span id="src">-</span><span>LIVE = JSE/EGX intraday &middot; EOD = NGX/NSE end-of-day</span></div>
+</div>
+<script>
+(function(){
+  "use strict";
+  var ENDPOINT="../../static_data/screener", LS="afri_screener_filters";
+  var COLS=[
+    {k:"ticker",l:"Ticker",n:false},{k:"name",l:"Company",n:false},
+    {k:"exchange",l:"Exch",n:false},{k:"sector",l:"Sector",n:false},
+    {k:"price",l:"Price",n:true},{k:"chgPct",l:"Chg%",n:true},
+    {k:"volume",l:"Volume",n:true},{k:"divYield",l:"Div%",n:true},
+    {k:"live",l:"Feed",n:false}
+  ];
+  var state={sort:"chgPct",dir:"desc",rows:[]};
+  var SAMPLE_STOCKS=[
+    {ticker:"COMI",name:"Commercial Intl Bank",sym:"COMI.CA",exchange:"EGX",sector:"Banks",currency:"EGP",price:52.8,chgPct:2.14,volume:3400000,divYield:4.73,live:true},
+    {ticker:"SOL",name:"Sasol",sym:"SOL.JO",exchange:"JSE",sector:"Oil & Gas",currency:"ZAR",price:118.5,chgPct:2.1,volume:1200000,divYield:10.13,live:true},
+    {ticker:"MTN",name:"MTN Group",sym:"MTN.JO",exchange:"JSE",sector:"Telecom",currency:"ZAR",price:98.2,chgPct:-0.71,volume:900000,divYield:3.36,live:true},
+    {ticker:"NPN",name:"Naspers",sym:"NPN.JO",exchange:"JSE",sector:"Technology",currency:"ZAR",price:3450,chgPct:-0.8,volume:480000,divYield:null,live:true},
+    {ticker:"SCOM",name:"Safaricom",sym:"SCOM",exchange:"NSE",sector:"Telecom",currency:"KES",price:18.4,chgPct:null,volume:null,divYield:6.52,live:false},
+    {ticker:"EQTY",name:"Equity Group",sym:"EQTY",exchange:"NSE",sector:"Banks",currency:"KES",price:44.15,chgPct:null,volume:null,divYield:9.06,live:false},
+    {ticker:"MTNN",name:"MTN Nigeria",sym:"MTNN",exchange:"NGX",sector:"Telecom",currency:"NGN",price:240,chgPct:null,volume:null,divYield:8.33,live:false},
+    {ticker:"DANGCEM",name:"Dangote Cement",sym:"DANGCEM",exchange:"NGX",sector:"Industrials",currency:"NGN",price:470,chgPct:null,volume:null,divYield:null,live:false}
+  ];
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+  function readFilters(){
+    var ex=[],s=$("fEx");for(var i=0;i<s.options.length;i++)if(s.options[i].selected)ex.push(s.options[i].value);
+    return {exchange:ex,sector:$("fSec").value||"",price_min:$("fPmin").value,price_max:$("fPmax").value,chg_min:$("fCmin").value,vol_min:$("fVmin").value,div_yield_min:$("fDmin").value};
+  }
+  function localFilter(rows,f){
+    function ok(v,mn,mx){if(mn!==""&&(v==null||v<parseFloat(mn)))return false;if(mx!==""&&(v==null||v>parseFloat(mx)))return false;return true;}
+    return rows.filter(function(s){
+      if(f.exchange.length&&f.exchange.indexOf(s.exchange)===-1)return false;
+      if(f.sector&&(s.sector||"").toLowerCase()!==f.sector.toLowerCase())return false;
+      if(!ok(s.price,f.price_min,f.price_max))return false;
+      if(f.chg_min!==""&&(s.chgPct==null||s.chgPct<parseFloat(f.chg_min)))return false;
+      if(f.vol_min!==""&&(s.volume==null||s.volume<parseFloat(f.vol_min)))return false;
+      if(f.div_yield_min!==""&&(s.divYield==null||s.divYield<parseFloat(f.div_yield_min)))return false;
+      return true;
+    });
+  }
+  function sortRows(rows){
+    var k=state.sort,desc=state.dir==="desc";
+    var has=rows.filter(function(r){return r[k]!=null;}),none=rows.filter(function(r){return r[k]==null;});
+    has.sort(function(a,b){if(a[k]<b[k])return desc?1:-1;if(a[k]>b[k])return desc?-1:1;return 0;});
+    none.sort(function(a,b){return (a.ticker||"")<(b.ticker||"")?-1:1;});
+    return has.concat(none);
+  }
+  function fmt(v,dp){return v==null?'<span class="muted">-</span>':Number(v).toLocaleString(undefined,{minimumFractionDigits:dp,maximumFractionDigits:dp});}
+  function head(){
+    $("hrow").innerHTML=COLS.map(function(c){
+      var ar=state.sort===c.k?' <span class="ar">'+(state.dir==="desc"?"\u25be":"\u25b4")+"</span>":"";
+      return '<th data-k="'+c.k+'">'+c.l+ar+"</th>";
+    }).join("");
+    Array.prototype.forEach.call($("hrow").querySelectorAll("th"),function(th){
+      th.onclick=function(){var k=th.getAttribute("data-k");if(state.sort===k)state.dir=state.dir==="desc"?"asc":"desc";else{state.sort=k;state.dir="desc";}head();body();};
+    });
+  }
+  function body(){
+    var rows=sortRows(state.rows.slice());
+    $("empty").style.display=rows.length?"none":"block";
+    $("body").innerHTML=rows.map(function(r){
+      var cc=r.chgPct==null?"muted":(r.chgPct>=0?"up":"down");
+      var ct=r.chgPct==null?'<span class="muted">-</span>':(r.chgPct>=0?"+":"")+Number(r.chgPct).toFixed(2)+"%";
+      var feed=r.live?'<span class="tag live">LIVE</span>':'<span class="tag eod">EOD</span>';
+      return "<tr>"+
+        '<td><span class="tkr">'+esc(r.ticker||"-")+"</span></td>"+
+        '<td class="nm">'+esc(r.name||"-")+"</td>"+
+        "<td>"+esc(r.exchange||"-")+"</td>"+
+        '<td class="muted">'+esc(r.sector||"-")+"</td>"+
+        '<td class="num">'+fmt(r.price,2)+"</td>"+
+        '<td class="num '+cc+'">'+ct+"</td>"+
+        '<td class="num">'+(r.volume==null?'<span class="muted">-</span>':fmt(r.volume,0))+"</td>"+
+        '<td class="num">'+(r.divYield==null?'<span class="muted">-</span>':Number(r.divYield).toFixed(2))+"</td>"+
+        "<td>"+feed+"</td></tr>";
+    }).join("");
+    $("cnt").textContent=rows.length+(rows.length===1?" match":" matches");
+  }
+  function sectors(rows){
+    var set={};rows.forEach(function(s){if(s.sector)set[s.sector]=true;});
+    var sel=$("fSec"),cur=sel.value;
+    sel.innerHTML='<option value="">All</option>'+Object.keys(set).sort().map(function(s){return "<option>"+esc(s)+"</option>";}).join("");
+    if(cur)sel.value=cur;
+  }
+  function save(f){try{localStorage.setItem(LS,JSON.stringify(f));}catch(e){}}
+  function restore(){try{var f=JSON.parse(localStorage.getItem(LS)||"null");if(!f)return;
+    (f.exchange||[]).forEach(function(ex){var o=document.querySelector('#fEx option[value="'+ex+'"]');if(o)o.selected=true;});
+    if(f.sector)$("fSec").value=f.sector;$("fPmin").value=f.price_min||"";$("fPmax").value=f.price_max||"";
+    $("fCmin").value=f.chg_min||"";$("fVmin").value=f.vol_min||"";$("fDmin").value=f.div_yield_min||"";}catch(e){}}
+  function q(f){var p=[];if(f.exchange.length)p.push("exchange="+encodeURIComponent(f.exchange.join(",")));
+    if(f.sector)p.push("sector="+encodeURIComponent(f.sector));
+    ["price_min","price_max","chg_min","vol_min","div_yield_min"].forEach(function(k){if(f[k]!==""&&f[k]!=null)p.push(k+"="+encodeURIComponent(f[k]));});
+    p.push("sort="+state.sort,"dir="+state.dir);return p.join("&");}
+  function run(){
+    var f=readFilters();save(f);
+    fetch((window.STATIC_MODE ? ENDPOINT+"_"+state.ex+".json" : ENDPOINT+"?"+q(f))).then(function(r){if(!r.ok)throw 0;return r.json();})
+      .then(function(d){state.rows=d.stocks||[];$("src").textContent=window.STATIC_MODE?"source: static snapshot":"source: /api/screener";sectors(state.rows);body();})
+      .catch(function(){state.rows=localFilter(SAMPLE_STOCKS,f);$("src").textContent="source: SAMPLE DATA (server not reachable)";body();});
+  }
+  function csv(){
+    var rows=sortRows(state.rows.slice());if(!rows.length)return;
+    var lines=[COLS.map(function(c){return c.l;}).join(",")];
+    rows.forEach(function(r){lines.push(COLS.map(function(c){var v=r[c.k];if(v==null)return "";v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(","));});
+    var b=new Blob([lines.join("\n")],{type:"text/csv"}),a=document.createElement("a");
+    a.href=URL.createObjectURL(b);a.download="afri_screener.csv";a.click();URL.revokeObjectURL(a.href);
+  }
+  function reset(){Array.prototype.forEach.call(document.querySelectorAll(".scr-filters input"),function(i){i.value="";});
+    var s=$("fEx");for(var i=0;i<s.options.length;i++)s.options[i].selected=false;$("fSec").value="";
+    try{localStorage.removeItem(LS);}catch(e){}run();}
+  window.showScreener=function(){var el=$("screener");if(el)el.scrollIntoView({behavior:"smooth"});};
+  function init(){sectors(SAMPLE_STOCKS);restore();head();
+    $("bRun").onclick=run;$("bCsv").onclick=csv;$("bReset").onclick=reset;run();}
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+})();
+</script>
+</body>
+</html>
