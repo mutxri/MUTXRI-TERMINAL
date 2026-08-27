@@ -49,6 +49,26 @@ a{color:var(--acc);text-decoration:none;}
 .stat .n b{color:var(--acc);}
 .stat .l{font-size:12px;color:var(--tx3);margin-top:2px;}
 
+/* ---------- exchange dropdown ---------- */
+.exch-pick{display:flex;align-items:center;gap:14px;margin-bottom:40px;flex-wrap:wrap;}
+.exch-pick .lbl{font-family:var(--mono);font-size:11px;color:var(--tx3);letter-spacing:.1em;text-transform:uppercase;}
+.exch-drop{position:relative;display:inline-block;}
+.exch-btn{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px;color:var(--tx);
+  background:var(--bg3);border:1px solid var(--line2);border-radius:4px;padding:11px 16px;cursor:pointer;min-width:230px;transition:border-color .15s;}
+.exch-btn:hover{border-color:var(--acc);}
+.exch-btn .chev{margin-left:auto;color:var(--tx3);font-size:10px;transition:transform .2s;}
+.exch-drop.open .exch-btn .chev{transform:rotate(180deg);}
+.exch-menu{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--bg2);border:1px solid var(--line2);
+  border-radius:6px;overflow:hidden;z-index:60;display:none;box-shadow:0 12px 40px rgba(0,0,0,.7);}
+.exch-drop.open .exch-menu{display:block;}
+.exch-opt{padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:background .12s;}
+.exch-opt:hover{background:var(--bg3);}
+.exch-opt.on{background:var(--bg3);box-shadow:inset 2px 0 0 var(--acc);}
+.exch-opt .code{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--acc);min-width:44px;}
+.exch-opt .info{font-size:11.5px;color:var(--tx2);line-height:1.35;}
+.exch-opt .info b{color:var(--tx);display:block;font-size:12px;}
+.exch-go{margin-left:10px;}
+
 /* ---------- terminal preview ---------- */
 .terminal-frame{margin-top:56px;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--bg2);box-shadow:0 24px 80px rgba(0,0,0,.6);}
 .tf-bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--bg3);}
@@ -185,6 +205,35 @@ a{color:var(--acc);text-decoration:none;}
     <div class="hero-cta">
       <button class="btn btn-primary" onclick="openAuth('signup')">Try It Now</button>
       <a class="btn btn-ghost" href="#demo">Get a Demo</a>
+    </div>
+    <div class="exch-pick">
+      <span class="lbl">Explore an exchange</span>
+      <div class="exch-drop" id="exchDrop">
+        <button class="exch-btn" id="exchBtn" onclick="exchToggle(event)">
+          <span id="exchBtnCode">JSE</span>
+          <span style="color:var(--tx3);font-size:11px" id="exchBtnName">Johannesburg · South Africa</span>
+          <span class="chev">▼</span>
+        </button>
+        <div class="exch-menu" id="exchMenu">
+          <div class="exch-opt on" data-ex="JSE" onclick="exchPick('JSE', event)">
+            <span class="code">JSE</span>
+            <span class="info"><b>Johannesburg Stock Exchange</b>South Africa · ZAR · 431 securities</span>
+          </div>
+          <div class="exch-opt" data-ex="NGX" onclick="exchPick('NGX', event)">
+            <span class="code">NGX</span>
+            <span class="info"><b>Nigerian Exchange</b>Nigeria · NGN · 152 securities</span>
+          </div>
+          <div class="exch-opt" data-ex="NSE" onclick="exchPick('NSE', event)">
+            <span class="code">NSE</span>
+            <span class="info"><b>Nairobi Securities Exchange</b>Kenya · KES · 69 securities</span>
+          </div>
+          <div class="exch-opt" data-ex="EGX" onclick="exchPick('EGX', event)">
+            <span class="code">EGX</span>
+            <span class="info"><b>Egyptian Exchange</b>Egypt · EGP · 374 securities</span>
+          </div>
+        </div>
+      </div>
+      <a class="btn btn-primary exch-go" href="terminal/?ex=JSE" id="exchGo">Open Terminal →</a>
     </div>
     <div class="hero-stats">
       <div class="stat"><div class="n"><b>1,030</b></div><div class="l">Securities covered</div></div>
@@ -426,6 +475,31 @@ a{color:var(--acc);text-decoration:none;}
 </div>
 
 <script>
+// ===== exchange dropdown =====
+var EXCH_INFO = {
+  JSE: {name: "Johannesburg · South Africa", opt: "Johannesburg Stock Exchange", desc: "South Africa · ZAR · 431 securities"},
+  NGX: {name: "Lagos · Nigeria", opt: "Nigerian Exchange", desc: "Nigeria · NGN · 152 securities"},
+  NSE: {name: "Nairobi · Kenya", opt: "Nairobi Securities Exchange", desc: "Kenya · KES · 69 securities"},
+  EGX: {name: "Cairo · Egypt", opt: "Egyptian Exchange", desc: "Egypt · EGP · 374 securities"},
+};
+function exchToggle(e){
+  e.stopPropagation();
+  document.getElementById("exchDrop").classList.toggle("open");
+}
+function exchPick(ex, e){
+  if(e) e.stopPropagation();
+  document.getElementById("exchDrop").classList.remove("open");
+  document.getElementById("exchBtnCode").textContent = ex;
+  document.getElementById("exchBtnName").textContent = EXCH_INFO[ex].name;
+  document.getElementById("exchGo").href = "terminal/?ex=" + ex;
+  document.querySelectorAll(".exch-opt").forEach(function(o){
+    o.classList.toggle("on", o.getAttribute("data-ex") === ex);
+  });
+}
+document.addEventListener("click", function(){
+  document.getElementById("exchDrop").classList.remove("open");
+});
+
 // ===== history widget (candles since IPO) =====
 var histChart = null, histSeries = null, histData = [], histType = "candle";
 var HIST_MINT = "#33e29a", HIST_RED = "#f87171";
