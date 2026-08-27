@@ -45,7 +45,15 @@ body{
   font-size:11px;letter-spacing:.06em;padding:var(--s1) var(--s3);border-radius:2px;
   cursor:pointer;transition:color .15s,background .15s}
 .exch-tab:hover{color:var(--tx2)}
-.exch-tab.active{color:#00160e;background:var(--acc);font-weight:600}
+.exch-tab.active{color:#00160e;background:var(--acc);font-weight:700;
+  font-size:13px;padding:5px 12px;letter-spacing:.08em;box-shadow:0 0 12px rgba(51,226,154,.35)}
+.exch-flag{font-size:11px;margin-right:3px}
+.exch-full{font-size:9px;font-weight:400;opacity:.8;margin-left:5px;letter-spacing:.04em;text-transform:uppercase}
+.qhint{display:flex;align-items:center;gap:4px;margin-left:10px;flex-wrap:nowrap;overflow:hidden}
+.qh-label{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.06em;text-transform:uppercase}
+.qh-chip{font-family:var(--mono);font-size:10px;color:var(--tx2);background:var(--bg3);
+  border:1px solid var(--line2);border-radius:3px;padding:2px 7px;cursor:pointer;transition:all .12s;white-space:nowrap}
+.qh-chip:hover{color:var(--acc);border-color:var(--acc)}
 .search{margin-left:auto;display:flex;align-items:center;gap:var(--s2);
   background:var(--bg3);border:1px solid var(--line2);border-radius:3px;
   padding:var(--s2) var(--s3);width:260px;transition:border-color .15s}
@@ -175,6 +183,14 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <span>&#9906;</span>
       <input id="q" placeholder="Search ticker or command…" autocomplete="off" aria-label="Search">
     </label>
+    <div class="qhint" id="qHint">
+      <span class="qh-label">try:</span>
+      <button class="qh-chip" onclick="quickCmd('SBK')">SBK</button>
+      <button class="qh-chip" onclick="quickCmd('NPN')">NPN</button>
+      <button class="qh-chip" onclick="quickCmd('HEATMAP')">HEATMAP</button>
+      <button class="qh-chip" onclick="quickCmd('SCREENER')">SCREENER</button>
+      <button class="qh-chip" onclick="quickCmd('HELP')">HELP</button>
+    </div>
     <div class="acct" id="acctBox">
       <button id="acctBtn" onclick="toggleAuth()">SIGN IN</button>
     </div>
@@ -479,11 +495,20 @@ function buildTape(ex){
 }
 
 // ===== Exchange tabs (only the selected exchange shows - clean UI) =====
+const EX_FULL = {
+  JSE: {name: 'Johannesburg', flag: 'ZA'},
+  EGX: {name: 'Cairo', flag: 'EG'},
+  NGX: {name: 'Lagos', flag: 'NG'},
+  NSE: {name: 'Nairobi', flag: 'KE'},
+};
 function renderExchTabs(){
   const nav = $('exchTabs');
   if(!nav) return;
   // single tab: just the current exchange (no other initials shown)
-  nav.innerHTML = '<button class="exch-tab active" data-ex="' + esc(currentEx) + '">' + esc(currentEx) + '</button>';
+  const info = EX_FULL[currentEx] || {name: currentEx, flag: ''};
+  nav.innerHTML = '<button class="exch-tab active" data-ex="' + esc(currentEx) + '" title="' + esc(info.name) + ' · ' + esc(currentEx) + '">' +
+    '<span class="exch-flag">' + esc(info.flag) + '</span> ' + esc(currentEx) +
+    '<span class="exch-full">' + esc(info.name) + '</span></button>';
 }
 function switchExchange(ex){
   currentEx = ex;
@@ -547,6 +572,28 @@ function buildTapeFromListing(ex){
 $('q').addEventListener('input', e => renderWatchlist(e.target.value));
 
 // ===== Command bar =====
+function quickCmd(c){
+  const inp = $('cmd');
+  if(inp){ inp.value = c; inp.focus(); }
+  // dispatch directly
+  const v = (c || '').toUpperCase();
+  if(!v) return;
+  const parts = v.split(' ');
+  const code = parts[parts.length - 1];
+  const idx = PANELS.findIndex(p => p.id === code.toLowerCase() || p.label === code);
+  if(idx >= 0){
+    document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.ctab')[idx].classList.add('active');
+    $('stageFrame').src = panelUrl(PANELS[idx]);
+  } else if(v === 'HELP'){
+    $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
+      '<div style="padding:8px 0;color:var(--tx3)">Type a panel code (HEATMAP, SCREEN, REG, GLCO, BND, FX, TAS, RATINGS) then Enter.</div>';
+  } else {
+    // try opening the ticker directly
+    const sym = v;
+    if(sym){ openStock(sym); }
+  }
+}
 $('cmd').addEventListener('keydown', e => {
   if(e.key !== 'Enter') return;
   const v = $('cmd').value.trim().toUpperCase();
