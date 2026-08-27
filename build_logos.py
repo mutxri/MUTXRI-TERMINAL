@@ -49,7 +49,15 @@ def main():
         return None
 
     # Build final map: for each stock, resolve ticker -> domain
+    # MERGE (not replace): start with any existing logos.json entries so
+    # verified manual/subagent domains are preserved across rebuilds.
     logo_map = {}
+    logos_path = os.path.join(BASE, "static_data", "logos.json")
+    if os.path.exists(logos_path):
+        try:
+            logo_map = json.load(open(logos_path, encoding="utf-8"))
+        except Exception:
+            logo_map = {}
     for ex, lst in stocks.items():
         if not isinstance(lst, list):
             continue
