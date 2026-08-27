@@ -111,6 +111,11 @@
   var POLL_MS=15000;
   var CLAMP=4.0;
   var activeEx="JSE";
+  // honor ?ex= deep-link from the terminal (landing exchange dropdown)
+  try{
+    var _pex = new URLSearchParams(location.search).get("ex");
+    if(_pex && EXCHANGES.indexOf(_pex.toUpperCase()) >= 0) activeEx = _pex.toUpperCase();
+  }catch(e){}
   var pollTimer=null;
   var prevByKey={};
 

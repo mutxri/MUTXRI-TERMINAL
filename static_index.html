@@ -371,6 +371,11 @@ const PANELS = [
   {id:'tas',     label:'TAS',      url:'features/panels/afri_tas.html'},
   {id:'ratings', label:'RATINGS',  url:'features/panels/afri_ratings.html'},
 ];
+// panel URL with the current exchange appended (?ex=NGX) so EVERY panel
+// loads that exchange's data when opened
+function panelUrl(p){
+  return p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 'ex=' + currentEx;
+}
 PANELS.forEach((p, i) => {
   const t = document.createElement('div');
   t.className = 'ctab' + (i === 0 ? ' active' : '');
@@ -378,10 +383,12 @@ PANELS.forEach((p, i) => {
   t.onclick = () => {
     document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
-    $('stageFrame').src = p.url;
+    $('stageFrame').src = panelUrl(p);
   };
   $('centerTabs').appendChild(t);
 });
+// initial panel: load the default panel WITH the current exchange
+$('stageFrame').src = panelUrl(PANELS[0]);
 
 // ===== Load listing =====
 async function loadListing(ex){
@@ -462,6 +469,9 @@ document.querySelectorAll('.exch-tab').forEach(t => {
     document.querySelectorAll('.exch-tab').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
     currentEx = t.dataset.ex;
+    // reload the open panel for the new exchange (every panel is ?ex= aware)
+    const _cur = $('stageFrame').src;
+    $('stageFrame').src = _cur.replace(/[?&]ex=[A-Za-z]+/, '&ex=' + currentEx).replace(/^&/, '?');
     if(!listing[currentEx]) {
       // immediate tape from the new exchange's own data, then refresh
       buildTapeFromListing(currentEx);
@@ -527,7 +537,7 @@ $('cmd').addEventListener('keydown', e => {
   if(idx >= 0){
     document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.ctab')[idx].classList.add('active');
-    $('stageFrame').src = PANELS[idx].url;
+    $('stageFrame').src = panelUrl(PANELS[idx]);
   } else if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
       '<div style="padding:8px 0;color:var(--tx3)">Type a panel code (HEATMAP, SCREEN, REG, GLCO, BND, FX, TAS, RATINGS) then Enter.</div>';
