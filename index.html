@@ -91,15 +91,22 @@ body{
 .wl{overflow-y:auto;min-height:0;flex:1}
 .wl-head{display:flex;justify-content:space-between;padding:var(--s2) var(--s4);font-size:10px;
   color:var(--tx3);border-bottom:1px solid var(--line);letter-spacing:.05em}
-.wl-row{display:grid;grid-template-columns:1fr auto;gap:2px var(--s3);
+.wl-row{display:grid;grid-template-columns:26px 1fr auto;gap:2px var(--s3);
   align-items:center;padding:var(--s2) var(--s4);border-bottom:1px solid var(--line);
   cursor:pointer;transition:background .12s}
 .wl-row:hover{background:var(--bg3)}
 .wl-row.active{background:var(--bg3);box-shadow:inset 2px 0 0 var(--acc)}
-.wl-row .sym{font-weight:500;color:var(--tx);letter-spacing:.02em}
-.wl-row .nm{grid-column:1;font-family:var(--ui);font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wl-row .pr{grid-row:1;text-align:right;color:var(--tx)}
-.wl-row .chg{grid-row:2;text-align:right;font-size:10.5px}
+.wl-logo-cell{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:center}
+.wl-logo{width:22px;height:22px;border-radius:3px;background:var(--bg4);object-fit:contain;padding:2px}
+.wl-mono{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--line2);border-radius:3px;color:var(--acc);font-size:10px;font-weight:700;
+  background:var(--bg3);letter-spacing:.02em}
+.wl-main{grid-column:2;min-width:0}
+.wl-main .sym{font-weight:500;color:var(--tx);letter-spacing:.02em}
+.wl-main .nm{font-family:var(--ui);font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-price{grid-column:3;text-align:right}
+.wl-price .pr{color:var(--tx);font-size:11px}
+.wl-price .chg{font-size:10.5px}
 
 /* ---------- center panel ---------- */
 .panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
@@ -332,6 +339,15 @@ const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 let currentEx = 'JSE';
 let listing = {};
 
+// ===== Company logos =====
+let LOGO_MAP = {};
+try{
+  fetch((window.API_BASE ? window.API_BASE : '') + 'static_data/logos.json')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(d => { LOGO_MAP = d || {}; })
+    .catch(() => {});
+}catch(e){}
+
 // ===== Clock =====
 setInterval(() => {
   const d = new Date();
@@ -396,12 +412,21 @@ function renderWatchlist(filter){
     const sign = chg === null || chg === undefined ? '' : TickerFix.fmtPct(chg);
     const sym = stockTicker(s);
     const volTxt = vol != null ? (Number(String(vol).replace(/,/g,'')).toLocaleString() || String(vol)) : '';
+    // logo: official domain -> favicon service; monogram fallback (no broken images)
+    const dom = (LOGO_MAP[s.sym] || LOGO_MAP[s.ticker] || LOGO_MAP[sym] || '').replace(/^www\./, '');
+    const logoHtml = dom
+      ? `<img class="wl-logo" loading="lazy" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
+      : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
     return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
-      <span class="sym">${esc(sym)}</span>
-      <span class="nm">${esc(s.name||'')}</span>
-      <span class="pr">${pr} <small style="color:var(--tx3)">${esc(cur)}</small></span>
-      <span class="chg ${cls}">${sign}</span>
-      <span class="pr" style="font-size:9px;color:var(--tx3);min-width:70px;text-align:right">${volTxt}</span>
+      <span class="wl-logo-cell">${logoHtml}</span>
+      <span class="wl-main">
+        <span class="sym">${esc(sym)}</span>
+        <span class="nm">${esc(s.name||'')}</span>
+      </span>
+      <span class="wl-price">
+        <span class="pr">${pr} <small style="color:var(--tx3)">${esc(cur)}</small></span>
+        <span class="chg ${cls}">${sign}</span>
+      </span>
     </div>`;
   }).join('') || '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px">no stocks</div>';
 }
