@@ -95,6 +95,17 @@
   "use strict";
   window.STATIC_MODE = true;
   var state={ticker:"SCOM",statement:"income",period:"annual"};
+  // honor ?ex= deep-link from the terminal: default the ticker to a company
+  // on the selected exchange (SCOM=NSE, MTNN=NGX, SBK=JSE, COMI=EGX)
+  try{
+    var _pex=(new URLSearchParams(location.search).get("ex")||"").toUpperCase();
+    if(_pex){
+      var EX_TICKER={NSE:"SCOM",NGX:"MTNN",JSE:"SBK",EGX:"COMI"};
+      if(EX_TICKER[_pex]){ state.ticker=EX_TICKER[_pex]; }
+      var _hdr=document.querySelector(".head .code");
+      if(_hdr) _hdr.textContent="FA · "+_pex;
+    }
+  }catch(e){}
 
   // ---- VERIFIED REAL FILINGS (links only, no fabricated numbers) ----------
   // Each URL was confirmed against the issuer's own domain. This panel shows
