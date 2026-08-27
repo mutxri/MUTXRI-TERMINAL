@@ -2,9 +2,9 @@
 """deploy_to_render.py - ONE-SHOT Render deployment.
 Run AFTER adding a card at https://dashboard.render.com/billing.
 Creates the free web service from the backend branch and reports the URL."""
-import json, sys, urllib.request
+import json, sys, os, urllib.request
 
-RENDER_TOKEN = "RENDER_KEY_REVOKED"
+RENDER_TOKEN = os.environ.get("RENDER_API_KEY", "")
 OWNER = "tea-da65rhgjo6nc73efamqg"
 
 body = {
