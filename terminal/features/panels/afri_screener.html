@@ -86,7 +86,14 @@
 <script>
 (function(){
   "use strict";
+  window.STATIC_MODE = true;
   var ENDPOINT="../../static_data/screener", LS="afri_screener_filters";
+  var state={sort:"chgPct",dir:"desc",rows:[],ex:"JSE"};
+  // honor ?ex= deep-link from the terminal (landing exchange dropdown)
+  try{
+    var _pex=(new URLSearchParams(location.search).get("ex")||"").toUpperCase();
+    if(_pex && ["JSE","EGX","NGX","NSE"].indexOf(_pex) >= 0) state.ex=_pex;
+  }catch(e){}
   var COLS=[
     {k:"ticker",l:"Ticker",n:false},{k:"name",l:"Company",n:false},
     {k:"exchange",l:"Exch",n:false},{k:"sector",l:"Sector",n:false},
@@ -94,7 +101,7 @@
     {k:"volume",l:"Volume",n:true},{k:"divYield",l:"Div%",n:true},
     {k:"live",l:"Feed",n:false}
   ];
-  var state={sort:"chgPct",dir:"desc",rows:[]};
+  
   var SAMPLE_STOCKS=[
     {ticker:"COMI",name:"Commercial Intl Bank",sym:"COMI.CA",exchange:"EGX",sector:"Banks",currency:"EGP",price:52.8,chgPct:2.14,volume:3400000,divYield:4.73,live:true},
     {ticker:"SOL",name:"Sasol",sym:"SOL.JO",exchange:"JSE",sector:"Oil & Gas",currency:"ZAR",price:118.5,chgPct:2.1,volume:1200000,divYield:10.13,live:true},
