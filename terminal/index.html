@@ -505,12 +505,15 @@ function buildTapeFromListing(ex){
   const syms = (listing[ex]||[]).filter(s => (s.instrument !== 'structured') && (s.sym || s.ticker)).slice(0, 40);
   const items = syms.map(tapeItem).filter(Boolean).join('');
   $('tape').innerHTML = items + items;
-  // real indices on top (EGX 30, JSE Top 40, JSE All-Share + NGX/NSE baskets)
+  // real indices on top, filtered to the CURRENT exchange only
+  // (clean UI: JSE selection shows only JSE indices, no EGX/NGX/NSE tape)
   TickerFix.fetchJSONSafe('static_data/indices.json').then(res => {
     if(!res.ok) return;
     const d = res.data;
     if(!d || !d.entries || !d.entries.length) return;
-    const ix = d.entries.map(e => {
+    const ix = d.entries
+      .filter(e => (e.market || '').toUpperCase() === (ex || '').toUpperCase())
+      .map(e => {
       const cls = e.changePct >= 0 ? 'up' : 'down';
       const sign = e.changePct >= 0 ? '+' : '';
       const pct = e.changePct != null ? TickerFix.fmtPct(e.changePct) : '—';
