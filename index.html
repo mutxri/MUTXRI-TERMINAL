@@ -502,6 +502,39 @@ function openStock(sym){
   const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
   $('rightInfo').innerHTML = `<div style="padding:6px 0;color:var(--acc);font-weight:700">${esc(sym)}</div>
     <div style="padding:4px 0;color:var(--tx3)">Loading…</div>`;
+  // STATIC MODE (no backend): render the market panel from the snapshot
+  if(!window.API_BASE){
+    fetch('static_data/market_' + ex + '.json').then(r => { if(!r.ok) throw 0; return r.json(); })
+      .then(d => {
+        const rows = d.stocks || [];
+        const rec = rows.find(x => x.sym === sym || x.ticker === sym || (x.name||'') === sym)
+                || rows.find(x => (x.sym||'').split('.')[0] === sym.split('.')[0]);
+        if(!rec){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no snapshot data for ${esc(sym)}</div>`; return; }
+        const chg = rec.chgPct;
+        const cls = chg === null || chg === undefined ? '' : (chg >= 0 ? 'up' : 'down');
+        const sign = chg === null || chg === undefined ? '' : (chg >= 0 ? '+' : '');
+        const px = rec.price != null ? Number(rec.price).toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
+        const chgTxt = chg === null || chg === undefined ? '' : sign + Number(chg).toFixed(2) + '%';
+        const vol = rec.volume != null ? Number(String(rec.volume).replace(/,/g,'')).toLocaleString() : '—';
+        $('rightInfo').innerHTML = `
+          <div class="qhead">
+            <div class="qsym">${esc(rec.ticker || sym.split('.')[0])}</div>
+            <div class="qname">${esc(rec.name||'')}</div>
+            <div class="qpx">${px} <span style="font-size:11px;color:var(--tx3)">${esc(rec.currency||'')}</span></div>
+            <div class="qchg ${cls}">${chgTxt}</div>
+          </div>
+          <div style="padding:8px 16px;font-size:10px;color:var(--tx3)">SECTOR: ${esc(rec.sector||'—')}</div>
+          <div class="qgrid">
+            <span>PRICE</span><span>${px}</span>
+            <span>CHANGE</span><span class="${cls}">${chgTxt || '—'}</span>
+            <span>VOLUME</span><span>${vol}</span>
+            <span>STATE</span><span>snapshot</span>
+          </div>
+          <div style="padding:12px 16px;color:var(--tx3);font-size:10px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend</div>`;
+      })
+      .catch(() => { $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no market snapshot for ${esc(sym)}</div>`; });
+    return;
+  }
   fetch('/api/chart?symbol=' + encodeURIComponent(sym) + '&range=1y&interval=1d')
     .then(r => r.json())
     .then(d => {
