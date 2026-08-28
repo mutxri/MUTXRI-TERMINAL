@@ -246,6 +246,18 @@
   }
 
   function load(){
+    // try the static Yahoo-financials file first (works on GitHub Pages),
+    // then the real endpoint; offline, show verified filing links + dash
+    // scaffold (NEVER fabricated statement numbers)
+    var stFile = "../../static_data/financials/" + encodeURIComponent(state.ticker.replace(/\//g, "_")) +
+                 "__" + state.statement + ".json";
+    fetch(stFile).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
+      if(d && d.available !== false){
+        render(d); setStatus("Yahoo Finance", "filed");
+        return;
+      }
+      throw 0;
+    }).catch(function(){
     // try the real endpoint; offline, show verified filing links + dash scaffold
     // (NEVER fabricated statement numbers)
     var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
@@ -275,6 +287,7 @@
       var fil=filingsFor(state.ticker);
       render(fil?{name:fil.name,currency:fil.currency,ir:fil.ir,reports:fil.reports,periods:[]}:{periods:[]});
       setStatus(fil?"LINKS":"NONE",null);
+    });
     });
   }
 
