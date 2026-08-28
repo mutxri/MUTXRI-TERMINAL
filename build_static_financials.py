@@ -19,6 +19,18 @@ YF = os.path.join(BASE, "static_data", "yahoo_financials.json")
 OUT_DIR = os.path.join(BASE, "static_data", "financials")
 INDEX = os.path.join(BASE, "static_data", "financials_index.json")
 
+# sym -> exchange map (from stocks.json listings)
+SYM2EX = {}
+try:
+    _stocks = json.load(open(os.path.join(BASE, "stocks.json"), encoding="utf-8"))["stocks"]
+    for _ex in ["JSE", "EGX", "NGX", "NSE"]:
+        for _s in _stocks.get(_ex, []):
+            _sym = _s.get("sym") or _s.get("ticker")
+            if _sym:
+                SYM2EX[_sym] = _ex
+except Exception:
+    pass
+
 STATEMENT_SCHEMA = {
     "income": [
         ("revenue", "Revenue"),
@@ -143,7 +155,8 @@ def build():
             with open(os.path.join(OUT_DIR, sym.replace("/", "_") + "__" + statement + ".json"), "w", encoding="utf-8") as f:
                 json.dump(out, f, ensure_ascii=False)
         index[sym] = {"name": rec.get("name"), "currency": rec.get("currency"),
-                      "marketCap": rec.get("marketCap")}
+                      "marketCap": rec.get("marketCap"),
+                      "exchange": SYM2EX.get(sym) or (sym.split(".")[-1].upper() if "." in sym else "")}
         n += 1
     with open(INDEX, "w", encoding="utf-8") as f:
         json.dump(index, f, ensure_ascii=False)
