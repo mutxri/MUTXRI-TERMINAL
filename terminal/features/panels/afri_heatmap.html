@@ -127,11 +127,13 @@
       <div class="cp-types" id="cpTypes">
         <button class="cp-type on" data-type="candle" onclick="cpSetType('candle')">CANDLE</button>
         <button class="cp-type" data-type="line" onclick="cpSetType('line')">LINE</button>
+        <button class="cp-type" data-type="area" onclick="cpSetType('area')">AREA</button>
       </div>
       <div class="cp-ranges" id="cpRanges">
         <button class="cp-range on" data-rng="1D" onclick="cpSetRange('1D')">1D</button>
         <button class="cp-range" data-rng="1M" onclick="cpSetRange('1M')">1M</button>
         <button class="cp-range" data-rng="1Y" onclick="cpSetRange('1Y')">1Y</button>
+        <button class="cp-range" data-rng="10Y" onclick="cpSetRange('10Y')">10Y</button>
         <button class="cp-range" data-rng="ALL" onclick="cpSetRange('ALL')">ALL</button>
       </div>
       <div class="cp-stat" id="cpStat">-</div>
@@ -483,6 +485,7 @@
   }
   function cpBarsForRange(){
     if(cpRange === "ALL") return cpBarsMax.length >= 2 ? cpBarsMax : (cpBarsDaily.length >= 2 ? cpBarsDaily : []);
+    if(cpRange === "10Y") return cpBarsMax.length >= 2 ? cpBarsMax.slice(-120) : cpBarsDaily.slice(-520);
     if(cpRange === "1Y") return cpBarsDaily.slice(-260);
     if(cpRange === "1M") return cpBarsDaily.slice(-24);
     return cpBarsDaily.slice(-6); // 1D (last week of daily bars = EOD view)
@@ -516,6 +519,12 @@
         wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
       });
       cpSeries.setData(mapped.map(function(b){ return {time:b.time, open:b.open, high:b.high, low:b.low, close:b.close}; }));
+    } else if(cpType === "area"){
+      cpSeries = cpChart.addAreaSeries({
+        lineColor:MINT, topColor:"rgba(51,226,154,.25)", bottomColor:"rgba(51,226,154,0)",
+        lineWidth:2, priceLineColor:MINT,
+      });
+      cpSeries.setData(mapped.map(function(b){ return {time:b.time, value:b.close}; }));
     } else {
       cpSeries = cpChart.addLineSeries({color:MINT, lineWidth:2, priceLineColor:MINT});
       cpSeries.setData(mapped.map(function(b){ return {time:b.time, value:b.close}; }));
