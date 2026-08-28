@@ -213,11 +213,21 @@
   }
 
   function load(){
-    // try the real endpoint; offline, show verified filing links + dash scaffold
-    // (NEVER fabricated statement numbers)
-    var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
-            "&statement="+state.statement+"&period="+state.period;
-    fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
+    // try the static Yahoo-financials file first (works on GitHub Pages),
+    // then the real endpoint; offline, show verified filing links + dash
+    // scaffold (NEVER fabricated statement numbers)
+    var stFile = "../../static_data/financials/" + encodeURIComponent(state.ticker.replace(/\\//g, "_")) +
+                 "__" + state.statement + ".json";
+    fetch(stFile).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
+      if(d && d.available !== false){
+        render(d); setStatus("Yahoo Finance", "filed");
+        return;
+      }
+      throw 0;
+    }).catch(function(){
+      var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
+              "&statement="+state.statement+"&period="+state.period;
+      fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
       var fil=filingsFor(state.ticker)||{};
       if(!d||d.available===false){
         render({periods:[],name:d&&d.name||fil.name,currency:d&&d.currency||fil.currency,
@@ -233,6 +243,7 @@
       var fil=filingsFor(state.ticker);
       render(fil?{name:fil.name,currency:fil.currency,ir:fil.ir,reports:fil.reports,periods:[]}:{periods:[]});
       setStatus(fil?"LINKS":"NONE",null);
+    });
     });
   }
 
