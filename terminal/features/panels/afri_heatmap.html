@@ -59,6 +59,23 @@
   .legend .item{color:var(--tx2);font-size:10px;display:inline-flex;align-items:center;}
   .foot{padding:6px 14px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
   /* sector drill-down panel */
+  #chartPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;display:none;align-items:center;justify-content:center;}
+  #chartPanel.open{display:flex;}
+  .cp-box{background:var(--bg2);border:1px solid var(--line2);border-radius:4px;width:min(860px,94vw);max-height:88vh;display:flex;flex-direction:column;}
+  .cp-head{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);}
+  .cp-title{font-family:var(--mono);font-weight:700;color:var(--acc);letter-spacing:.04em;}
+  .cp-sub{font-size:11px;color:var(--tx3);margin-top:2px;}
+  .cp-toolbar{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .cp-types,.cp-ranges{display:flex;gap:4px;}
+  .cp-type,.cp-range{font-family:var(--mono);font-size:10px;color:var(--tx2);background:var(--bg3);
+    border:1px solid var(--line2);border-radius:2px;padding:4px 10px;cursor:pointer;letter-spacing:.06em;transition:all .12s;}
+  .cp-type.on,.cp-range.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700;}
+  .cp-type:hover,.cp-range:hover{border-color:var(--acc);color:var(--acc);}
+  .cp-type.on:hover,.cp-range.on:hover{color:#00160e;}
+  .cp-stat{font-family:var(--mono);font-size:11px;color:var(--tx2);margin-left:auto;}
+  .cp-chart{height:420px;position:relative;margin:10px 18px 18px;}
+  @media(max-width:700px){.cp-chart{height:300px;}}
+  /* sector drill-down panel */
   #sectorPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;display:none;align-items:center;justify-content:center;}
   #sectorPanel.open{display:flex;}
   .sp-box{background:var(--bg2);border:1px solid var(--line2);border-radius:4px;width:min(720px,92vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,.8);}
@@ -97,6 +114,31 @@
   </div>
   <div class="foot"><span id="src">-</span><span id="refreshTxt">-</span></div>
 </div>
+<div id="chartPanel">
+  <div class="cp-box">
+    <div class="cp-head">
+      <div>
+        <div class="cp-title" id="cpTitle">-</div>
+        <div class="cp-sub" id="cpSub">-</div>
+      </div>
+      <span class="sp-close" onclick="document.getElementById('chartPanel').classList.remove('open')">&times;</span>
+    </div>
+    <div class="cp-toolbar">
+      <div class="cp-types" id="cpTypes">
+        <button class="cp-type on" data-type="candle" onclick="cpSetType('candle')">CANDLE</button>
+        <button class="cp-type" data-type="line" onclick="cpSetType('line')">LINE</button>
+      </div>
+      <div class="cp-ranges" id="cpRanges">
+        <button class="cp-range on" data-rng="1D" onclick="cpSetRange('1D')">1D</button>
+        <button class="cp-range" data-rng="1M" onclick="cpSetRange('1M')">1M</button>
+        <button class="cp-range" data-rng="1Y" onclick="cpSetRange('1Y')">1Y</button>
+        <button class="cp-range" data-rng="ALL" onclick="cpSetRange('ALL')">ALL</button>
+      </div>
+      <div class="cp-stat" id="cpStat">-</div>
+    </div>
+    <div class="cp-chart" id="cpChart"></div>
+  </div>
+</div>
 <div id="sectorPanel">
   <div class="sp-box">
     <div class="sp-head">
@@ -110,6 +152,7 @@
     <div class="sp-list" id="spList"></div>
   </div>
 </div>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 (function(){
   "use strict";
@@ -289,7 +332,7 @@
         var c=d.c;
         if(!node){node=document.createElement("div");node.className="cell enter";node.dataset.key=key;
           node.innerHTML='<span class="ct"></span><span class="cc"></span>';node.title=c.name;
-          node.onclick=(function(sec){return function(){openSector(sec);};})(c.sector||"Other");
+          node.onclick=(function(cell){return function(){openChart(cell);};})(c);
           canvas.appendChild(node);}
         else if(node.classList.contains("enter")){node.classList.remove("enter");}
         node.style.left=d.x+"px";node.style.top=d.y+"px";node.style.width=d.w+"px";node.style.height=d.h+"px";
@@ -405,6 +448,89 @@
     var rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(load,200);});
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+
+  // ===== TradingView-style security chart (candles/line, 1D/1M/1Y/ALL) =====
+  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpCur="", cpName="";
+  function openChart(c){
+    if(!c) return;
+    cpName = c.name || c.ticker || "";
+    cpCur = c.currency || "";
+    $("cpTitle").textContent = (c.ticker || c.sym || "") + " · " + activeEx;
+    $("cpSub").textContent = cpName;
+    $("cpStat").textContent = "loading…";
+    document.getElementById("chartPanel").classList.add("open");
+    // daily history for 1D/1M/1Y
+    var sym = (c.sym || c.ticker || "").replace(/\//g, "_");
+    cpBarsDaily = []; cpBarsMax = [];
+    fetch("../../static_data/history/" + encodeURIComponent(sym) + ".json")
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ cpBarsDaily = d.bars || []; cpRender(); })
+      .catch(function(){ cpBarsDaily = []; cpRender(); });
+    // max history for ALL (since IPO, monthly)
+    fetch("../../static_data/history/" + encodeURIComponent(sym) + ".max.json")
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ cpBarsMax = d.bars || []; cpRender(); })
+      .catch(function(){ cpBarsMax = []; cpRender(); });
+  }
+  function closeChartPanel(){ document.getElementById("chartPanel").classList.remove("open"); }
+  function cpSetType(t){
+    cpType = t;
+    Array.prototype.forEach.call(document.querySelectorAll(".cp-type"), function(b){ b.classList.toggle("on", b.getAttribute("data-type")===t); });
+    cpRender();
+  }
+  function cpSetRange(r){
+    cpRange = r;
+    Array.prototype.forEach.call(document.querySelectorAll(".cp-range"), function(b){ b.classList.toggle("on", b.getAttribute("data-rng")===r); });
+    cpRender();
+  }
+  function cpBarsForRange(){
+    if(cpRange === "ALL") return cpBarsMax.length >= 2 ? cpBarsMax : (cpBarsDaily.length >= 2 ? cpBarsDaily : []);
+    if(cpRange === "1Y") return cpBarsDaily.slice(-260);
+    if(cpRange === "1M") return cpBarsDaily.slice(-24);
+    return cpBarsDaily.slice(-6); // 1D (last week of daily bars = EOD view)
+  }
+  function cpRender(){
+    var bars = cpBarsForRange();
+    var box = $("cpChart");
+    if(!box) return;
+    if(!bars.length){
+      $("cpStat").textContent = "no historical data";
+      return;
+    }
+    if(cpChart){ try{cpChart.remove();}catch(e){} cpChart = null; }
+    var mapped = bars.map(function(b){ return {time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, value: b.c}; });
+    var MINT = "#33e29a", RED = "#f87171";
+    var w = Math.max(box.clientWidth || 800, 200);
+    var h = Math.max(box.clientHeight || 400, 200);
+    cpChart = LightweightCharts.createChart(box, {
+      layout:{background:{color:"transparent"},textColor:"#9a9a9a",fontFamily:"Oxygen Mono, monospace",fontSize:10},
+      grid:{vertLines:{color:"rgba(38,38,38,.5)"},horzLines:{color:"rgba(38,38,38,.5)"}},
+      rightPriceScale:{borderColor:"#262626"},
+      timeScale:{borderColor:"#262626",timeVisible:false,rightOffset:4},
+      crosshair:{mode:1},
+      localization:{priceFormatter:function(p){ return p>=1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2); }},
+      width:w, height:h,
+    });
+    if(cpType === "candle"){
+      cpSeries = cpChart.addCandlestickSeries({
+        upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
+        wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
+      });
+      cpSeries.setData(mapped.map(function(b){ return {time:b.time, open:b.open, high:b.high, low:b.low, close:b.close}; }));
+    } else {
+      cpSeries = cpChart.addLineSeries({color:MINT, lineWidth:2, priceLineColor:MINT});
+      cpSeries.setData(mapped.map(function(b){ return {time:b.time, value:b.close}; }));
+    }
+    cpChart.timeScale().fitContent();
+    // stats: range performance
+    var first = mapped[0].close, last = mapped[mapped.length-1].close;
+    var pct = first ? ((last - first) / first * 100) : 0;
+    var sign = pct >= 0 ? "+" : "";
+    $("cpStat").textContent = bars.length + " bars · " + sign + pct.toFixed(2) + "% · " + (cpRange === "ALL" ? "since IPO" : cpRange);
+    var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(function(){ try{ if(cpChart) cpChart.applyOptions({width: Math.max(box.clientWidth||800,200)}); }catch(e){} }, 150); });
+  }
+  // close on Escape
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeChartPanel(); });
 })();
 </script>
 </body>
