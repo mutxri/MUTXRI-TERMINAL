@@ -83,7 +83,6 @@
 <div class="hm" id="heatmap">
   <div class="hm-head">
     <div class="t"><b>HEATMAP</b> &middot; <span id="exLabel">JSE</span></div>
-    <div class="hm-tabs" id="tabs"></div>
     <div class="hm-right">
       <span class="hm-status"><span class="dot" id="dot"></span><span id="statusTxt">-</span></span>
     </div>
@@ -397,13 +396,8 @@
   }
   function startPolling(){if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(load,POLL_MS);}
   function tabs(){
-    $("tabs").innerHTML=EXCHANGES.map(function(ex){
-      var n=(SAMPLE[ex]||[]).length;
-      return '<span class="hm-tab'+(ex===activeEx?" on":"")+'" data-ex="'+ex+'">'+ex+'<span class="cnt">'+n+'</span></span>';
-    }).join("");
-    Array.prototype.forEach.call($("tabs").querySelectorAll(".hm-tab"),function(t){
-      t.onclick=function(){activeEx=t.getAttribute("data-ex");prevByKey={};$("canvas").innerHTML="";tabs();$("exLabel").textContent=activeEx;load();};
-    });
+    // exchange selector removed - the panel follows the terminal's ?ex=
+    // (heatmap and screener always show the same exchange)
   }
   window.showHeatmap=function(){var el=$("heatmap");if(el)el.scrollIntoView({behavior:"smooth"});};
   function init(){
