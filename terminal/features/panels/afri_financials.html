@@ -72,6 +72,11 @@
       <button data-st="cashflow" aria-pressed="false">Cash Flow</button>
     </div>
     <span class="spacer"></span>
+    <label class="lbl" for="secSel">Security</label>
+    <input id="secSel" list="secList" placeholder="Type ticker or name..." autocomplete="off"
+           style="min-width:180px;background:var(--bg);color:var(--tx);border:1px solid var(--line2);
+                  border-radius:2px;padding:3px 8px;font-family:var(--mono);font-size:11px">
+    <datalist id="secList"></datalist>
     <label class="lbl" for="period">Period</label>
     <select id="period">
       <option value="annual">Annual</option>
@@ -93,19 +98,7 @@
 <script>
 (function(){
   "use strict";
-  window.STATIC_MODE = true;
   var state={ticker:"SCOM",statement:"income",period:"annual"};
-  // honor ?ex= deep-link from the terminal: default the ticker to a company
-  // on the selected exchange (SCOM=NSE, MTNN=NGX, SBK=JSE, COMI=EGX)
-  try{
-    var _pex=(new URLSearchParams(location.search).get("ex")||"").toUpperCase();
-    if(_pex){
-      var EX_TICKER={NSE:"SCOM",NGX:"MTNN",JSE:"SBK",EGX:"COMI"};
-      if(EX_TICKER[_pex]){ state.ticker=EX_TICKER[_pex]; }
-      var _hdr=document.querySelector(".head .code");
-      if(_hdr) _hdr.textContent="FA · "+_pex;
-    }
-  }catch(e){}
 
   // ---- VERIFIED REAL FILINGS (links only, no fabricated numbers) ----------
   // Each URL was confirmed against the issuer's own domain. This panel shows
@@ -158,27 +151,6 @@
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
 
   function filingsFor(t){return FILINGS[t]||null;}
-
-
-  function renderFromSnap(snap){
-    // find the company: match ticker exactly, or slug tail
-    var tl=state.ticker.toUpperCase(), key=null, rec=null, tll=tl.toLowerCase();
-    for(var k in snap){ var c=snap[k];
-      var core=(c.slug||"").split("-").pop().toLowerCase();
-      if(c.ticker===tl || core===tll || tll.indexOf(core)===0 || core.indexOf(tll)===0 ||
-         (c.name && c.name.toUpperCase().indexOf(tl)>=0)){ key=k; rec=c; break; }
-    }
-    if(!rec){ renderScaffold({filings:[]}); setSrc("no statement in snapshot for "+state.ticker); return; }
-    // build a fake /api/financials response from the snapshot data
-    var rows=[];
-    var map={revenue:["revenue","Revenue"],gross_profit:["grossProfit","Gross Profit"],
-             operating_profit:["operatingProfit","Operating Profit (EBIT)"],
-             profit_after_tax:["netProfit","Net Profit"]};
-    for(var f in map){ if(rec.data[f]!=null) rows.push({key:map[f][0],label:map[f][1],values:[rec.data[f]]}); }
-    renderScaffold({name:rec.name,currency:rec.currency,values:rows.length?rows:null});
-    setSrc("FILED (static snapshot)");
-  }
-  function setSrc(s){ var el=document.getElementById("src"); if(el) el.textContent=s; }
 
   function renderScaffold(rec){
     // Always renders the statement scaffold with dashes (no fabricated numbers)
@@ -249,7 +221,7 @@
     // try the static Yahoo-financials file first (works on GitHub Pages),
     // then the real endpoint; offline, show verified filing links + dash
     // scaffold (NEVER fabricated statement numbers)
-    var stFile = "../../static_data/financials/" + encodeURIComponent(state.ticker.replace(/\//g, "_")) +
+    var stFile = "../../static_data/financials/" + encodeURIComponent(state.ticker.replace(/\\//g, "_")) +
                  "__" + state.statement + ".json";
     fetch(stFile).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
       if(d && d.available !== false){
@@ -258,20 +230,9 @@
       }
       throw 0;
     }).catch(function(){
-    // try the real endpoint; offline, show verified filing links + dash scaffold
-    // (NEVER fabricated statement numbers)
-    var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
-            "&statement="+state.statement+"&period="+state.period;
-    if(window.STATIC_MODE){
-      // static snapshot: look up the ticker in the bundled dataset
-      var snap=window.__FIN_SNAP;
-      if(!snap){
-        return fetch("../../static_data/financials_all.json").then(function(r){return r.json();})
-          .then(function(d){window.__FIN_SNAP=d;renderFromSnap(d);})
-          .catch(function(){renderScaffold({filings:[]});});
-      } else { renderFromSnap(snap); return; }
-    }
-    fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
+      var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
+              "&statement="+state.statement+"&period="+state.period;
+      fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
       var fil=filingsFor(state.ticker)||{};
       if(!d||d.available===false){
         render({periods:[],name:d&&d.name||fil.name,currency:d&&d.currency||fil.currency,
@@ -307,6 +268,55 @@
     if(ticker)state.ticker=String(ticker).toUpperCase();
     load();
   };
+
+  // ---- security selector: dropdown of every listed security ----
+  var SECS = [];
+  function loadSecurities(){
+    // build from all four exchange listings (ticker + name)
+    var files = ["../../static_data/listing_JSE.json", "../../static_data/listing_EGX.json",
+                 "../../static_data/listing_NGX.json", "../../static_data/listing_NSE.json"];
+    var all = [];
+    var done = 0;
+    files.forEach(function(f){
+      fetch(f).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
+        (d.stocks || []).forEach(function(s){
+          var tkr = s.ticker || s.sym || (s.code || "");
+          if(tkr) all.push({t: String(tkr).toUpperCase(), n: s.name || ""});
+        });
+        done++;
+        if(done === files.length){
+          // dedupe by ticker, sort alphabetically
+          var seen = {};
+          all.forEach(function(s){ if(!seen[s.t]) seen[s.t] = s; });
+          SECS = Object.keys(seen).sort().map(function(k){ return seen[k]; });
+          var dl = document.getElementById("secList");
+          if(dl){
+            dl.innerHTML = SECS.map(function(s){
+              return '<option value="' + s.t + '">' + s.n.replace(/"/g, "") + '</option>';
+            }).join("");
+          }
+        }
+      }).catch(function(){ done++; });
+    });
+  }
+  document.getElementById("secSel").addEventListener("change", function(e){
+    var v = String(e.target.value || "").trim().toUpperCase();
+    if(v){ state.ticker = v; load(); }
+  });
+  document.getElementById("secSel").addEventListener("keydown", function(e){
+    if(e.key === "Enter"){
+      var v = String(this.value || "").trim().toUpperCase();
+      if(v){ state.ticker = v; load(); }
+    }
+  });
+  // if the current ticker is in the list, show it in the box
+  function syncSecSel(){
+    var el = document.getElementById("secSel");
+    if(el && state.ticker) el.value = state.ticker;
+  }
+  var _origLoad = load;
+  load = function(){ syncSecSel(); _origLoad(); };
+  loadSecurities();
 
   load();
 })();
