@@ -59,8 +59,8 @@
 <div class="wrap" id="panel">
   <div class="head">
     <span class="code">FA</span>
-    <span id="tkr" style="font-weight:700">SCOM</span>
-    <span class="name" id="coName">Safaricom Plc</span>
+    <span id="tkr" style="font-weight:700"></span>
+    <span class="name" id="coName"></span>
     <span id="exLabel" style="font-family:var(--mono);font-size:10px;color:var(--acc);letter-spacing:.05em"></span>
     <span class="spacer"></span>
     <a class="filing" id="filing" href="#" target="_blank" rel="noopener">open filing &#8599;</a>
@@ -104,7 +104,7 @@
   // securities that actually have statement files (financials_index.json)
   var SECS = [];
   var state = (function(){
-    var s = {ticker:"SCOM",statement:"income",period:"annual",ex:"NSE"};
+    var s = {ticker:"",statement:"income",period:"annual",ex:"NSE"};
     try{
       var q = new URLSearchParams(window.location.search);
       var e = q.get("ex"); if(e) s.ex = e.toUpperCase();
@@ -231,6 +231,8 @@
   }
 
   function load(){
+    // no ticker selected yet - wait for loadSecurities to pick the first
+    if(!state.ticker) return;
     // try the static Yahoo-financials file first (works on GitHub Pages),
     // then the real endpoint; offline, show verified filing links + dash
     // scaffold (NEVER fabricated statement numbers)
@@ -310,8 +312,8 @@
       }
       var exLbl = document.getElementById("exLabel");
       if(exLbl) exLbl.textContent = state.ex + " · " + SECS.length + " securities";
-      // if the current ticker isn't in this exchange's list, pick the first
-      if(state.ticker && !Object.prototype.hasOwnProperty.call(seen, state.ticker) && SECS.length){
+      // if the current ticker isn't in this exchange's list (or none set), pick the first
+      if((!state.ticker || !Object.prototype.hasOwnProperty.call(seen, state.ticker)) && SECS.length){
         state.ticker = SECS[0].t;
         load();
       }
