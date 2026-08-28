@@ -251,6 +251,15 @@ try{
     .catch(() => {});
 }catch(e){}
 
+// ===== Company CEOs (Wikipedia-verified) =====
+window.__CEOS = {};
+try{
+  fetch((window.API_BASE ? window.API_BASE : '') + 'static_data/ceos.json')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(d => { window.__CEOS = d || {}; })
+    .catch(() => {});
+}catch(e){}
+
 // ===== Clock (exchange capital-city timezone) =====
 const EX_TZ = {
   JSE: {tz: 'Africa/Johannesburg', city: 'JHB'},
@@ -509,6 +518,7 @@ function renderMarketStatic(rec, info){
       ${row('SECTOR', rec.sector || i.sector || dash)}
       ${row('INDUSTRY', i.industry || dash)}
       ${row('COUNTRY', i.country || dash)}
+      ${row('CEO', window.__CEOS && window.__CEOS[rec.sym] ? window.__CEOS[rec.sym] : (window.__CEOS && window.__CEOS[rec.ticker] ? window.__CEOS[rec.ticker] : dash))}
       ${row('FOUNDED', i.founded || dash)}
       ${row('LISTED', i.listed || dash)}
       ${row('YEAR END', i.year_end || dash)}
@@ -554,45 +564,51 @@ function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
 // ===== per-security candlestick chart from static history files =====
 function renderSecurityChart(hd, rec){
-  // map {t,o,h,l,c,v} bars to lightweight-charts format
-  const mapped = (hd.bars || []).map(b => ({
-    time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v || 0
-  }));
-  if(mapped.length < 2) return;
-  // a container under the right rail info
+  // TradingView widget for the selected security (no typing needed - the
+  // watchlist click drives it). Renders real candles/line/indicators with
+  // TradingView's own branding (the credit, per their embed terms).
+  if(!rec) return;
   const box = document.createElement('div');
-  box.style.cssText = 'height:240px;position:relative;border-top:1px solid var(--line);margin-top:2px';
+  box.style.cssText = 'height:280px;position:relative;border-top:1px solid var(--line);margin-top:2px';
   box.innerHTML = '<div style="padding:8px 16px 2px;display:flex;justify-content:space-between;align-items:center">' +
-    '<span style="color:var(--acc);font-family:var(--mono);font-size:10px;letter-spacing:.08em">CANDLE · 1Y</span>' +
-    '<span style="color:var(--tx3);font-family:var(--mono);font-size:9px">' + esc(hd.bars.length) + ' daily bars · EOD</span></div>';
+    '<span style="color:var(--acc);font-family:var(--mono);font-size:10px;letter-spacing:.08em">TRADINGVIEW · ' + esc(rec.ticker || rec.sym || '') + '</span>' +
+    '<span style="color:var(--tx3);font-family:var(--mono);font-size:9px">charts by TradingView</span></div>';
   const chartDiv = document.createElement('div');
   chartDiv.style.cssText = 'position:absolute;top:24px;left:0;right:0;bottom:0';
   box.appendChild(chartDiv);
   $('rightInfo').appendChild(box);
 
-  const MINT = '#33e29a', RED = '#f87171';
-  const cObj = LightweightCharts.createChart(chartDiv, {
-    layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
-    grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
-    rightPriceScale:{borderColor:'#262626'},
-    timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:4},
-    crosshair:{mode:1},
-    localization:{priceFormatter:p => p >= 1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2)},
-    width: Math.max(chartDiv.clientWidth || 300, 120),
-    height: Math.max(chartDiv.clientHeight || 216, 120),
+  // map our symbol to TradingView's (JSE->JNB, EGX->EGX, NGX->NGX, NSE->NAIROBI)
+  const exMap = {JSE:'JNB', EGX:'EGX', NGX:'NGX', NSE:'NAIROBI'};
+  let raw = String(rec.sym || rec.ticker || '').toUpperCase().replace(/\.(JO|CA)$/, '').replace(/^EGS\d+/, '');
+  const tvSym = (exMap[currentEx] || currentEx) + ':' + raw;
+
+  const container = document.createElement('div');
+  container.className = 'tradingview-widget-container';
+  const wd = document.createElement('div');
+  wd.className = 'tradingview-widget-container__widget';
+  container.appendChild(wd);
+  const s = document.createElement('script');
+  s.type = 'text/javascript';
+  s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+  s.async = true;
+  s.textContent = JSON.stringify({
+    autosize: true,
+    symbol: tvSym,
+    interval: 'D',
+    range: '1Y',
+    timezone: 'Africa/Johannesburg',
+    theme: 'dark',
+    style: '1',
+    locale: 'en',
+    hide_top_toolbar: false,
+    hide_legend: false,
+    allow_symbol_change: true,
+    save_image: false,
+    support_host: 'https://www.tradingview.com'
   });
-  const series = cObj.addCandlestickSeries({
-    upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
-    wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
-  });
-  series.setData(mapped);
-  // auto-fit: show the full year
-  cObj.timeScale().fitContent();
-  // store for resize handling
-  window.__histChart = cObj;
-  box._chart = cObj;
-  box._resize = () => { try{ cObj.applyOptions({width: chartDiv.clientWidth || 300}); }catch(e){} };
-  window.addEventListener('resize', box._resize);
+  container.appendChild(s);
+  chartDiv.appendChild(container);
 }
 
 function openStock(sym){
