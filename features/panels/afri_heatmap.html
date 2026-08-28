@@ -449,31 +449,26 @@
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 
-    // ===== TradingView-powered security chart (candles/line, ranges; all
-  // securities TradingView covers - branding shown per their embed terms) =====
-  var cpType="candle", cpRange="1D", cpSymbol="", cpName="";
-
-  // map our exchange to TradingView's exchange prefix
-  function tvExchange(ex){
-    return {JSE:"JNB", EGX:"EGX", NGX:"NGX", NSE:"NAIROBI"}[ex] || ex;
-  }
-  // map our ticker to TradingView's symbol (strip .JO/.CA suffixes)
-  function tvSymbol(c){
-    var raw = (c.sym || c.ticker || "").toUpperCase();
-    raw = raw.replace(/\.(JO|CA)$/, "").replace(/^EGS\d+/, "");
-    return tvExchange(activeEx) + ":" + raw;
-  }
+    // ===== Security chart (candles/line, 1D/1M/1Y/ALL) - reliable in-house
+  // renderer using static_data/history (no third-party iframe) =====
+  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpName="";
   function openChart(c){
     if(!c) return;
     cpName = c.name || c.ticker || "";
-    cpSymbol = tvSymbol(c);
-    // TradingView free widget restricts NSE/NGX -> honest EOD card instead
-    if(activeEx === "NSE" || activeEx === "NGX"){ cpRenderEOD(c); return; }
     $("cpTitle").textContent = (c.ticker || c.sym || "") + " · " + activeEx;
     $("cpSub").textContent = cpName;
     $("cpStat").textContent = "loading…";
     document.getElementById("chartPanel").classList.add("open");
-    cpRender();
+    var sym = (c.sym || c.ticker || "").replace(/\//g, "_");
+    cpBarsDaily = []; cpBarsMax = [];
+    fetch("../../static_data/history/" + encodeURIComponent(sym) + ".json")
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ cpBarsDaily = d.bars || []; cpRender(); })
+      .catch(function(){ cpBarsDaily = []; cpRender(); });
+    fetch("../../static_data/history/" + encodeURIComponent(sym) + ".max.json")
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ cpBarsMax = d.bars || []; cpRender(); })
+      .catch(function(){ cpBarsMax = []; cpRender(); });
   }
   function closeChartPanel(){ document.getElementById("chartPanel").classList.remove("open"); }
   function cpSetType(t){
@@ -486,81 +481,51 @@
     Array.prototype.forEach.call(document.querySelectorAll(".cp-range"), function(b){ b.classList.toggle("on", b.getAttribute("data-rng")===r); });
     cpRender();
   }
-  function tvRange(){
-    // TradingView widget interval + range for our buttons (documented values)
-    if(cpRange === "1D") return {interval:"60", range:"1D"};
-    if(cpRange === "1M") return {interval:"D", range:"1M"};
-    if(cpRange === "1Y") return {interval:"D", range:"1Y"};
-    return {interval:"M", range:"ALL"};
-  }
-  function cpRenderEOD(c){
-    // honest EOD card for NSE/NGX (TradingView free widget restricts them)
-    var box = $("cpChart");
-    if(!box) return;
-    var price = c.price != null ? Number(c.price).toLocaleString(undefined,{maximumFractionDigits:2}) : "—";
-    var chg = c.chgPct != null ? Number(c.chgPct) : 0;
-    var sign = chg >= 0 ? "+" : "";
-    var col = chg >= 0 ? "#33e29a" : "#f87171";
-    $("cpStat").textContent = "EOD";
-    box.innerHTML =
-      "<div style=\"display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;font-family:var(--mono)\">" +
-      "<div style=\"font-size:26px;color:#fff\">" + price + " " + (c.currency || "") + "</div>" +
-      "<div style=\"font-size:13px;color:" + col + "\">" + sign + chg.toFixed(2) + "%</div>" +
-      "<div style=\"font-size:10px;color:var(--tx3);text-align:center;padding:0 24px\">End-of-day board price · no free intraday/OHLC feed for this exchange</div>" +
-      "</div>";
+  function cpBarsForRange(){
+    if(cpRange === "ALL") return cpBarsMax.length >= 2 ? cpBarsMax : (cpBarsDaily.length >= 2 ? cpBarsDaily : []);
+    if(cpRange === "1Y") return cpBarsDaily.slice(-260);
+    if(cpRange === "1M") return cpBarsDaily.slice(-24);
+    return cpBarsDaily.slice(-6); // 1D (last week of daily bars = EOD view)
   }
   function cpRender(){
+    var bars = cpBarsForRange();
     var box = $("cpChart");
-    if(!box || !cpSymbol) return;
-    box.innerHTML = "";
-    $("cpStat").textContent = cpSymbol;
-    var rng = tvRange();
-    var style = cpType === "candle" ? "1" : "2"; // 1=candles 2=line 3=area
-    // TradingView advanced chart embed - official container + script pattern.
-    // The config JSON must be the script's TEXT content (widget reads it via
-    // _scriptContentToJSON). Branding (logo + "TradingView") renders per their
-    // embed terms - the credit.
-    var container = document.createElement("div");
-    container.className = "tradingview-widget-container";
-    var widgetDiv = document.createElement("div");
-    widgetDiv.className = "tradingview-widget-container__widget";
-    container.appendChild(widgetDiv);
-    var script = document.createElement("script");
-    script.type = "text/javascript";
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.async = true;
-    script.textContent = JSON.stringify({
-      "autosize": true,
-      "symbol": cpSymbol,
-      "interval": rng.interval,
-      "range": rng.range,
-      "timezone": "Africa/Johannesburg",
-      "theme": "dark",
-      "style": style,
-      "locale": "en",
-      "hide_top_toolbar": false,
-      "hide_legend": false,
-      "allow_symbol_change": false,
-      "whitelabel": true,
-      "save_image": false,
-      "disabled_features": ["enable_symbol_change_restriction_on_widgets", "header_symbol_search"],
-      "support_host": "https://www.tradingview.com"
+    if(!box) return;
+    if(!bars.length){
+      $("cpStat").textContent = "no historical data";
+      box.innerHTML = '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center">no free historical feed for this market</div>';
+      return;
+    }
+    if(cpChart){ try{cpChart.remove();}catch(e){} cpChart = null; }
+    var mapped = bars.map(function(b){ return {time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, value: b.c}; });
+    var MINT = "#33e29a", RED = "#f87171";
+    var w = Math.max(box.clientWidth || 800, 200);
+    var h = Math.max(box.clientHeight || 400, 200);
+    cpChart = LightweightCharts.createChart(box, {
+      layout:{background:{color:"transparent"},textColor:"#9a9a9a",fontFamily:"Oxygen Mono, monospace",fontSize:10},
+      grid:{vertLines:{color:"rgba(38,38,38,.5)"},horzLines:{color:"rgba(38,38,38,.5)"}},
+      rightPriceScale:{borderColor:"#262626"},
+      timeScale:{borderColor:"#262626",timeVisible:false,rightOffset:4},
+      crosshair:{mode:1},
+      localization:{priceFormatter:function(p){ return p>=1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2); }},
+      width:w, height:h,
     });
-    container.appendChild(script);
-    box.appendChild(container);
-    // fallback: if TradingView hasn't rendered an iframe within 10s,
-    // show an honest notice instead of a blank box
-    clearTimeout(window.__tvFallback);
-    window.__tvFallback = setTimeout(function(){
-      if(!box.querySelector("iframe")){
-        box.innerHTML = "<div style=\"padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center\">TradingView chart blocked by network/browser - symbol " + cpSymbol + " (chart loads on the live site)</div>";
-      }
-    }, 10000);
+    if(cpType === "candle"){
+      cpSeries = cpChart.addCandlestickSeries({
+        upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
+        wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
+      });
+      cpSeries.setData(mapped.map(function(b){ return {time:b.time, open:b.open, high:b.high, low:b.low, close:b.close}; }));
+    } else {
+      cpSeries = cpChart.addLineSeries({color:MINT, lineWidth:2, priceLineColor:MINT});
+      cpSeries.setData(mapped.map(function(b){ return {time:b.time, value:b.close}; }));
+    }
+    cpChart.timeScale().fitContent();
+    var first = mapped[0].close, last = mapped[mapped.length-1].close;
+    var pct = first ? ((last - first) / first * 100) : 0;
+    var sign = pct >= 0 ? "+" : "";
+    $("cpStat").textContent = bars.length + " bars · " + sign + pct.toFixed(2) + "% · " + (cpRange === "ALL" ? "since IPO" : cpRange);
+    var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(function(){ try{ if(cpChart) cpChart.applyOptions({width: Math.max(box.clientWidth||800,200)}); }catch(e){} }, 150); });
   }
   
-// close on Escape
-  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeChartPanel(); });
-})();
-</script>
-</body>
-</html>
+
