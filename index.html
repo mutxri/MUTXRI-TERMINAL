@@ -564,9 +564,6 @@ function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
 // ===== per-security candlestick chart from static history files =====
 function renderSecurityChart(hd, rec){
-  // TradingView widget for the selected security (no typing needed - the
-  // watchlist click drives it). Renders real candles/line/indicators with
-  // TradingView's own branding (the credit, per their embed terms).
   if(!rec) return;
   const box = document.createElement('div');
   box.style.cssText = 'height:280px;position:relative;border-top:1px solid var(--line);margin-top:2px';
@@ -578,8 +575,16 @@ function renderSecurityChart(hd, rec){
   box.appendChild(chartDiv);
   $('rightInfo').appendChild(box);
 
-  // map our symbol to TradingView's (JSE->JNB, EGX->EGX, NGX->NGX, NSE->NAIROBI)
-  const exMap = {JSE:'JNB', EGX:'EGX', NGX:'NGX', NSE:'NAIROBI'};
+  // TradingView free widget restricts NSE/NGX ('only available on
+  // TradingView' popup, blank chart) - use our honest EOD fallback there.
+  // JSE/EGX work fine with the TradingView embed.
+  if(currentEx === 'NSE' || currentEx === 'NGX'){
+    renderEODFallback(chartDiv, rec, hd);
+    return;
+  }
+
+  // map our symbol to TradingView's (JSE->JNB, EGX->EGX)
+  const exMap = {JSE:'JNB', EGX:'EGX'};
   let raw = String(rec.sym || rec.ticker || '').toUpperCase().replace(/\.(JO|CA)$/, '').replace(/^EGS\d+/, '');
   const tvSym = (exMap[currentEx] || currentEx) + ':' + raw;
 
@@ -611,6 +616,42 @@ function renderSecurityChart(hd, rec){
   });
   container.appendChild(s);
   chartDiv.appendChild(container);
+}
+
+// Honest EOD fallback for NSE/NGX (no free OHLC source exists; TradingView
+// free widget restricts these exchanges). Renders the real EOD price + change
+// from the snapshot - never fabricated candles.
+function renderEODFallback(chartDiv, rec, hd){
+  if(hd && hd.bars && hd.bars.length >= 2){
+    // we DO have daily bars (rare for NSE/NGX) - draw them with lightweight-charts
+    const MINT = '#33e29a', RED = '#f87171';
+    const mapped = hd.bars.map(b => ({time: b.t, open: b.o, high: b.h, low: b.l, close: b.c}));
+    const cObj = LightweightCharts.createChart(chartDiv, {
+      layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
+      grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
+      rightPriceScale:{borderColor:'#262626'}, timeScale:{borderColor:'#262626',rightOffset:4},
+      crosshair:{mode:1}, width: Math.max(chartDiv.clientWidth || 300, 120),
+      height: Math.max(chartDiv.clientHeight || 256, 120),
+    });
+    const series = cObj.addCandlestickSeries({
+      upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
+      wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
+    });
+    series.setData(mapped);
+    cObj.timeScale().fitContent();
+    return;
+  }
+  // honest EOD card: real price + change + note (no fabricated candles)
+  const price = rec.price != null ? Number(rec.price).toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
+  const chg = rec.chgPct != null ? Number(rec.chgPct) : 0;
+  const sign = chg >= 0 ? '+' : '';
+  const col = chg >= 0 ? '#33e29a' : '#f87171';
+  chartDiv.innerHTML =
+    '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;font-family:var(--mono)">' +
+    '<div style="font-size:26px;color:#fff">' + esc(String(price)) + ' ' + esc(rec.currency || '') + '</div>' +
+    '<div style="font-size:13px;color:' + col + '">' + sign + chg.toFixed(2) + '%</div>' +
+    '<div style="font-size:10px;color:var(--tx3);text-align:center;padding:0 24px">End-of-day board price · no free intraday/OHLC feed for this exchange</div>' +
+    '</div>';
 }
 
 function openStock(sym){
