@@ -18,9 +18,13 @@ CI = os.path.join(BASE, "static_data", "company_info.json")
 JSE_DATA = os.path.join(BASE, "jse_financials_data.json")
 
 def find_pdf_for_issuer(code):
-    """Match issuer code to a PDF: SBK -> SBK_*.pdf (SBKE_2020, SBK_2024...)."""
+    """Match issuer code to a PDF: SBK -> SBK_*.pdf / SBKE_*.pdf."""
     for f in os.listdir(PDFS):
-        if f.lower().startswith(code.lower() + "_") and f.endswith(".pdf"):
+        fl = f.lower()
+        if not fl.endswith(".pdf"):
+            continue
+        base = fl[:-4].split("_")[0].upper()
+        if base == code.upper() or base == code.upper() + "E" or base == code.upper()[:3] + "E":
             return os.path.join(PDFS, f)
     return None
 
