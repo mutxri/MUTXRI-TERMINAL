@@ -107,6 +107,7 @@ body{
 .wl-main{grid-column:2;min-width:0}
 .wl-main .sym{font-weight:500;color:var(--tx);letter-spacing:.02em}
 .wl-main .nm{font-family:var(--ui);font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-main .wl-ceo{display:block;font-family:var(--ui);font-size:9px;color:var(--tx3);opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wl-price{grid-column:3;text-align:right}
 .wl-price .pr{color:var(--tx);font-size:11px}
 .wl-price .chg{font-size:10.5px}
@@ -354,11 +355,17 @@ function renderWatchlist(filter){
     const logoHtml = dom
       ? `<img class="wl-logo" loading="lazy" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
       : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
+    // CEO (Wikipedia-verified) shown under the company name when known
+    const ceo = (window.__CEOS || {})[s.sym] || (window.__CEOS || {})[s.ticker] || (window.__CEOS || {})[sym] || '';
+    const ceoHtml = ceo
+      ? `<span class="wl-ceo">${esc('CEO ' + ceo)}</span>`
+      : '';
     return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
       <span class="wl-logo-cell">${logoHtml}</span>
       <span class="wl-main">
         <span class="sym">${esc(sym)}</span>
         <span class="nm">${esc(s.name||'')}</span>
+        ${ceoHtml}
       </span>
       <span class="wl-price">
         <span class="pr">${pr} <small style="color:var(--tx3)">${esc(cur)}</small></span>
