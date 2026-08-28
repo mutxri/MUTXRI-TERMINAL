@@ -45,7 +45,10 @@ body{
   font-size:11px;letter-spacing:.06em;padding:var(--s1) var(--s3);border-radius:2px;
   cursor:pointer;transition:color .15s,background .15s}
 .exch-tab:hover{color:var(--tx2)}
-.exch-tab.active{color:#00160e;background:var(--acc);font-weight:600}
+.exch-tab.active{color:#00160e;background:var(--acc);font-weight:700;
+  font-size:13px;padding:5px 12px;letter-spacing:.08em;box-shadow:0 0 12px rgba(51,226,154,.35)}
+.exch-flag{font-size:11px;margin-right:3px}
+.exch-full{font-size:9px;font-weight:400;opacity:.8;margin-left:5px;letter-spacing:.04em;text-transform:uppercase}
 .search{margin-left:auto;display:flex;align-items:center;gap:var(--s2);
   background:var(--bg3);border:1px solid var(--line2);border-radius:3px;
   padding:var(--s2) var(--s3);width:260px;transition:border-color .15s}
@@ -134,12 +137,6 @@ body{
 .rightinfo .qgrid span:nth-child(odd){color:var(--tx3)}
 .rightinfo .qgrid span:nth-child(even){text-align:right;color:var(--tx)}
 
-/* ---------- auth modal ---------- */
-#authModal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;
-  align-items:center;justify-content:center}
-#authModal input{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
-  font-family:inherit;font-size:11px;padding:7px;border-radius:2px;box-sizing:border-box}
-
 /* ---------- status ---------- */
 .status{display:flex;align-items:center;gap:var(--s4);height:30px;padding:0 var(--s4);
   border-top:1px solid var(--line2);background:var(--bg2);color:var(--tx3);font-size:10px}
@@ -175,9 +172,6 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <span>&#9906;</span>
       <input id="q" placeholder="Search ticker or command…" autocomplete="off" aria-label="Search">
     </label>
-    <div class="acct" id="acctBox">
-      <button id="acctBtn" onclick="toggleAuth()">SIGN IN</button>
-    </div>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
   </header>
 
@@ -205,27 +199,6 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
-  </div>
-
-  <!-- AUTH MODAL -->
-  <div id="authModal" style="display:none">
-    <div style="background:var(--bg2);border:1px solid var(--line2);border-radius:6px;padding:24px;width:320px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <b style="color:var(--acc);letter-spacing:.1em" id="authTitle">SIGN IN</b>
-        <span onclick="toggleAuth()" style="cursor:pointer;color:var(--tx3)">✕</span>
-      </div>
-      <div style="display:flex;gap:6px;margin-bottom:14px">
-        <button onclick="authMode('login')" id="authTabLogin" style="flex:1;background:var(--bg3);border:1px solid var(--acc);color:var(--acc);font-family:inherit;font-size:10px;padding:5px;border-radius:2px;cursor:pointer">LOGIN</button>
-        <button onclick="authMode('signup')" id="authTabSignup" style="flex:1;background:var(--bg3);border:1px solid var(--line2);color:var(--tx2);font-family:inherit;font-size:10px;padding:5px;border-radius:2px;cursor:pointer">SIGN UP</button>
-      </div>
-      <div id="authNameRow" style="display:none;margin-bottom:10px">
-        <input id="authName" placeholder="name (optional)" style="width:100%;margin-bottom:10px">
-      </div>
-      <input id="authEmail" placeholder="email" style="width:100%;margin-bottom:10px">
-      <input id="authPass" type="password" placeholder="password (min 6)" style="width:100%;margin-bottom:14px">
-      <button onclick="authSubmit()" style="width:100%;background:var(--acc);color:#000;font-family:inherit;font-size:11px;font-weight:bold;padding:8px;border:none;border-radius:2px;cursor:pointer">GO</button>
-      <div id="authMsg" style="color:var(--warn);font-size:10px;margin-top:10px;min-height:14px"></div>
-    </div>
   </div>
 
   <!-- STATUS -->
@@ -258,86 +231,14 @@ window.fetch = function(url, opts){
 window.API_BASE = API_BASE;
 // ===== END BACKEND CONFIG =====
 
-
-// ===== Email accounts (auth) =====
-let authMode_ = 'login';
-function toggleAuth(){
-  const m = document.getElementById('authModal');
-  const on = m.style.display === 'flex';
-  m.style.display = on ? 'none' : 'flex';
-  if(!on){ authMode('login'); document.getElementById('authMsg').textContent=''; }
-}
-function authMode(mode){
-  authMode_ = mode;
-  document.getElementById('authTitle').textContent = mode === 'login' ? 'SIGN IN' : 'CREATE ACCOUNT';
-  document.getElementById('authNameRow').style.display = mode === 'signup' ? 'block' : 'none';
-  const tl = document.getElementById('authTabLogin'), ts = document.getElementById('authTabSignup');
-  tl.style.borderColor = mode === 'login' ? 'var(--acc)' : 'var(--line2)';
-  tl.style.color = mode === 'login' ? 'var(--acc)' : 'var(--tx2)';
-  ts.style.borderColor = mode === 'signup' ? 'var(--acc)' : 'var(--line2)';
-  ts.style.color = mode === 'signup' ? 'var(--acc)' : 'var(--tx2)';
-  document.getElementById('authMsg').textContent = '';
-}
-function authApi(action, params){
-  const url = window.API_BASE ? window.API_BASE + '/api/auth/' + action + '?' + new URLSearchParams(params) : '/api/auth/' + action + '?' + new URLSearchParams(params);
-  return fetch(url).then(r => r.json());
-}
-function authSubmit(){
-  const email = document.getElementById('authEmail').value.trim();
-  const pass = document.getElementById('authPass').value;
-  const name = document.getElementById('authName').value.trim();
-  const msg = document.getElementById('authMsg');
-  if(!email || !pass){ msg.textContent = 'email and password required'; return; }
-  const params = {email, password: pass};
-  if(authMode_ === 'signup'){ params.name = name; }
-  authApi(authMode_, params).then(res => {
-    if(res.ok){
-      localStorage.setItem('mutxri_token', res.token);
-      localStorage.setItem('mutxri_email', res.email);
-      setSignedIn(res.email, res.name);
-      toggleAuth();
-    } else {
-      msg.textContent = res.error || 'failed';
-    }
-  }).catch(() => { msg.textContent = 'auth service unavailable (static mode)'; });
-}
-function signOut(){
-  const token = localStorage.getItem('mutxri_token');
-  if(token) authApi('logout', {token}).catch(()=>{});
-  localStorage.removeItem('mutxri_token');
-  localStorage.removeItem('mutxri_email');
-  const b = document.getElementById('acctBtn');
-  b.textContent = 'SIGN IN';
-  b.style.color = 'var(--acc)';
-  b.onclick = toggleAuth;
-}
-function setSignedIn(email, name){
-  const b = document.getElementById('acctBtn');
-  b.textContent = (name || email.split('@')[0]).toUpperCase();
-  b.style.color = 'var(--acc)';
-  b.onclick = signOut;
-}
-// restore session on load
-(function(){
-  const token = localStorage.getItem('mutxri_token');
-  if(token){
-    const url = window.API_BASE ? window.API_BASE + '/api/auth/me?token=' + token : '/api/auth/me?token=' + token;
-    fetch(url).then(r => r.json()).then(res => {
-      if(res.ok) setSignedIn(res.email, res.name);
-      else { localStorage.removeItem('mutxri_token'); }
-    }).catch(()=>{});
-  }
-})();
-// ===== END auth =====
-
-
+// ===== App state =====
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 let currentEx = 'JSE';
 // support ?ex=NGX deep-link (landing dropdown passes the exchange)
 try{
- const _pex = new URLSearchParams(location.search).get('ex');
- if(_pex && ['JSE','EGX','NGX','NSE'].includes(_pex.toUpperCase())) currentEx = _pex.toUpperCase();
+  const _pex = new URLSearchParams(location.search).get('ex');
+  if(_pex && ['JSE','EGX','NGX','NSE'].includes(_pex.toUpperCase())) currentEx = _pex.toUpperCase();
 }catch(e){}
 let listing = {};
 
@@ -350,11 +251,29 @@ try{
     .catch(() => {});
 }catch(e){}
 
-// ===== Clock =====
-setInterval(() => {
-  const d = new Date();
-  $('clock').textContent = d.toLocaleTimeString('en-GB', {hour12:false});
-}, 1000);
+// ===== Clock (exchange capital-city timezone) =====
+const EX_TZ = {
+  JSE: {tz: 'Africa/Johannesburg', city: 'JHB'},
+  EGX: {tz: 'Africa/Cairo',        city: 'CAI'},
+  NGX: {tz: 'Africa/Lagos',        city: 'LOS'},
+  NSE: {tz: 'Africa/Nairobi',      city: 'NBO'},
+};
+function clockTZ(){
+  const ex = (typeof currentEx !== 'undefined' ? currentEx : 'JSE');
+  const info = EX_TZ[ex] || EX_TZ.JSE;
+  try{
+    const d = new Date();
+    const time = d.toLocaleTimeString('en-GB', {timeZone: info.tz, hour12: false});
+    const date = d.toLocaleDateString('en-GB', {timeZone: info.tz, day: '2-digit', month: 'short'});
+    $('clock').textContent = time + ' ' + info.city;
+    $('clock').title = date + ' · ' + info.tz;
+  }catch(e){
+    const d = new Date();
+    $('clock').textContent = d.toLocaleTimeString('en-GB', {hour12:false});
+  }
+}
+setInterval(clockTZ, 1000);
+clockTZ();
 
 // ===== Tabs (Claude's panels, untouched, embedded) =====
 const PANELS = [
@@ -461,11 +380,20 @@ function buildTape(ex){
 }
 
 // ===== Exchange tabs (only the selected exchange shows - clean UI) =====
+const EX_FULL = {
+  JSE: {name: 'Johannesburg', flag: 'ZA'},
+  EGX: {name: 'Cairo', flag: 'EG'},
+  NGX: {name: 'Lagos', flag: 'NG'},
+  NSE: {name: 'Nairobi', flag: 'KE'},
+};
 function renderExchTabs(){
   const nav = $('exchTabs');
   if(!nav) return;
   // single tab: just the current exchange (no other initials shown)
-  nav.innerHTML = '<button class="exch-tab active" data-ex="' + esc(currentEx) + '">' + esc(currentEx) + '</button>';
+  const info = EX_FULL[currentEx] || {name: currentEx, flag: ''};
+  nav.innerHTML = '<button class="exch-tab active" data-ex="' + esc(currentEx) + '" title="' + esc(info.name) + ' · ' + esc(currentEx) + '">' +
+    '<span class="exch-flag">' + esc(info.flag) + '</span> ' + esc(currentEx) +
+    '<span class="exch-full">' + esc(info.name) + '</span></button>';
 }
 function switchExchange(ex){
   currentEx = ex;
@@ -603,8 +531,69 @@ function renderMarketStatic(rec, info){
   }
   html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend · CEO/employees where absent have no verified free source</div>`;
   $('rightInfo').innerHTML = html;
+  // ===== per-security candlestick chart (static history file) =====
+  const hSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
+  if(hSym){
+    fetch('static_data/history/' + encodeURIComponent(hSym) + '.json')
+      .then(r => { if(!r.ok) throw 0; return r.json(); })
+      .then(hd => {
+        if(hd && hd.bars && hd.bars.length >= 2){
+          renderSecurityChart(hd, rec);
+        } else {
+          // honest: no free historical feed for this market (NGX/NSE)
+          const note = document.createElement('div');
+          note.style.cssText = 'padding:10px 16px;color:var(--tx3);font-family:var(--mono);font-size:10px;border-top:1px solid var(--line)';
+          note.textContent = 'no free historical chart feed for ' + (rec.sym || rec.ticker) + ' (NGX/NSE EOD only)';
+          $('rightInfo').appendChild(note);
+        }
+      })
+      .catch(() => {});
+  }
 }
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
+
+// ===== per-security candlestick chart from static history files =====
+function renderSecurityChart(hd, rec){
+  // map {t,o,h,l,c,v} bars to lightweight-charts format
+  const mapped = (hd.bars || []).map(b => ({
+    time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v || 0
+  }));
+  if(mapped.length < 2) return;
+  // a container under the right rail info
+  const box = document.createElement('div');
+  box.style.cssText = 'height:240px;position:relative;border-top:1px solid var(--line);margin-top:2px';
+  box.innerHTML = '<div style="padding:8px 16px 2px;display:flex;justify-content:space-between;align-items:center">' +
+    '<span style="color:var(--acc);font-family:var(--mono);font-size:10px;letter-spacing:.08em">CANDLE · 1Y</span>' +
+    '<span style="color:var(--tx3);font-family:var(--mono);font-size:9px">' + esc(hd.bars.length) + ' daily bars · EOD</span></div>';
+  const chartDiv = document.createElement('div');
+  chartDiv.style.cssText = 'position:absolute;top:24px;left:0;right:0;bottom:0';
+  box.appendChild(chartDiv);
+  $('rightInfo').appendChild(box);
+
+  const MINT = '#33e29a', RED = '#f87171';
+  const cObj = LightweightCharts.createChart(chartDiv, {
+    layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
+    grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
+    rightPriceScale:{borderColor:'#262626'},
+    timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:4},
+    crosshair:{mode:1},
+    localization:{priceFormatter:p => p >= 1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2)},
+    width: Math.max(chartDiv.clientWidth || 300, 120),
+    height: Math.max(chartDiv.clientHeight || 216, 120),
+  });
+  const series = cObj.addCandlestickSeries({
+    upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
+    wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
+  });
+  series.setData(mapped);
+  // auto-fit: show the full year
+  cObj.timeScale().fitContent();
+  // store for resize handling
+  window.__histChart = cObj;
+  box._chart = cObj;
+  box._resize = () => { try{ cObj.applyOptions({width: chartDiv.clientWidth || 300}); }catch(e){} };
+  window.addEventListener('resize', box._resize);
+}
 
 function openStock(sym){
   if(!sym) return;
