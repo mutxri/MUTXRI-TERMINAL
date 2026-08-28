@@ -571,45 +571,103 @@ function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
 // ===== per-security candlestick chart from static history files =====
 function renderSecurityChart(hd, rec){
-  // reliable in-house renderer: real OHLC bars from static_data/history
-  // (no third-party iframe - works in every context)
+  // open-source lightweight-charts (TradingView's own library, Apache-2.0)
+  // rendered in-house from each security's real history - no third-party iframe
   if(!rec) return;
-  const mapped = (hd && hd.bars || []).map(b => ({
-    time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v || 0
+  const daily = (hd && hd.bars || []).map(b => ({
+    time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, value: b.c, volume: b.v || 0
   }));
   const box = document.createElement('div');
-  box.style.cssText = 'height:280px;position:relative;border-top:1px solid var(--line);margin-top:2px';
-  box.innerHTML = '<div style="padding:8px 16px 2px;display:flex;justify-content:space-between;align-items:center">' +
-    '<span style="color:var(--acc);font-family:var(--mono);font-size:10px;letter-spacing:.08em">CANDLE · 1Y</span>' +
-    '<span style="color:var(--tx3);font-family:var(--mono);font-size:9px">' + esc(mapped.length) + ' daily bars · EOD</span></div>';
-  const chartDiv = document.createElement('div');
-  chartDiv.style.cssText = 'position:absolute;top:24px;left:0;right:0;bottom:0';
-  box.appendChild(chartDiv);
+  box.style.cssText = 'height:340px;position:relative;border-top:1px solid var(--line);margin-top:2px';
+  box.innerHTML = [
+    '<div style="display:flex;align-items:center;gap:10px;padding:6px 12px 0;flex-wrap:wrap">',
+    '<span style="color:var(--acc);font-family:var(--mono);font-size:10px;letter-spacing:.08em" id="scTtl">CANDLE · 1Y</span>',
+    '<span style="color:var(--tx3);font-family:var(--mono);font-size:9px" id="scSub"></span>',
+    '<span style="flex:1"></span>',
+    '<span class="sc-bar" style="display:flex;gap:2px">',
+    '<button class="sc-btn on" data-t="candle" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">CANDLE</button>',
+    '<button class="sc-btn" data-t="line" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">LINE</button>',
+    '<button class="sc-btn" data-t="area" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">AREA</button>',
+    '</span>',
+    '<span class="sc-bar" style="display:flex;gap:2px">',
+    '<button class="sc-btn on" data-r="1D" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">1D</button>',
+    '<button class="sc-btn" data-r="1M" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">1M</button>',
+    '<button class="sc-btn" data-r="1Y" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">1Y</button>',
+    '<button class="sc-btn" data-r="10Y" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">10Y</button>',
+    '<button class="sc-btn" data-r="ALL" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">ALL</button>',
+    '</span>',
+    '</div>',
+    '<div style="position:absolute;top:30px;left:0;right:0;bottom:0" class="sc-cv"></div>'
+  ].join('');
   $('rightInfo').appendChild(box);
-  if(mapped.length < 2){
-    chartDiv.innerHTML = '<div style="padding:16px;color:var(--tx3);font-family:var(--mono);font-size:10px;text-align:center">no historical data</div>';
-    return;
-  }
+  const chartDiv = box.querySelector('.sc-cv');
+  const ttl = box.querySelector('#scTtl'), sub = box.querySelector('#scSub');
+  let st = {type:'candle', range:'1D'};
+  let maxBars = null; // since-IPO monthly, loaded lazily
   const MINT = '#33e29a', RED = '#f87171';
-  const cObj = LightweightCharts.createChart(chartDiv, {
-    layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
-    grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
-    rightPriceScale:{borderColor:'#262626'}, timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:4},
-    crosshair:{mode:1},
-    localization:{priceFormatter:p => p >= 1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2)},
-    width: Math.max(chartDiv.clientWidth || 300, 120),
-    height: Math.max(chartDiv.clientHeight || 256, 120),
+  let cObj = null, series = null;
+
+  function barsForRange(){
+    if(!daily.length) return [];
+    if(st.range === 'ALL') return maxBars && maxBars.length >= 2 ? maxBars : daily;
+    if(st.range === '10Y') return maxBars && maxBars.length >= 2 ? maxBars.slice(-120) : daily.slice(-520);
+    if(st.range === '1Y') return daily.slice(-260);
+    if(st.range === '1M') return daily.slice(-24);
+    return daily.slice(-6);
+  }
+  function draw(){
+    const bars = barsForRange();
+    ttl.textContent = st.type.toUpperCase() + ' · ' + st.range;
+    sub.textContent = bars.length + ' bars · ' + (st.range === 'ALL' ? 'since IPO' : 'EOD');
+    if(cObj){ try{cObj.remove();}catch(e){} cObj = null; }
+    if(bars.length < 2){
+      chartDiv.innerHTML = '<div style="padding:16px;color:var(--tx3);font-family:var(--mono);font-size:10px;text-align:center">no historical data</div>';
+      return;
+    }
+    cObj = LightweightCharts.createChart(chartDiv, {
+      layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
+      grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
+      rightPriceScale:{borderColor:'#262626'}, timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:4},
+      crosshair:{mode:1},
+      localization:{priceFormatter:p => p >= 1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2)},
+      width: Math.max(chartDiv.clientWidth || 300, 120),
+      height: Math.max(chartDiv.clientHeight || 300, 120),
+    });
+    if(st.type === 'candle'){
+      series = cObj.addCandlestickSeries({upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED, wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT});
+      series.setData(bars.map(b => ({time:b.time, open:b.open, high:b.high, low:b.low, close:b.close})));
+    } else if(st.type === 'area'){
+      series = cObj.addAreaSeries({lineColor:MINT, topColor:'rgba(51,226,154,.25)', bottomColor:'rgba(51,226,154,0)', lineWidth:2, priceLineColor:MINT});
+      series.setData(bars.map(b => ({time:b.time, value:b.close})));
+    } else {
+      series = cObj.addLineSeries({color:MINT, lineWidth:2, priceLineColor:MINT});
+      series.setData(bars.map(b => ({time:b.time, value:b.close})));
+    }
+    cObj.timeScale().fitContent();
+  }
+  // lazy-load since-IPO (max) file for 10Y/ALL
+  function loadMax(){
+    if(maxBars) return;
+    const maxSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
+    fetch('static_data/history/' + encodeURIComponent(maxSym) + '.max.json')
+      .then(r => { if(!r.ok) throw 0; return r.json(); })
+      .then(d => { if(d && d.bars && d.bars.length >= 2){ maxBars = d.bars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c, value:b.c})); draw(); } })
+      .catch(() => {});
+  }
+  box.querySelectorAll('.sc-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = btn.getAttribute('data-t'), r = btn.getAttribute('data-r');
+      if(t) st.type = t; if(r) st.range = r;
+      box.querySelectorAll('.sc-btn').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      if(r === '10Y' || r === 'ALL') loadMax();
+      draw();
+    });
   });
-  const series = cObj.addCandlestickSeries({
-    upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
-    wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
-  });
-  series.setData(mapped);
-  cObj.timeScale().fitContent();
-  window.__histChart = cObj;
-  box._chart = cObj;
-  box._resize = () => { try{ cObj.applyOptions({width: chartDiv.clientWidth || 300}); }catch(e){} };
-  window.addEventListener('resize', box._resize);
+  window.addEventListener('resize', () => { try{ cObj && cObj.applyOptions({width: chartDiv.clientWidth || 300}); }catch(e){} });
+  draw();
+  // preload max for faster 10Y/ALL
+  if(daily.length >= 2) setTimeout(loadMax, 800);
 }
 
 function openStock(sym){
