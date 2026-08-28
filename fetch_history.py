@@ -18,16 +18,16 @@ def load_listing(ex):
     with open(p, encoding="utf-8") as f:
         return json.load(f).get("stocks", [])
 
-def yahoo_chart(sym, rng="1y", ivl="1d"):
+def yahoo_chart(sym, rng="max", ivl="1d"):
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={rng}&interval={ivl}"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=25) as r:
+    with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode())
 
-def fetch_one(sym, name, currency, out, retries=3):
+def fetch_one(sym, name, currency, out, retries=3, interval="1d"):
     for attempt in range(retries):
         try:
-            d = yahoo_chart(sym)
+            d = yahoo_chart(sym, "max", interval)
             res = (d.get("chart") or {}).get("result") or []
             if not res:
                 time.sleep(2 * (attempt + 1))
@@ -57,7 +57,7 @@ def fetch_one(sym, name, currency, out, retries=3):
             time.sleep(2 * (attempt + 1))
     return False
 
-def main(ex_list, start=0, retry_empty=False):
+def main(ex_list, start=0, retry_empty=False, max_mode=False):
     symbols = []
     for ex in ex_list:
         for s in load_listing(ex):
@@ -69,11 +69,17 @@ def main(ex_list, start=0, retry_empty=False):
     for i, (ex, sym, name, cur) in enumerate(symbols):
         if i < start:
             continue
-        out = os.path.join(OUT, sym.replace("/", "_") + ".json")
-        if os.path.exists(out) and not retry_empty:
+        if max_mode:
+            # since-IPO MONTHLY history -> separate .max.json file
+            out = os.path.join(OUT, sym.replace("/", "_") + ".max.json")
+        else:
+            out = os.path.join(OUT, sym.replace("/", "_") + ".json")
+        if max_mode:
+            pass
+        elif os.path.exists(out) and not retry_empty:
             skip += 1
             continue
-        if retry_empty and os.path.exists(out):
+        elif retry_empty and os.path.exists(out):
             try:
                 with open(out, encoding="utf-8") as f:
                     if len(json.load(f).get("bars", [])) >= 2:
@@ -81,7 +87,10 @@ def main(ex_list, start=0, retry_empty=False):
                         continue
             except Exception:
                 pass
-        ok = fetch_one(sym, name, cur, out)
+        if max_mode:
+            ok = fetch_one(sym, name, cur, out, retries=3, interval="1mo")
+        else:
+            ok = fetch_one(sym, name, cur, out, retries=3)
         if ok:
             done += 1
         else:
@@ -97,4 +106,5 @@ if __name__ == "__main__":
     exs = sys.argv[1].split(",") if len(sys.argv) > 1 else ["JSE", "EGX"]
     start = int(sys.argv[2]) if len(sys.argv) > 2 else 0
     retry = len(sys.argv) > 3 and sys.argv[3] == "retry"
-    main(exs, start, retry)
+    maxm = len(sys.argv) > 3 and sys.argv[3] == "max"
+    main(exs, start, retry, maxm)
