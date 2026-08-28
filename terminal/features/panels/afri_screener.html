@@ -59,12 +59,6 @@
     <div class="scr-count" id="cnt">-</div>
   </div>
   <div class="scr-filters">
-    <div class="fld"><label>Exchange</label>
-      <select id="fEx" style="min-width:110px">
-        <option value="">All</option>
-        <option value="JSE">JSE</option><option value="EGX">EGX</option>
-        <option value="NGX">NGX</option><option value="NSE">NSE</option>
-      </select></div>
     <div class="fld"><label>Sector</label><select id="fSec"><option value="">All</option></select></div>
     <div class="fld"><label>Price min</label><input id="fPmin" type="number" step="any"/></div>
     <div class="fld"><label>Price max</label><input id="fPmax" type="number" step="any"/></div>
@@ -115,7 +109,7 @@
   function $(id){return document.getElementById(id);}
   function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
   function readFilters(){
-    var ex=[],s=$("fEx");for(var i=0;i<s.options.length;i++)if(s.options[i].selected)ex.push(s.options[i].value);
+    var ex=(state.ex?[state.ex]:[]);
     return {exchange:ex,sector:$("fSec").value||"",price_min:$("fPmin").value,price_max:$("fPmax").value,chg_min:$("fCmin").value,vol_min:$("fVmin").value,div_yield_min:$("fDmin").value};
   }
   function localFilter(rows,f){
@@ -175,7 +169,7 @@
   }
   function save(f){try{localStorage.setItem(LS,JSON.stringify(f));}catch(e){}}
   function restore(){try{var f=JSON.parse(localStorage.getItem(LS)||"null");if(!f)return;
-    (f.exchange||[]).forEach(function(ex){var o=document.querySelector('#fEx option[value="'+ex+'"]');if(o)o.selected=true;});
+    
     if(f.sector)$("fSec").value=f.sector;$("fPmin").value=f.price_min||"";$("fPmax").value=f.price_max||"";
     $("fCmin").value=f.chg_min||"";$("fVmin").value=f.vol_min||"";$("fDmin").value=f.div_yield_min||"";}catch(e){}}
   function q(f){var p=[];if(f.exchange.length)p.push("exchange="+encodeURIComponent(f.exchange.join(",")));
@@ -196,19 +190,14 @@
     a.href=URL.createObjectURL(b);a.download="afri_screener.csv";a.click();URL.revokeObjectURL(a.href);
   }
   function reset(){Array.prototype.forEach.call(document.querySelectorAll(".scr-filters input"),function(i){i.value="";});
-    var s=$("fEx");for(var i=0;i<s.options.length;i++)s.options[i].selected=false;$("fSec").value="";
+    $("fSec").value="";
     try{localStorage.removeItem(LS);}catch(e){}run();}
   window.showScreener=function(){var el=$("screener");if(el)el.scrollIntoView({behavior:"smooth"});};
   function init(){
     sectors(SAMPLE_STOCKS);restore();head();
     // honor ?ex= deep-link from the terminal (landing exchange dropdown) -
     // set AFTER restore() so the URL param wins over saved filters
-    try{
-      var _pex = new URLSearchParams(location.search).get("ex");
-      if(_pex && ["JSE","EGX","NGX","NSE"].indexOf(_pex.toUpperCase()) >= 0){
-        var s=$("fEx");for(var i=0;i<s.options.length;i++)s.options[i].selected=(s.options[i].value===_pex.toUpperCase());
-      }
-    }catch(e){}
+    
     $("bRun").onclick=run;$("bCsv").onclick=csv;$("bReset").onclick=reset;run();}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
