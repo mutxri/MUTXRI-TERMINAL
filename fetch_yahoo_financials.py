@@ -83,31 +83,61 @@ def main():
         except Exception:
             existing = {}
     targets = load_symbols()
-    # --retry mode: only symbols NOT in existing (same as normal, but slower pace)
     retry = "--retry" in sys.argv
-    pace = 0.9 if retry else 0.4
+    # --retry: slow pace (3s) + treat "Quote not found" 404 as transient
+    # (Yahoo returns fake 404s when throttled - COMI/ETEL verified fetchable)
+    pace = 3.0 if retry else 0.4
     print(f"targets: {len(targets)} (Yahoo-covered), existing: {len(existing)}, retry={retry}")
     done = fail = skip = 0
     for i, (sym, ys, name) in enumerate(targets):
         if sym in existing:
             skip += 1
             continue
-        try:
-            inc, bal, cf, meta = fetch_statements(ys)
-            if inc or bal or cf:
-                existing[sym] = {
-                    "name": meta.get("name") or name,
-                    "currency": meta.get("currency"),
-                    "marketCap": meta.get("marketCap"),
-                    "sharesOutstanding": meta.get("sharesOutstanding"),
-                    "income": inc, "balance": bal, "cashflow": cf,
-                    "source": "Yahoo Finance (yfinance)",
-                }
-                done += 1
-            else:
+        got = False
+        if retry:
+            # up to 3 attempts: EMPTY result on attempt 1 is likely throttle
+            # (fake 404 -> empty df), real no-data stays empty across retries
+            for attempt in range(3):
+                try:
+                    inc, bal, cf, meta = fetch_statements(ys)
+                    if inc or bal or cf:
+                        existing[sym] = {
+                            "name": meta.get("name") or name,
+                            "currency": meta.get("currency"),
+                            "marketCap": meta.get("marketCap"),
+                            "sharesOutstanding": meta.get("sharesOutstanding"),
+                            "income": inc, "balance": bal, "cashflow": cf,
+                            "source": "Yahoo Finance (yfinance)",
+                        }
+                        done += 1
+                        got = True
+                        break
+                    # empty on attempts 0-1: could be throttle - backoff + retry
+                    if attempt < 2:
+                        time.sleep(5 + attempt * 5)
+                        continue
+                    break  # 3 empty results = genuinely no data
+                except Exception:
+                    time.sleep(4 + attempt * 4)  # backoff, then retry
+            if not got:
                 fail += 1
-        except Exception:
-            fail += 1
+        else:
+            try:
+                inc, bal, cf, meta = fetch_statements(ys)
+                if inc or bal or cf:
+                    existing[sym] = {
+                        "name": meta.get("name") or name,
+                        "currency": meta.get("currency"),
+                        "marketCap": meta.get("marketCap"),
+                        "sharesOutstanding": meta.get("sharesOutstanding"),
+                        "income": inc, "balance": bal, "cashflow": cf,
+                        "source": "Yahoo Finance (yfinance)",
+                    }
+                    done += 1
+                else:
+                    fail += 1
+            except Exception:
+                fail += 1
         if (i + 1) % 5 == 0:
             with open(OUT, "w", encoding="utf-8") as f:
                 json.dump(existing, f, ensure_ascii=False)
