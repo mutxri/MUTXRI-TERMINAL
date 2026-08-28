@@ -571,8 +571,8 @@ function renderSecurityChart(hd, rec){
   const box = document.createElement('div');
   box.style.cssText = 'height:280px;position:relative;border-top:1px solid var(--line);margin-top:2px';
   box.innerHTML = '<div style="padding:8px 16px 2px;display:flex;justify-content:space-between;align-items:center">' +
-    '<span style="color:var(--acc);font-family:var(--mono);font-size:10px;letter-spacing:.08em">TRADINGVIEW · ' + esc(rec.ticker || rec.sym || '') + '</span>' +
-    '<span style="color:var(--tx3);font-family:var(--mono);font-size:9px">charts by TradingView</span></div>';
+    '<span style="color:var(--acc);font-family:var(--mono);font-size:10px;letter-spacing:.08em">CHART · ' + esc(rec.ticker || rec.sym || '') + '</span>' +
+    '<span style="color:var(--tx3);font-family:var(--mono);font-size:9px">' + esc((hd && hd.bars ? hd.bars.length : 0)) + ' bars</span></div>';
   const chartDiv = document.createElement('div');
   chartDiv.style.cssText = 'position:absolute;top:24px;left:0;right:0;bottom:0';
   box.appendChild(chartDiv);
@@ -603,8 +603,10 @@ function renderSecurityChart(hd, rec){
     locale: 'en',
     hide_top_toolbar: false,
     hide_legend: false,
-    allow_symbol_change: true,
+    allow_symbol_change: false,
+    whitelabel: true,
     save_image: false,
+    disabled_features: ['enable_symbol_change_restriction_on_widgets', 'header_symbol_search'],
     support_host: 'https://www.tradingview.com'
   });
   container.appendChild(s);
