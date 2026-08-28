@@ -467,6 +467,8 @@
     if(!c) return;
     cpName = c.name || c.ticker || "";
     cpSymbol = tvSymbol(c);
+    // TradingView free widget restricts NSE/NGX -> honest EOD card instead
+    if(activeEx === "NSE" || activeEx === "NGX"){ cpRenderEOD(c); return; }
     $("cpTitle").textContent = (c.ticker || c.sym || "") + " · " + activeEx;
     $("cpSub").textContent = cpName;
     $("cpStat").textContent = "loading…";
@@ -490,6 +492,22 @@
     if(cpRange === "1M") return {interval:"D", range:"1M"};
     if(cpRange === "1Y") return {interval:"D", range:"1Y"};
     return {interval:"M", range:"ALL"};
+  }
+  function cpRenderEOD(c){
+    // honest EOD card for NSE/NGX (TradingView free widget restricts them)
+    var box = $("cpChart");
+    if(!box) return;
+    var price = c.price != null ? Number(c.price).toLocaleString(undefined,{maximumFractionDigits:2}) : "—";
+    var chg = c.chgPct != null ? Number(c.chgPct) : 0;
+    var sign = chg >= 0 ? "+" : "";
+    var col = chg >= 0 ? "#33e29a" : "#f87171";
+    $("cpStat").textContent = "EOD";
+    box.innerHTML =
+      "<div style=\"display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;font-family:var(--mono)\">" +
+      "<div style=\"font-size:26px;color:#fff\">" + price + " " + (c.currency || "") + "</div>" +
+      "<div style=\"font-size:13px;color:" + col + "\">" + sign + chg.toFixed(2) + "%</div>" +
+      "<div style=\"font-size:10px;color:var(--tx3);text-align:center;padding:0 24px\">End-of-day board price · no free intraday/OHLC feed for this exchange</div>" +
+      "</div>";
   }
   function cpRender(){
     var box = $("cpChart");
