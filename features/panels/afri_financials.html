@@ -72,6 +72,11 @@
       <button data-st="cashflow" aria-pressed="false">Cash Flow</button>
     </div>
     <span class="spacer"></span>
+    <label class="lbl" for="secSel">Security</label>
+    <input id="secSel" list="secList" placeholder="Type ticker or name..." autocomplete="off"
+           style="min-width:180px;background:var(--bg);color:var(--tx);border:1px solid var(--line2);
+                  border-radius:2px;padding:3px 8px;font-family:var(--mono);font-size:11px">
+    <datalist id="secList"></datalist>
     <label class="lbl" for="period">Period</label>
     <select id="period">
       <option value="annual">Annual</option>
@@ -263,6 +268,55 @@
     if(ticker)state.ticker=String(ticker).toUpperCase();
     load();
   };
+
+  // ---- security selector: dropdown of every listed security ----
+  var SECS = [];
+  function loadSecurities(){
+    // build from all four exchange listings (ticker + name)
+    var files = ["../../static_data/listing_JSE.json", "../../static_data/listing_EGX.json",
+                 "../../static_data/listing_NGX.json", "../../static_data/listing_NSE.json"];
+    var all = [];
+    var done = 0;
+    files.forEach(function(f){
+      fetch(f).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
+        (d.stocks || []).forEach(function(s){
+          var tkr = s.ticker || s.sym || (s.code || "");
+          if(tkr) all.push({t: String(tkr).toUpperCase(), n: s.name || ""});
+        });
+        done++;
+        if(done === files.length){
+          // dedupe by ticker, sort alphabetically
+          var seen = {};
+          all.forEach(function(s){ if(!seen[s.t]) seen[s.t] = s; });
+          SECS = Object.keys(seen).sort().map(function(k){ return seen[k]; });
+          var dl = document.getElementById("secList");
+          if(dl){
+            dl.innerHTML = SECS.map(function(s){
+              return '<option value="' + s.t + '">' + s.n.replace(/"/g, "") + '</option>';
+            }).join("");
+          }
+        }
+      }).catch(function(){ done++; });
+    });
+  }
+  document.getElementById("secSel").addEventListener("change", function(e){
+    var v = String(e.target.value || "").trim().toUpperCase();
+    if(v){ state.ticker = v; load(); }
+  });
+  document.getElementById("secSel").addEventListener("keydown", function(e){
+    if(e.key === "Enter"){
+      var v = String(this.value || "").trim().toUpperCase();
+      if(v){ state.ticker = v; load(); }
+    }
+  });
+  // if the current ticker is in the list, show it in the box
+  function syncSecSel(){
+    var el = document.getElementById("secSel");
+    if(el && state.ticker) el.value = state.ticker;
+  }
+  var _origLoad = load;
+  load = function(){ syncSecSel(); _origLoad(); };
+  loadSecurities();
 
   load();
 })();
