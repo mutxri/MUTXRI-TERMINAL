@@ -83,7 +83,10 @@ def main():
         except Exception:
             existing = {}
     targets = load_symbols()
-    print(f"targets: {len(targets)} (Yahoo-covered), existing: {len(existing)}")
+    # --retry mode: only symbols NOT in existing (same as normal, but slower pace)
+    retry = "--retry" in sys.argv
+    pace = 0.9 if retry else 0.4
+    print(f"targets: {len(targets)} (Yahoo-covered), existing: {len(existing)}, retry={retry}")
     done = fail = skip = 0
     for i, (sym, ys, name) in enumerate(targets):
         if sym in existing:
@@ -109,7 +112,7 @@ def main():
             with open(OUT, "w", encoding="utf-8") as f:
                 json.dump(existing, f, ensure_ascii=False)
             print(f"  {i+1}/{len(targets)} (done {done}, fail {fail}, skip {skip})", flush=True)
-        time.sleep(0.4)
+        time.sleep(pace)
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(existing, f, ensure_ascii=False)
     print(f"DONE: {done} fetched, {fail} no-data, {skip} existing")
