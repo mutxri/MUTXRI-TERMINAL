@@ -61,6 +61,7 @@
     <span class="code">FA</span>
     <span id="tkr" style="font-weight:700">SCOM</span>
     <span class="name" id="coName">Safaricom Plc</span>
+    <span id="exLabel" style="font-family:var(--mono);font-size:10px;color:var(--acc);letter-spacing:.05em"></span>
     <span class="spacer"></span>
     <a class="filing" id="filing" href="#" target="_blank" rel="noopener">open filing &#8599;</a>
   </div>
@@ -98,7 +99,19 @@
 <script>
 (function(){
   "use strict";
-  var state={ticker:"SCOM",statement:"income",period:"annual"};
+  // ---- security selector: dropdown of securities WITH financials ----
+  // reads the panel's ?ex= (the terminal appends it) and lists only the
+  // securities that actually have statement files (financials_index.json)
+  var SECS = [];
+  var state = (function(){
+    var s = {ticker:"SCOM",statement:"income",period:"annual",ex:"NSE"};
+    try{
+      var q = new URLSearchParams(window.location.search);
+      var e = q.get("ex"); if(e) s.ex = e.toUpperCase();
+      var t = q.get("ticker"); if(t) s.ticker = t.toUpperCase();
+    }catch(err){}
+    return s;
+  })();
 
   // ---- VERIFIED REAL FILINGS (links only, no fabricated numbers) ----------
   // Each URL was confirmed against the issuer's own domain. This panel shows
@@ -269,35 +282,40 @@
     load();
   };
 
-  // ---- security selector: dropdown of every listed security ----
-  var SECS = [];
+  // ---- security selector: dropdown of securities WITH financials ----
   function loadSecurities(){
-    // build from all four exchange listings (ticker + name)
-    var files = ["../../static_data/listing_JSE.json", "../../static_data/listing_EGX.json",
-                 "../../static_data/listing_NGX.json", "../../static_data/listing_NSE.json"];
-    var all = [];
-    var done = 0;
-    files.forEach(function(f){
-      fetch(f).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
-        (d.stocks || []).forEach(function(s){
-          var tkr = s.ticker || s.sym || (s.code || "");
-          if(tkr) all.push({t: String(tkr).toUpperCase(), n: s.name || ""});
-        });
-        done++;
-        if(done === files.length){
-          // dedupe by ticker, sort alphabetically
-          var seen = {};
-          all.forEach(function(s){ if(!seen[s.t]) seen[s.t] = s; });
-          SECS = Object.keys(seen).sort().map(function(k){ return seen[k]; });
-          var dl = document.getElementById("secList");
-          if(dl){
-            dl.innerHTML = SECS.map(function(s){
-              return '<option value="' + s.t + '">' + s.n.replace(/"/g, "") + '</option>';
-            }).join("");
-          }
-        }
-      }).catch(function(){ done++; });
-    });
+    // only securities that HAVE financial statements (financials_index.json),
+    // filtered to the panel's exchange (?ex=JSE etc.)
+    fetch("../../static_data/financials_index.json").then(function(r){
+      if(!r.ok) throw 0; return r.json();
+    }).then(function(idx){
+      var all = [];
+      Object.keys(idx || {}).forEach(function(k){
+        var v = idx[k] || {};
+        var ex = (v.exchange || "").toUpperCase();
+        if(state.ex && ex !== state.ex) return;  // respect the panel's exchange
+        var tkr = String(k).toUpperCase();
+        var nm = v.name || "";
+        all.push({t: tkr, n: nm});
+      });
+      // dedupe + sort by ticker
+      var seen = {};
+      all.forEach(function(s){ if(!seen[s.t]) seen[s.t] = s; });
+      SECS = Object.keys(seen).sort().map(function(k){ return seen[k]; });
+      var dl = document.getElementById("secList");
+      if(dl){
+        dl.innerHTML = SECS.map(function(s){
+          return '<option value="' + s.t + '">' + s.t + " · " + s.n.replace(/"/g, "") + '</option>';
+        }).join("");
+      }
+      var exLbl = document.getElementById("exLabel");
+      if(exLbl) exLbl.textContent = state.ex + " · " + SECS.length + " securities";
+      // if the current ticker isn't in this exchange's list, pick the first
+      if(state.ticker && !Object.prototype.hasOwnProperty.call(seen, state.ticker) && SECS.length){
+        state.ticker = SECS[0].t;
+        load();
+      }
+    }).catch(function(){});
   }
   document.getElementById("secSel").addEventListener("change", function(e){
     var v = String(e.target.value || "").trim().toUpperCase();
