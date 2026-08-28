@@ -29,20 +29,23 @@ def find_pdf_for_issuer(code):
     return None
 
 def extract_holders(pdf_path):
-    """Return list of {holder, stake} from the analysis-of-shareholders page."""
+    """Return list of {holder, stake} from the analysis-of-shareholders page.
+    Only checks the FIRST 12 pages (the section always appears early in the
+    directors' report); returns [] if the report lacks the standard section."""
     try:
         reader = PdfReader(pdf_path)
     except Exception:
         return []
     holders = []
-    for page in reader.pages:
+    for page in reader.pages[:12]:
         try:
             txt = page.extract_text() or ""
         except Exception:
             continue
-        if "analysis of shareholders" not in txt.lower() and "major shareholders" not in txt.lower():
+        tl = txt.lower()
+        if not ("analysis of shareholders" in tl or "major shareholders" in tl):
             continue
-        if "interests in excess of 5%" not in txt.lower():
+        if "interests in excess of 5%" not in tl:
             continue
         lines = txt.split("\n")
         # find the start of the table (after the intro sentence)
@@ -121,8 +124,8 @@ def main():
             ci[sym]["shareholder_source"] = f"JSE annual report ({os.path.basename(pdf)})"
             found += 1
         done += 1
-        if done % 25 == 0:
-            print(f"  processed {done}, found {found}", flush=True)
+        if done % 10 == 0:
+            print(f"  processed {done}/{len(jse_data)}, found {found}", flush=True)
     with open(CI, "w", encoding="utf-8") as f:
         json.dump(ci, f, ensure_ascii=False, indent=1)
     print(f"DONE: {found} companies got shareholders from {done} PDFs")
