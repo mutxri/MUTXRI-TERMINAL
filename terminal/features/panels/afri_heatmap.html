@@ -453,10 +453,11 @@
 
     // ===== Security chart (candles/line, 1D/1M/1Y/ALL) - reliable in-house
   // renderer using static_data/history (no third-party iframe) =====
-  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpName="";
+  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpName="", cpTkr="";
   function openChart(c){
     if(!c) return;
     cpName = c.name || c.ticker || "";
+    cpTkr = c.ticker || c.sym || "";
     $("cpTitle").textContent = (c.ticker || c.sym || "") + " · " + activeEx;
     $("cpSub").textContent = cpName;
     $("cpStat").textContent = "loading…";
@@ -496,7 +497,33 @@
     if(!box) return;
     if(!bars.length){
       $("cpStat").textContent = "no historical data";
-      box.innerHTML = '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center">no free historical feed for this market</div>';
+      // TradingView widget fallback (serves NGX/NSE where Yahoo has nothing)
+      try{
+        var tvEx = {JSE:"JNB", EGX:"EGX", NGX:"NGX", NSE:"NAIROBI"}[activeEx] || activeEx;
+        var tvSym = String(cpTkr || cpTitleTkr || "").toUpperCase();
+        if(!tvSym){ box.innerHTML = '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center">no free historical feed for this market</div>'; return; }
+        box.innerHTML =
+          '<div class="tradingview-widget-container" style="width:100%;height:100%">' +
+          '<div class="tradingview-widget-container__widget" style="width:100%;height:100%"></div>' +
+          '<script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>' +
+          JSON.stringify({
+            autosize: true,
+            symbol: tvEx + ":" + tvSym,
+            interval: "D",
+            timezone: "Etc/UTC",
+            theme: "dark",
+            style: "1",
+            locale: "en",
+            allow_symbol_change: false,
+            hide_top_toolbar: true,
+            hide_legend: false,
+            disabled_features: ["header_symbol_search", "enable_symbol_change_restriction_on_widgets"],
+            support_host: "https://www.tradingview.com"
+          }) +
+          '<\/script></div>';
+      }catch(e){
+        box.innerHTML = '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center">no free historical feed for this market</div>';
+      }
       return;
     }
     if(cpChart){ try{cpChart.remove();}catch(e){} cpChart = null; }
