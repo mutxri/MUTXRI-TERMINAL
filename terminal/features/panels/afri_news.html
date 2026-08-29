@@ -36,24 +36,34 @@
 <div class="wrap">
   <div class="head">
     <span class="code">NEWS</span>
-    <span class="title">NSE NEWS <b>· HEADLINES</b></span>
+    <span class="title"><span id="exTitle">NSE</span> NEWS <b>· HEADLINES</b></span>
     <span class="spacer"></span>
-    <span class="src">NSE · Headlines</span>
+    <span class="src" id="src">Headlines</span>
   </div>
   <div id="items"><div class="empty">loading…</div></div>
 </div>
 <script>
 (function(){
   "use strict";
+  var CUR = "NSE";
+  try{ var _q = new URLSearchParams(window.location.search); if(_q.get("ex")) CUR = _q.get("ex").toUpperCase(); }catch(e){}
+  var EX_FILE = { "NSE": "nse_news.json", "NGX": "ngx_news.json" };
+  var EX_NAME = { "NSE": "NSE", "NGX": "NGX", "JSE": "JSE", "EGX": "EGX" };
   function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-  fetch("../../static_data/nse_news.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+  document.getElementById("exTitle").textContent = EX_NAME[CUR] || CUR;
+  var file = EX_FILE[CUR];
+  var el = document.getElementById("items");
+  if(!file){
+    el.innerHTML = '<div class="empty">no free news feed for ' + esc(CUR) + '</div>';
+    return;
+  }
+  fetch("../../static_data/" + file).then(function(r){ if(!r.ok) throw 0; return r.json(); })
     .then(function(list){
-      var el = document.getElementById("items");
       if(!list || !list.length){ el.innerHTML = '<div class="empty">no news</div>'; return; }
       el.innerHTML = list.map(function(n){
         return '<div class="item">' +
-          '<a href="' + esc(n.url) + '" target="_blank" rel="nofollow noopener">' + esc(n.title) + '</a>' +
-          '<div class="meta"><span class="pub">' + esc(n.publisher) + '</span><span>' + esc(n.date) + '</span></div>' +
+          '<a href="' + esc(n.url || "#") + '" target="_blank" rel="nofollow noopener">' + esc(n.title) + '</a>' +
+          '<div class="meta"><span class="pub">' + esc(n.publisher || "") + '</span><span>' + esc(n.date || "") + '</span></div>' +
           '</div>';
       }).join("");
     })
