@@ -117,8 +117,7 @@ def main():
     n_days = int(sys.argv[1]) if len(sys.argv) > 1 else 30
     import datetime
     dates = []
-    d = datetime.date(2026, 8, 28)
-    cur = d
+    cur = datetime.date.today()
     while len(dates) < n_days:
         if cur.weekday() < 5:
             dates.append(cur.strftime("%d-%m-%Y"))
@@ -141,20 +140,37 @@ def main():
             print(f"  {date_str}: {len(rows)} securities")
         except Exception as e:
             print(f"  {date_str}: ERR {str(e)[:60]}")
+        if fetched and fetched % 10 == 0:
+            print(f"    ... checkpoint: {flush(all_bars)} symbols written", flush=True)
         time.sleep(0.4)
 
-    # write per-symbol files
+    saved = flush(all_bars)
+    print("")
+    print(f"DONE: {fetched} days fetched, {saved} symbols with >=2 bars saved")
+
+
+def flush(all_bars):
+    """merge the fetched window into whatever is already on disk. Called every
+    few days as well as at the end: a long backfill that dies partway through
+    must not throw away everything it had already parsed."""
     saved = 0
     for sym, bars_map in all_bars.items():
-        bars = []
-        for iso in sorted(bars_map.keys()):
-            b = bars_map[iso]
-            bars.append({"t": iso, "o": b["o"], "h": b["h"], "l": b["l"], "c": b["c"], "v": b["v"]})
+        path = os.path.join(HIST, f"NGX_{sym}.json")
+        merged = {}
+        if os.path.exists(path):
+            try:
+                for b in json.load(open(path, encoding="utf-8")).get("bars", []):
+                    if b.get("t"):
+                        merged[b["t"]] = b
+            except Exception:
+                pass
+        for iso, b in bars_map.items():
+            merged[iso] = {"t": iso, "o": b["o"], "h": b["h"], "l": b["l"], "c": b["c"], "v": b["v"]}
+        bars = [merged[k] for k in sorted(merged.keys())]
         if len(bars) >= 2:
-            path = os.path.join(HIST, f"NGX_{sym}.json")
             json.dump({"bars": bars[-1500:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
             saved += 1
-    print(f"\nDONE: {fetched} days fetched, {saved} symbols with >=2 bars saved")
+    return saved
 
 if __name__ == "__main__":
     main()

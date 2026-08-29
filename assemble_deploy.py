@@ -49,6 +49,42 @@ _hm = _hm.replace(
     'fetch(ENDPOINT + "?exchange=" + encodeURIComponent(activeEx))',
     "fetch('../../static_data/heatmap_' + activeEx + '.json')",
 )
+# the deployed build reads a snapshot file, not a live feed: the panel must
+# not claim "LIVE - polling 15s" over data that only moves when we redeploy.
+# Label it EOD and show the snapshot's own asOf date instead.
+_hm = _hm.replace(
+    '''    $("statusTxt").textContent=live?"LIVE - polling "+(POLL_MS/1000)+"s":"SAMPLE";''',
+    '''    $("statusTxt").textContent=live?("EOD SNAPSHOT"+(snapAsOf?" \u00b7 "+snapAsOf:"")):"SAMPLE";''',
+)
+_hm = _hm.replace(
+    '    $("dot").className="dot "+(live?"live":"sample");',
+    '    $("dot").className="dot "+(live?"eod":"sample");',
+)
+# capture the snapshot timestamp off the payload and stop the 15s poll of a
+# file that cannot change between deploys
+_hm = _hm.replace(
+    '  var POLL_MS=15000;',
+    '  var POLL_MS=15000, snapAsOf="";',
+)
+_hm = _hm.replace(
+    '        draw(normalize(rows));setStatus(true);',
+    '        snapAsOf=(d.asOf||"").slice(0,10);draw(normalize(rows));setStatus(true);',
+)
+_hm = _hm.replace(
+    '  function startPolling(){if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(load,POLL_MS);}',
+    '  function startPolling(){/* static build: the snapshot changes only on deploy */}',
+)
+_hm = _hm.replace(
+    '        $("src").textContent="source: /api/heatmap?exchange="+activeEx;',
+    '        $("src").textContent="source: static_data/heatmap_"+activeEx+".json \u00b7 end-of-day snapshot";',
+)
+_hm = _hm.replace(
+    '        $("refreshTxt").textContent="updated "+new Date().toLocaleTimeString();',
+    '        $("refreshTxt").textContent=snapAsOf?("data as of "+snapAsOf):"";',
+)
+# .dot.eod needs a colour of its own (amber = real but not live)
+_hm = _hm.replace(".dot.live{", ".dot.eod{background:#e0a341;box-shadow:0 0 6px #e0a341}\n  .dot.live{")
+
 with open(os.path.join(TERM, "features", "panels", "afri_heatmap.html"), "w", encoding="utf-8") as _f:
     _f.write(_hm)
 print("  static heatmap: remapped to static_data/heatmap_X.json + drill-down")
@@ -68,7 +104,12 @@ for p in STATIC_PANELS:
 # static data
 shutil.copytree(os.path.join(BASE, "static_data"),
                 os.path.join(TERM, "static_data"),
-                ignore=shutil.ignore_patterns("afri_heatmap_static.html"))
+                # the *_pdfs folders are ~148 MB of source documents that
+                # nothing on the site links to (ngx_financials.json references
+                # them by absolute local path). Shipping them would triple the
+                # Pages payload for files no visitor can reach.
+                ignore=shutil.ignore_patterns("afri_heatmap_static.html",
+                                              "ngx_pdfs", "nse_pdfs", "jse_pdfs"))
 
 # ================= LANDING PAGE (served at /) =================
 # landing/index.html -> root index.html
