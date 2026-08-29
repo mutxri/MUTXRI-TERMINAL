@@ -467,12 +467,18 @@
     $("cpStat").textContent = "loading…";
     document.getElementById("chartPanel").classList.add("open");
     var sym = (c.sym || c.ticker || "").replace(/\//g, "_");
+    var histBase = sym;
+    // NSE/NGX history files are prefixed with the exchange (NSE_SCOM.json)
+    if(activeEx === "NSE" || activeEx === "NGX"){
+      var shortSym = sym.split(".")[0];
+      histBase = activeEx + "_" + shortSym;
+    }
     cpBarsDaily = []; cpBarsMax = [];
-    fetch("../../static_data/history/" + encodeURIComponent(sym) + ".json")
+    fetch("../../static_data/history/" + encodeURIComponent(histBase) + ".json")
       .then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(d){ cpBarsDaily = d.bars || []; cpRender(); })
       .catch(function(){ cpBarsDaily = []; cpRender(); });
-    fetch("../../static_data/history/" + encodeURIComponent(sym) + ".max.json")
+    fetch("../../static_data/history/" + encodeURIComponent(histBase) + ".max.json")
       .then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(d){ cpBarsMax = d.bars || []; cpRender(); })
       .catch(function(){ cpBarsMax = []; cpRender(); });
