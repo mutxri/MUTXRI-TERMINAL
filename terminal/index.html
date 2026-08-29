@@ -382,6 +382,21 @@ let quotes = {};
 async function primeQuotes(ex){
   const syms = (listing[ex]||[]).filter(s => s.sym).slice(0, 80).map(s => s.sym);
   if(!syms.length) return;
+  // static mode (GitHub Pages): load the per-exchange market snapshot so the
+  // watchlist shows the REAL current data (official feeds), not stale listing prices
+  if(!window.API_BASE){
+    try{
+      const r = await fetch('static_data/market_' + ex + '.json');
+      const d = await r.json();
+      (d.stocks || []).forEach(s => {
+        quotes[s.sym] = { price: s.price, changePct: s.chgPct, volume: s.volume, currency: s.currency };
+        if(s.ticker) quotes[s.ticker] = quotes[s.sym];
+      });
+      renderWatchlist($('q').value);
+      buildTape(ex);
+      return;
+    }catch(e){ console.error('market snapshot fail', e); }
+  }
   try{
     const r = await fetch('/api/quotes?symbols=' + syms.join(','));
     const d = await r.json();
