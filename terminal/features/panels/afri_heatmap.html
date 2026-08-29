@@ -511,7 +511,26 @@
     if(!box) return;
     if(!bars.length && !cpBothDone){ $("cpStat").textContent = "loading…"; return; }
     if(!bars.length){
-      $("cpStat").textContent = "no historical data";
+      // NSE: try the official IR feed via the live adapter before showing EOD
+      if(activeEx === "NSE" && window.NSECharts && window.NSEIRAdapter){
+        $("cpStat").textContent = "loading official feed…";
+        NSEIRAdapter.getBars(cpTkr || cpTitleTkr || "", { timeframe: cpRange })
+          .then(function(liveBars){
+            if(liveBars && liveBars.length >= 2){
+              cpBarsDaily = liveBars.map(function(b){ return {t: b.time, o: b.open, h: b.high, l: b.low, c: b.close}; });
+              cpBarsMax = cpBarsDaily;
+              cpRender();
+            } else {
+              showEODCard();
+            }
+          })
+          .catch(function(){ showEODCard(); });
+        return;
+      }
+      showEODCard();
+      return;
+    }
+    function showEODCard(){
       // TradingView widget fallback (serves NGX/NSE where Yahoo has nothing)
       // honest EOD card: no free OHLC feed for NGX/NSE - show the real
       // board price + change from the snapshot (NEVER fabricated candles)
