@@ -75,7 +75,7 @@
   var KIND_CLASS = { "DIVIDEND PAYMENT": "pay", "BOOK CLOSURE": "closure" };
   function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
   function loadIdx(){
-    fetch("../../static_data/nse_indices.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    fetch("../../static_data/ex_" + CUR + "_indices.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(list){
         var el = document.getElementById("idxGrid");
         if(!list || !list.length){ el.innerHTML = '<div class="empty">no index data</div>'; return; }
@@ -90,7 +90,7 @@
       .catch(function(){ document.getElementById("idxGrid").innerHTML = '<div class="empty">no index data</div>'; });
   }
   function loadSummary(){
-    fetch("../../static_data/nse_summary.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    fetch("../../static_data/ex_" + CUR + "_summary.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(s){
         function renderMini(elId, list, showVol){
           var el = document.getElementById(elId);
@@ -99,8 +99,8 @@
             var up = String(x.changePct||"").indexOf("-") !== 0;
             return '<div class="mini">' +
               '<div class="n">' + esc(x.ticker) + '</div>' +
-              '<div class="v">' + esc(x.price != null ? x.price : "") + '</div>' +
-              '<div class="c ' + (up ? "up" : "down") + '">' + esc(x.changePct || "") + '</div>' +
+              '<div class="v">' + esc(x.price != null ? Number(x.price).toLocaleString(undefined,{maximumFractionDigits:2}) : "") + '</div>' +
+              '<div class="c ' + (up ? "up" : "down") + '">' + esc(x.changePct != null ? Number(x.changePct).toFixed(2) + "%" : "") + '</div>' +
               (showVol && x.volume ? '<div class="m">vol ' + esc(x.volume) + '</div>' : '') +
               (x.marketCap ? '<div class="m">mkt ' + esc(x.marketCap) + '</div>' : '') +
               '</div>';
