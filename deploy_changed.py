@@ -32,8 +32,13 @@ def api(method, path, body=None, retries=5):
                 return json.loads(r.read().decode()), None
         except urllib.error.HTTPError as e:
             detail = e.read().decode(errors="replace")[:200]
-            if e.code in (502, 503, 504) and a < retries - 1:
-                time.sleep(3 * (a + 1))
+            # 1700+ rapid blob POSTs trip GitHub's secondary rate limit, which
+            # comes back as a 403 (not a 429) and is retryable after a pause
+            retryable = e.code in (502, 503, 504, 429) or (
+                e.code == 403 and ("rate limit" in detail.lower() or "abuse" in detail.lower()))
+            if retryable and a < retries - 1:
+                wait = int(e.headers.get("Retry-After") or 0) or 10 * (a + 1)
+                time.sleep(wait)
                 continue
             return None, f"{e.code} {detail}"
         except Exception as e:
