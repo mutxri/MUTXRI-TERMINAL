@@ -163,7 +163,22 @@
   function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
 
-  function filingsFor(t){return FILINGS[t]||null;}
+  function filingsFor(t){
+    if(FILINGS[t]) return FILINGS[t];
+    // NGX/NSE: official filing links from financials_index
+    if(window.__FIN_IDX){
+      var e = window.__FIN_IDX[t] || window.__FIN_IDX[String(t).split(".")[0]];
+      if(e && e.filings && e.filings.length){
+        return {
+          name: e.name || t, exchange: e.exchange, currency: e.currency,
+          reports: e.filings.map(function(f){
+            return {label: (f.title || "Financial Statement") + (f.date ? " (" + f.date + ")" : ""), url: f.url || "#"};
+          })
+        };
+      }
+    }
+    return null;
+  }
 
   function renderScaffold(rec){
     // Always renders the statement scaffold with dashes (no fabricated numbers)
@@ -291,6 +306,7 @@
     fetch("../../static_data/financials_index.json").then(function(r){
       if(!r.ok) throw 0; return r.json();
     }).then(function(idx){
+      window.__FIN_IDX = idx;
       var all = [];
       Object.keys(idx || {}).forEach(function(k){
         var v = idx[k] || {};
