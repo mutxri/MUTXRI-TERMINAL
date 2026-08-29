@@ -59,10 +59,10 @@
 <div class="wrap" id="panel">
   <div class="head">
     <span class="code">FA</span>
-    <span id="tkr" style="font-weight:700">SCOM</span>
-    <span class="name" id="coName">Safaricom Plc</span>
+    <span id="tkr" style="font-weight:700"></span>
+    <span class="name" id="coName"></span>
+    <span id="exLabel" style="font-family:var(--mono);font-size:10px;color:var(--acc);letter-spacing:.05em"></span>
     <span class="spacer"></span>
-    <a class="filing" id="filing" href="#" target="_blank" rel="noopener">open filing &#8599;</a>
   </div>
 
   <div class="controls">
@@ -72,6 +72,11 @@
       <button data-st="cashflow" aria-pressed="false">Cash Flow</button>
     </div>
     <span class="spacer"></span>
+    <label class="lbl" for="secSel">Security</label>
+    <input id="secSel" list="secList" placeholder="Type ticker or name..." autocomplete="off"
+           style="min-width:180px;background:var(--bg);color:var(--tx);border:1px solid var(--line2);
+                  border-radius:2px;padding:3px 8px;font-family:var(--mono);font-size:11px">
+    <datalist id="secList"></datalist>
     <label class="lbl" for="period">Period</label>
     <select id="period">
       <option value="annual">Annual</option>
@@ -93,8 +98,19 @@
 <script>
 (function(){
   "use strict";
-  window.STATIC_MODE = true;
-  var state={ticker:"SCOM",statement:"income",period:"annual"};
+  // ---- security selector: dropdown of securities WITH financials ----
+  // reads the panel's ?ex= (the terminal appends it) and lists only the
+  // securities that actually have statement files (financials_index.json)
+  var SECS = [];
+  var state = (function(){
+    var s = {ticker:"",statement:"income",period:"annual",ex:"NSE"};
+    try{
+      var q = new URLSearchParams(window.location.search);
+      var e = q.get("ex"); if(e) s.ex = e.toUpperCase();
+      var t = q.get("ticker"); if(t) s.ticker = t.toUpperCase();
+    }catch(err){}
+    return s;
+  })();
 
   // ---- VERIFIED REAL FILINGS (links only, no fabricated numbers) ----------
   // Each URL was confirmed against the issuer's own domain. This panel shows
@@ -146,28 +162,22 @@
   function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
 
-  function filingsFor(t){return FILINGS[t]||null;}
-
-
-  function renderFromSnap(snap){
-    // find the company: match ticker exactly, or slug tail
-    var tl=state.ticker.toUpperCase(), key=null, rec=null, tll=tl.toLowerCase();
-    for(var k in snap){ var c=snap[k];
-      var core=(c.slug||"").split("-").pop().toLowerCase();
-      if(c.ticker===tl || core===tll || tll.indexOf(core)===0 || core.indexOf(tll)===0 ||
-         (c.name && c.name.toUpperCase().indexOf(tl)>=0)){ key=k; rec=c; break; }
+  function filingsFor(t){
+    if(FILINGS[t]) return FILINGS[t];
+    // NGX/NSE: official filing links from financials_index
+    if(window.__FIN_IDX){
+      var e = window.__FIN_IDX[t] || window.__FIN_IDX[String(t).split(".")[0]];
+      if(e && e.filings && e.filings.length){
+        return {
+          name: e.name || t, exchange: e.exchange, currency: e.currency,
+          reports: e.filings.map(function(f){
+            return {label: (f.title || "Financial Statement") + (f.date ? " (" + f.date + ")" : ""), url: f.url || "#"};
+          })
+        };
+      }
     }
-    if(!rec){ renderScaffold({filings:[]}); setSrc("no statement in snapshot for "+state.ticker); return; }
-    // build a fake /api/financials response from the snapshot data
-    var rows=[];
-    var map={revenue:["revenue","Revenue"],gross_profit:["grossProfit","Gross Profit"],
-             operating_profit:["operatingProfit","Operating Profit (EBIT)"],
-             profit_after_tax:["netProfit","Net Profit"]};
-    for(var f in map){ if(rec.data[f]!=null) rows.push({key:map[f][0],label:map[f][1],values:[rec.data[f]]}); }
-    renderScaffold({name:rec.name,currency:rec.currency,values:rows.length?rows:null});
-    setSrc("FILED (static snapshot)");
+    return null;
   }
-  function setSrc(s){ var el=document.getElementById("src"); if(el) el.textContent=s; }
 
   function renderScaffold(rec){
     // Always renders the statement scaffold with dashes (no fabricated numbers)
@@ -178,13 +188,20 @@
     document.getElementById("curBadge").textContent=cur||DASH;
     document.getElementById("coName").textContent=(rec&&rec.name)||"";
     document.getElementById("tkr").textContent=state.ticker;
-    var filing=document.getElementById("filing");
-    if(rec&&rec.ir){filing.href=rec.ir;filing.setAttribute("aria-disabled","false");}
-    else{filing.href="#";filing.setAttribute("aria-disabled","true");}
+
 
     var sch=SCHEMA[state.statement];
     var per=(rec&&rec.periods&&rec.periods.length)?rec.periods:["Latest"];
     var vals=(rec&&rec.values)||{};
+    // normalize: files store rows as [{label,values:[...]}] - map by label to schema keys
+    if(!Object.keys(vals).length && rec && rec.rows && rec.rows.length){
+      var labelToKey = {};
+      sch.forEach(function(p){ labelToKey[p[1].toLowerCase()] = p[0]; });
+      (rec.rows||[]).forEach(function(rw){
+        var k = labelToKey[String(rw.label||"").toLowerCase()];
+        if(k) vals[k] = rw.values || [];
+      });
+    }
     var h='<table><thead><tr><th>'+STMT_TITLE()+'</th>';
     for(var i=0;i<per.length;i++)h+='<th>'+esc(per[i])+'</th>';
     h+='</tr></thead><tbody>';
@@ -205,17 +222,10 @@
     var reps=(rec&&rec.reports)||[];
     if(reps.length){
       h+='<div style="padding:10px 14px;border-top:1px solid var(--line2)">'+
-         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>';
-      for(var k=0;k<reps.length;k++){
-        h+='<a href="'+esc(reps[k].url)+'" target="_blank" rel="noopener" '+
-           'style="display:inline-block;margin:0 8px 8px 0;color:var(--acc);font-size:11px;'+
-           'border:1px solid rgba(51,226,154,.35);padding:4px 10px;border-radius:2px;text-decoration:none">'+
-           esc(reps[k].label)+' &#8599;</a>';
-      }
-      h+='</div>';
+         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>'+
+         '<div style="color:var(--tx3);font-size:10px;line-height:1.5">Open the company investor-relations page for official filings.</div></div>';
     } else {
-      h+='<div class="empty">No verified filing links on file for '+esc(state.ticker)+
-         '.'+(rec&&rec.ir?' Open the <a href="'+esc(rec.ir)+'" target="_blank" rel="noopener">investor-relations page</a>.':'')+'</div>';
+      h+='<div class="empty">No verified filing links on file for '+esc(state.ticker)+'.</div>';
     }
     body.innerHTML=h;
   }
@@ -235,20 +245,23 @@
   }
 
   function load(){
-    // try the real endpoint; offline, show verified filing links + dash scaffold
-    // (NEVER fabricated statement numbers)
-    var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
-            "&statement="+state.statement+"&period="+state.period;
-    if(window.STATIC_MODE){
-      // static snapshot: look up the ticker in the bundled dataset
-      var snap=window.__FIN_SNAP;
-      if(!snap){
-        return fetch("../../static_data/financials_all.json").then(function(r){return r.json();})
-          .then(function(d){window.__FIN_SNAP=d;renderFromSnap(d);})
-          .catch(function(){renderScaffold({filings:[]});});
-      } else { renderFromSnap(snap); return; }
-    }
-    fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
+    // no ticker selected yet - wait for loadSecurities to pick the first
+    if(!state.ticker) return;
+    // try the static Yahoo-financials file first (works on GitHub Pages),
+    // then the real endpoint; offline, show verified filing links + dash
+    // scaffold (NEVER fabricated statement numbers)
+    var stFile = "../../static_data/financials/" + encodeURIComponent(state.ticker.replace(/\//g, "_")) +
+                 "__" + state.statement + ".json";
+    fetch(stFile).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
+      if(d && d.available !== false){
+        render(d); setStatus("Yahoo Finance", "filed");
+        return;
+      }
+      throw 0;
+    }).catch(function(){
+      var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
+              "&statement="+state.statement+"&period="+state.period;
+      fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
       var fil=filingsFor(state.ticker)||{};
       if(!d||d.available===false){
         render({periods:[],name:d&&d.name||fil.name,currency:d&&d.currency||fil.currency,
@@ -264,6 +277,7 @@
       var fil=filingsFor(state.ticker);
       render(fil?{name:fil.name,currency:fil.currency,ir:fil.ir,reports:fil.reports,periods:[]}:{periods:[]});
       setStatus(fil?"LINKS":"NONE",null);
+    });
     });
   }
 
@@ -283,6 +297,61 @@
     if(ticker)state.ticker=String(ticker).toUpperCase();
     load();
   };
+
+  // ---- security selector: dropdown of securities WITH financials ----
+  function loadSecurities(){
+    // only securities that HAVE financial statements (financials_index.json),
+    // filtered to the panel's exchange (?ex=JSE etc.)
+    fetch("../../static_data/financials_index.json").then(function(r){
+      if(!r.ok) throw 0; return r.json();
+    }).then(function(idx){
+      window.__FIN_IDX = idx;
+      var all = [];
+      Object.keys(idx || {}).forEach(function(k){
+        var v = idx[k] || {};
+        var ex = (v.exchange || "").toUpperCase();
+        if(state.ex && ex !== state.ex) return;  // respect the panel's exchange
+        var tkr = String(k).toUpperCase();
+        var nm = v.name || "";
+        all.push({t: tkr, n: nm});
+      });
+      // dedupe + sort by ticker
+      var seen = {};
+      all.forEach(function(s){ if(!seen[s.t]) seen[s.t] = s; });
+      SECS = Object.keys(seen).sort().map(function(k){ return seen[k]; });
+      var dl = document.getElementById("secList");
+      if(dl){
+        dl.innerHTML = SECS.map(function(s){
+          return '<option value="' + s.t + '">' + s.t + " · " + s.n.replace(/"/g, "") + '</option>';
+        }).join("");
+      }
+      var exLbl = document.getElementById("exLabel");
+      if(exLbl) exLbl.textContent = state.ex + " · " + SECS.length + " securities";
+      // if the current ticker isn't in this exchange's list (or none set), pick the first
+      if((!state.ticker || !Object.prototype.hasOwnProperty.call(seen, state.ticker)) && SECS.length){
+        state.ticker = SECS[0].t;
+        load();
+      }
+    }).catch(function(){});
+  }
+  document.getElementById("secSel").addEventListener("change", function(e){
+    var v = String(e.target.value || "").trim().toUpperCase();
+    if(v){ state.ticker = v; load(); }
+  });
+  document.getElementById("secSel").addEventListener("keydown", function(e){
+    if(e.key === "Enter"){
+      var v = String(this.value || "").trim().toUpperCase();
+      if(v){ state.ticker = v; load(); }
+    }
+  });
+  // if the current ticker is in the list, show it in the box
+  function syncSecSel(){
+    var el = document.getElementById("secSel");
+    if(el && state.ticker) el.value = state.ticker;
+  }
+  var _origLoad = load;
+  load = function(){ syncSecSel(); _origLoad(); };
+  loadSecurities();
 
   load();
 })();
