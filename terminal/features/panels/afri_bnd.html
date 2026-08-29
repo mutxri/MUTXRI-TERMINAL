@@ -68,9 +68,8 @@
 
 <script>
 (function () {
-  window.STATIC_MODE = true;
   "use strict";
-  var BND_ENDPOINT = "../../static_data/bonds.json";
+  var BND_ENDPOINT = "/api/bonds";
 
   // Clearly-labeled sample; mirrors the /api/bonds shape. Delete once live.
   var SAMPLE_DATA = {
@@ -101,7 +100,7 @@
     $("bndNote").textContent = data.note || "";
     $("bndBody").innerHTML = (data.countries || []).map(function (c) {
       var src = c.source_url && c.source_url !== "#"
-        ? '<a href="' + esc(c.source_url) + '" target="_blank" rel="noopener">' + esc(c.source) + "</a>"
+        ? esc(c.source)
         : esc(c.source || "");
       var rows = (c.instruments || []).map(function (i) {
         var y = (i["yield"] == null) ? "—" : Number(i["yield"]).toFixed(2) + "%";
