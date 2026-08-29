@@ -26,6 +26,7 @@
   .hm-right{display:flex;align-items:center;gap:12px;margin-left:auto;}
   .hm-status{font-family:var(--mono);font-size:10px;color:var(--tx3);display:flex;align-items:center;gap:5px;}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--tx3);display:inline-block;}
+  .dot.eod{background:#e0a341;box-shadow:0 0 6px #e0a341}
   .dot.live{background:var(--up);box-shadow:0 0 6px rgba(51,226,154,.7);animation:pulse 1.6s infinite;}
   .dot.sample{background:#e0a340;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
@@ -155,13 +156,15 @@
   </div>
 </div>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="../../static_data/nse_heatmap_charts.js"></script>
+<script src="../../static_data/nse_ir_adapter.js"></script>
 <script>
 (function(){
   "use strict";
   var ENDPOINT="/api/heatmap";
   var EXCHANGES=["JSE","EGX","NGX","NSE"];
   var EOD_MARKETS={NGX:true,NSE:true};
-  var POLL_MS=15000;
+  var POLL_MS=15000, snapAsOf="";
   var CLAMP=4.0;
   var activeEx="JSE";
   // honor ?ex= deep-link from the terminal (landing exchange dropdown)
@@ -356,8 +359,8 @@
   }
 
   function setStatus(live){
-    $("dot").className="dot "+(live?"live":"sample");
-    $("statusTxt").textContent=live?"LIVE - polling "+(POLL_MS/1000)+"s":"SAMPLE";
+    $("dot").className="dot "+(live?"eod":"sample");
+    $("statusTxt").textContent=live?("EOD SNAPSHOT"+(snapAsOf?" · "+snapAsOf:"")):"SAMPLE";
   }
 
   // ---- sector drill-down: click a sector label or a cell to see the
@@ -430,9 +433,9 @@
         var rows;
         if(d.sectors){rows=[];d.sectors.forEach(function(s){(s.cells||[]).forEach(function(c){c.sector=s.sector;rows.push(c);});});}
         else rows=d.stocks||[];
-        draw(normalize(rows));setStatus(true);
-        $("src").textContent="source: /api/heatmap?exchange="+activeEx;
-        $("refreshTxt").textContent="updated "+new Date().toLocaleTimeString();
+        snapAsOf=(d.asOf||"").slice(0,10);draw(normalize(rows));setStatus(true);
+        $("src").textContent="source: static_data/heatmap_"+activeEx+".json · end-of-day snapshot";
+        $("refreshTxt").textContent=snapAsOf?("data as of "+snapAsOf):"";
       })
       .catch(function(){
         draw(normalize(SAMPLE[activeEx]||[]));setStatus(false);
@@ -440,7 +443,7 @@
         $("refreshTxt").textContent="sample rendered "+new Date().toLocaleTimeString();
       });
   }
-  function startPolling(){if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(load,POLL_MS);}
+  function startPolling(){/* static build: the snapshot changes only on deploy */}
   function tabs(){
     // exchange selector removed - the panel follows the terminal's ?ex=
     // (heatmap and screener always show the same exchange)
