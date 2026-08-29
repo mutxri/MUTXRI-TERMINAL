@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - CORP (Corporate Actions) panel.
+  Dividends, book closures and NSE index levels from live.mystocks.co.ke
+  (public EOD board data, labeled honestly). Vanilla JS, Godel palette.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - CORP</title>
+<style>
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--acc2:#1ecfb0;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--ui);font-size:13px}
+  .wrap{max-width:640px;margin:0 auto;padding:14px}
+  .head{display:flex;align-items:center;gap:10px;padding:8px 4px 12px;border-bottom:1px solid var(--line2)}
+  .code{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.1em;border:1px solid var(--line2);padding:2px 6px;border-radius:2px}
+  .title{font-family:var(--mono);font-size:12px;color:var(--tx2);letter-spacing:.06em}
+  .title b{color:var(--acc)}
+  .spacer{flex:1}
+  .src{font-family:var(--mono);font-size:9px;color:var(--tx3)}
+  .sec{margin-top:14px;font-family:var(--mono);font-size:10px;color:var(--acc);letter-spacing:.12em;text-transform:uppercase}
+  .act{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:10px 12px;margin-top:8px}
+  .act .row1{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .act .tkr{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--acc)}
+  .act .kind{font-family:var(--mono);font-size:9px;letter-spacing:.06em;padding:1px 6px;border-radius:2px;border:1px solid var(--line2);color:var(--tx2)}
+  .act .kind.pay{color:var(--up);border-color:var(--up)}
+  .act .kind.closure{color:#e0a340;border-color:#e0a340}
+  .act .amt{font-family:var(--mono);font-size:11px;color:var(--tx);margin-left:auto}
+  .act .txt{font-size:11.5px;color:var(--tx2);margin-top:6px;line-height:1.5}
+  .act .dt{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:4px}
+  .idx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+  .idx{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:10px 12px}
+  .idx .n{font-family:var(--mono);font-size:10px;color:var(--tx3)}
+  .idx .v{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--tx);margin-top:3px}
+  .idx .c{font-family:var(--mono);font-size:11px;margin-top:2px}
+  .c.up{color:var(--up)} .c.down{color:var(--down)}
+  .empty{padding:30px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <span class="code">CORP</span>
+    <span class="title">CORPORATE ACTIONS <b>· NSE</b></span>
+    <span class="spacer"></span>
+    <span class="src" id="src">loading…</span>
+  </div>
+  <div class="sec">Indices</div>
+  <div class="idx-grid" id="idxGrid"><div class="empty">loading…</div></div>
+  <div class="sec">Dividends &amp; Book Closures</div>
+  <div id="acts"><div class="empty">loading…</div></div>
+</div>
+<script>
+(function(){
+  "use strict";
+  var KIND_CLASS = { "DIVIDEND PAYMENT": "pay", "BOOK CLOSURE": "closure" };
+  function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function loadIdx(){
+    fetch("../../static_data/nse_indices.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(list){
+        var el = document.getElementById("idxGrid");
+        if(!list || !list.length){ el.innerHTML = '<div class="empty">no index data</div>'; return; }
+        el.innerHTML = list.map(function(i){
+          var up = String(i.changePct||"").indexOf("-") !== 0;
+          return '<div class="idx">' +
+            '<div class="n">' + esc(i.name) + '</div>' +
+            '<div class="v">' + esc(i.price != null ? Number(i.price).toLocaleString(undefined,{maximumFractionDigits:2}) : "—") + '</div>' +
+            '<div class="c ' + (up ? "up" : "down") + '">' + esc(i.changePct || "—") + '</div></div>';
+        }).join("");
+      })
+      .catch(function(){ document.getElementById("idxGrid").innerHTML = '<div class="empty">no index data</div>'; });
+  }
+  function loadActs(){
+    fetch("../../static_data/nse_corporate_actions.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(list){
+        var el = document.getElementById("acts");
+        if(!list || !list.length){ el.innerHTML = '<div class="empty">no corporate actions</div>'; return; }
+        document.getElementById("src").textContent = "source: live.mystocks.co.ke · EOD";
+        el.innerHTML = list.map(function(a){
+          var kc = KIND_CLASS[a.kind] || "";
+          return '<div class="act">' +
+            '<div class="row1">' +
+            '<span class="tkr">' + esc(a.ticker) + '</span>' +
+            '<span class="kind ' + kc + '">' + esc(a.kind) + '</span>' +
+            (a.amount ? '<span class="amt">KES ' + esc(a.amount) + '</span>' : '') +
+            '</div>' +
+            '<div class="txt">' + esc(a.name) + ': ' + esc(a.text) + '</div>' +
+            '<div class="dt">' + esc(a.date) + '</div>' +
+            '</div>';
+        }).join("");
+      })
+      .catch(function(){ document.getElementById("acts").innerHTML = '<div class="empty">no corporate actions</div>'; });
+  }
+  loadIdx();
+  loadActs();
+})();
+</script>
+</body>
+</html>

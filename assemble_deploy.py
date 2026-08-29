@@ -56,7 +56,7 @@ shutil.copy(os.path.join(BASE, "static_data", "afri_screener_static.html"),
             os.path.join(TERM, "features", "panels", "afri_screener.html"))
 # copy the rest of the panels (static snapshot versions where they exist,
 # otherwise originals - they degrade gracefully to SAMPLE data)
-STATIC_PANELS = ["afri_bnd.html", "afri_reg.html", "afri_fx.html", "afri_glco.html", "afri_ratings.html", "afri_tas.html", "afri_financials.html"]
+STATIC_PANELS = ["afri_bnd.html", "afri_reg.html", "afri_fx.html", "afri_glco.html", "afri_ratings.html", "afri_tas.html", "afri_financials.html", "afri_corp.html"]
 # (all panels now have static snapshot versions; nothing extra to copy)
 # static snapshot panels read static_data/*.json
 for p in STATIC_PANELS:
