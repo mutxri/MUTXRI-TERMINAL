@@ -572,7 +572,8 @@ function renderMarketStatic(rec, info){
   html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend · CEO/employees where absent have no verified free source</div>`;
   $('rightInfo').innerHTML = html;
   // ===== per-security candlestick chart (static history file) =====
-  const hSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
+  let hSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
+  if(currentEx === 'NSE' || currentEx === 'NGX'){ hSym = currentEx + '_' + hSym.split('.')[0]; }
   if(hSym){
     fetch('static_data/history/' + encodeURIComponent(hSym) + '.json')
       .then(r => { if(!r.ok) throw 0; return r.json(); })
@@ -682,7 +683,8 @@ function renderSecurityChart(hd, rec){
   // lazy-load since-IPO (max) file for 10Y/ALL
   function loadMax(){
     if(maxBars) return;
-    const maxSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
+    let maxSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
+    if(currentEx === 'NSE' || currentEx === 'NGX'){ maxSym = currentEx + '_' + maxSym.split('.')[0]; }
     fetch('static_data/history/' + encodeURIComponent(maxSym) + '.max.json')
       .then(r => { if(!r.ok) throw 0; return r.json(); })
       .then(d => { if(d && d.bars && d.bars.length >= 2){ maxBars = d.bars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c, value:b.c})); draw(); } })
