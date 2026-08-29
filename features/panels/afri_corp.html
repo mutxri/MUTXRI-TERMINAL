@@ -54,7 +54,7 @@
 <div class="wrap">
   <div class="head">
     <span class="code">CORP</span>
-    <span class="title">CORPORATE ACTIONS <b>· NSE</b></span>
+    <span class="title">CORPORATE ACTIONS <b id="exTitle">· NSE</b></span>
     <span class="spacer"></span>
     <span class="src" id="src">NSE</span>
   </div>
@@ -116,19 +116,31 @@
         document.getElementById("moveGrid").innerHTML = '<div class="empty">—</div>';
       });
   }
+  var CUR = "NSE";
+  try{ var _q = new URLSearchParams(window.location.search); if(_q.get("ex")) CUR = _q.get("ex").toUpperCase(); }catch(e){}
+  var EX_FILE = { "NSE": "nse_corporate_actions.json", "NGX": "ngx_corporate_actions.json" };
+  var EX_NAME = { "NSE": "NSE", "NGX": "NGX", "JSE": "JSE", "EGX": "EGX" };
   function loadActs(){
-    fetch("../../static_data/nse_corporate_actions.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    document.getElementById("exTitle").textContent = "\u00b7 " + (EX_NAME[CUR] || CUR);
+    var file = EX_FILE[CUR];
+    var el = document.getElementById("acts");
+    if(!file){
+      // honest: no free feed for this exchange
+      el.innerHTML = '<div class="empty">no free corporate-actions feed for ' + esc(CUR) + '</div>';
+      document.getElementById("src").textContent = EX_NAME[CUR] || CUR;
+      return;
+    }
+    fetch("../../static_data/" + file).then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(list){
-        var el = document.getElementById("acts");
         if(!list || !list.length){ el.innerHTML = '<div class="empty">no corporate actions</div>'; return; }
-        document.getElementById("src").textContent = "NSE";
+        document.getElementById("src").textContent = EX_NAME[CUR] || CUR;
         el.innerHTML = list.map(function(a){
           var kc = KIND_CLASS[a.kind] || "";
           return '<div class="act">' +
             '<div class="row1">' +
             '<span class="tkr">' + esc(a.ticker) + '</span>' +
             '<span class="kind ' + kc + '">' + esc(a.kind) + '</span>' +
-            (a.amount ? '<span class="amt">KES ' + esc(a.amount) + '</span>' : '') +
+            (a.amount ? '<span class="amt">' + esc(a.amount) + '</span>' : '') +
             '</div>' +
             '<div class="txt">' + esc(a.name) + ': ' + esc(a.text) + '</div>' +
             '<div class="dt">' + esc(a.date) + '</div>' +
