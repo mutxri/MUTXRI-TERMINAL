@@ -193,6 +193,15 @@
     var sch=SCHEMA[state.statement];
     var per=(rec&&rec.periods&&rec.periods.length)?rec.periods:["Latest"];
     var vals=(rec&&rec.values)||{};
+    // normalize: files store rows as [{label,values:[...]}] - map by label to schema keys
+    if(!Object.keys(vals).length && rec && rec.rows && rec.rows.length){
+      var labelToKey = {};
+      sch.forEach(function(p){ labelToKey[p[1].toLowerCase()] = p[0]; });
+      (rec.rows||[]).forEach(function(rw){
+        var k = labelToKey[String(rw.label||"").toLowerCase()];
+        if(k) vals[k] = rw.values || [];
+      });
+    }
     var h='<table><thead><tr><th>'+STMT_TITLE()+'</th>';
     for(var i=0;i<per.length;i++)h+='<th>'+esc(per[i])+'</th>';
     h+='</tr></thead><tbody>';
