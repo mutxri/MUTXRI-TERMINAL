@@ -454,7 +454,7 @@
 
     // ===== Security chart (candles/line, 1D/1M/1Y/ALL) - reliable in-house
   // renderer using static_data/history (no third-party iframe) =====
-  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpName="", cpTkr="", cpCellPrice=null, cpCellChg=null, cpCellCur="";
+  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpName="", cpTkr="", cpCellPrice=null, cpCellChg=null, cpCellCur="", cpBothDone=false;
   function openChart(c){
     if(!c) return;
     cpName = c.name || c.ticker || "";
@@ -473,11 +473,11 @@
       var shortSym = sym.split(".")[0];
       histBase = activeEx + "_" + shortSym;
     }
-    cpBarsDaily = []; cpBarsMax = [];
+    cpBarsDaily = []; cpBarsMax = []; cpBothDone = false;
     fetch("../../static_data/history/" + encodeURIComponent(histBase) + ".json")
       .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-      .then(function(d){ cpBarsDaily = d.bars || []; cpRender(); })
-      .catch(function(){ cpBarsDaily = []; cpRender(); });
+      .then(function(d){ cpBarsDaily = d.bars || []; cpBothDone = true; cpRender(); })
+      .catch(function(){ cpBarsDaily = []; cpBothDone = true; cpRender(); });
     fetch("../../static_data/history/" + encodeURIComponent(histBase) + ".max.json")
       .then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(d){ cpBarsMax = d.bars || []; cpRender(); })
@@ -505,6 +505,7 @@
     var bars = cpBarsForRange();
     var box = $("cpChart");
     if(!box) return;
+    if(!bars.length && !cpBothDone){ $("cpStat").textContent = "loading…"; return; }
     if(!bars.length){
       $("cpStat").textContent = "no historical data";
       // TradingView widget fallback (serves NGX/NSE where Yahoo has nothing)
@@ -527,6 +528,7 @@
       return;
     }
     if(cpChart){ try{cpChart.remove();}catch(e){} cpChart = null; }
+    box.innerHTML = ''; // clear any EOD/loading placeholder before drawing
     var mapped = bars.map(function(b){ return {time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, value: b.c}; });
     var MINT = "#33e29a", RED = "#f87171";
     var w = Math.max(box.clientWidth || 800, 200);
