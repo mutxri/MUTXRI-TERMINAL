@@ -63,7 +63,6 @@
     <span class="name" id="coName"></span>
     <span id="exLabel" style="font-family:var(--mono);font-size:10px;color:var(--acc);letter-spacing:.05em"></span>
     <span class="spacer"></span>
-    <a class="filing" id="filing" href="#" target="_blank" rel="noopener">open filing &#8599;</a>
   </div>
 
   <div class="controls">
@@ -189,9 +188,7 @@
     document.getElementById("curBadge").textContent=cur||DASH;
     document.getElementById("coName").textContent=(rec&&rec.name)||"";
     document.getElementById("tkr").textContent=state.ticker;
-    var filing=document.getElementById("filing");
-    if(rec&&rec.ir){filing.href=rec.ir;filing.setAttribute("aria-disabled","false");}
-    else{filing.href="#";filing.setAttribute("aria-disabled","true");}
+
 
     var sch=SCHEMA[state.statement];
     var per=(rec&&rec.periods&&rec.periods.length)?rec.periods:["Latest"];
@@ -216,17 +213,10 @@
     var reps=(rec&&rec.reports)||[];
     if(reps.length){
       h+='<div style="padding:10px 14px;border-top:1px solid var(--line2)">'+
-         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>';
-      for(var k=0;k<reps.length;k++){
-        h+='<a href="'+esc(reps[k].url)+'" target="_blank" rel="noopener" '+
-           'style="display:inline-block;margin:0 8px 8px 0;color:var(--acc);font-size:11px;'+
-           'border:1px solid rgba(51,226,154,.35);padding:4px 10px;border-radius:2px;text-decoration:none">'+
-           esc(reps[k].label)+' &#8599;</a>';
-      }
-      h+='</div>';
+         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>'+
+         '<div style="color:var(--tx3);font-size:10px;line-height:1.5">Open the company investor-relations page for official filings.</div></div>';
     } else {
-      h+='<div class="empty">No verified filing links on file for '+esc(state.ticker)+
-         '.'+(rec&&rec.ir?' Open the <a href="'+esc(rec.ir)+'" target="_blank" rel="noopener">investor-relations page</a>.':'')+'</div>';
+      h+='<div class="empty">No verified filing links on file for '+esc(state.ticker)+'.</div>';
     }
     body.innerHTML=h;
   }
