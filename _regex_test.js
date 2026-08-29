@@ -1,0 +1,1 @@
+var re = /\\//g; console.log('regex OK');
