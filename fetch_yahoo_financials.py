@@ -19,7 +19,12 @@ def yahoo_sym(ex, sym, ticker):
     if ex == "JSE":
         return sym if sym.endswith(".JO") else (sym + ".JO")
     if ex == "EGX":
-        return sym if sym.endswith(".CA") else (sym + ".CA")
+        # CRITICAL: EGX sym is the EGS code (EGS60121C018.CA) which Yahoo does
+        # NOT recognize - use the ticker (COMI) + .CA instead
+        tkr = (ticker or "").strip().upper()
+        if tkr:
+            return tkr + ".CA"
+        return None
     if ex == "NGX":
         return None  # Yahoo has no NGX coverage (verified)
     if ex == "NSE":
