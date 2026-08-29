@@ -48,7 +48,8 @@
       if (!ticker) return Promise.resolve([]);
 
       // 1) try the terminal's static history first (fast, works on Pages)
-      return fetch("static_data/history/NSE_" + ticker + ".json")
+      //    panels/ -> ../../static_data/history/NSE_<TKR>.json
+      return fetch("../../static_data/history/NSE_" + ticker + ".json")
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (d) {
           if (d && d.bars && d.bars.length >= 2) {
