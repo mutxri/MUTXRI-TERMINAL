@@ -58,8 +58,23 @@ def build(ex):
     out = os.path.join(BASE, "static_data", f"ex_{ex}_summary.json")
     json.dump(summary, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
-    # indices: NSE has real values; others show names only (honest: no free index feed)
+    # indices: NSE has real values from nse_indices.json; others show names only
     idx = EX_INDICES.get(ex, [])
+    if ex == "NSE":
+        # merge real NSE index values (NASI/N20I/N25I) so they never regress to empty
+        try:
+            real = json.load(open(os.path.join(BASE, "static_data", "nse_indices.json"), encoding="utf-8"))
+            rmap = {r.get("ticker", "").lower(): r for r in real}
+            for it in idx:
+                for rt, rv in rmap.items():
+                    if ("nasi" in rt and "all-share" in it["name"].lower()) or \
+                       ("n20i" in rt and "20-share" in it["name"].lower()) or \
+                       ("n25i" in rt and "25-share" in it["name"].lower()):
+                        it["price"] = rv.get("price")
+                        it["changePct"] = rv.get("changePct")
+                        it["change"] = rv.get("change")
+        except Exception:
+            pass
     json.dump(idx, open(os.path.join(BASE, "static_data", f"ex_{ex}_indices.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"{ex}: {len(gainers)} gainers, {len(losers)} losers, {len(movers)} movers, {len(idx)} indices")
 
