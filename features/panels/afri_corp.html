@@ -36,6 +36,11 @@
   .act .txt{font-size:11.5px;color:var(--tx2);margin-top:6px;line-height:1.5}
   .act .dt{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:4px}
   .idx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px}
+  .stat{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:9px 12px}
+  .stat .n{font-family:var(--mono);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em}
+  .stat .v{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--tx);margin-top:3px}
+  .stat .c{font-family:var(--mono);font-size:10px;margin-top:2px}
   .mini-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:8px}
   .mini{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:9px 12px}
   .mini .n{font-family:var(--mono);font-size:10px;color:var(--acc);font-weight:700}
@@ -60,6 +65,8 @@
   </div>
   <div class="sec">Indices</div>
   <div class="idx-grid" id="idxGrid"><div class="empty">loading…</div></div>
+  <div class="sec" id="statsSec" style="display:none">Market Stats</div>
+  <div class="stats-grid" id="statsGrid"></div>
   <div class="sec">Top Gainers</div>
   <div class="mini-grid" id="gainGrid"><div class="empty">loading…</div></div>
   <div class="sec">Top Losers</div>
@@ -120,6 +127,24 @@
   try{ var _q = new URLSearchParams(window.location.search); if(_q.get("ex")) CUR = _q.get("ex").toUpperCase(); }catch(e){}
   var EX_FILE = { "NSE": "nse_corporate_actions.json", "NGX": "ngx_corporate_actions.json" };
   var EX_NAME = { "NSE": "NSE", "NGX": "NGX", "JSE": "JSE", "EGX": "EGX" };
+  function loadStats(){
+    if(CUR !== "NSE"){ document.getElementById("statsSec").style.display = "none"; return; }
+    fetch("../../static_data/nse_market_stats.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(list){
+        if(!list || !list.length) return;
+        document.getElementById("statsSec").style.display = "";
+        document.getElementById("statsGrid").innerHTML = list.map(function(s){
+          var up = String(s.change || "").indexOf("-") !== 0;
+          var chgTxt = s.change && s.change !== "0.00" && s.change !== "0" ? s.change : "";
+          return '<div class="stat">' +
+            '<div class="n">' + esc(s.label) + '</div>' +
+            '<div class="v">' + esc(s.value) + '</div>' +
+            (chgTxt ? '<div class="c ' + (up ? "up" : "down") + '">' + esc(chgTxt) + '</div>' : '') +
+            '</div>';
+        }).join("");
+      })
+      .catch(function(){});
+  }
   function loadActs(){
     document.getElementById("exTitle").textContent = "\u00b7 " + (EX_NAME[CUR] || CUR);
     var file = EX_FILE[CUR];
@@ -151,6 +176,7 @@
   }
   loadIdx();
   loadSummary();
+  loadStats();
   loadActs();
 })();
 </script>
