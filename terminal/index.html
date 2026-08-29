@@ -321,9 +321,34 @@ $('stageFrame').src = panelUrl(PANELS[0]);
 // ===== Load listing =====
 async function loadListing(ex){
   try{
-    const r = await fetch('static_data/listing_' + ex + '.json');
+    const url = window.API_BASE ? ('/api/listing?exchange=' + ex) : ('static_data/listing_' + ex + '.json');
+    const r = await fetch(url);
     const d = await r.json();
     listing[ex] = d.stocks || [];
+    // static mode: overlay the freshest market snapshot prices onto the listing
+    // so the watchlist shows the SAME prices as the info sheet (no stale listing)
+    if(!window.API_BASE){
+      try{
+        const mr = await fetch('static_data/market_' + ex + '.json');
+        const md = await mr.json();
+        const byTkr = {};
+        (md.stocks || []).forEach(s => { byTkr[s.ticker || s.sym] = s; });
+        listing[ex] = listing[ex].map(s => {
+          const tkr = s.ticker || s.code || (s.sym || '').split('.')[0];
+          const m = byTkr[tkr] || byTkr[s.sym] || {};
+          if(m.price != null){
+            return Object.assign({}, s, {
+              price: m.price, chgPct: m.chgPct, volume: m.volume,
+              currency: m.currency || s.currency,
+              sym: s.sym || m.sym || tkr,
+              high: m.high, low: m.low, open: m.open, prevClose: m.prevClose,
+              turnover: m.turnover, marketCap: m.marketCap
+            });
+          }
+          return s;
+        });
+      }catch(e2){ console.error('market overlay fail', e2); }
+    }
     $('wlEx').textContent = ex + ' · ' + listing[ex].length;
     renderWatchlist($('q').value);
     buildTape(ex);            // tape now shows the new exchange immediately
