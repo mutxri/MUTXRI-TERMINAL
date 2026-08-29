@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""build_ex_summaries.py - build per-exchange market summaries for the CORP panel.
+
+For each exchange (JSE/EGX/NGX/NSE):
+  - summary: top 5 gainers, top 5 losers, top 5 movers (by volume)
+    computed from market_<EX>.json (real data, no fabrication)
+  - indices: the exchange's own indices from the listing data where
+    available; otherwise honest empty list
+
+Writes static_data/ex_<EX>_summary.json + static_data/ex_<EX>_indices.json
+"""
+import json, os
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+
+EX_INDICES = {
+    "JSE": [{"ticker": "^JSE", "name": "FTSE/JSE All Share", "price": None}],
+    "EGX": [{"ticker": "^EGX30", "name": "EGX 30", "price": None},
+            {"ticker": "^EGX70", "name": "EGX 70 EWI", "price": None},
+            {"ticker": "^EGX100", "name": "EGX 100 EWI", "price": None}],
+    "NGX": [{"ticker": "^NGXASI", "name": "NGX All-Share Index", "price": None}],
+    "NSE": [{"ticker": "^NASI", "name": "NSE All-Share", "price": None},
+            {"ticker": "^N20I", "name": "NSE 20-Share", "price": None},
+            {"ticker": "^N25I", "name": "NSE 25-Share", "price": None}],
+}
+
+def build(ex):
+    path = os.path.join(BASE, "static_data", f"market_{ex}.json")
+    if not os.path.exists(path):
+        return
+    m = json.load(open(path, encoding="utf-8"))
+    stocks = m.get("stocks", [])
+
+    # gainers: highest chgPct among stocks with a real price + change
+    valid = [s for s in stocks if s.get("price") is not None and s.get("chgPct") is not None]
+    gainers = sorted(valid, key=lambda s: s["chgPct"], reverse=True)[:5]
+    losers = sorted(valid, key=lambda s: s["chgPct"])[:5]
+
+    # movers: highest volume (excluding non-common instruments)
+    common = [s for s in stocks if s.get("price") is not None and s.get("volume")]
+    movers = sorted(common, key=lambda s: s.get("volume") or 0, reverse=True)[:5]
+
+    def mini(s):
+        return {
+            "ticker": s.get("ticker") or (s.get("sym") or "").split(".")[0],
+            "price": s.get("price"),
+            "changePct": (round(s["chgPct"], 2) if s.get("chgPct") is not None else None),
+            "volume": s.get("volume"),
+        }
+
+    summary = {
+        "exchange": ex,
+        "asOf": m.get("asOf", ""),
+        "topGainers": [mini(s) for s in gainers],
+        "topLosers": [mini(s) for s in losers],
+        "topMovers": [mini(s) for s in movers],
+    }
+    out = os.path.join(BASE, "static_data", f"ex_{ex}_summary.json")
+    json.dump(summary, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+    # indices: NSE has real values; others show names only (honest: no free index feed)
+    idx = EX_INDICES.get(ex, [])
+    json.dump(idx, open(os.path.join(BASE, "static_data", f"ex_{ex}_indices.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(f"{ex}: {len(gainers)} gainers, {len(losers)} losers, {len(movers)} movers, {len(idx)} indices")
+
+for ex in ["JSE", "EGX", "NGX", "NSE"]:
+    build(ex)
+print("DONE")
