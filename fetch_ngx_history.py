@@ -43,7 +43,12 @@ def download_zip(leaf):
     return zipfile.ZipFile(io.BytesIO(data))
 
 def parse_prices(zf, prefix):
-    """parse all PRICES pdfs in the zip, return {symbol: {o,h,l,c,v}}"""
+    """parse all PRICES pdfs in the zip, return {symbol: {o,h,l,c,v}}
+    Handles three row formats:
+      PRICES1: S/N SYM PCLOSE OOPEN OPEN HIGH LOW %SPREAD OCLOSE CLOSE CHANGE %CHANGE TRADES VOLUME VALUE
+      PRICES_LIST2 premium: S/N NAME MKTCP PRICE %CHG TRADES VOLUME (no OHLC -> flat candle)
+      PRICES_LIST2 oddlot:  S/N NAME MKTCP PRICE %CHG TRADES VOLUME
+    """
     rows = {}
     for name in zf.namelist():
         if not name.lower().endswith(".pdf") or "PRICES" not in name.upper():
@@ -54,22 +59,55 @@ def parse_prices(zf, prefix):
                 for page in doc.pages:
                     text = page.extract_text() or ""
                     for line in text.split("\n"):
-                        # skip headers
-                        if re.match(r"^\d+ [A-Z]{2,}", line) and len(line) > 30:
-                            parts = line.split()
-                            if len(parts) >= 11:
-                                try:
-                                    sym = parts[1]
-                                    pclose = float(parts[2].replace(",", ""))
-                                    o = float(parts[4].replace(",", "")) if parts[4] != "-" else pclose
-                                    high = float(parts[5].replace(",", "")) if parts[5] != "-" else pclose
-                                    low = float(parts[6].replace(",", "")) if parts[6] != "-" else pclose
-                                    close = float(parts[9].replace(",", "")) if parts[9] != "-" else pclose
-                                    vol = parts[-2].replace(",", "")
+                        if not re.match(r"^\d+ ", line):
+                            continue
+                        parts = line.split()
+                        try:
+                            # PRICES1 full OHLC format: parts[1] = symbol (uppercase, 4-10 chars)
+                            if len(parts) >= 14 and re.match(r"^[A-Z][A-Z0-9&]{2,}$", parts[1]):
+                                sym = parts[1]
+                                pclose = float(parts[2].replace(",", ""))
+                                o = float(parts[4].replace(",", "")) if parts[4] != "-" else pclose
+                                high = float(parts[5].replace(",", "")) if parts[5] != "-" else pclose
+                                low = float(parts[6].replace(",", "")) if parts[6] != "-" else pclose
+                                close = float(parts[9].replace(",", "")) if parts[9] != "-" else pclose
+                                vol = parts[-2].replace(",", "")
+                                volume = int(vol) if vol.isdigit() else 0
+                                rows[sym] = {"o": o, "h": high, "l": low, "c": close, "v": volume}
+                            else:
+                                # premium/odd-lot: find PRICE and VOLUME near the end
+                                # format: S/N NAME... PRICE %CHG TRADES VOLUME
+                                # PRICE = first float that looks like a price; VOLUME = last int
+                                nums = []
+                                for p in parts[1:]:
+                                    clean = p.replace(",", "").replace("(", "").replace(")", "")
+                                    try:
+                                        nums.append(float(clean))
+                                    except ValueError:
+                                        nums.append(None)
+                                # find price: a value < 100000 that has a decimal or is small
+                                price = None
+                                for v in nums:
+                                    if v is not None and v < 100000 and (v == int(v) or v > 0.01):
+                                        price = v
+                                        break
+                                # find symbol: longest all-caps token
+                                sym = None
+                                for p in parts[1:]:
+                                    if re.match(r"^[A-Z][A-Z0-9&]{2,}$", p) and len(p) >= 3:
+                                        sym = p
+                                        break
+                                if sym is None:
+                                    # derive from the name: first 3 letters of last word
+                                    words = [p for p in parts[1:-3] if p.isalpha() and p == p.upper()]
+                                    if words:
+                                        sym = words[-1][:8]
+                                if sym and price:
+                                    vol = parts[-1].replace(",", "")
                                     volume = int(vol) if vol.isdigit() else 0
-                                    rows[sym] = {"o": o, "h": high, "l": low, "c": close, "v": volume}
-                                except (ValueError, IndexError):
-                                    continue
+                                    rows[sym] = {"o": price, "h": price, "l": price, "c": price, "v": volume}
+                        except (ValueError, IndexError):
+                            continue
         except Exception:
             continue
     return rows
