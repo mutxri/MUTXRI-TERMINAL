@@ -400,12 +400,16 @@
           '<span class="chg '+cls+'">'+esc(r.chgPct==null?"—":sign+r.chgPct.toFixed(2)+"%")+'</span>'+
           '</div>';
       }).join("");
-      // clicking a row opens that security in the terminal
+      // clicking a row opens that security's CHART in this panel (the
+      // standalone heatmap has no loadSecurity - openChart is the real path)
       Array.prototype.forEach.call($("spList").querySelectorAll(".sp-row"),function(row){
         row.onclick=function(){
           var sym=row.getAttribute("data-sym");
+          var cell=null;
+          for(var i=0;i<rows.length;i++){ if((rows[i].ticker||"")===sym){ cell=rows[i]; break; } }
+          if(!cell){ for(var i=0;i<rows.length;i++){ if((rows[i].sym||"")===sym){ cell=rows[i]; break; } } }
           panel.classList.remove("open");
-          if(window.loadSecurity)window.loadSecurity(sym);
+          openChart(cell || {ticker:sym, sym:sym, name:sym});
         };
       });
     }
