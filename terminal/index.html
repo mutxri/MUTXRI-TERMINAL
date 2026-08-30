@@ -594,10 +594,8 @@ function renderMarketStatic(rec, info){
       html += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(String(h))}</span><span style="color:var(--acc);font-family:var(--mono)">${esc(String(s))}</span></div>`;
     });
   }
-  html += `<div id="rightFin"></div>`;
   html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend · CEO/employees where absent have no verified free source</div>`;
   $('rightInfo').innerHTML = html;
-  renderStatements(rec);
   // ===== per-security candlestick chart (static history file) =====
   let hSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
   if(currentEx === 'NSE' || currentEx === 'NGX'){ hSym = currentEx + '_' + hSym.split('.')[0]; }
@@ -605,7 +603,7 @@ function renderMarketStatic(rec, info){
     fetch('static_data/history/' + encodeURIComponent(hSym) + '.json')
       .then(r => { if(!r.ok) throw 0; return r.json(); })
       .then(hd => {
-        if(hd && hd.bars && hd.bars.length >= 2){
+        if(hd && hd.bars && hd.bars.length >= 1){
           renderSecurityChart(hd, rec);
         } else {
           // no local history - fall back to the TradingView widget
@@ -630,75 +628,6 @@ function renderMarketStatic(rec, info){
   }
 }
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
-
-// ===== financial statements in the security panel =====
-// The FINANCIALS tab has its own security selector, so reading a company's
-// numbers meant leaving the security you had just clicked and finding it again.
-// The statements live in the same static files, so show them on the sheet.
-function finMoney(v, cur){
-  if(v === null || v === undefined || isNaN(v)) return '—';
-  const n = Number(v), a = Math.abs(n), sgn = n < 0 ? '-' : '';
-  let o;
-  if(a >= 1e12) o = (a/1e12).toFixed(1) + 'T';
-  else if(a >= 1e9) o = (a/1e9).toFixed(1) + 'B';
-  else if(a >= 1e6) o = (a/1e6).toFixed(1) + 'M';
-  else if(a >= 1e3) o = (a/1e3).toFixed(1) + 'K';
-  else o = a.toFixed(2);
-  return sgn + o + (cur ? ' ' + cur : '');
-}
-function renderStatements(rec){
-  const slot = document.getElementById('rightFin');
-  if(!slot || !rec) return;
-  // JSE/EGX statements are keyed by sym (ABG.JO), NGX/NSE by ticker (MTNN)
-  const keys = [];
-  [rec.sym, rec.ticker, sym0(rec)].forEach(k => {
-    if(k && keys.indexOf(k) < 0) keys.push(String(k).replace(/\//g, '_'));
-  });
-  const want = [['income','INCOME STATEMENT'],['balance','BALANCE SHEET'],['cashflow','CASH FLOW']];
-  const load = (stmt) => {
-    let i = 0;
-    const next = () => {
-      if(i >= keys.length) return Promise.resolve(null);
-      const k = keys[i++];
-      return fetch('static_data/financials/' + encodeURIComponent(k) + '__' + stmt + '.json')
-        .then(r => r.ok ? r.json() : null)
-        .then(d => (d && d.available !== false && (d.rows||[]).some(x => (x.values||[]).some(v => v != null))) ? d : next())
-        .catch(() => next());
-    };
-    return next();
-  };
-  Promise.all(want.map(w => load(w[0]))).then(res => {
-    const got = res.filter(Boolean);
-    if(!got.length){
-      slot.innerHTML = '<div style="padding:8px 16px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:9px;letter-spacing:.08em">FINANCIAL STATEMENTS · NONE ON FILE</div>';
-      return;
-    }
-    const src = got[0].source || '';
-    let h = '<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--tx3);font-size:10px;letter-spacing:.1em;font-weight:700">FINANCIAL STATEMENTS' +
-            (src ? ' · ' + esc(src) : '') + '</div>';
-    res.forEach((d, idx) => {
-      if(!d) return;
-      const per = (d.periods || []).slice(0, 4);
-      const cur = d.currency || '';
-      const rows = (d.rows || []).filter(r => (r.values||[]).slice(0,4).some(v => v != null));
-      if(!rows.length) return;
-      h += '<div style="padding:6px 16px 2px;color:var(--acc);font-family:var(--mono);font-size:9px;letter-spacing:.08em">' +
-           esc(want[idx][1]) + (per.length ? ' · ' + esc(per.join(' / ')) : '') + '</div>';
-      rows.forEach(r => {
-        h += '<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 16px;font-size:10px">' +
-             '<span style="color:var(--tx2)">' + esc(r.label) + '</span>' +
-             '<span style="color:var(--tx);font-family:var(--mono);text-align:right">' +
-             (r.values||[]).slice(0,4).map(v => esc(finMoney(v, cur))).join('  ·  ') +
-             '</span></div>';
-      });
-    });
-    const url = got[0].source_url || '';
-    if(url) h += '<div style="padding:4px 16px 8px"><a href="' + esc(url) + '" target="_blank" rel="noopener" style="color:var(--acc);font-family:var(--mono);font-size:9px">open the filing ↗</a></div>';
-    slot.innerHTML = h;
-  });
-}
-
-
 
 // ===== per-security candlestick chart from static history files =====
 function renderSecurityChart(hd, rec){
@@ -740,8 +669,8 @@ function renderSecurityChart(hd, rec){
 
   function barsForRange(){
     if(!daily.length) return [];
-    if(st.range === 'ALL') return maxBars && maxBars.length >= 2 ? maxBars : daily;
-    if(st.range === '10Y') return maxBars && maxBars.length >= 2 ? maxBars.slice(-120) : daily.slice(-520);
+    if(st.range === 'ALL') return maxBars && maxBars.length >= 1 ? maxBars : daily;
+    if(st.range === '10Y') return maxBars && maxBars.length >= 1 ? maxBars.slice(-120) : daily.slice(-520);
     if(st.range === '1Y') return daily.slice(-260);
     if(st.range === '1M') return daily.slice(-24);
     return daily.slice(-6);
@@ -783,7 +712,7 @@ function renderSecurityChart(hd, rec){
     if(currentEx === 'NSE' || currentEx === 'NGX'){ maxSym = currentEx + '_' + maxSym.split('.')[0]; }
     fetch('static_data/history/' + encodeURIComponent(maxSym) + '.max.json')
       .then(r => { if(!r.ok) throw 0; return r.json(); })
-      .then(d => { if(d && d.bars && d.bars.length >= 2){ maxBars = d.bars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c, value:b.c})); draw(); } })
+      .then(d => { if(d && d.bars && d.bars.length >= 1){ maxBars = d.bars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c, value:b.c})); draw(); } })
       .catch(() => {});
   }
   box.querySelectorAll('.sc-btn').forEach(btn => {
@@ -799,7 +728,7 @@ function renderSecurityChart(hd, rec){
   window.addEventListener('resize', () => { try{ cObj && cObj.applyOptions({width: chartDiv.clientWidth || 300}); }catch(e){} });
   draw();
   // preload max for faster 10Y/ALL
-  if(daily.length >= 2) setTimeout(loadMax, 800);
+  if(daily.length >= 1) setTimeout(loadMax, 800);
 }
 
 function openStock(sym){
