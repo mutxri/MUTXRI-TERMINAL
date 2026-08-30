@@ -259,6 +259,8 @@ try{
   if(_pp) window.__INIT_PANEL = _pp.toLowerCase();
   const _rails = new URLSearchParams(location.search).get('rails');
   if(_rails === '0') document.documentElement.classList.add('no-rails');
+  const _sym = new URLSearchParams(location.search).get('sym');
+  if(_sym) window.__INIT_SYM = _sym;
 }catch(e){}
 let listing = {};
 
@@ -356,6 +358,16 @@ $('stageFrame').src = panelUrl(PANELS[__startIdx]);
 if(__startIdx > 0){
   const __tabs = document.querySelectorAll('.ctab');
   if(__tabs[__startIdx]){ __tabs.forEach(x => x.classList.remove('active')); __tabs[__startIdx].classList.add('active'); }
+}
+
+// ===== auto-open a security from ?sym= (landing showcase) =====
+if(window.__INIT_SYM){
+  const __tryOpen = setInterval(function(){
+    if(window.openStock && document.querySelector('#wlList .wl-row')){
+      clearInterval(__tryOpen);
+      try{ window.openStock(window.__INIT_SYM); }catch(e){}
+    }
+  }, 800);
 }
 
 // ===== Load listing =====
