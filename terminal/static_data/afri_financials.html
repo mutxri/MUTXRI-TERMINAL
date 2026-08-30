@@ -254,7 +254,10 @@
                  "__" + state.statement + ".json";
     fetch(stFile).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
       if(d && d.available !== false){
-        render(d); setStatus("Yahoo Finance", "filed");
+        // credit the real provider - JSE/EGX statements come from Yahoo, but
+        // NGX/NSE come from AfricanFinancials filings and were being labelled
+        // "Yahoo Finance" regardless
+        render(d); setStatus(d.source || "Yahoo Finance", d.asOf || "filed");
         return;
       }
       throw 0;
