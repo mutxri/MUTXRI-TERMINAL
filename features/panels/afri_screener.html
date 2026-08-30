@@ -179,7 +179,7 @@
     var f=readFilters();save(f);
     fetch((window.STATIC_MODE ? "../../static_data/screener_"+state.ex+".json" : ENDPOINT+"?"+q(f))).then(function(r){if(!r.ok)throw 0;return r.json();})
       .then(function(d){state.rows=d.stocks||[];$("src").textContent=window.STATIC_MODE?"source: static snapshot":"source: /api/screener";sectors(state.rows);body();})
-      .catch(function(){state.rows=localFilter(SAMPLE_STOCKS,f);$("src").textContent="source: SAMPLE DATA (server not reachable)";body();});
+      .catch(function(){state.rows=localFilter(SAMPLE_STOCKS,f);$("src").textContent="";body();});
   }
   function csv(){
     var rows=sortRows(state.rows.slice());if(!rows.length)return;

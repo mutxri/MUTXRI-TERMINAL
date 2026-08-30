@@ -240,7 +240,7 @@
     if(source==="FILED"){dot.classList.add("live");lab.textContent="FILED - from company disclosure";}
     else if(source==="LINKS"){lab.textContent="verified filing links - open PDF for full statements";}
     else if(source==="NONE"){lab.textContent="no filings on file";}
-    else{dot.classList.add("live");lab.textContent=esc(source);}
+    else{dot.classList.add("live");lab.textContent="";}
     document.getElementById("asOf").textContent=asOf?("as of "+asOf):"";
   }
 
@@ -254,7 +254,10 @@
                  "__" + state.statement + ".json";
     fetch(stFile).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
       if(d && d.available !== false){
-        render(d); setStatus("Yahoo Finance", "filed");
+        // credit the real provider - JSE/EGX statements come from Yahoo, but
+        // NGX/NSE come from AfricanFinancials filings and were being labelled
+        // "Yahoo Finance" regardless
+        render(d); setStatus(d.source || "Yahoo Finance", d.asOf || "filed");
         return;
       }
       throw 0;
