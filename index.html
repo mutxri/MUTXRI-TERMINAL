@@ -685,7 +685,7 @@ a{color:var(--acc);text-decoration:none;}
 
       <h2>See it in action.</h2>
 
-      <p>The terminal is live at mutxriterminal.com. These are the real panels.</p>
+      <p>The terminal is live at mutxriterminal.com. These are the real panels — <span style="color:var(--acc);font-family:var(--mono)">showing <b id="featEx">JSE</b></span>. Pick an exchange above to see each feature with that market's data.</p>
 
     </div>
 
@@ -705,7 +705,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/?ex=JSE" target="_blank">Open Watchlist</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/?ex=JSE&view=watchlist" loading="lazy" title="Live watchlist"></iframe>
+        <iframe src="terminal/?ex=JSE&view=watchlist" data-ex="JSE" loading="lazy" title="Live watchlist"></iframe>
         <span class="shot-tag">WATCHLIST · LIVE</span>
       </div>
     </div>
@@ -724,7 +724,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/features/panels/afri_heatmap.html?ex=JSE" target="_blank">Open Heatmap</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/afri_heatmap.html?ex=JSE" loading="lazy" title="Live heatmap"></iframe>
+        <iframe src="terminal/features/panels/afri_heatmap.html?ex=JSE" loading="lazy" title="Live heatmap" data-ex="JSE"></iframe>
         <span class="shot-tag">HEATMAP · INTERACTIVE</span>
       </div>
     </div>
@@ -743,7 +743,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/?ex=NSE" target="_blank">Open Charts</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/?ex=NSE&view=panel&panel=heatmap" loading="lazy" title="Live charts"></iframe>
+        <iframe src="terminal/?ex=NSE&view=panel&panel=heatmap" data-ex="NSE" loading="lazy" title="Live charts"></iframe>
         <span class="shot-tag">CHARTS · REAL DATA</span>
       </div>
     </div>
@@ -762,7 +762,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/features/panels/afri_financials.html?ex=JSE" target="_blank">Open Financials</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/afri_financials.html?ex=JSE" loading="lazy" title="Live financials"></iframe>
+        <iframe src="terminal/features/panels/afri_financials.html?ex=JSE" data-ex="JSE" loading="lazy" title="Live financials"></iframe>
         <span class="shot-tag">FINANCIALS · STATEMENTS</span>
       </div>
     </div>
@@ -780,7 +780,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/features/panels/afri_screener.html?ex=NGX" target="_blank">Open Screener</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/afri_screener.html?ex=NGX" loading="lazy" title="Live screener"></iframe>
+        <iframe src="terminal/features/panels/afri_screener.html?ex=NGX" data-ex="NGX" loading="lazy" title="Live screener"></iframe>
         <span class="shot-tag">SCREENER · DATA-DRIVEN</span>
       </div>
     </div>
@@ -799,7 +799,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/?ex=JSE" target="_blank">Open Terminal</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/?ex=JSE&view=info&sym=SBK.JO" loading="lazy" title="Company info"></iframe>
+        <iframe src="terminal/?ex=JSE&view=info&sym=SBK.JO" data-ex="JSE" loading="lazy" title="Company info"></iframe>
         <span class="shot-tag">COMPANY INFO · SOURCED</span>
       </div>
     </div>
@@ -817,7 +817,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/features/panels/afri_corp.html?ex=NGX" target="_blank">Open CORP</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/afri_corp.html?ex=NGX" loading="lazy" title="Corporate actions"></iframe>
+        <iframe src="terminal/features/panels/afri_corp.html?ex=NGX" data-ex="NGX" loading="lazy" title="Corporate actions"></iframe>
         <span class="shot-tag">CORP · DISCLOSURES</span>
       </div>
     </div>
@@ -835,7 +835,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/features/panels/afri_news.html?ex=NSE" target="_blank">Open News</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/afri_news.html?ex=NSE" loading="lazy" title="News"></iframe>
+        <iframe src="terminal/features/panels/afri_news.html?ex=NSE" data-ex="NSE" loading="lazy" title="News"></iframe>
         <span class="shot-tag">NEWS · REGULATORY</span>
       </div>
     </div>
@@ -1037,6 +1037,9 @@ function exchToggle(e){
 
 }
 
+// per-exchange symbol for the company-info showcase
+var EXCH_SYM = {JSE:"SBK.JO", NGX:"MTNN", NSE:"SCOM", EGX:"COMI"};
+
 function exchPick(ex, e){
 
   if(e) e.stopPropagation();
@@ -1055,6 +1058,21 @@ function exchPick(ex, e){
 
   });
 
+  var featEx = document.getElementById("featEx");
+  if(featEx) featEx.textContent = ex;
+  // swap every feature iframe to the selected exchange
+  document.querySelectorAll(".f-shot iframe[data-ex]").forEach(function(f){
+    var src = f.getAttribute("src") || "";
+    // replace ex=<OLD> with ex=<NEW>
+    src = src.replace(/ex=[A-Z]+/, "ex=" + ex);
+    // company-info showcase: swap the symbol too
+    if(src.indexOf("view=info") >= 0){
+      src = src.replace(/sym=[A-Z0-9.]+/, "sym=" + (EXCH_SYM[ex] || EXCH_SYM.JSE));
+    }
+    // re-apply with a cache-buster so the iframe actually reloads
+    src = src.split("&v=")[0];
+    f.setAttribute("src", src + "&v=" + Date.now());
+  });
 }
 
 document.addEventListener("click", function(){
