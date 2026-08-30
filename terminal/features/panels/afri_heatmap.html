@@ -528,14 +528,17 @@
     cpRender();
   }
   function cpBarsForRange(){
-    if(cpRange === "ALL") return cpBarsMax.length >= 2 ? cpBarsMax : (cpBarsDaily.length >= 2 ? cpBarsDaily : []);
-    if(cpRange === "10Y") return cpBarsMax.length >= 2 ? cpBarsMax.slice(-120) : cpBarsDaily.slice(-520);
+    // a single real bar still renders as one honest candle (NSE archiver
+    // accumulates daily) - never show "no data" for a bar we actually have
+    function oneBar(){ return cpBarsDaily.length ? cpBarsDaily.slice(-1) : (cpBarsMax.length ? cpBarsMax.slice(-1) : []); }
+    if(cpRange === "ALL") return cpBarsMax.length >= 1 ? cpBarsMax : (cpBarsDaily.length >= 1 ? cpBarsDaily : []);
+    if(cpRange === "10Y") return cpBarsMax.length >= 1 ? cpBarsMax.slice(-120) : (cpBarsDaily.length >= 1 ? cpBarsDaily.slice(-520) : []);
     // a short range must fall back to the monthly file when the daily file is
     // too thin to draw - otherwise a security with only monthly history shows
     // "no data" on 1M/1Y while ALL renders fine
     function pick(dailyN, maxN){
       var d = cpBarsDaily.slice(-dailyN);
-      return d.length >= 2 ? d : cpBarsMax.slice(-maxN);
+      return d.length >= 1 ? d : cpBarsMax.slice(-maxN);
     }
     if(cpRange === "1Y") return pick(260, 12);
     if(cpRange === "1M") return pick(24, 3);
@@ -556,7 +559,7 @@
         $("cpStat").textContent = "loading official feed…";
         NSEIRAdapter.getBars(cpTkr || cpTitleTkr || "", { timeframe: cpRange })
           .then(function(liveBars){
-            if(liveBars && liveBars.length >= 2){
+            if(liveBars && liveBars.length >= 1){
               cpBarsDaily = liveBars.map(function(b){ return {t: b.time, o: b.open, h: b.high, l: b.low, c: b.close}; });
               cpBarsMax = cpBarsDaily;
               cpRender();
