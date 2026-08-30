@@ -219,7 +219,16 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 // ===== BACKEND CONFIG (GitHub Pages deployment) =====
 // Empty string = local/snapshot mode. Set to deployed backend URL (NO trailing
 // slash) to route all /api/* calls to the live server.
-const API_BASE = "";
+// API_BASE: Render backend URL. Auto-detected: ?api= param > window.AUTH_API
+// (set by landing) > default Render service. Empty = snapshot mode.
+const API_BASE = (function(){
+  try{
+    var q = new URLSearchParams(location.search).get("api");
+    if(q) return q;
+    if(window.AUTH_API) return window.AUTH_API;
+  }catch(e){}
+  return "";
+})();
 const __origFetch = window.fetch;
 window.fetch = function(url, opts){
   const u = String(url);

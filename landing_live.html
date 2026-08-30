@@ -949,20 +949,30 @@ a{color:var(--acc);text-decoration:none;}
 
     <div class="auth-tabs">
 
-      <div class="auth-tab on" id="tab-signup" onclick="switchAuth('signup')">GET ACCESS</div>
+      <div class="auth-tab on" id="tab-signup" data-mode="signup" onclick="switchAuth('signup')">SIGN UP</div>
+
+      <div class="auth-tab" id="tab-login" data-mode="login" onclick="switchAuth('login')">LOG IN</div>
 
     </div>
 
     <form class="auth-form" id="authForm" onsubmit="return submitAuth(event)">
+      <div id="authNameRow">
+        <label>NAME <span style="color:var(--tx3);font-weight:400">(optional)</span></label>
+        <input type="text" id="authName" placeholder="Your name" />
+      </div>
       <label>EMAIL</label>
       <input type="email" id="authEmail" required placeholder="you@company.com" />
-      <button class="btn btn-primary" type="submit" id="authSubmit">JOIN THE WAITLIST</button>
+      <div id="authPwdRow">
+        <label>PASSWORD</label>
+        <input type="password" id="authPwd" placeholder="At least 8 characters" />
+      </div>
+      <button class="btn btn-primary" type="submit" id="authSubmit">CREATE ACCOUNT</button>
     </form>
-    <div class="auth-note">Accounts are coming soon. Leave your email and we'll notify you when sign-up opens — no credit card, no spam. <a href="#" onclick="alert('We process your email only to notify you about MUTXRI TERMINAL. You can unsubscribe at any time.');return false;">Privacy note</a></div>
+    <div class="auth-note">Free during beta. Your email is used only for your account — we never share it. <a href="#" onclick="alert('We process your email only to operate your MUTXRI TERMINAL account. You can delete it any time by emailing us.');return false;">Privacy note</a></div>
 
     <div class="auth-msg" id="authMsg"></div>
 
-    <div class="auth-note" id="authNote">New here? <a href="#" onclick="switchAuth('signup');return false;">Create an account</a> — no credit card needed.</div>
+    <div class="auth-note" id="authNote">Already have an account? <a href="#" onclick="switchAuth('login');return false;">Log in</a></div>
 
   </div>
 
@@ -1211,15 +1221,28 @@ document.getElementById("authModal").addEventListener("click", function(e){
 });
 
 function switchAuth(mode){
-  AUTH_MODE = "signup";
-  var el = document.getElementById("tab-signup");
-  if(el) el.classList.add("on");
+  var isLogin = mode === "login";
+  var t1 = document.getElementById("tab-signup"), t2 = document.getElementById("tab-login");
+  if(t1) t1.classList.toggle("on", !isLogin);
+  if(t2) t2.classList.toggle("on", isLogin);
+  var nameRow = document.getElementById("authNameRow"), pwdRow = document.getElementById("authPwdRow");
+  if(nameRow) nameRow.style.display = isLogin ? "none" : "";
+  if(pwdRow) pwdRow.style.display = isLogin ? "none" : "";
   var btn = document.getElementById("authSubmit");
-  if(btn) btn.textContent = "JOIN THE WAITLIST";
+  if(btn) btn.textContent = isLogin ? "LOG IN" : "CREATE ACCOUNT";
+  var note = document.getElementById("authNote");
+  if(note) note.innerHTML = isLogin
+    ? "New here? <a href='#' onclick=\"switchAuth('signup');return false;\">Create an account</a> — free during beta."
+    : "Already have an account? <a href='#' onclick=\"switchAuth('login');return false;\">Log in</a>";
 }
+// ===== auth backend (deployed on Render; set AUTH_API to the live URL) =====
+var AUTH_API = window.AUTH_API || "https://mutxri-backend.onrender.com";
+
 function submitAuth(e){
   e.preventDefault();
   var email = document.getElementById("authEmail").value.trim();
+  var pwd = document.getElementById("authPwd") ? document.getElementById("authPwd").value : "";
+  var mode = (document.querySelector(".auth-tab.on") ? document.querySelector(".auth-tab.on").getAttribute("data-mode") : "") || "signup";
   var msg = document.getElementById("authMsg");
   msg.className = "auth-msg";
   msg.textContent = "";
@@ -1228,10 +1251,35 @@ function submitAuth(e){
     msg.textContent = "Enter a valid email address.";
     return false;
   }
-  // waitlist only - no backend yet, no password collected
-  msg.className = "auth-msg ok";
-  msg.textContent = "Thanks — you're on the waitlist. We'll email you when accounts open.";
-  document.getElementById("authEmail").value = "";
+  if(mode === "signup" && (!pwd || pwd.length < 8)){
+    msg.className = "auth-msg err";
+    msg.textContent = "Choose a password of at least 8 characters.";
+    return false;
+  }
+  var action = mode === "login" ? "login" : "signup";
+  var q = "email=" + encodeURIComponent(email) + "&password=" + encodeURIComponent(pwd);
+  if(action === "signup"){
+    var nm = document.getElementById("authName") ? document.getElementById("authName").value.trim() : "";
+    if(nm) q += "&name=" + encodeURIComponent(nm);
+  }
+  msg.textContent = mode === "login" ? "Signing in…" : "Creating your account…";
+  fetch(AUTH_API + "/api/auth/" + action + "?" + q, {method: "GET"})
+    .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
+    .then(function(d){
+      if(d && d.ok){
+        try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); }catch(err){}
+        msg.className = "auth-msg ok";
+        msg.textContent = mode === "login" ? "Welcome back — opening the terminal…" : "Account created — opening the terminal…";
+        setTimeout(function(){ location.href = "terminal/"; }, 900);
+      }else{
+        msg.className = "auth-msg err";
+        msg.textContent = (d && d.error) ? d.error : "Could not reach the server. Try again shortly.";
+      }
+    })
+    .catch(function(){
+      msg.className = "auth-msg err";
+      msg.textContent = "Could not reach the server. Try again shortly.";
+    });
   return false;
 }
 
