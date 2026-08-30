@@ -501,16 +501,27 @@
   function cpBarsForRange(){
     if(cpRange === "ALL") return cpBarsMax.length >= 2 ? cpBarsMax : (cpBarsDaily.length >= 2 ? cpBarsDaily : []);
     if(cpRange === "10Y") return cpBarsMax.length >= 2 ? cpBarsMax.slice(-120) : cpBarsDaily.slice(-520);
-    if(cpRange === "1Y") return cpBarsDaily.slice(-260);
-    if(cpRange === "1M") return cpBarsDaily.slice(-24);
-    return cpBarsDaily.slice(-6); // 1D (last week of daily bars = EOD view)
+    // a short range must fall back to the monthly file when the daily file is
+    // too thin to draw - otherwise a security with only monthly history shows
+    // "no data" on 1M/1Y while ALL renders fine
+    function pick(dailyN, maxN){
+      var d = cpBarsDaily.slice(-dailyN);
+      return d.length >= 2 ? d : cpBarsMax.slice(-maxN);
+    }
+    if(cpRange === "1Y") return pick(260, 12);
+    if(cpRange === "1M") return pick(24, 3);
+    return pick(6, 2); // 1D (last week of daily bars = EOD view)
   }
   function cpRender(){
     var bars = cpBarsForRange();
     var box = $("cpChart");
     if(!box) return;
-    if(!bars.length && !cpBothDone){ $("cpStat").textContent = "loading…"; return; }
-    if(!bars.length){
+    if(bars.length < 2 && !cpBothDone){ $("cpStat").textContent = "loading…"; return; }
+    // a single bar cannot draw a candle series or a line - securities whose only
+    // history is one session (a Yahoo meta quote, or the first NSE board
+    // snapshot) must show the honest "no historical data" card, not an empty
+    // chart frame that looks broken
+    if(bars.length < 2){
       // NSE: try the official IR feed via the live adapter before showing EOD
       if(activeEx === "NSE" && window.NSECharts && window.NSEIRAdapter){
         $("cpStat").textContent = "loading official feed…";
