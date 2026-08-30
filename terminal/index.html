@@ -252,6 +252,17 @@ try{
     .catch(() => {});
 }catch(e){}
 
+// ===== company_info cache (fetched once, reused) =====
+window.__CINFO = null; window.__CINFO_P = null;
+function loadCompanyInfo(){
+  if(window.__CINFO) return Promise.resolve(window.__CINFO);
+  if(window.__CINFO_P) return window.__CINFO_P;
+  window.__CINFO_P = fetch((window.API_BASE ? window.API_BASE : '') + 'static_data/company_info.json')
+    .then(r => { if(!r.ok) throw 0; return r.json(); })
+    .then(d => { window.__CINFO = d || {}; window.__CINFO_P = null; return window.__CINFO; })
+    .catch(e => { window.__CINFO_P = null; throw e; });
+  return window.__CINFO_P;
+}
 // ===== Company CEOs (Wikipedia-verified) =====
 window.__CEOS = {};
 try{
@@ -627,10 +638,8 @@ function openStock(sym){
         const rec = rows.find(x => x.sym === sym || x.ticker === sym || (x.name||'') === sym)
                 || rows.find(x => (x.sym||'').split('.')[0] === sym.split('.')[0]);
         if(!rec){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no snapshot data for ${esc(sym)}</div>`; return; }
-        // company info from company_info.json (merged fundamentals + ownership)
-        fetch('static_data/company_info.json').then(r2 => { if(!r2.ok) throw 0; return r2.json(); })
-          .then(ci => {
-            const lookup = (rec.sym||'') + '|' + (rec.ticker||'') + '|' + (rec.sym||'').split('.')[0] + '|' + (rec.name||'');
+        // company info from company_info.json (cached, fetched once)
+        loadCompanyInfo().then(ci => {
             let info = null;
             for (const k of [rec.sym, rec.ticker, (rec.sym||'').split('.')[0], (rec.name||'')]) {
               if (k && ci[k]) { info = ci[k]; break; }
