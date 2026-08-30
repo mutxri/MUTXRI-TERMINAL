@@ -156,11 +156,29 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
 ::-webkit-scrollbar-track{background:transparent}
 
-/* ---- embed mode (?rails=0): hide side rails for focused panel showcase ---- */
-.no-rails .rail{display:none;}
+/* ---- embed mode (?rails=0 / ?view=): focused showcase, no app chrome ---- */
+.no-rails .rail.right{display:none;}
 .no-rails .main{grid-template-columns:1fr;}
 .no-rails .status .cmd{display:none;}
 .no-rails .tape{display:none;}
+.hide-chrome .topbar{display:none;}
+.hide-chrome .status{display:none;}
+.hide-chrome .tape{display:none;}
+.hide-panel .panel{display:none;}
+.hide-panel .main{grid-template-columns:1fr;}
+.hide-tape .tape{display:none;}
+/* panel view: the center panel fills the whole embed */
+.view-panel .main{grid-template-columns:1fr;}
+.view-panel .panel{border-right:0;}
+/* watchlist view: keep ONLY the watchlist rail, full width */
+.view-watchlist .main{grid-template-columns:1fr;}
+.view-watchlist .rail{border-right:0;background:transparent;}
+.view-watchlist .wl-head{display:none;}
+.view-watchlist #wlList{max-height:none;}
+/* info view: keep only the right rail (investor sheet) */
+.view-info .main{grid-template-columns:1fr;}
+.view-info .rail{display:none;}
+.view-info .rail.right{display:flex;border-right:0;background:transparent;}
 </style>
 </head>
 <body>
@@ -261,6 +279,27 @@ try{
   if(_rails === '0') document.documentElement.classList.add('no-rails');
   const _sym = new URLSearchParams(location.search).get('sym');
   if(_sym) window.__INIT_SYM = _sym;
+  const _view = new URLSearchParams(location.search).get('view');
+  if(_view){
+    document.documentElement.classList.add('view-' + _view);
+    if(_view === 'watchlist'){
+      document.documentElement.classList.add('no-rails');
+      document.documentElement.classList.add('hide-chrome');
+      document.documentElement.classList.add('hide-panel');
+      document.documentElement.classList.add('hide-tape');
+    }
+    if(_view === 'panel'){
+      document.documentElement.classList.add('no-rails');
+      document.documentElement.classList.add('hide-chrome');
+      document.documentElement.classList.add('hide-tape');
+    }
+    if(_view === 'info'){
+      document.documentElement.classList.add('no-rails');
+      document.documentElement.classList.add('hide-chrome');
+      document.documentElement.classList.add('hide-panel');
+      document.documentElement.classList.add('hide-tape');
+    }
+  }
 }catch(e){}
 let listing = {};
 
