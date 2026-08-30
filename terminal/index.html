@@ -578,6 +578,10 @@ function renderMarketStatic(rec, info){
       ${row('INDUSTRY', i.industry || dash)}
       ${row('COUNTRY', i.country || dash)}
       ${row('CEO', window.__CEOS && window.__CEOS[rec.sym] ? window.__CEOS[rec.sym] : (window.__CEOS && window.__CEOS[rec.ticker] ? window.__CEOS[rec.ticker] : dash))}
+      ${row('COMPETITORS', Array.isArray(i.competitors) && i.competitors.length ? i.competitors.join(', ') : dash)}
+      ${row('CUSTOMERS', Array.isArray(i.customers) && i.customers.length ? i.customers.join('; ') : dash)}
+      ${row('PARTNERS', Array.isArray(i.partners) && i.partners.length ? i.partners.join('; ') : dash)}
+      ${row('SUPPLIERS', Array.isArray(i.suppliers) && i.suppliers.length ? i.suppliers.join('; ') : dash)}
       ${row('FOUNDED', i.founded || dash)}
       ${row('LISTED', i.listed || dash)}
       ${row('YEAR END', rec.yearEnd || i.year_end || dash)}
@@ -585,7 +589,7 @@ function renderMarketStatic(rec, info){
       ${row('OPEN', rec.open || dash)}
       ${row('PREV CLOSE', rec.prevClose || dash)}
       ${row('TURNOVER', rec.turnover || dash)}
-      ${row('SHARES OUT', sharesTxt(rec, fmtShares))}
+      ${row('SHARES', fmtShares(rec.sharesIssued))}
       ${row('MKT CAP', rec.marketCap || dash)}
       ${row('EXCHANGE', i.exchange || dash)}
       ${row('PHONE', i.phone || dash)}
@@ -605,240 +609,9 @@ function renderMarketStatic(rec, info){
     });
   }
   html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend · CEO/employees where absent have no verified free source</div>`;
-  html += `<div id="finBlock"></div>`;
   $('rightInfo').innerHTML = html;
-  renderStatementsBlock(rec);
-  syncFinancialsPanel(rec);
-  // ===== per-security candlestick chart (static history file) =====
-  let hSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
-  if(currentEx === 'NSE' || currentEx === 'NGX'){ hSym = currentEx + '_' + hSym.split('.')[0]; }
-  if(hSym){
-    fetch('static_data/history/' + encodeURIComponent(hSym) + '.json')
-      .then(r => { if(!r.ok) throw 0; return r.json(); })
-      .then(hd => {
-        if(hd && hd.bars && hd.bars.length >= 2){
-          renderSecurityChart(hd, rec);
-        } else {
-          // no local history - fall back to the TradingView widget
-          // (its free embed serves NGX/NSE where Yahoo has nothing;
-          // popup suppressed via allow_symbol_change:false +
-          // disabled_features so it renders silently)
-          try{
-            const box = document.createElement('div');
-            box.style.cssText = 'height:320px;position:relative;border-top:1px solid var(--line);margin-top:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;text-align:center';
-            const px = rec.price != null ? Number(rec.price).toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
-            const cg = rec.chgPct != null ? (rec.chgPct > 0 ? '+' : '') + Number(rec.chgPct).toFixed(2) + '%' : '';
-            const up = rec.chgPct != null && rec.chgPct >= 0;
-            box.innerHTML =
-              '<div style="font-family:var(--mono);font-size:24px;font-weight:700;color:var(--tx)">' + esc(px) + ' ' + esc(rec.currency || '') + '</div>' +
-              (cg ? '<div style="font-family:var(--mono);font-size:13px;color:' + (up ? 'var(--up)' : 'var(--down)') + '">' + esc(cg) + '</div>' : '') +
-              '<div style="font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.06em">NO FREE OHLC FEED · ' + esc((rec.ticker || sym0(rec) || '').toUpperCase()) + ' · EOD</div>';
-            $('rightInfo').appendChild(box);
-          }catch(e){}
-        }
-      })
-      .catch(() => {});
-  }
 }
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
-
-// ===== per-security candlestick chart from static history files =====
-function renderSecurityChart(hd, rec){
-  // open-source lightweight-charts (TradingView's own library, Apache-2.0)
-  // rendered in-house from each security's real history - no third-party iframe
-  if(!rec) return;
-  const daily = (hd && hd.bars || []).map(b => ({
-    time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, value: b.c, volume: b.v || 0
-  }));
-  const box = document.createElement('div');
-  box.style.cssText = 'height:340px;position:relative;border-top:1px solid var(--line);margin-top:2px';
-  box.innerHTML = [
-    '<div style="display:flex;align-items:center;gap:10px;padding:6px 12px 0;flex-wrap:wrap">',
-    '<span style="color:var(--acc);font-family:var(--mono);font-size:10px;letter-spacing:.08em" id="scTtl">CANDLE · 1Y</span>',
-    '<span style="color:var(--tx3);font-family:var(--mono);font-size:9px" id="scSub"></span>',
-    '<span style="flex:1"></span>',
-    '<span class="sc-bar" style="display:flex;gap:2px">',
-    '<button class="sc-btn on" data-t="candle" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">CANDLE</button>',
-    '<button class="sc-btn" data-t="line" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">LINE</button>',
-    '<button class="sc-btn" data-t="area" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">AREA</button>',
-    '</span>',
-    '<span class="sc-bar" style="display:flex;gap:2px">',
-    '<button class="sc-btn on" data-r="1D" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">1D</button>',
-    '<button class="sc-btn" data-r="1M" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">1M</button>',
-    '<button class="sc-btn" data-r="1Y" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">1Y</button>',
-    '<button class="sc-btn" data-r="10Y" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">10Y</button>',
-    '<button class="sc-btn" data-r="ALL" style="cursor:pointer;background:var(--bg2);border:1px solid var(--line);color:var(--tx);font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:2px">ALL</button>',
-    '</span>',
-    '</div>',
-    '<div style="position:absolute;top:30px;left:0;right:0;bottom:0" class="sc-cv"></div>'
-  ].join('');
-  $('rightInfo').appendChild(box);
-  const chartDiv = box.querySelector('.sc-cv');
-  const ttl = box.querySelector('#scTtl'), sub = box.querySelector('#scSub');
-  let st = {type:'candle', range:'1D'};
-  let maxBars = null; // since-IPO monthly, loaded lazily
-  const MINT = '#33e29a', RED = '#f87171';
-  let cObj = null, series = null;
-
-  function barsForRange(){
-    if(!daily.length) return [];
-    if(st.range === 'ALL') return maxBars && maxBars.length >= 2 ? maxBars : daily;
-    if(st.range === '10Y') return maxBars && maxBars.length >= 2 ? maxBars.slice(-120) : daily.slice(-520);
-    if(st.range === '1Y') return daily.slice(-260);
-    if(st.range === '1M') return daily.slice(-24);
-    return daily.slice(-6);
-  }
-  function draw(){
-    const bars = barsForRange();
-    ttl.textContent = st.type.toUpperCase() + ' · ' + st.range;
-    sub.textContent = bars.length + ' bars · ' + (st.range === 'ALL' ? 'since IPO' : 'EOD');
-    if(cObj){ try{cObj.remove();}catch(e){} cObj = null; }
-    if(bars.length < 2){
-      chartDiv.innerHTML = '<div style="padding:16px;color:var(--tx3);font-family:var(--mono);font-size:10px;text-align:center">no historical data</div>';
-      return;
-    }
-    cObj = LightweightCharts.createChart(chartDiv, {
-      layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
-      grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
-      rightPriceScale:{borderColor:'#262626'}, timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:4},
-      crosshair:{mode:1},
-      localization:{priceFormatter:p => p >= 1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2)},
-      width: Math.max(chartDiv.clientWidth || 300, 120),
-      height: Math.max(chartDiv.clientHeight || 300, 120),
-    });
-    if(st.type === 'candle'){
-      series = cObj.addCandlestickSeries({upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED, wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT});
-      series.setData(bars.map(b => ({time:b.time, open:b.open, high:b.high, low:b.low, close:b.close})));
-    } else if(st.type === 'area'){
-      series = cObj.addAreaSeries({lineColor:MINT, topColor:'rgba(51,226,154,.25)', bottomColor:'rgba(51,226,154,0)', lineWidth:2, priceLineColor:MINT});
-      series.setData(bars.map(b => ({time:b.time, value:b.close})));
-    } else {
-      series = cObj.addLineSeries({color:MINT, lineWidth:2, priceLineColor:MINT});
-      series.setData(bars.map(b => ({time:b.time, value:b.close})));
-    }
-    cObj.timeScale().fitContent();
-  }
-  // lazy-load since-IPO (max) file for 10Y/ALL
-  function loadMax(){
-    if(maxBars) return;
-    let maxSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
-    if(currentEx === 'NSE' || currentEx === 'NGX'){ maxSym = currentEx + '_' + maxSym.split('.')[0]; }
-    fetch('static_data/history/' + encodeURIComponent(maxSym) + '.max.json')
-      .then(r => { if(!r.ok) throw 0; return r.json(); })
-      .then(d => { if(d && d.bars && d.bars.length >= 2){ maxBars = d.bars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c, value:b.c})); draw(); } })
-      .catch(() => {});
-  }
-  box.querySelectorAll('.sc-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const t = btn.getAttribute('data-t'), r = btn.getAttribute('data-r');
-      if(t) st.type = t; if(r) st.range = r;
-      box.querySelectorAll('.sc-btn').forEach(b => b.classList.remove('on'));
-      btn.classList.add('on');
-      if(r === '10Y' || r === 'ALL') loadMax();
-      draw();
-    });
-  });
-  window.addEventListener('resize', () => { try{ cObj && cObj.applyOptions({width: chartDiv.clientWidth || 300}); }catch(e){} });
-  draw();
-  // preload max for faster 10Y/ALL
-  if(daily.length >= 2) setTimeout(loadMax, 800);
-}
-
-// A share count recovered as market cap / price is arithmetic on two official
-// numbers, not a filed figure, and says so in the row.
-function sharesTxt(rec, fmt){
-  const n = rec && (rec.sharesIssued != null ? rec.sharesIssued : rec.sharesOutstanding);
-  if(n === null || n === undefined || n === '') return '—';
-  const v = fmt ? fmt(n) : String(n);
-  return /^derived/i.test((rec && rec.sharesSource) || '') ? v + ' (derived)' : v;
-}
-
-// ===== financial statements in the right rail =====
-// The rail carried a "STATEMENTS: filed" row and nothing else, while the
-// statements themselves sat in static_data/financials/ reachable only by
-// hunting for the security again in the FINANCIALS panel's own dropdown.
-const FIN_STMTS = [['income','Income Statement'],['balance','Balance Sheet'],['cashflow','Cash Flow']];
-function finMoney(v, cur){
-  if(v === null || v === undefined || isNaN(v)) return '—';
-  const n = Number(v), a = Math.abs(n), sgn = n < 0 ? '-' : '';
-  let o;
-  if(a >= 1e12) o = (a/1e12).toFixed(1) + 'T';
-  else if(a >= 1e9) o = (a/1e9).toFixed(1) + 'B';
-  else if(a >= 1e6) o = (a/1e6).toFixed(1) + 'M';
-  else if(a >= 1e3) o = (a/1e3).toFixed(1) + 'K';
-  else o = a.toFixed(2);
-  return sgn + o + (cur ? ' ' + cur : '');
-}
-function finKeys(rec){
-  const out = [];
-  [rec.sym, rec.ticker, (rec.sym||'').split('.')[0]].forEach(k => {
-    if(k && out.indexOf(k) < 0) out.push(String(k).replace(/\//g,'_'));
-  });
-  return out;
-}
-async function fetchStatement(rec, stmt){
-  for(const k of finKeys(rec)){
-    try{
-      const r = await fetch('static_data/financials/' + encodeURIComponent(k) + '__' + stmt + '.json');
-      if(!r.ok) continue;
-      const d = await r.json();
-      if(d && d.available !== false && (d.rows||[]).some(x => (x.values||[]).some(v => v !== null && v !== undefined))) return d;
-    }catch(e){}
-  }
-  return null;
-}
-async function renderStatementsBlock(rec){
-  const box = $('finBlock');
-  if(!box || !rec) return;
-  const found = [];
-  for(const [stmt, title] of FIN_STMTS){
-    const d = await fetchStatement(rec, stmt);
-    if(d) found.push([title, d]);
-  }
-  if(!found.length){ box.innerHTML = ''; return; }
-  const src = found[0][1].source || '';
-  const per = (found[0][1].periods || [])[0] || '';
-  let h = `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--tx3);font-size:10px;letter-spacing:.1em;font-weight:700">FINANCIAL STATEMENTS${per ? ' · ' + esc(per) : ''}</div>`;
-  found.forEach(([title, d]) => {
-    const cur = d.currency || '';
-    const lines = (d.rows||[]).filter(r => (r.values||[]).some(v => v !== null && v !== undefined));
-    if(!lines.length) return;
-    h += `<div style="padding:6px 16px 2px;color:var(--tx3);font-size:9px;letter-spacing:.08em">${esc(title)}</div>`;
-    lines.forEach(r => {
-      h += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px">` +
-           `<span style="color:var(--tx2)">${esc(r.label)}</span>` +
-           `<span style="color:var(--tx);font-family:var(--mono)">${esc(finMoney(r.values[0], cur))}</span></div>`;
-    });
-  });
-  h += `<div style="padding:6px 16px 10px;color:var(--tx3);font-size:9px">source: ${esc(src)} · most recent reported period · blank lines are not published, never estimated. Shares marked (derived) are the exchange's market cap ÷ price, not a filed count.</div>`;
-  box.innerHTML = h;
-}
-
-// The FINANCIALS panel had its own dropdown and no idea what had been clicked,
-// so opening the tab always landed on whichever ticker sorted first.
-let __selectedFinKey = null;
-async function finIndex(){
-  if(window.__FIN_INDEX) return window.__FIN_INDEX;
-  try{
-    const r = await fetch('static_data/financials_index.json');
-    window.__FIN_INDEX = r.ok ? await r.json() : {};
-  }catch(e){ window.__FIN_INDEX = {}; }
-  return window.__FIN_INDEX;
-}
-async function syncFinancialsPanel(rec){
-  const idx = await finIndex();
-  __selectedFinKey = finKeys(rec).find(k => idx[k]) || null;
-  pushFinSelection();
-}
-function pushFinSelection(){
-  if(!__selectedFinKey) return;
-  try{
-    const w = $('stageFrame').contentWindow;
-    if(w && typeof w.showFinancials === 'function') w.showFinancials(__selectedFinKey);
-  }catch(e){}
-}
-$('stageFrame').addEventListener('load', pushFinSelection);
-
 
 
 function openStock(sym){
