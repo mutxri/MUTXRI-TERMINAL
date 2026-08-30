@@ -635,9 +635,7 @@ function openStock(sym){
       if(d.noData){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx2);font-family:var(--mono);font-size:11px">
         <div style="color:var(--acc);font-weight:700;margin-bottom:6px">${esc(sym)} · ${esc(d.name||'')}</div>
         <div style="color:var(--tx3);line-height:1.6">${esc(d.message||'No market data available for this security.')}</div></div>`; return; }
-      currentChartSym = sym;
-      try{ renderStockInfo(d); }catch(e){ console.error('info fail', e); }
-      try{ renderChart(d, sym); }catch(e){ console.error('chart fail', e); }
+      try{ renderStockInfo(d, sym); }catch(e){ console.error('info fail', e); }
       try{ loadMetrics(sym, ex, stock && stock.name); }catch(e){ console.error('metrics fail', e); }
     })
     .catch(e => $('rightInfo').innerHTML = `<div style="color:var(--down)">${esc(String(e))}</div>`);
@@ -722,10 +720,6 @@ function loadMetrics(sym, ex, name){
     .catch(() => {});
 }
 
-let currentChartSym = null;
-let currentChartData = null;
-let chartObj = null;
-let chartType = 'candle';
 
 function fmtMoney(v){
   // consistent money display: 12.3B / 950.0M / 4.3T - honest dash when missing
@@ -740,7 +734,7 @@ function fmtMoney(v){
   return sign + a.toFixed(1);
 }
 
-function renderStockInfo(d){
+function renderStockInfo(d, sym){
   const price = d.regularMarketPrice != null ? d.regularMarketPrice.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
   const prev = d.chartPreviousClose;
   const chg = (price !== '—' && prev) ? ((d.regularMarketPrice - prev) / prev * 100) : null;
@@ -750,7 +744,7 @@ function renderStockInfo(d){
   const last = bars.length ? bars[bars.length-1] : null;
   const html = `
     <div style="padding:8px 12px;border-bottom:1px solid var(--line)">
-      <div style="color:var(--acc);font-weight:700;font-size:15px">${esc(currentChartSym)}</div>
+      <div style="color:var(--acc);font-weight:700;font-size:15px">${esc(sym)}</div>
       <div style="color:var(--tx2);font-size:11px;padding:2px 0">${esc(d.name||'')}</div>
       <div style="font-size:20px;font-weight:700;padding:4px 0">${price} <span style="font-size:11px;color:var(--tx3)">${esc(d.currency||'')}</span></div>
       <div class="chg ${chgCls}" style="font-size:12px">${chgTxt}</div>
@@ -764,107 +758,8 @@ function renderStockInfo(d){
         <span style="color:var(--tx3)">52W LOW</span><span style="text-align:right">${d.fiftyTwoWeekLow != null ? d.fiftyTwoWeekLow.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
         <span style="color:var(--tx3)">STATE</span><span style="text-align:right">${esc(d.marketState||'?')}</span>
       </div>
-      <div style="display:flex;gap:4px;padding:8px 0 4px;align-items:center;white-space:nowrap;overflow-x:auto">
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('1d')">1D</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('1mo')">1M</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('1y')">1Y</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('10y')">10Y</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartRange('max')">ALL</button>
-        <span style="width:8px"></span>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartType('candle')">CANDLE</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartType('line')">LINE</button>
-        <button class="ctab" style="padding:3px 7px;border-radius:2px;font-size:10px" onclick="setChartType('area')">AREA</button>
-      </div>
-    </div>
-    <div id="chartBox" style="height:260px;position:relative"></div>`;
+    </div>`;
   $('rightInfo').innerHTML = html;
-}
-
-function setChartType(t){
-  chartType = t;
-  if(currentChartData) renderChart(currentChartData, currentChartSym);
-}
-
-// ===== Chart timeframes: 1D 5D 1M 3M 6M YTD 1Y 3Y 5Y =====
-let currentChartRange = '1y';
-const RANGE_INTERVALS = {
-  '1d':  ['1d',  '5m'],
-  '1mo': ['1mo', '1h'],
-  '1y':  ['1y',  '1d'],
-  '10y': ['10y', '1d'],
-  'max': ['max', '1mo'],   // all available history (monthly bars, back to ~2000)
-};
-function setChartRange(r){
-  if(!currentChartSym) return;
-  currentChartRange = r;
-  const [rng, ivl] = RANGE_INTERVALS[r] || ['1y', '1d'];
-  fetch('/api/chart?symbol=' + encodeURIComponent(currentChartSym) + '&range=' + rng + '&interval=' + ivl)
-    .then(res => res.json())
-    .then(d => {
-      if(d.error || !d.bars || !d.bars.length){ return; }
-      // kwayisi/NGX-NSE history: filter bars to the selected range window
-      if(d.kwayisi){
-        const now = Date.now() / 1000;
-        const DAY = 86400;
-        // NSE/NGX have EOD period returns (1W/1M/3M/6M/1Y/YTD) - no intraday
-        const windows = {'1d': 7, '1mo': 30, '1y': 365, '10y': 365, 'max': 365};
-        const win = windows[r] || 365;
-        d.bars = d.bars.filter(b => now - b.time <= win * DAY);
-        if(!d.bars.length) d.bars = d.bars.slice(-1);
-      }
-      currentChartData = d;
-      renderChart(d, currentChartSym);
-      // highlight the active range button
-      document.querySelectorAll('.ctab').forEach(b => b.style.outline = '');
-      const btn = [...document.querySelectorAll('.ctab')].find(b => b.textContent === r.toUpperCase() || (r === '1mo' && b.textContent === '1M'));
-      if(btn) btn.style.outline = '1px solid var(--acc)';
-    })
-    .catch(() => {});
-}
-
-function renderChart(d, sym){
-  const bars = d.bars || [];
-  if(!bars.length){ return; }
-  const box = document.getElementById('chartBox');
-  if(!box) return;
-  if(chartObj){ chartObj.remove(); chartObj = null; }
-  currentChartData = d;
-  const MINT = '#33e29a', RED = '#f87171';
-  const cw = box.clientWidth || box.parentElement?.clientWidth || 320;
-  const ch = box.clientHeight || 260;
-  chartObj = LightweightCharts.createChart(box, {
-    layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
-    grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
-    rightPriceScale:{borderColor:'#262626'},
-    timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:4},
-    crosshair:{mode:1},
-    localization:{priceFormatter:p=>p.toFixed(2)},
-    width: Math.max(cw, 120),
-    height: Math.max(ch, 120),
-  });
-  let series;
-  if(chartType === 'candle'){
-    series = chartObj.addCandlestickSeries({
-      upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
-      wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
-    });
-    series.setData(bars.map(b=>({time:b.time, open:b.open, high:b.high, low:b.low, close:b.close})));
-  } else if(chartType === 'line'){
-    series = chartObj.addLineSeries({ color:MINT, lineWidth:2, priceLineColor:MINT });
-    series.setData(bars.map(b=>({time:b.time, value:b.close})));
-  } else {
-    series = chartObj.addAreaSeries({
-      lineColor:MINT, topColor:'rgba(51,226,154,.22)', bottomColor:'rgba(51,226,154,0)',
-      lineWidth:2, priceLineColor:MINT,
-    });
-    series.setData(bars.map(b=>({time:b.time, value:b.close})));
-  }
-  if(chartType !== 'candle'){
-    const vol = chartObj.addHistogramSeries({ priceFormat:{type:'volume'}, priceScaleId:'vol' });
-    chartObj.priceScale('vol').applyOptions({scaleMargins:{top:0.82,bottom:0}});
-    vol.setData(bars.map(b=>({time:b.time, value:b.volume, color:b.close >= b.open ? 'rgba(51,226,154,.35)' : 'rgba(248,113,113,.35)'})));
-  }
-  chartObj.timeScale().fitContent();
 }
 
 // ===== Init =====
