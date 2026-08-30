@@ -72,7 +72,7 @@ _hm = _hm.replace(
 )
 _hm = _hm.replace(
     '  function startPolling(){if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(load,POLL_MS);}',
-    '  function startPolling(){/* static build: the snapshot changes only on deploy */}',
+    '  function startPolling(){/* static build: the snapshot changes only on deploy, but the first draw can land before the panel has its final width - redraw once layout settles */ setTimeout(load,300); setTimeout(load,1200);}',
 )
 _hm = _hm.replace(
     '        $("src").textContent="source: /api/heatmap?exchange="+activeEx;',

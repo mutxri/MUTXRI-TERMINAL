@@ -170,7 +170,12 @@ def build(ex):
             row["chgFlag"] = "suspect-baseline"
         # fresh values win; anything we could not compute keeps what the
         # exchange collector already established
-        merged = dict(prior.get(sym, {}))
+        # carry forward only the fields this builder does not own. Price,
+        # change and volume must come from this run's history/listing sources or
+        # not at all - inheriting them resurrected a stale market-cap-as-price
+        # value for UBN long after the bad bars were purged.
+        OWNED = ("price", "chgPct", "volume", "w52High", "w52Low", "ipo", "chgFlag")
+        merged = {k: v for k, v in prior.get(sym, {}).items() if k not in OWNED}
         merged.update({k: v for k, v in row.items() if v is not None})
         if row.get("chgPct") is None:
             merged["chgPct"] = row.get("chgPct") if "chgFlag" in row else merged.get("chgPct")

@@ -50,8 +50,16 @@ def parse_prices(zf, prefix):
       PRICES_LIST2 oddlot:  S/N NAME MKTCP PRICE %CHG TRADES VOLUME
     """
     rows = {}
-    for name in zf.namelist():
-        if not name.lower().endswith(".pdf") or "PRICES" not in name.upper():
+    # PRICES1 carries real OHLC; PRICES_LIST2 carries only MARKET CAP + PRICE and
+    # derives its symbol from a company name. Parse PRICES1 first and never let a
+    # LIST2 row overwrite it - that collision is how market caps became closes.
+    # PRICES1 only. PRICES_LIST2 lists companies by full name, and its rows can
+    # begin with an all-caps word ("STANBIC IBTC HOLDINGS PLC") that looks exactly
+    # like a ticker, so letting it through here reads its columns as PRICES1
+    # columns and stores nonsense (STANBIC 156.10 -> 30.00).
+    for name in [n for n in zf.namelist()
+                 if n.lower().endswith(".pdf") and "PRICES1" in n.upper()]:
+        if False:
             continue
         data = zf.read(name)
         try:
@@ -63,54 +71,69 @@ def parse_prices(zf, prefix):
                             continue
                         parts = line.split()
                         try:
-                            # PRICES1 full OHLC format: parts[1] = symbol (uppercase, 4-10 chars)
-                            if len(parts) >= 14 and re.match(r"^[A-Z][A-Z0-9&]{2,}$", parts[1]):
+                            def _f(tok):
+                                try:
+                                    return float(tok.replace(",", ""))
+                                except (ValueError, AttributeError):
+                                    return None
+
+                            # PRICES1 rows start with a ticker. Read them from the
+                            # RIGHT - "... OCLOSE CLOSE CHANGE %CHANGE TRADES VOLUME
+                            # VALUE" - because wide numbers sometimes render glued
+                            # together in the middle of the row (SEPLAT prints as
+                            # "11,200.6012,320.6012,320.60"), which shifts every
+                            # left-hand index and used to drop the row into the
+                            # LIST2 branch, where it parsed %CHANGE as the price.
+                            if len(parts) >= 10 and re.match(r"^[A-Z][A-Z0-9&]{2,}$", parts[1]):
                                 sym = parts[1]
-                                pclose = float(parts[2].replace(",", ""))
-                                o = float(parts[4].replace(",", "")) if parts[4] != "-" else pclose
-                                high = float(parts[5].replace(",", "")) if parts[5] != "-" else pclose
-                                low = float(parts[6].replace(",", "")) if parts[6] != "-" else pclose
-                                close = float(parts[9].replace(",", "")) if parts[9] != "-" else pclose
+                                pclose = _f(parts[2])
+                                close = _f(parts[-6])
+                                if close is None:
+                                    close = pclose
+                                if close is None:
+                                    continue
+                                o = _f(parts[4]) if len(parts) >= 15 else None
+                                high = _f(parts[5]) if len(parts) >= 15 else None
+                                low = _f(parts[6]) if len(parts) >= 15 else None
+                                o = o if o is not None else (pclose if pclose is not None else close)
+                                high = high if high is not None else close
+                                low = low if low is not None else close
+                                # a glued or misread middle column shows up as an
+                                # impossible bar - fall back to a flat one
+                                if not (low <= close <= high and low <= o <= high):
+                                    o = high = low = close
                                 vol = parts[-2].replace(",", "")
                                 volume = int(vol) if vol.isdigit() else 0
                                 rows[sym] = {"o": o, "h": high, "l": low, "c": close, "v": volume}
-                            else:
-                                # premium/odd-lot: find PRICE and VOLUME near the end
-                                # format: S/N NAME... PRICE %CHG TRADES VOLUME
-                                # PRICE = first float that looks like a price; VOLUME = last int
-                                nums = []
-                                for p in parts[1:]:
-                                    clean = p.replace(",", "").replace("(", "").replace(")", "")
-                                    try:
-                                        nums.append(float(clean))
-                                    except ValueError:
-                                        nums.append(None)
-                                # find price: a value < 100000 that has a decimal or is small
-                                price = None
-                                for v in nums:
-                                    if v is not None and v < 100000 and (v == int(v) or v > 0.01):
-                                        price = v
-                                        break
-                                # find symbol: longest all-caps token
-                                sym = None
-                                for p in parts[1:]:
-                                    if re.match(r"^[A-Z][A-Z0-9&]{2,}$", p) and len(p) >= 3:
-                                        sym = p
-                                        break
-                                if sym is None:
-                                    # derive from the name: first 3 letters of last word
-                                    words = [p for p in parts[1:-3] if p.isalpha() and p == p.upper()]
-                                    if words:
-                                        sym = words[-1][:8]
-                                if sym and price:
-                                    vol = parts[-1].replace(",", "")
-                                    volume = int(vol) if vol.isdigit() else 0
-                                    rows[sym] = {"o": price, "h": price, "l": price, "c": price, "v": volume}
+                            # PRICES_LIST2 is deliberately NOT used for history.
+                            # It lists companies by full name with only MARKET CAP
+                            # and PRICE, so its symbols have to be guessed from the
+                            # name ("UNITED BANK FOR AFRICA PLC" -> UNITED) - which
+                            # both invents tickers that do not exist and collides
+                            # with real ones, overwriting good PRICES1 bars. PRICES1
+                            # already carries the full equities board with real
+                            # tickers and real OHLC, so that is the only source here.
                         except (ValueError, IndexError):
                             continue
         except Exception:
             continue
     return rows
+
+def sessions_on_disk():
+    """ISO dates already parsed into the per-symbol archives. A real session
+    shows up for hundreds of securities; a handful of stragglers means the day
+    was only partially parsed and is worth fetching again."""
+    import glob, collections
+    seen = collections.Counter()
+    for path in glob.glob(os.path.join(HIST, "NGX_*.json")):
+        try:
+            for b in json.load(open(path, encoding="utf-8")).get("bars", []):
+                if b.get("t"):
+                    seen[b["t"]] += 1
+        except Exception:
+            continue
+    return {d for d, n in seen.items() if n >= 100}
+
 
 def main():
     # fetch the last N trading days (default 30 = ~6 weeks)
@@ -122,6 +145,15 @@ def main():
         if cur.weekday() < 5:
             dates.append(cur.strftime("%d-%m-%Y"))
         cur -= datetime.timedelta(days=1)
+
+    # re-runs must be cheap: skip any session already sitting in the archives
+    # so a backfill that died partway through resumes instead of restarting
+    done = set() if "--force" in sys.argv else sessions_on_disk()
+    todo = [d for d in dates
+            if f"{d[6:]}-{d[3:5]}-{d[0:2]}" not in done]
+    print(f"{len(dates)} sessions requested, {len(dates) - len(todo)} already on disk, "
+          f"{len(todo)} to fetch", flush=True)
+    dates = todo
 
     all_bars = {}  # sym -> {date: bar}
     fetched = 0
