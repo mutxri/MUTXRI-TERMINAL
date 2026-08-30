@@ -594,8 +594,11 @@ function renderMarketStatic(rec, info){
       html += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(String(h))}</span><span style="color:var(--acc);font-family:var(--mono)">${esc(String(s))}</span></div>`;
     });
   }
+  html += `<div id="finBlock"></div>`;
   html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend · CEO/employees where absent have no verified free source</div>`;
   $('rightInfo').innerHTML = html;
+  renderStatementsBlock(rec);
+  syncFinancialsPanel(rec);
   // ===== per-security candlestick chart (static history file) =====
   let hSym = (rec.sym || rec.ticker || '').replace(/\//g, '_');
   if(currentEx === 'NSE' || currentEx === 'NGX'){ hSym = currentEx + '_' + hSym.split('.')[0]; }
@@ -603,7 +606,7 @@ function renderMarketStatic(rec, info){
     fetch('static_data/history/' + encodeURIComponent(hSym) + '.json')
       .then(r => { if(!r.ok) throw 0; return r.json(); })
       .then(hd => {
-        if(hd && hd.bars && hd.bars.length >= 1){
+        if(hd && hd.bars && hd.bars.length >= 2){   // one bar draws no candle and no line
           renderSecurityChart(hd, rec);
         } else {
           // no local history - fall back to the TradingView widget
@@ -628,6 +631,96 @@ function renderMarketStatic(rec, info){
   }
 }
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
+
+// ===== financial statements in the right rail =====
+// The rail carried a "STATEMENTS: filed" row and nothing else, while the
+// statements themselves sat in static_data/financials/ and were only reachable
+// by hunting for the security again in the FINANCIALS panel's own dropdown.
+const FIN_STMTS = [['income','Income Statement'],['balance','Balance Sheet'],['cashflow','Cash Flow']];
+function finMoney(v, cur){
+  if(v === null || v === undefined || isNaN(v)) return '—';
+  const n = Number(v), a = Math.abs(n), sgn = n < 0 ? '-' : '';
+  let o;
+  if(a >= 1e12) o = (a/1e12).toFixed(1) + 'T';
+  else if(a >= 1e9) o = (a/1e9).toFixed(1) + 'B';
+  else if(a >= 1e6) o = (a/1e6).toFixed(1) + 'M';
+  else if(a >= 1e3) o = (a/1e3).toFixed(1) + 'K';
+  else o = a.toFixed(2);
+  return sgn + o + (cur ? ' ' + cur : '');
+}
+function finKeys(rec){
+  // JSE/EGX statements are filed under the full symbol, NGX/NSE under the ticker
+  const out = [];
+  [rec.sym, rec.ticker, (rec.sym||'').split('.')[0]].forEach(k => {
+    if(k && out.indexOf(k) < 0) out.push(String(k).replace(/\//g,'_'));
+  });
+  return out;
+}
+async function fetchStatement(rec, stmt){
+  for(const k of finKeys(rec)){
+    try{
+      const r = await fetch('static_data/financials/' + encodeURIComponent(k) + '__' + stmt + '.json');
+      if(!r.ok) continue;
+      const d = await r.json();
+      if(d && d.available !== false && (d.rows||[]).some(x => (x.values||[]).some(v => v !== null && v !== undefined))) return d;
+    }catch(e){}
+  }
+  return null;
+}
+// the FINANCIALS panel had its own security dropdown and no idea what the user
+// had clicked in the watchlist, so opening the tab always landed on whatever
+// ticker sorted first. Push the selection into it instead.
+let __selectedFinKey = null;
+async function finIndex(){
+  if(window.__FIN_INDEX) return window.__FIN_INDEX;
+  try{
+    const r = await fetch('static_data/financials_index.json');
+    window.__FIN_INDEX = r.ok ? await r.json() : {};
+  }catch(e){ window.__FIN_INDEX = {}; }
+  return window.__FIN_INDEX;
+}
+async function syncFinancialsPanel(rec){
+  const idx = await finIndex();
+  __selectedFinKey = finKeys(rec).find(k => idx[k]) || null;
+  pushFinSelection();
+}
+function pushFinSelection(){
+  if(!__selectedFinKey) return;
+  try{
+    const w = $('stageFrame').contentWindow;
+    if(w && typeof w.showFinancials === 'function') w.showFinancials(__selectedFinKey);
+  }catch(e){}   // cross-origin never applies here, the panel is same-origin
+}
+$('stageFrame').addEventListener('load', pushFinSelection);
+
+async function renderStatementsBlock(rec){
+  const box = $('finBlock');
+  if(!box || !rec) return;
+  const found = [];
+  for(const [stmt, title] of FIN_STMTS){
+    const d = await fetchStatement(rec, stmt);
+    if(d) found.push([title, d]);
+  }
+  if(!found.length){ box.innerHTML = ''; return; }
+  const src = found[0][1].source || '';
+  const per = (found[0][1].periods || [])[0] || '';
+  let h = `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--tx3);font-size:10px;letter-spacing:.1em;font-weight:700">FINANCIAL STATEMENTS${per ? ' · ' + esc(per) : ''}</div>`;
+  found.forEach(([title, d]) => {
+    const cur = d.currency || '';
+    const lines = (d.rows||[]).filter(r => (r.values||[]).some(v => v !== null && v !== undefined));
+    if(!lines.length) return;
+    h += `<div style="padding:6px 16px 2px;color:var(--tx3);font-size:9px;letter-spacing:.08em">${esc(title)}</div>`;
+    lines.forEach(r => {
+      h += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px">` +
+           `<span style="color:var(--tx2)">${esc(r.label)}</span>` +
+           `<span style="color:var(--tx);font-family:var(--mono)">${esc(finMoney(r.values[0], cur))}</span></div>`;
+    });
+  });
+  h += `<div style="padding:6px 16px 10px;color:var(--tx3);font-size:9px">source: ${esc(src)} · most recent reported period · blank lines are not published, never estimated</div>`;
+  box.innerHTML = h;
+}
+
+
 
 // ===== per-security candlestick chart from static history files =====
 function renderSecurityChart(hd, rec){
