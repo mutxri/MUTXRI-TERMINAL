@@ -155,6 +155,12 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
 ::-webkit-scrollbar-track{background:transparent}
+
+/* ---- embed mode (?rails=0): hide side rails for focused panel showcase ---- */
+.no-rails .rail{display:none;}
+.no-rails .main{grid-template-columns:1fr;}
+.no-rails .status .cmd{display:none;}
+.no-rails .tape{display:none;}
 </style>
 </head>
 <body>
@@ -249,6 +255,10 @@ let currentEx = 'JSE';
 try{
   const _pex = new URLSearchParams(location.search).get('ex');
   if(_pex && ['JSE','EGX','NGX','NSE'].includes(_pex.toUpperCase())) currentEx = _pex.toUpperCase();
+  const _pp = new URLSearchParams(location.search).get('panel');
+  if(_pp) window.__INIT_PANEL = _pp.toLowerCase();
+  const _rails = new URLSearchParams(location.search).get('rails');
+  if(_rails === '0') document.documentElement.classList.add('no-rails');
 }catch(e){}
 let listing = {};
 
@@ -336,7 +346,17 @@ PANELS.forEach((p, i) => {
   $('centerTabs').appendChild(t);
 });
 // initial panel: load the default panel WITH the current exchange
-$('stageFrame').src = panelUrl(PANELS[0]);
+// (?panel=heatmap deep-link support for the landing showcase)
+let __startIdx = 0;
+if(window.__INIT_PANEL){
+  const __pi = PANELS.findIndex(p => p.id === window.__INIT_PANEL);
+  if(__pi >= 0) __startIdx = __pi;
+}
+$('stageFrame').src = panelUrl(PANELS[__startIdx]);
+if(__startIdx > 0){
+  const __tabs = document.querySelectorAll('.ctab');
+  if(__tabs[__startIdx]){ __tabs.forEach(x => x.classList.remove('active')); __tabs[__startIdx].classList.add('active'); }
+}
 
 // ===== Load listing =====
 async function loadListing(ex){
