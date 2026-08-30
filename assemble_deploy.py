@@ -76,7 +76,7 @@ _hm = _hm.replace(
 )
 _hm = _hm.replace(
     '        $("src").textContent="source: /api/heatmap?exchange="+activeEx;',
-    '        $("src").textContent="source: static_data/heatmap_"+activeEx+".json \u00b7 end-of-day snapshot";',
+    '        $("src").textContent="";',
 )
 _hm = _hm.replace(
     '        $("refreshTxt").textContent="updated "+new Date().toLocaleTimeString();',
