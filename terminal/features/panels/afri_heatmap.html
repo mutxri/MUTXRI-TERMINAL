@@ -30,6 +30,9 @@
   .dot.live{background:var(--up);box-shadow:0 0 6px rgba(51,226,154,.7);animation:pulse 1.6s infinite;}
   .dot.sample{background:#e0a340;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .hm-view{display:flex;gap:3px;margin-right:10px;}
+  .hm-vb{font-family:var(--mono);font-size:10px;color:var(--tx3);background:var(--bg2);border:1px solid var(--line2);padding:3px 8px;border-radius:2px;cursor:pointer;letter-spacing:.04em;}
+  .hm-vb.on{color:var(--acc);border-color:var(--acc);}
   .hm-tabs{display:flex;gap:3px;}
   .hm-tab{font-family:var(--mono);font-size:11px;color:var(--tx3);padding:3px 10px;border:1px solid transparent;cursor:pointer;border-radius:2px;}
   .hm-tab:hover{color:var(--tx2);}
@@ -102,6 +105,10 @@
   <div class="hm-head">
     <div class="t"><b>HEATMAP</b> &middot; <span id="exLabel">JSE</span></div>
     <div class="hm-right">
+      <div class="hm-view" id="hmView">
+        <button class="hm-vb on" data-v="sectors" onclick="hmSetView('sectors')">SECTORS</button>
+        <button class="hm-vb" data-v="all" onclick="hmSetView('all')">ALL</button>
+      </div>
       <span class="hm-status"><span class="dot" id="dot"></span><span id="statusTxt">-</span></span>
     </div>
   </div>
@@ -292,6 +299,14 @@
     return arr;
   }
 
+  var hmView="sectors"; // "sectors" (industry map) or "all" (full treemap)
+  function hmSetView(v){
+    hmView=v;
+    Array.prototype.forEach.call(document.querySelectorAll(".hm-vb"),function(b){
+      b.classList.toggle("on", b.getAttribute("data-v")===v);
+    });
+    if(currentRows.length) draw(currentRows);
+  }
   function draw(rows){
     var canvas=$("canvas");
     var W=canvas.clientWidth||900, H=canvas.clientHeight||520;
@@ -303,7 +318,8 @@
     var want={}, pad=1, labelH=16;
     secRects.forEach(function(sr){
       var s=sr.item.sector;
-      want["sec_"+s.sector]={type:"sector",x:sr.x,y:sr.y,w:sr.w,h:sr.h,sector:s.sector};
+      want["sec_"+s.sector]={type:"sector",x:sr.x,y:sr.y,w:sr.w,h:sr.h,sector:s.sector,count:s.cells.length};
+      if(hmView==="sectors") return; // industry map: sector blocks only
       var cellItems=s.cells.map(function(c){return {value:Math.max(1,c.weight||1), cell:c};});
       // ensure every cell is at least visible: scale small weights up so no
       // stock renders below ~2px (raw share volumes span 23 -> 5.8M = 250k:1)
@@ -326,13 +342,22 @@
         if(!node){node=document.createElement("div");node.className="sector";node.dataset.key=key;
           var lab=document.createElement("div");lab.className="sector-label";node.appendChild(lab);canvas.appendChild(node);}
         node.style.left=d.x+"px";node.style.top=d.y+"px";node.style.width=d.w+"px";node.style.height=d.h+"px";
-        node.firstChild.textContent=d.sector;
+        node.firstChild.textContent=d.sector+(hmView==="sectors"?" ("+d.count+")":"");
         node.firstChild.style.display=(d.h>28&&d.w>50)?"block":"none";
-        // click a sector label -> drill into the industry (container stays
-        // pointer-events:none so cell clicks pass through; label is clickable)
-        node.firstChild.style.cursor="pointer";
-        node.firstChild.title="View "+d.sector+" securities";
-        node.firstChild.onclick=(function(sec){return function(ev){ev.stopPropagation();openSector(sec);};})(d.sector);
+        node.style.cursor=(hmView==="sectors")?"pointer":"default";
+        node.style.alignItems=(hmView==="sectors")?"center":"stretch";
+        node.style.justifyContent=(hmView==="sectors")?"center":"stretch";
+        node.style.display=(hmView==="sectors")?"flex":"block";
+        node.title="View "+d.sector+" securities";
+        // SECTORS view: the whole industry tile opens the sector panel.
+        // ALL view: cells sit on top, so only the label stays clickable.
+        if(hmView==="sectors"){
+          node.onclick=(function(sec){return function(ev){ev.stopPropagation();openSector(sec);};})(d.sector);
+          node.firstChild.onclick=null;
+        }else{
+          node.onclick=null;
+          node.firstChild.onclick=(function(sec){return function(ev){ev.stopPropagation();openSector(sec);};})(d.sector);
+        }
       }else{
         var c=d.c;
         if(!node){node=document.createElement("div");node.className="cell enter";node.dataset.key=key;
