@@ -542,6 +542,11 @@
       return;
     }
     function showEODCard(){
+      // the status line still reads "loading…" from openChart at this point -
+      // the refactor that moved this card into its own function left the stat
+      // behind, so a security with no history sat on "loading" forever above a
+      // perfectly good price card
+      $("cpStat").textContent = "no price history published";
       // TradingView widget fallback (serves NGX/NSE where Yahoo has nothing)
       // honest EOD card: no free OHLC feed for NGX/NSE - show the real
       // board price + change from the snapshot (NEVER fabricated candles)
