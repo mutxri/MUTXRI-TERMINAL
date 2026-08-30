@@ -603,7 +603,7 @@ function renderMarketStatic(rec, info){
     fetch('static_data/history/' + encodeURIComponent(hSym) + '.json')
       .then(r => { if(!r.ok) throw 0; return r.json(); })
       .then(hd => {
-        if(hd && hd.bars && hd.bars.length >= 2){
+        if(hd && hd.bars && hd.bars.length >= 1){
           renderSecurityChart(hd, rec);
         } else {
           // no local history - fall back to the TradingView widget
@@ -669,8 +669,8 @@ function renderSecurityChart(hd, rec){
 
   function barsForRange(){
     if(!daily.length) return [];
-    if(st.range === 'ALL') return maxBars && maxBars.length >= 2 ? maxBars : daily;
-    if(st.range === '10Y') return maxBars && maxBars.length >= 2 ? maxBars.slice(-120) : daily.slice(-520);
+    if(st.range === 'ALL') return maxBars && maxBars.length >= 1 ? maxBars : daily;
+    if(st.range === '10Y') return maxBars && maxBars.length >= 1 ? maxBars.slice(-120) : daily.slice(-520);
     if(st.range === '1Y') return daily.slice(-260);
     if(st.range === '1M') return daily.slice(-24);
     return daily.slice(-6);
@@ -712,7 +712,7 @@ function renderSecurityChart(hd, rec){
     if(currentEx === 'NSE' || currentEx === 'NGX'){ maxSym = currentEx + '_' + maxSym.split('.')[0]; }
     fetch('static_data/history/' + encodeURIComponent(maxSym) + '.max.json')
       .then(r => { if(!r.ok) throw 0; return r.json(); })
-      .then(d => { if(d && d.bars && d.bars.length >= 2){ maxBars = d.bars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c, value:b.c})); draw(); } })
+      .then(d => { if(d && d.bars && d.bars.length >= 1){ maxBars = d.bars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c, value:b.c})); draw(); } })
       .catch(() => {});
   }
   box.querySelectorAll('.sc-btn').forEach(btn => {
@@ -728,7 +728,7 @@ function renderSecurityChart(hd, rec){
   window.addEventListener('resize', () => { try{ cObj && cObj.applyOptions({width: chartDiv.clientWidth || 300}); }catch(e){} });
   draw();
   // preload max for faster 10Y/ALL
-  if(daily.length >= 2) setTimeout(loadMax, 800);
+  if(daily.length >= 1) setTimeout(loadMax, 800);
 }
 
 function openStock(sym){
