@@ -487,7 +487,7 @@ function renderWatchlist(filter){
     const logoHtml = dom
       ? `<img class="wl-logo" loading="lazy" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
       : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
-    return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
+    return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}', true)">
       <span class="wl-logo-cell">${logoHtml}</span>
       <span class="wl-main">
         <span class="sym">${esc(sym)}</span>
@@ -787,7 +787,7 @@ function drawChart(){
   if(stat) stat.textContent = bars.length + ' bars';
 }
 
-function openStock(sym){
+function openStock(sym, withChart){
   if(!sym) return;
   const ex = currentEx;
   const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
@@ -807,9 +807,9 @@ function openStock(sym){
               if (k && ci[k]) { info = ci[k]; break; }
             }
             renderMarketStatic(rec, info);
-            renderChart(rec);
+            if(withChart) renderChart(rec);
           })
-          .catch(() => { renderMarketStatic(rec, null); renderChart(rec); });
+          .catch(() => { renderMarketStatic(rec, null); if(withChart) renderChart(rec); });
       })
       .catch(() => { $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no market snapshot for ${esc(sym)}</div>`; });
     return;
