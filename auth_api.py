@@ -60,7 +60,7 @@ def _send_confirmation_email(email, name):
     """Send a confirmation email on signup via SES SMTP (env-configured).
     Non-blocking: failures are logged, never fail the signup."""
     try:
-        import smtplib, ssl, os
+        import smtplib, ssl, os, html as _html
         from email.mime.text import MIMEText
         server = os.environ.get("SES_SERVER", "")
         user = os.environ.get("SES_USER", "")
@@ -69,6 +69,7 @@ def _send_confirmation_email(email, name):
         if not server or not user or not pwd:
             return  # email not configured - skip silently
         first = (name or email).split()[0] if (name or "").strip() else email
+        first = _html.escape(first)  # never let a user-supplied name inject HTML into the email
         html = f"""<div style="background:#000;color:#f0f0f0;font-family:monospace;padding:32px">
   <h2 style="color:#33e29a">MUTXRI TERMINAL</h2>
   <p>Hi {first},</p>
@@ -93,8 +94,8 @@ def signup(email, password, name=""):
     email = (email or "").lower().strip()
     if not _EMAIL_RE.match(email):
         return {"ok": False, "error": "valid email required"}
-    if not password or len(password) < 6:
-        return {"ok": False, "error": "password must be at least 6 characters"}
+    if not password or len(password) < 8:
+        return {"ok": False, "error": "password must be at least 8 characters"}
     if _find_user(email):
         return {"ok": False, "error": "an account with this email already exists"}
     record = {

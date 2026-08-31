@@ -1303,13 +1303,15 @@ function submitAuth(e){
     return false;
   }
   var action = mode === "login" ? "login" : "signup";
-  var q = "email=" + encodeURIComponent(email) + "&password=" + encodeURIComponent(pwd);
+  var payload = {email: email, password: pwd};
   if(action === "signup"){
     var nm = document.getElementById("authName") ? document.getElementById("authName").value.trim() : "";
-    if(nm) q += "&name=" + encodeURIComponent(nm);
+    if(nm) payload.name = nm;
   }
   msg.textContent = mode === "login" ? "Signing in…" : "Creating your account…";
-  fetch(AUTH_API + "/api/auth/" + action + "?" + q, {method: "GET"})
+  // POST JSON body — never put passwords in the URL (they'd land in browser
+  // history, proxy logs and Referer headers)
+  fetch(AUTH_API + "/api/auth/" + action, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)})
     .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
     .then(function(d){
       if(d && d.ok){
