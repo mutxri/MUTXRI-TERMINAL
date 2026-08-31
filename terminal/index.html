@@ -481,10 +481,13 @@ function renderWatchlist(filter){
     const sign = chg === null || chg === undefined ? '' : TickerFix.fmtPct(chg);
     const sym = stockTicker(s);
     const volTxt = vol != null ? (Number(String(vol).replace(/,/g,'')).toLocaleString() || String(vol)) : '';
-    // logo: official domain -> favicon service; monogram fallback (no broken images)
-    const dom = (LOGO_MAP[s.sym] || LOGO_MAP[s.ticker] || LOGO_MAP[sym] || '').replace(/^www\./, '');
-    const logoHtml = dom
-      ? `<img class="wl-logo" loading="lazy" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
+    // logo: official domain -> favicon service (or direct image URL); monogram fallback (no broken images)
+    const rawLogo = LOGO_MAP[s.sym] || LOGO_MAP[s.ticker] || LOGO_MAP[sym] || '';
+    const isUrl = /^https?:\/\//i.test(rawLogo);
+    const dom = rawLogo.replace(/^www\./, '');
+    const logoSrc = isUrl ? rawLogo : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64`;
+    const logoHtml = rawLogo
+      ? `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
       : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
     return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}', true)">
       <span class="wl-logo-cell">${logoHtml}</span>
