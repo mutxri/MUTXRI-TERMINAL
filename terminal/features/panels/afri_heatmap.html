@@ -469,8 +469,8 @@
     }
     panel.classList.add("open");
   }
-  function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
-  // close on backdrop click
+  function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+    // close on backdrop click
   document.addEventListener("click",function(e){if(e.target&&e.target.id==="sectorPanel")e.target.classList.remove("open");});
   function normalize(rows){
     return rows.map(function(x){
