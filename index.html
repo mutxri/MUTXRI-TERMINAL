@@ -1081,6 +1081,23 @@ document.addEventListener("click", function(){
 
 });
 
+// cache-bust every feature iframe on load so terminal content is always fresh
+(function(){
+  function bump(scope){
+    (scope || document).querySelectorAll(".f-shot iframe[data-ex]").forEach(function(f){
+      var src = f.getAttribute("src") || "";
+      if(!src) return;
+      src = src.split("&v=")[0];
+      f.setAttribute("src", src + "&v=" + Date.now());
+    });
+  }
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", function(){ bump(); });
+  } else {
+    bump();
+  }
+})();
+
 
 
 // ===== history widget (candles since IPO) =====
