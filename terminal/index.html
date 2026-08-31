@@ -179,13 +179,20 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .view-info .main{grid-template-columns:1fr;}
 .view-info .rail{display:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
-/* per-security chart in the info rail */
-.rchart{border-bottom:1px solid var(--line);}
-.rchart-head{display:flex;gap:4px;align-items:center;padding:8px 10px 6px;}
-.rchart .ct{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:3px;cursor:pointer;}
-.rchart .ct.on{color:var(--acc);border-color:var(--acc);}
-.rchart-stat{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--tx3);}
-.rchart-box{height:200px;position:relative;}
+/* per-security chart modal */
+.chartmodal{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);z-index:1000;display:none;align-items:center;justify-content:center;}
+.chartmodal.open{display:flex;}
+.chartmodal-box{background:var(--bg2);border:1px solid var(--line2);border-radius:10px;width:min(760px,94vw);padding:16px 18px;box-shadow:0 24px 80px rgba(0,0,0,.6);}
+.chartmodal-head{display:flex;align-items:center;gap:14px;margin-bottom:6px;}
+.chartmodal-title{color:var(--acc);font-weight:700;font-size:15px;font-family:var(--mono);}
+.chartmodal-sub{color:var(--tx3);font-size:11px;font-family:var(--ui);}
+.chartmodal-types{display:flex;gap:4px;margin-left:auto;}
+.chartmodal-types .ct{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);font-size:10px;padding:4px 9px;border-radius:3px;cursor:pointer;}
+.chartmodal-types .ct.on{color:var(--acc);border-color:var(--acc);}
+.chartmodal-close{background:none;border:0;color:var(--tx3);font-size:22px;cursor:pointer;padding:0 4px;line-height:1;}
+.chartmodal-close:hover{color:var(--tx);}
+.chartmodal-stat{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-bottom:8px;}
+.chartmodal-chart{height:340px;position:relative;}
 </style>
 </head>
 <body>
@@ -706,7 +713,7 @@ function renderMarketStatic(rec, info){
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
 
-// ===== per-security chart (line + candlesticks), rendered on watchlist click =====
+// ===== per-security chart modal (line + candlesticks) =====
 let __chart = null, __chartSeries = null, __chartType = 'candle', __chartBars = [];
 
 function renderChart(rec){
@@ -717,19 +724,12 @@ function renderChart(rec){
   if(ex === 'NSE' || ex === 'NGX'){
     histBase = ex + '_' + String(sym).split('.')[0];
   }
-  const ri = $('rightInfo');
-  if(!ri) return;
-  const wrap = document.createElement('div');
-  wrap.className = 'rchart';
-  wrap.innerHTML =
-    '<div class="rchart-head">' +
-      '<button class="ct on" data-ct="candle" onclick="setChartType(\'candle\')">CANDLE</button>' +
-      '<button class="ct" data-ct="line" onclick="setChartType(\'line\')">LINE</button>' +
-      '<button class="ct" data-ct="area" onclick="setChartType(\'area\')">AREA</button>' +
-      '<span id="rchartStat" class="rchart-stat">loading…</span>' +
-    '</div>' +
-    '<div id="rchartBox" class="rchart-box"></div>';
-  ri.insertBefore(wrap, ri.firstChild);
+  const cm = document.getElementById('chartModal');
+  if(!cm) return;
+  document.getElementById('cmTitle').textContent = (rec.sym || rec.ticker || '') + ' · ' + ex;
+  document.getElementById('cmSub').textContent = rec.name || '';
+  document.getElementById('cmStat').textContent = 'loading…';
+  cm.classList.add('open');
   __chartBars = [];
   fetch('static_data/history/' + encodeURIComponent(histBase) + '.json')
     .then(r => r.ok ? r.json() : Promise.reject())
@@ -739,16 +739,21 @@ function renderChart(rec){
 
 function setChartType(t){
   __chartType = t;
-  document.querySelectorAll('.rchart .ct').forEach(b => b.classList.toggle('on', b.getAttribute('data-ct') === t));
+  document.querySelectorAll('#chartModal .ct').forEach(b => b.classList.toggle('on', b.getAttribute('data-ct') === t));
   drawChart();
 }
 
+function closeChartModal(){
+  const cm = document.getElementById('chartModal');
+  if(cm) cm.classList.remove('open');
+}
+
 function drawChart(){
-  const box = document.getElementById('rchartBox');
-  const stat = document.getElementById('rchartStat');
+  const box = document.getElementById('cmChart');
+  const stat = document.getElementById('cmStat');
   if(!box) return;
   if(!__chartBars.length){
-    box.innerHTML = '<div style="padding:18px;color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center">no price history published</div>';
+    box.innerHTML = '<div style="padding:40px;color:var(--tx3);font-family:var(--mono);font-size:12px;text-align:center">no price history published</div>';
     if(stat) stat.textContent = '';
     return;
   }
@@ -756,8 +761,8 @@ function drawChart(){
   box.innerHTML = '';
   const bars = __chartBars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c}));
   const MINT = '#33e29a', RED = '#f87171';
-  const w = Math.max(box.clientWidth || 300, 200);
-  const h = Math.max(box.clientHeight || 200, 160);
+  const w = Math.max(box.clientWidth || 700, 300);
+  const h = Math.max(box.clientHeight || 320, 220);
   __chart = LightweightCharts.createChart(box, {
     layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
     grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
@@ -957,5 +962,25 @@ function renderStockInfo(d, sym){
 loadListing(currentEx);  // honor ?ex= deep-link (defaults JSE)
 
 </script>
+
+<!-- per-security chart modal -->
+<div class="chartmodal" id="chartModal" onclick="if(event.target===this)closeChartModal()">
+  <div class="chartmodal-box">
+    <div class="chartmodal-head">
+      <div>
+        <div class="chartmodal-title" id="cmTitle">-</div>
+        <div class="chartmodal-sub" id="cmSub">-</div>
+      </div>
+      <div class="chartmodal-types">
+        <button class="ct on" data-ct="candle" onclick="setChartType('candle')">CANDLE</button>
+        <button class="ct" data-ct="line" onclick="setChartType('line')">LINE</button>
+        <button class="ct" data-ct="area" onclick="setChartType('area')">AREA</button>
+      </div>
+      <button class="chartmodal-close" onclick="closeChartModal()">×</button>
+    </div>
+    <div class="chartmodal-stat" id="cmStat">-</div>
+    <div class="chartmodal-chart" id="cmChart"></div>
+  </div>
+</div>
 </body>
 </html>
