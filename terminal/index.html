@@ -229,7 +229,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
     <!-- CENTER PANEL -->
     <section class="panel">
       <nav class="tabs" id="centerTabs"></nav>
-      <div class="stage"><iframe id="stageFrame" src="features/panels/afri_heatmap.html"></iframe></div>
+      <div class="stage"><iframe id="stageFrame" src="features/panels/afri_screener.html"></iframe></div>
     </section>
 
     <!-- RIGHT RAIL -->
@@ -372,7 +372,6 @@ clockTZ();
 
 // ===== Tabs (Claude's panels, untouched, embedded) =====
 const PANELS = [
-  {id:'heatmap', label:'HEATMAP', url:'features/panels/afri_heatmap.html'},
   {id:'screener',label:'SCREENER', url:'features/panels/afri_screener.html'},
   {id:'financials',label:'FINANCIALS', url:'features/panels/afri_financials.html'},
   {id:'reg',     label:'REG',      url:'features/panels/afri_reg.html'},
@@ -400,8 +399,8 @@ PANELS.forEach((p, i) => {
   };
   $('centerTabs').appendChild(t);
 });
-// initial panel: load the default panel WITH the current exchange
-// (?panel=heatmap deep-link support for the landing showcase)
+// load the default panel WITH the current exchange
+// (?panel= deep-link support for the landing showcase; unknown panels fall back to default)
 let __startIdx = 0;
 if(window.__INIT_PANEL){
   const __pi = PANELS.findIndex(p => p.id === window.__INIT_PANEL);
@@ -628,7 +627,7 @@ $('cmd').addEventListener('keydown', e => {
     $('stageFrame').src = panelUrl(PANELS[idx]);
   } else if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
-      '<div style="padding:8px 0;color:var(--tx3)">Type a panel code (HEATMAP, SCREEN, REG, GLCO, BND, FX, TAS, RATINGS) then Enter.</div>';
+      '<div style="padding:8px 0;color:var(--tx3)">Type a panel code (SCREEN, FIN, REG, GLCO, BND, FX, TAS, RATINGS) then Enter.</div>';
   } else {
     $('rightInfo').innerHTML = `<div style="color:var(--down)">unknown: ${esc(v)}</div>`;
   }
