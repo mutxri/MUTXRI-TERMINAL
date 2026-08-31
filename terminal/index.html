@@ -179,6 +179,13 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .view-info .main{grid-template-columns:1fr;}
 .view-info .rail{display:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
+/* per-security chart in the info rail */
+.rchart{border-bottom:1px solid var(--line);}
+.rchart-head{display:flex;gap:4px;align-items:center;padding:8px 10px 6px;}
+.rchart .ct{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:3px;cursor:pointer;}
+.rchart .ct.on{color:var(--acc);border-color:var(--acc);}
+.rchart-stat{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--tx3);}
+.rchart-box{height:200px;position:relative;}
 </style>
 </head>
 <body>
@@ -473,17 +480,11 @@ function renderWatchlist(filter){
     const logoHtml = dom
       ? `<img class="wl-logo" loading="lazy" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
       : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
-    // CEO (Wikipedia-verified) shown under the company name when known
-    const ceo = (window.__CEOS || {})[s.sym] || (window.__CEOS || {})[s.ticker] || (window.__CEOS || {})[sym] || '';
-    const ceoHtml = ceo
-      ? `<span class="wl-ceo">${esc('CEO ' + ceo)}</span>`
-      : '';
     return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
       <span class="wl-logo-cell">${logoHtml}</span>
       <span class="wl-main">
         <span class="sym">${esc(sym)}</span>
         <span class="nm">${esc(s.name||'')}</span>
-        ${ceoHtml}
       </span>
       <span class="wl-price">
         <span class="pr">${pr} <small style="color:var(--tx3)">${esc(cur)}</small></span>
@@ -705,6 +706,82 @@ function renderMarketStatic(rec, info){
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
 
+// ===== per-security chart (line + candlesticks), rendered on watchlist click =====
+let __chart = null, __chartSeries = null, __chartType = 'candle', __chartBars = [];
+
+function renderChart(rec){
+  if(!rec) return;
+  const ex = currentEx;
+  const sym = rec.sym || rec.ticker || '';
+  let histBase = String(sym).replace(/\//g, '_');
+  if(ex === 'NSE' || ex === 'NGX'){
+    histBase = ex + '_' + String(sym).split('.')[0];
+  }
+  const ri = $('rightInfo');
+  if(!ri) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'rchart';
+  wrap.innerHTML =
+    '<div class="rchart-head">' +
+      '<button class="ct on" data-ct="candle" onclick="setChartType(\'candle\')">CANDLE</button>' +
+      '<button class="ct" data-ct="line" onclick="setChartType(\'line\')">LINE</button>' +
+      '<button class="ct" data-ct="area" onclick="setChartType(\'area\')">AREA</button>' +
+      '<span id="rchartStat" class="rchart-stat">loading…</span>' +
+    '</div>' +
+    '<div id="rchartBox" class="rchart-box"></div>';
+  ri.insertBefore(wrap, ri.firstChild);
+  __chartBars = [];
+  fetch('static_data/history/' + encodeURIComponent(histBase) + '.json')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(d => { __chartBars = d.bars || []; drawChart(); })
+    .catch(() => { __chartBars = []; drawChart(); });
+}
+
+function setChartType(t){
+  __chartType = t;
+  document.querySelectorAll('.rchart .ct').forEach(b => b.classList.toggle('on', b.getAttribute('data-ct') === t));
+  drawChart();
+}
+
+function drawChart(){
+  const box = document.getElementById('rchartBox');
+  const stat = document.getElementById('rchartStat');
+  if(!box) return;
+  if(!__chartBars.length){
+    box.innerHTML = '<div style="padding:18px;color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center">no price history published</div>';
+    if(stat) stat.textContent = '';
+    return;
+  }
+  if(__chart){ try{ __chart.remove(); }catch(e){} __chart = null; }
+  box.innerHTML = '';
+  const bars = __chartBars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c}));
+  const MINT = '#33e29a', RED = '#f87171';
+  const w = Math.max(box.clientWidth || 300, 200);
+  const h = Math.max(box.clientHeight || 200, 160);
+  __chart = LightweightCharts.createChart(box, {
+    layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
+    grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
+    rightPriceScale:{borderColor:'#262626'},
+    timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:2},
+    crosshair:{mode:1},
+    handleScroll:false, handleScale:false,
+    localization:{priceFormatter:function(p){ return p>=1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2); }},
+    width:w, height:h
+  });
+  if(__chartType === 'candle'){
+    __chartSeries = __chart.addCandlestickSeries({upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED, wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT});
+    __chartSeries.setData(bars);
+  } else if(__chartType === 'area'){
+    __chartSeries = __chart.addAreaSeries({lineColor:MINT, topColor:'rgba(51,226,154,.25)', bottomColor:'rgba(51,226,154,0)', lineWidth:2, priceLineColor:MINT});
+    __chartSeries.setData(bars.map(b => ({time:b.time, value:b.close})));
+  } else {
+    __chartSeries = __chart.addLineSeries({color:MINT, lineWidth:2, priceLineColor:MINT});
+    __chartSeries.setData(bars.map(b => ({time:b.time, value:b.close})));
+  }
+  __chart.timeScale().fitContent();
+  if(stat) stat.textContent = bars.length + ' bars';
+}
+
 function openStock(sym){
   if(!sym) return;
   const ex = currentEx;
@@ -725,8 +802,9 @@ function openStock(sym){
               if (k && ci[k]) { info = ci[k]; break; }
             }
             renderMarketStatic(rec, info);
+            renderChart(rec);
           })
-          .catch(() => renderMarketStatic(rec, null));
+          .catch(() => { renderMarketStatic(rec, null); renderChart(rec); });
       })
       .catch(() => { $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no market snapshot for ${esc(sym)}</div>`; });
     return;
