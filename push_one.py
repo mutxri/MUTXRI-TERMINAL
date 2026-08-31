@@ -10,7 +10,7 @@ BR = "gh-pages"
 def api(path, data=None, method=None):
     url = f"https://api.github.com/repos/{REPO}/{path}"
     req = urllib.request.Request(url, data=json.dumps(data).encode() if data else None,
-                                 method=method or ("POST" if data else "GET"))
+                                 method=method or ("PUT" if data else "GET"))
     req.add_header("Authorization", f"Bearer {gh_token}")
     req.add_header("Accept", "application/vnd.github+json")
     req.add_header("X-GitHub-Api-Version", "2022-11-28")
