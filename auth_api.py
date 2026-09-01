@@ -259,6 +259,10 @@ def me(token):
     return {"ok": True, "email": s["email"], "name": (u or {}).get("name", ""), "owner": _is_owner(s["email"])}
 
 
+def store_mode():
+    """'mongo' when connected to MongoDB, 'json' when falling back to users.json."""
+    return "mongo" if _USE_MONGO else "json"
+
 def admin_list(key, delete_email=None):
     """Admin: list signed-up users (or delete one with delete_email).
     Requires ADMIN_KEY env (constant-time compare). Never exposes password hashes."""
