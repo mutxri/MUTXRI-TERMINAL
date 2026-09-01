@@ -249,12 +249,25 @@ def me(token):
     return {"ok": True, "email": s["email"], "name": (u or {}).get("name", "")}
 
 
-def admin_list(key):
-    """Admin: list signed-up users. Requires ADMIN_KEY env (constant-time compare).
-    Never exposes password hashes."""
+def admin_list(key, delete_email=None):
+    """Admin: list signed-up users (or delete one with delete_email).
+    Requires ADMIN_KEY env (constant-time compare). Never exposes password hashes."""
     expected = os.environ.get("ADMIN_KEY", "")
     if not expected or not key or not hmac.compare_digest(key, expected):
         return {"ok": False, "error": "unauthorized"}
+    if delete_email:
+        delete_email = delete_email.lower().strip()
+        try:
+            if _USE_MONGO:
+                r = _DB["users"].delete_one({"email": delete_email})
+                return {"ok": True, "deleted": r.deleted_count > 0}
+            data = _load_json()
+            gone = data.pop(delete_email, None)
+            if gone:
+                _save_json(data)
+            return {"ok": True, "deleted": gone is not None}
+        except Exception as e:
+            return {"ok": False, "error": "db error: %s" % str(e)[:80]}
     users = []
     try:
         if _USE_MONGO:
