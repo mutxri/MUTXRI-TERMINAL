@@ -124,6 +124,12 @@ body{
 #authGate .gate-name{font-size:15px;letter-spacing:.08em;color:var(--tx);}
 #authGate .gate-name small{color:var(--tx3);font-size:10px;letter-spacing:.15em;display:block;}
 #authGate .gate-sub{color:var(--tx3);font-size:11px;margin:10px 0 14px;letter-spacing:.05em;}
+#authGate .gate-social{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+#authGate .gate-social-btn{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--line2);color:var(--tx);font-family:var(--mono);font-size:12px;letter-spacing:.03em;padding:10px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+#authGate .gate-social-btn:hover{border-color:var(--acc);color:var(--acc);}
+#authGate .gs-g{color:#4285f4;font-weight:700;}
+#authGate .gs-star{color:var(--tx3);}
+#authGate .gate-or{text-align:center;color:var(--tx3);font-size:10px;letter-spacing:.15em;margin:0 0 12px;}
 #authGate .gate-tabs{display:flex;border:1px solid var(--line2);border-radius:4px;margin-bottom:14px;overflow:hidden;}
 #authGate .gate-tab{flex:1;background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:8px 0;cursor:pointer;}
 #authGate .gate-tab.on{background:var(--acc);color:#000;font-weight:700;}
@@ -213,6 +219,11 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   <div class="gate-card">
     <div class="gate-brand"><span class="gate-mark">MX</span><span class="gate-name">MUTXRI<small>TERMINAL</small></span></div>
     <div class="gate-sub">SIGN IN TO ENTER THE TERMINAL</div>
+    <div class="gate-social">
+      <button class="gate-social-btn" type="button" onclick="gateSocial('google')"><span class="gs-g">G</span> Continue with Google</button>
+      <button class="gate-social-btn" type="button" onclick="gateSocial('github')"><span class="gs-star">&#9733;</span> Continue with GitHub</button>
+    </div>
+    <div class="gate-or">OR</div>
     <div class="gate-tabs">
       <button class="gate-tab on" data-gmode="login" onclick="gateMode('login')">SIGN IN</button>
       <button class="gate-tab" data-gmode="signup" onclick="gateMode('signup')">CREATE ACCOUNT</button>
@@ -236,6 +247,31 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   function show(){ if(gate) gate.style.display = "flex"; }
   function hide(){ if(gate) gate.remove(); }
   function msg(t, ok){ var m = document.getElementById("gateMsg"); if(!m) return; m.textContent = t || ""; m.className = "gate-msg" + (ok ? " ok" : ""); }
+  // OAuth callback: ?oauth=<provider>&code=<one-time> -> trade for a session token
+  var oauthP = q.get("oauth"), oauthCode = q.get("code");
+  if(oauthP && oauthCode){
+    msg("Completing sign-in…");
+    fetch(AUTH_API + "/api/auth/oauth/exchange", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({code: oauthCode})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(d){
+        if(d && d.ok){ try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); }catch(e){} }
+        var sp = new URLSearchParams(location.search); sp.delete("oauth"); sp.delete("code");
+        try{ history.replaceState({}, "", location.pathname + (sp.toString() ? "?" + sp.toString() : "")); }catch(e){}
+        check();
+      })
+      .catch(function(){ check(); });
+    return;
+  }
+  window.gateSocial = function(provider){
+    msg("Connecting to " + provider + "…");
+    fetch(AUTH_API + "/api/auth/oauth/" + provider + "/start")
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"could not reach server"}; }); })
+      .then(function(d){
+        if(d && d.ok && d.url){ window.location.href = d.url; }
+        else { msg((d && d.error) ? d.error : "Sign-in is not available right now."); }
+      })
+      .catch(function(){ msg("Could not reach the sign-in server."); });
+  };
   window.gateMode = function(m){
     mode = m;
     document.querySelectorAll(".gate-tab").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-gmode") === m); });
