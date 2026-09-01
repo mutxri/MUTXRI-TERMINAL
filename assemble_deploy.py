@@ -3,7 +3,7 @@
 import os, shutil
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DEPLOY = os.path.join(BASE, "gh_pages_deploy")
+DEPLOY = os.path.join(BASE, "gh_pages_deploy2")
 
 # clean
 if os.path.exists(DEPLOY):
@@ -30,6 +30,8 @@ shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 # 404 page
 if os.path.exists(os.path.join(BASE, "404.html")):
     shutil.copy(os.path.join(BASE, "404.html"), os.path.join(DEPLOY, "404.html"))
+    shutil.copy(os.path.join(BASE, "robots.txt"), os.path.join(DEPLOY, "robots.txt"))
+    shutil.copy(os.path.join(BASE, "sitemap.xml"), os.path.join(DEPLOY, "sitemap.xml"))
 
 # links hub page
 shutil.copy(os.path.join(BASE, "LINKS.html"), os.path.join(DEPLOY, "LINKS.html"))

@@ -119,7 +119,12 @@ def build(ex):
                         t_last, t_prev = bar_epoch(last.get("t")), bar_epoch(prev.get("t"))
                         adjacent = (t_last is not None and t_prev is not None
                                     and 0 < (t_last - t_prev) <= 5 * 86400)
-                        if prev and prev.get("c") and last["c"] is not None and adjacent:
+                        if last.get("chg") is not None:
+                            # the session's own reported day change, recorded
+                            # with the bar - correct even when the previous
+                            # session is missing from the daily array
+                            row["chgPct"] = last["chg"]
+                        elif prev and prev.get("c") and last["c"] is not None and adjacent:
                             row["chgPct"] = round((last["c"] - prev["c"]) / prev["c"] * 100, 4)
                         t0 = bar_epoch(bars[0].get("t"))
                         if t0:

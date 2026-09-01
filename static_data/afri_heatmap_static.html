@@ -29,14 +29,33 @@
   .dot.live{background:var(--up);box-shadow:0 0 6px rgba(51,226,154,.7);animation:pulse 1.6s infinite;}
   .dot.sample{background:#e0a340;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .hm-view{display:flex;gap:3px;margin-right:10px;}
+  .hm-vb{font-family:var(--mono);font-size:10px;color:var(--tx3);background:var(--bg2);border:1px solid var(--line2);padding:3px 8px;border-radius:2px;cursor:pointer;letter-spacing:.04em;}
+  .hm-vb.on{color:var(--acc);border-color:var(--acc);}
   .hm-tabs{display:flex;gap:3px;}
   .hm-tab{font-family:var(--mono);font-size:11px;color:var(--tx3);padding:3px 10px;border:1px solid transparent;cursor:pointer;border-radius:2px;}
   .hm-tab:hover{color:var(--tx2);}
   .hm-tab.on{color:var(--acc);border-color:var(--line2);background:var(--bg3);}
   .hm-tab .cnt{color:var(--tx3);font-size:9px;margin-left:4px;}
   #canvas{position:relative;width:100%;height:520px;background:var(--bg);overflow:hidden;}
-  .sector{position:absolute;overflow:hidden;pointer-events:none;}
+  .sector{position:absolute;overflow:hidden;pointer-events:none;
+    background:rgba(255,255,255,.015);
+    border:1px solid rgba(255,255,255,.04);
+    transition:left .55s cubic-bezier(.2,.8,.3,1),top .55s cubic-bezier(.2,.8,.3,1),
+               width .55s cubic-bezier(.2,.8,.3,1),height .55s cubic-bezier(.2,.8,.3,1),
+               background-color .4s ease,border-color .4s ease,box-shadow .4s ease;}
   .sector-label{position:absolute;top:0;left:0;right:0;height:16px;font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:var(--tx2);background:rgba(10,10,10,.85);padding:2px 6px;z-index:2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono);pointer-events:auto;}
+  /* SECTORS view: each industry tile is a live, hoverable block */
+  .sector[style*="flex"]{pointer-events:auto;}
+  .sector[style*="flex"]:hover{background:rgba(51,226,154,.06);border-color:rgba(51,226,154,.45);
+    box-shadow:0 0 18px rgba(51,226,154,.18),inset 0 0 22px rgba(51,226,154,.05);}
+  .sector[style*="flex"] .sector-label{position:static;background:transparent;color:var(--acc);
+    font-size:11px;letter-spacing:.08em;padding:0;text-align:center;font-weight:700;}
+  /* breathing outline on industry tiles (Godel data-flow feel) */
+  .sector[style*="flex"]::after{content:"";position:absolute;inset:0;pointer-events:none;
+    border:1px solid rgba(51,226,154,.08);animation:breathe 3.2s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{opacity:.4;}50%{opacity:1;}}
+  .sector[style*="flex"]:hover .sector-label{color:#fff;text-shadow:0 0 12px rgba(51,226,154,.8);}
   .cell{position:absolute;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;cursor:pointer;
     transition:left .5s ease,top .5s ease,width .5s ease,height .5s ease,background-color .6s ease;border:1px solid rgba(0,0,0,.35);}
   .cell:hover{outline:1px solid var(--acc);outline-offset:-1px;z-index:3;}
@@ -44,10 +63,15 @@
   .cell .cc{line-height:1.15;opacity:.92;}
   .flash{animation:flash .7s ease;}
   @keyframes flash{0%{filter:brightness(2.2);}40%{filter:brightness(1.35);}100%{filter:brightness(1);}}
-  .cell.enter{animation:enter .6s cubic-bezier(.2,.9,.3,1.4);}
-  @keyframes enter{0%{transform:scale(.3);opacity:0;}70%{transform:scale(1.08);opacity:1;}100%{transform:scale(1);opacity:1;}}
-  .sector{animation:secEnter .7s ease;}
-  @keyframes secEnter{0%{opacity:0;}100%{opacity:1;}}
+  .cell.enter{animation:enter .55s cubic-bezier(.2,.9,.3,1.35);}
+  @keyframes enter{0%{transform:scale(.25) translateY(6px);opacity:0;filter:brightness(2);}
+    60%{transform:scale(1.07) translateY(0);opacity:1;filter:brightness(1.4);}
+    100%{transform:scale(1);opacity:1;filter:brightness(1);}}
+  .sector{animation:secEnter .6s cubic-bezier(.2,.8,.3,1);}
+  @keyframes secEnter{0%{opacity:0;transform:scale(.92);}
+    100%{opacity:1;transform:scale(1);}}
+  /* hover: cell lifts with a mint rim and its price glows */
+  .cell:hover .ct{text-shadow:0 0 10px rgba(51,226,154,.55);}
   /* subtle continuous 'alive' shimmer on every cell (Godel-style data flow) */
   .cell::after{content:"";position:absolute;inset:0;pointer-events:none;
     background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.05) 45%,transparent 60%);
@@ -59,9 +83,12 @@
   .legend .item{color:var(--tx2);font-size:10px;display:inline-flex;align-items:center;}
   .foot{padding:6px 14px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
   /* sector drill-down panel */
-  #chartPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;display:none;align-items:center;justify-content:center;}
-  #chartPanel.open{display:flex;}
-  .cp-box{background:var(--bg2);border:1px solid var(--line2);border-radius:4px;width:min(860px,94vw);max-height:88vh;display:flex;flex-direction:column;}
+  #chartPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+  #chartPanel.open{display:flex;animation:bdIn .25s ease;}
+  @keyframes bdIn{0%{opacity:0;}100%{opacity:1;}}
+  .cp-box{background:var(--bg2);border:1px solid var(--line2);border-radius:4px;width:min(860px,94vw);max-height:88vh;display:flex;flex-direction:column;
+    animation:boxIn .32s cubic-bezier(.2,.9,.3,1.2);box-shadow:0 18px 60px rgba(0,0,0,.85),0 0 0 1px rgba(51,226,154,.08);}
+  @keyframes boxIn{0%{opacity:0;transform:translateY(18px) scale(.96);}100%{opacity:1;transform:translateY(0) scale(1);}}
   .cp-head{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);}
   .cp-title{font-family:var(--mono);font-weight:700;color:var(--acc);letter-spacing:.04em;}
   .cp-sub{font-size:11px;color:var(--tx3);margin-top:2px;}
@@ -76,9 +103,12 @@
   .cp-chart{height:420px;position:relative;margin:10px 18px 18px;}
   @media(max-width:700px){.cp-chart{height:300px;}}
   /* sector drill-down panel */
-  #sectorPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;display:none;align-items:center;justify-content:center;}
-  #sectorPanel.open{display:flex;}
-  .sp-box{background:var(--bg2);border:1px solid var(--line2);border-radius:4px;width:min(720px,92vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,.8);}
+  #sectorPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+  #sectorPanel.open{display:flex;animation:bdIn .25s ease;}
+  .sp-box{background:var(--bg2);border:1px solid var(--line2);border-radius:4px;width:min(720px,92vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 18px 60px rgba(0,0,0,.85),0 0 0 1px rgba(51,226,154,.08);
+    animation:boxIn .32s cubic-bezier(.2,.9,.3,1.2);}
+  .sp-row{animation:rowIn .3s ease backwards;}
+  @keyframes rowIn{0%{opacity:0;transform:translateX(-8px);}100%{opacity:1;transform:translateX(0);}}
   .sp-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line2);}
   .sp-head .sp-title{font-size:14px;font-weight:700;letter-spacing:.05em;color:var(--tx);}
   .sp-head .sp-sub{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-top:2px;}
@@ -101,6 +131,10 @@
   <div class="hm-head">
     <div class="t"><b>HEATMAP</b> &middot; <span id="exLabel">JSE</span></div>
     <div class="hm-right">
+      <div class="hm-view" id="hmView">
+        <button class="hm-vb on" data-v="sectors" onclick="hmSetView('sectors')">SECTORS</button>
+        <button class="hm-vb" data-v="all" onclick="hmSetView('all')">ALL</button>
+      </div>
       <span class="hm-status"><span class="dot" id="dot"></span><span id="statusTxt">-</span></span>
     </div>
   </div>
@@ -291,6 +325,14 @@
     return arr;
   }
 
+  var hmView="sectors"; // "sectors" (industry map) or "all" (full treemap)
+  function hmSetView(v){
+    hmView=v;
+    Array.prototype.forEach.call(document.querySelectorAll(".hm-vb"),function(b){
+      b.classList.toggle("on", b.getAttribute("data-v")===v);
+    });
+    if(currentRows.length) draw(currentRows);
+  }
   function draw(rows){
     var canvas=$("canvas");
     var W=canvas.clientWidth||900, H=canvas.clientHeight||520;
@@ -302,7 +344,8 @@
     var want={}, pad=1, labelH=16;
     secRects.forEach(function(sr){
       var s=sr.item.sector;
-      want["sec_"+s.sector]={type:"sector",x:sr.x,y:sr.y,w:sr.w,h:sr.h,sector:s.sector};
+      want["sec_"+s.sector]={type:"sector",x:sr.x,y:sr.y,w:sr.w,h:sr.h,sector:s.sector,count:s.cells.length};
+      if(hmView==="sectors") return; // industry map: sector blocks only
       var cellItems=s.cells.map(function(c){return {value:Math.max(1,c.weight||1), cell:c};});
       // ensure every cell is at least visible: scale small weights up so no
       // stock renders below ~2px (raw share volumes span 23 -> 5.8M = 250k:1)
@@ -325,13 +368,22 @@
         if(!node){node=document.createElement("div");node.className="sector";node.dataset.key=key;
           var lab=document.createElement("div");lab.className="sector-label";node.appendChild(lab);canvas.appendChild(node);}
         node.style.left=d.x+"px";node.style.top=d.y+"px";node.style.width=d.w+"px";node.style.height=d.h+"px";
-        node.firstChild.textContent=d.sector;
+        node.firstChild.textContent=d.sector+(hmView==="sectors"?" ("+d.count+")":"");
         node.firstChild.style.display=(d.h>28&&d.w>50)?"block":"none";
-        // click a sector label -> drill into the industry (container stays
-        // pointer-events:none so cell clicks pass through; label is clickable)
-        node.firstChild.style.cursor="pointer";
-        node.firstChild.title="View "+d.sector+" securities";
-        node.firstChild.onclick=(function(sec){return function(ev){ev.stopPropagation();openSector(sec);};})(d.sector);
+        node.style.cursor=(hmView==="sectors")?"pointer":"default";
+        node.style.alignItems=(hmView==="sectors")?"center":"stretch";
+        node.style.justifyContent=(hmView==="sectors")?"center":"stretch";
+        node.style.display=(hmView==="sectors")?"flex":"block";
+        node.title="View "+d.sector+" securities";
+        // SECTORS view: the whole industry tile opens the sector panel.
+        // ALL view: cells sit on top, so only the label stays clickable.
+        if(hmView==="sectors"){
+          node.onclick=(function(sec){return function(ev){ev.stopPropagation();openSector(sec);};})(d.sector);
+          node.firstChild.onclick=null;
+        }else{
+          node.onclick=null;
+          node.firstChild.onclick=(function(sec){return function(ev){ev.stopPropagation();openSector(sec);};})(d.sector);
+        }
       }else{
         var c=d.c;
         if(!node){node=document.createElement("div");node.className="cell enter";node.dataset.key=key;
@@ -399,12 +451,18 @@
           '<span class="chg '+cls+'">'+esc(r.chgPct==null?"—":sign+r.chgPct.toFixed(2)+"%")+'</span>'+
           '</div>';
       }).join("");
-      // clicking a row opens that security in the terminal
-      Array.prototype.forEach.call($("spList").querySelectorAll(".sp-row"),function(row){
+      // staggered entrance: each row slides in 30ms after the previous
+      Array.prototype.forEach.call($("spList").querySelectorAll(".sp-row"),function(row,i){
+        row.style.animationDelay=(i*30)+"ms";
+        // clicking a row opens that security's CHART in this panel (the
+        // standalone heatmap has no loadSecurity - openChart is the real path)
         row.onclick=function(){
           var sym=row.getAttribute("data-sym");
+          var cell=null;
+          for(var i=0;i<rows.length;i++){ if((rows[i].ticker||"")===sym){ cell=rows[i]; break; } }
+          if(!cell){ for(var i=0;i<rows.length;i++){ if((rows[i].sym||"")===sym){ cell=rows[i]; break; } } }
           panel.classList.remove("open");
-          if(window.loadSecurity)window.loadSecurity(sym);
+          openChart(cell || {ticker:sym, sym:sym, name:sym});
         };
       });
     }
@@ -498,11 +556,21 @@
     cpRender();
   }
   function cpBarsForRange(){
-    if(cpRange === "ALL") return cpBarsMax.length >= 2 ? cpBarsMax : (cpBarsDaily.length >= 2 ? cpBarsDaily : []);
-    if(cpRange === "10Y") return cpBarsMax.length >= 2 ? cpBarsMax.slice(-120) : cpBarsDaily.slice(-520);
-    if(cpRange === "1Y") return cpBarsDaily.slice(-260);
-    if(cpRange === "1M") return cpBarsDaily.slice(-24);
-    return cpBarsDaily.slice(-6); // 1D (last week of daily bars = EOD view)
+    // a single real bar still renders as one honest candle (NSE archiver
+    // accumulates daily) - never show "no data" for a bar we actually have
+    function oneBar(){ return cpBarsDaily.length ? cpBarsDaily.slice(-1) : (cpBarsMax.length ? cpBarsMax.slice(-1) : []); }
+    if(cpRange === "ALL") return cpBarsMax.length >= 1 ? cpBarsMax : (cpBarsDaily.length >= 1 ? cpBarsDaily : []);
+    if(cpRange === "10Y") return cpBarsMax.length >= 1 ? cpBarsMax.slice(-120) : (cpBarsDaily.length >= 1 ? cpBarsDaily.slice(-520) : []);
+    // a short range must fall back to the monthly file when the daily file is
+    // too thin to draw - otherwise a security with only monthly history shows
+    // "no data" on 1M/1Y while ALL renders fine
+    function pick(dailyN, maxN){
+      var d = cpBarsDaily.slice(-dailyN);
+      return d.length >= 1 ? d : cpBarsMax.slice(-maxN);
+    }
+    if(cpRange === "1Y") return pick(260, 12);
+    if(cpRange === "1M") return pick(24, 3);
+    return pick(6, 2); // 1D (last week of daily bars = EOD view)
   }
   function cpRender(){
     var bars = cpBarsForRange();
@@ -510,7 +578,31 @@
     if(!box) return;
     if(!bars.length && !cpBothDone){ $("cpStat").textContent = "loading…"; return; }
     if(!bars.length){
-      $("cpStat").textContent = "no historical data";
+      // NSE: try the official IR feed via the live adapter before showing EOD
+      if(activeEx === "NSE" && window.NSECharts && window.NSEIRAdapter){
+        $("cpStat").textContent = "loading official feed…";
+        NSEIRAdapter.getBars(cpTkr || cpTitleTkr || "", { timeframe: cpRange })
+          .then(function(liveBars){
+            if(liveBars && liveBars.length >= 1){
+              cpBarsDaily = liveBars.map(function(b){ return {t: b.time, o: b.open, h: b.high, l: b.low, c: b.close}; });
+              cpBarsMax = cpBarsDaily;
+              cpRender();
+            } else {
+              showEODCard();
+            }
+          })
+          .catch(function(){ showEODCard(); });
+        return;
+      }
+      showEODCard();
+      return;
+    }
+    function showEODCard(){
+      // the status line still reads "loading…" from openChart at this point -
+      // the refactor that moved this card into its own function left the stat
+      // behind, so a security with no history sat on "loading" forever above a
+      // perfectly good price card
+      $("cpStat").textContent = "no price history published";
       // TradingView widget fallback (serves NGX/NSE where Yahoo has nothing)
       // honest EOD card: no free OHLC feed for NGX/NSE - show the real
       // board price + change from the snapshot (NEVER fabricated candles)
@@ -580,6 +672,7 @@
   window.cpSetType = cpSetType;
   window.cpSetRange = cpSetRange;
   window.cpRender = cpRender;
+  window.hmSetView = hmSetView;
 })();
 </script>
 </body>

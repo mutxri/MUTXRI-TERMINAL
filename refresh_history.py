@@ -96,14 +96,23 @@ def with_latest_session(bars, meta):
         if day <= last_day:
             return bars
     prev = bars[-1]["c"] if bars else px
-    return bars + [{
+    bar = {
         "t": int(t),
         "o": meta.get("regularMarketOpen") or prev,
         "h": meta.get("regularMarketDayHigh") or max(px, prev),
         "l": meta.get("regularMarketDayLow") or min(px, prev),
         "c": px,
         "v": meta.get("regularMarketVolume") or 0,
-    }]
+    }
+    # Carry the exchange's own day change with the bar. Yahoo leaves the last
+    # session or two null in the daily array while still knowing their closes,
+    # so a change recomputed from the previous POPULATED bar silently spans the
+    # gap - Sasol read +4.90% (26 Aug -> 28 Aug) when the 28 Aug session was
+    # +1.05%. Recording the real figure beats inventing the missing bar.
+    chg = meta.get("regularMarketChangePercent")
+    if chg is not None:
+        bar["chg"] = round(float(chg), 4)
+    return bars + [bar]
 
 
 def existing_bars(path):
