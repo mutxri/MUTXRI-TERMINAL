@@ -20,9 +20,19 @@ except Exception as _e:
     _FEATURES_ERR = str(_e)
 
 HOST, PORT = "0.0.0.0", int(os.environ.get("PORT", "8081"))
-ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
+# CORS: only the terminal's own origin may read API responses (never wildcard —
+# auth tokens + user data are returned here, so * would let any site read them)
+ALLOWED_ORIGINS = {o.strip() for o in
+    os.environ.get("ALLOWED_ORIGINS", "https://mutxriterminal.com,https://www.mutxriterminal.com")
+    .split(",") if o.strip()}
 YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={rng}&interval={ivl}"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+# Yahoo param whitelists — rng/ivl are interpolated into the upstream URL, so
+# anything not in these lists is rejected (prevents query-param injection)
+VALID_RANGES = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"}
+VALID_INTERVALS = {"1m", "5m", "15m", "30m", "60m", "1d", "1wk", "1mo"}
+_TICKER_RE = re.compile(r"^[A-Za-z0-9.\-^=/_]{1,24}$")
 
 # ---- cache: {key: (expires_ts, payload_json_str)} ----
 _cache = {}
@@ -40,6 +50,33 @@ def cache_put(key, ttl, payload):
     with _lock:
         _cache[key] = (time.time() + ttl, payload)
 
+# ---- auth rate limiting (brute-force / signup-spam protection) ----
+_RATE = {}          # (ip, action) -> [timestamps]
+_RATE_LOCK = threading.Lock()
+RATE_LIMITS = {"login": (10, 600), "signup": (10, 600), "logout": (60, 600), "me": (120, 600)}
+
+def rate_limited(ip, action):
+    maxn, window = RATE_LIMITS.get(action, (60, 600))
+    key = (ip, action)
+    now = time.time()
+    with _RATE_LOCK:
+        ts = [t for t in _RATE.get(key, []) if t > now - window]
+        if len(ts) >= maxn:
+            return True
+        ts.append(now)
+        _RATE[key] = ts
+        if len(_RATE) > 20000:  # bounded memory
+            _RATE.clear()
+    return False
+
+def valid_yahoo_params(rng, ivl, sym):
+    """Reject anything not in the whitelists (blocks URL/query injection into Yahoo)."""
+    if rng not in VALID_RANGES or ivl not in VALID_INTERVALS:
+        return False
+    if not _TICKER_RE.match(sym or ""):
+        return False
+    return True
+
 def http_get(url, timeout=15):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -47,6 +84,8 @@ def http_get(url, timeout=15):
 
 # ---------------- Yahoo chart API ----------------
 def yahoo_chart(sym, rng="1y", ivl="1d"):
+    if not valid_yahoo_params(rng, ivl, sym):
+        return {"error": "invalid parameters"}
     key = f"chart:{sym}:{rng}:{ivl}"
     hit = cache_get(key)
     if hit: return json.loads(hit)
@@ -1316,6 +1355,10 @@ class Handler(SimpleHTTPRequestHandler):
                            "rows": [], "note": "financials unavailable: %s" % str(e)[:60]})
         elif path.path.startswith("/api/auth/"):
             q = urllib.parse.parse_qs(path.query)
+            action = path.path.split("/")[-1]
+            if rate_limited(self.client_address[0], action):
+                self.send_error(429, "too many attempts")
+                return
             self.json(auth_api.handle_auth(path.path, q))
         elif path.path == "/api/indices":
             # real market indices tape (EGX 30, JSE Top 40, JSE All-Share) +
@@ -1354,7 +1397,35 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             # static files (index.html, panels, static_data) - add CORS so the
             # GitHub Pages origin can load them cross-origin if needed
+            # SECURITY: never serve sensitive files (users.json holds password
+            # hashes; secrets/.env/.pem/.git must never be web-accessible)
+            if re.search(r"(users\.json|secrets[^/]*\.json|\.env|\.pem|\.key|\.htpasswd|/\.git/|\.git$|config\.json|admin\.json)", path.path, re.I):
+                self.send_error(404)
+                return
             super().do_GET()
+
+    def do_POST(self):
+        path = urllib.parse.urlparse(self.path)
+        if path.path.startswith("/api/auth/"):
+            action = path.path.split("/")[-1]
+            if rate_limited(self.client_address[0], action):
+                self.send_error(429, "too many attempts")
+                return
+            # read JSON (or form) body — never accept credentials in URLs
+            data = {}
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 0 and length <= 65536:
+                    body = self.rfile.read(length).decode("utf-8", "ignore")
+                    data = json.loads(body) if body.strip() else {}
+                    if not isinstance(data, dict):
+                        data = {}
+            except Exception:
+                data = {}
+            q = {k: [str(v)] for k, v in data.items() if v is not None}
+            self.json(auth_api.handle_auth(path.path, q))
+            return
+        self.send_error(404)
 
     def json(self, obj):
         # strict JSON: NaN/Infinity are invalid JSON and crash the browser's
@@ -1366,17 +1437,27 @@ class Handler(SimpleHTTPRequestHandler):
             body = json.dumps(_sanitize(obj)).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
-        self.send_header("Vary", "Origin")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Cache-Control", "no-store")
+        origin = self.headers.get("Origin")
+        if origin in ALLOWED_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
     def do_OPTIONS(self):
-        # CORS preflight (browsers send this before cross-origin GETs)
+        # CORS preflight (browsers send this before cross-origin requests)
+        origin = self.headers.get("Origin")
+        if origin not in ALLOWED_ORIGINS:
+            self.send_response(403)
+            self.end_headers()
+            return
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Vary", "Origin")
         self.end_headers()
