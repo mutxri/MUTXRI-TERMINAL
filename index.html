@@ -1273,8 +1273,17 @@ document.getElementById("authModal").addEventListener("click", function(e){
 function socialAuth(provider){
   var msg = document.getElementById("authMsg");
   msg.className = "auth-msg";
-  msg.textContent = provider + " sign-in is coming soon — use email to register for now.";
-  msg.className = "auth-msg err";
+  msg.textContent = "Connecting to " + provider + "...";
+  fetch(AUTH_API + "/api/auth/oauth/" + provider + "/start")
+    .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"could not reach server"}; }); })
+    .then(function(d){
+      if(d && d.ok && d.url){ window.location.href = d.url; }
+      else {
+        msg.className = "auth-msg err";
+        msg.textContent = (d && d.error) ? d.error : "Sign-in is not available right now.";
+      }
+    })
+    .catch(function(){ msg.className = "auth-msg err"; msg.textContent = "Could not reach the sign-in server."; });
 }
 
 function switchAuth(mode){
