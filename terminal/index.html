@@ -179,21 +179,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .view-info .main{grid-template-columns:1fr;}
 .view-info .rail{display:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
-/* per-security chart modal */
-.chartmodal{position:fixed;left:232px;top:0;bottom:0;width:460px;max-width:calc(100vw - 560px);background:rgba(0,0,0,.42);backdrop-filter:blur(2px);z-index:1000;display:none;align-items:center;justify-content:center;padding:14px;box-sizing:border-box;}
-.chartmodal.open{display:flex;}
-.chartmodal-box{background:var(--bg2);border:1px solid var(--line2);border-radius:10px;width:100%;height:100%;padding:16px 18px;box-shadow:0 24px 80px rgba(0,0,0,.6);box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;}
-.chartmodal-box #cmChart{flex:1;min-height:0;}
-.chartmodal-head{display:flex;align-items:center;gap:14px;margin-bottom:6px;}
-.chartmodal-title{color:var(--acc);font-weight:700;font-size:15px;font-family:var(--mono);}
-.chartmodal-sub{color:var(--tx3);font-size:11px;font-family:var(--ui);}
-.chartmodal-types{display:flex;gap:4px;margin-left:auto;}
-.chartmodal-types .ct{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);font-size:10px;padding:4px 9px;border-radius:3px;cursor:pointer;}
-.chartmodal-types .ct.on{color:var(--acc);border-color:var(--acc);}
-.chartmodal-close{background:none;border:0;color:var(--tx3);font-size:22px;cursor:pointer;padding:0 4px;line-height:1;}
-.chartmodal-close:hover{color:var(--tx);}
-.chartmodal-stat{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-bottom:8px;}
-.chartmodal-chart{height:340px;position:relative;}
+
 </style>
 </head>
 <body>
@@ -491,7 +477,7 @@ function renderWatchlist(filter){
     const logoHtml = rawLogo
       ? `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
       : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
-    return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}', true)">
+    return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
       <span class="wl-logo-cell">${logoHtml}</span>
       <span class="wl-main">
         <span class="sym">${esc(sym)}</span>
@@ -717,91 +703,7 @@ function renderMarketStatic(rec, info){
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
 
-// ===== per-security chart modal (line + candlesticks) =====
-let __chart = null, __chartSeries = null, __chartType = 'candle', __chartBars = [];
-
-function renderChart(rec){
-  if(!rec) return;
-  const ex = currentEx;
-  const sym = rec.sym || rec.ticker || '';
-  let histBase = String(sym).replace(/\//g, '_');
-  if(ex === 'NSE' || ex === 'NGX'){
-    histBase = ex + '_' + String(sym).split('.')[0];
-  }
-  const cm = document.getElementById('chartModal');
-  if(!cm) return;
-  document.getElementById('cmTitle').textContent = (rec.sym || rec.ticker || '') + ' · ' + ex;
-  document.getElementById('cmSub').textContent = rec.name || '';
-  document.getElementById('cmStat').textContent = 'loading…';
-  cm.classList.add('open');
-  __chartBars = [];
-  fetch('static_data/history/' + encodeURIComponent(histBase) + '.json')
-    .then(r => r.ok ? r.json() : Promise.reject())
-    .then(d => { __chartBars = d.bars || []; drawChart(); })
-    .catch(() => { __chartBars = []; drawChart(); });
-}
-
-function setChartType(t){
-  __chartType = t;
-  document.querySelectorAll('#chartModal .ct').forEach(b => b.classList.toggle('on', b.getAttribute('data-ct') === t));
-  drawChart();
-}
-
-function closeChartModal(){
-  const cm = document.getElementById('chartModal');
-  if(cm) cm.classList.remove('open');
-}
-
-// close the chart flyout when clicking outside it (but not while clicking the
-// watchlist — that just switches to another security's chart)
-document.addEventListener('click', function(e){
-  const cm = document.getElementById('chartModal');
-  if(cm && cm.classList.contains('open') &&
-     !e.target.closest('.chartmodal') && !e.target.closest('.wl') && !e.target.closest('.wl-head')){
-    closeChartModal();
-  }
-});
-
-function drawChart(){
-  const box = document.getElementById('cmChart');
-  const stat = document.getElementById('cmStat');
-  if(!box) return;
-  if(!__chartBars.length){
-    box.innerHTML = '<div style="padding:40px;color:var(--tx3);font-family:var(--mono);font-size:12px;text-align:center">no price history published</div>';
-    if(stat) stat.textContent = '';
-    return;
-  }
-  if(__chart){ try{ __chart.remove(); }catch(e){} __chart = null; }
-  box.innerHTML = '';
-  const bars = __chartBars.map(b => ({time:b.t, open:b.o, high:b.h, low:b.l, close:b.c}));
-  const MINT = '#33e29a', RED = '#f87171';
-  const w = Math.max(box.clientWidth || 700, 300);
-  const h = Math.max(box.clientHeight || 320, 220);
-  __chart = LightweightCharts.createChart(box, {
-    layout:{background:{color:'transparent'},textColor:'#9a9a9a',fontFamily:'Oxygen Mono, monospace',fontSize:10},
-    grid:{vertLines:{color:'rgba(38,38,38,.5)'},horzLines:{color:'rgba(38,38,38,.5)'}},
-    rightPriceScale:{borderColor:'#262626'},
-    timeScale:{borderColor:'#262626',timeVisible:false,rightOffset:2},
-    crosshair:{mode:1},
-    handleScroll:false, handleScale:false,
-    localization:{priceFormatter:function(p){ return p>=1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2); }},
-    width:w, height:h
-  });
-  if(__chartType === 'candle'){
-    __chartSeries = __chart.addCandlestickSeries({upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED, wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT});
-    __chartSeries.setData(bars);
-  } else if(__chartType === 'area'){
-    __chartSeries = __chart.addAreaSeries({lineColor:MINT, topColor:'rgba(51,226,154,.25)', bottomColor:'rgba(51,226,154,0)', lineWidth:2, priceLineColor:MINT});
-    __chartSeries.setData(bars.map(b => ({time:b.time, value:b.close})));
-  } else {
-    __chartSeries = __chart.addLineSeries({color:MINT, lineWidth:2, priceLineColor:MINT});
-    __chartSeries.setData(bars.map(b => ({time:b.time, value:b.close})));
-  }
-  __chart.timeScale().fitContent();
-  if(stat) stat.textContent = bars.length + ' bars';
-}
-
-function openStock(sym, withChart){
+function openStock(sym){
   if(!sym) return;
   const ex = currentEx;
   const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
@@ -821,9 +723,8 @@ function openStock(sym, withChart){
               if (k && ci[k]) { info = ci[k]; break; }
             }
             renderMarketStatic(rec, info);
-            if(withChart) renderChart(rec);
           })
-          .catch(() => { renderMarketStatic(rec, null); if(withChart) renderChart(rec); });
+          .catch(() => renderMarketStatic(rec, null));
       })
       .catch(() => { $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no market snapshot for ${esc(sym)}</div>`; });
     return;
@@ -977,24 +878,5 @@ loadListing(currentEx);  // honor ?ex= deep-link (defaults JSE)
 
 </script>
 
-<!-- per-security chart modal -->
-<div class="chartmodal" id="chartModal" onclick="if(event.target===this)closeChartModal()">
-  <div class="chartmodal-box">
-    <div class="chartmodal-head">
-      <div>
-        <div class="chartmodal-title" id="cmTitle">-</div>
-        <div class="chartmodal-sub" id="cmSub">-</div>
-      </div>
-      <div class="chartmodal-types">
-        <button class="ct on" data-ct="candle" onclick="setChartType('candle')">CANDLE</button>
-        <button class="ct" data-ct="line" onclick="setChartType('line')">LINE</button>
-        <button class="ct" data-ct="area" onclick="setChartType('area')">AREA</button>
-      </div>
-      <button class="chartmodal-close" onclick="closeChartModal()">×</button>
-    </div>
-    <div class="chartmodal-stat" id="cmStat">-</div>
-    <div class="chartmodal-chart" id="cmChart"></div>
-  </div>
-</div>
 </body>
 </html>
