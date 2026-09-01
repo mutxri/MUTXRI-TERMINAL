@@ -180,9 +180,10 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .view-info .rail{display:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
 /* per-security chart modal */
-.chartmodal{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);z-index:1000;display:none;align-items:center;justify-content:center;}
+.chartmodal{position:fixed;left:232px;top:0;bottom:0;width:460px;max-width:calc(100vw - 560px);background:rgba(0,0,0,.42);backdrop-filter:blur(2px);z-index:1000;display:none;align-items:center;justify-content:center;padding:14px;box-sizing:border-box;}
 .chartmodal.open{display:flex;}
-.chartmodal-box{background:var(--bg2);border:1px solid var(--line2);border-radius:10px;width:min(760px,94vw);padding:16px 18px;box-shadow:0 24px 80px rgba(0,0,0,.6);}
+.chartmodal-box{background:var(--bg2);border:1px solid var(--line2);border-radius:10px;width:100%;height:100%;padding:16px 18px;box-shadow:0 24px 80px rgba(0,0,0,.6);box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;}
+.chartmodal-box #cmChart{flex:1;min-height:0;}
 .chartmodal-head{display:flex;align-items:center;gap:14px;margin-bottom:6px;}
 .chartmodal-title{color:var(--acc);font-weight:700;font-size:15px;font-family:var(--mono);}
 .chartmodal-sub{color:var(--tx3);font-size:11px;font-family:var(--ui);}
@@ -750,6 +751,16 @@ function closeChartModal(){
   const cm = document.getElementById('chartModal');
   if(cm) cm.classList.remove('open');
 }
+
+// close the chart flyout when clicking outside it (but not while clicking the
+// watchlist — that just switches to another security's chart)
+document.addEventListener('click', function(e){
+  const cm = document.getElementById('chartModal');
+  if(cm && cm.classList.contains('open') &&
+     !e.target.closest('.chartmodal') && !e.target.closest('.wl') && !e.target.closest('.wl-head')){
+    closeChartModal();
+  }
+});
 
 function drawChart(){
   const box = document.getElementById('cmChart');
