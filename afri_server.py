@@ -1383,7 +1383,7 @@ class Handler(SimpleHTTPRequestHandler):
                         data = {}
             except Exception:
                 data = {}
-            self.json(auth_api.admin_list((data or {}).get("key", "")))
+            self.json(auth_api.admin_list((data or {}).get("key", ""), (data or {}).get("delete", "")))
             return
         elif path.path.startswith("/api/auth/"):
             q = urllib.parse.parse_qs(path.query)
