@@ -38,7 +38,7 @@ try:
     print("SERVICE CREATED:", d.get("name"))
     print("service id:", sid)
     # the service URL is usually https://<name>.onrender.com
-    print("URL: https://mutxri-backend.onrender.com")
+    print("URL: https://mutxri-terminal.onrender.com")
     print("Next: set MONGODB_URI env var, then API_BASE in index.html")
 except urllib.error.HTTPError as e:
     msg = e.read().decode()[:200]
