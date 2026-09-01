@@ -1243,6 +1243,19 @@ function openAuth(mode){
 
 }
 
+// ===== gate: entering the terminal requires sign-in =====
+document.addEventListener("click", function(e){
+  var el = e.target;
+  while(el && el !== document && !(el.tagName === "A" && el.getAttribute && /^\/?terminal\//.test(el.getAttribute("href") || ""))) el = el.parentNode;
+  if(!el || el === document) return;
+  var tok = "";
+  try{ tok = localStorage.getItem("mt_token") || ""; }catch(err){}
+  if(!tok){
+    e.preventDefault();
+    openAuth("login");
+  }
+});
+
 function closeAuth(){
 
   document.getElementById("authModal").classList.remove("open");
