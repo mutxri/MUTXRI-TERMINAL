@@ -56,12 +56,46 @@ def _check_password(password, stored):
     except Exception:
         return False
 
+def _send_confirmation_email(email, name):
+    """Send a confirmation email on signup via SES SMTP (env-configured).
+    Non-blocking: failures are logged, never fail the signup."""
+    try:
+        import smtplib, ssl, os, html as _html
+        from email.mime.text import MIMEText
+        server = os.environ.get("SES_SERVER", "")
+        user = os.environ.get("SES_USER", "")
+        pwd = os.environ.get("SES_PASS", "")
+        sender = os.environ.get("BRIEF_FROM", "jimmy@mutxri.com")
+        if not server or not user or not pwd:
+            return  # email not configured - skip silently
+        first = (name or email).split()[0] if (name or "").strip() else email
+        first = _html.escape(first)  # never let a user-supplied name inject HTML into the email
+        html = f"""<div style="background:#000;color:#f0f0f0;font-family:monospace;padding:32px">
+  <h2 style="color:#33e29a">MUTXRI TERMINAL</h2>
+  <p>Hi {first},</p>
+  <p>Your MUTXRI TERMINAL account has been created. Welcome to African markets intelligence.</p>
+  <p style="color:#9a9a9a">You can now log in at <a href="https://mutxriterminal.com" style="color:#33e29a">mutxriterminal.com</a> and start exploring 1,021 securities across the JSE, NGX, NSE and EGX.</p>
+  <p style="color:#6a6a6a;font-size:12px">This is a confirmation email for your account — no action needed. If you did not create this account, reply and we will remove it.</p>
+</div>"""
+        msg = MIMEText(html, "html")
+        msg["Subject"] = "Welcome to MUTXRI TERMINAL — account confirmed"
+        msg["From"] = sender
+        msg["To"] = email
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP(server, int(os.environ.get("SES_PORT", "587")), timeout=30) as s:
+            s.starttls(context=ctx)
+            s.login(user, pwd)
+            s.sendmail(sender, [email], msg.as_string())
+    except Exception as e:
+        print(f"[auth] confirmation email failed for {email}: {str(e)[:80]}", flush=True)
+
+
 def signup(email, password, name=""):
     email = (email or "").lower().strip()
     if not _EMAIL_RE.match(email):
         return {"ok": False, "error": "valid email required"}
-    if not password or len(password) < 6:
-        return {"ok": False, "error": "password must be at least 6 characters"}
+    if not password or len(password) < 8:
+        return {"ok": False, "error": "password must be at least 8 characters"}
     if _find_user(email):
         return {"ok": False, "error": "an account with this email already exists"}
     record = {
@@ -71,6 +105,12 @@ def signup(email, password, name=""):
         "created": time.time(),
     }
     _save_user(record)
+    # fire the confirmation email in a background thread (never blocks signup)
+    try:
+        import threading
+        threading.Thread(target=_send_confirmation_email, args=(email, record["name"]), daemon=True).start()
+    except Exception:
+        pass
     token = secrets.token_hex(32)
     _SESSIONS[token] = {"email": email, "exp": time.time() + 30 * 86400}
     return {"ok": True, "token": token, "email": email, "name": record["name"]}
