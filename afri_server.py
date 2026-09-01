@@ -1294,7 +1294,7 @@ class Handler(SimpleHTTPRequestHandler):
         elif path.path == "/api/rates":
             self.json(rates())
         elif path.path == "/api/health":
-            self.json({"ok": True, "time": time.time()})
+            self.json({"ok": True, "time": time.time(), "db": auth_api.store_mode()})
         elif path.path == "/api/financials":
             # Claude's per-statement endpoint, served from OUR real AF data
             q = urllib.parse.parse_qs(path.query)
