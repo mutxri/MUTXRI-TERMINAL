@@ -414,6 +414,16 @@ function renderTabs(){
 // ===== drag-and-drop: arrange the workspace like Godel =====
 // columns: drag the watchlist / info grip to swap which side each sits on
 (function(){
+  // keep the center panel in the 1fr middle slot; the two rails swap around it
+  function setColOrder(first){
+    const main = document.querySelector('.main');
+    const watch = document.getElementById('colWatch');
+    const info = document.getElementById('colInfo');
+    const center = document.getElementById('colCenter');
+    main.appendChild(center);
+    main.appendChild(first === 'info' ? watch : info);
+    main.insertBefore(first === 'info' ? info : watch, main.firstChild);
+  }
   function bindColDrag(){
     let dragCol = null;
     document.querySelectorAll('.dgrip').forEach(g => {
@@ -441,13 +451,8 @@ function renderTabs(){
         if(!dragCol) return;
         const target = id.replace('col','').toLowerCase();
         if(dragCol !== target){
-          const main = document.querySelector('.main');
-          const watch = document.getElementById('colWatch');
-          const info = document.getElementById('colInfo');
-          // put the dragged rail first
-          if(dragCol === 'info') main.insertBefore(info, watch);
-          else main.insertBefore(watch, info);
-          try{ localStorage.setItem('mt_cols', dragCol === 'info' ? 'info,watch' : 'watch,info'); }catch(err){}
+          setColOrder(dragCol);  // the dragged rail moves to the left side
+          try{ localStorage.setItem('mt_cols', dragCol); }catch(err){}
         }
         dragCol = null;
       });
@@ -456,13 +461,7 @@ function renderTabs(){
   // restore the saved rail order
   try{
     const cols = localStorage.getItem('mt_cols');
-    if(cols){
-      const main = document.querySelector('.main');
-      const watch = document.getElementById('colWatch');
-      const info = document.getElementById('colInfo');
-      if(cols.indexOf('info') === 0 && watch.nextElementSibling === info) main.insertBefore(info, watch);
-      if(cols.indexOf('watch') === 0 && info.nextElementSibling === watch) main.insertBefore(watch, info);
-    }
+    if(cols) setColOrder(cols.indexOf('info') === 0 ? 'info' : 'watch');
   }catch(e){}
   // tab reordering
   let dragTab = null;
