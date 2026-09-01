@@ -116,6 +116,12 @@ body{
 .panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--line2);padding:0 var(--s3);
   overflow-x:auto}
+/* workspace drag handles (Godel-style panel arrangement) */
+.dgrip{color:var(--tx3);cursor:grab;font-size:11px;padding:0 4px;user-select:none;opacity:.6;}
+.dgrip:hover{opacity:1;color:var(--acc);}
+.dgrip.dragging{opacity:.35;}
+#colWatch.drop-ok, #colInfo.drop-ok{outline:2px dashed var(--acc);outline-offset:-2px;background:rgba(51,226,154,.06);}
+.ctab[draggable="true"]{cursor:grab;}
 .ctab{background:none;border:0;color:var(--tx3);font-family:var(--mono);
   font-size:11px;letter-spacing:.05em;padding:var(--s3) var(--s3);cursor:pointer;
   position:relative;white-space:nowrap;transition:color .15s}
@@ -208,20 +214,20 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   <div class="main">
 
     <!-- WATCHLIST -->
-    <aside class="rail">
-      <div class="wl-head"><span id="wlEx">JSE</span><span id="wlState"></span></div>
+    <aside class="rail" id="colWatch">
+      <div class="wl-head"><span class="dgrip" draggable="true" data-col="watch" title="Drag to move panel">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span></div>
       <div class="wl" id="wlList"></div>
     </aside>
 
     <!-- CENTER PANEL -->
-    <section class="panel">
+    <section class="panel" id="colCenter">
       <nav class="tabs" id="centerTabs"></nav>
       <div class="stage"><iframe id="stageFrame" src="features/panels/afri_heatmap.html"></iframe></div>
     </section>
 
     <!-- RIGHT RAIL -->
-    <aside class="rail right">
-      <div class="eyebrow">Market</div>
+    <aside class="rail right" id="colInfo">
+      <div class="eyebrow"><span class="dgrip" draggable="true" data-col="info" title="Drag to move panel">⠿</span>Market</div>
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
@@ -358,7 +364,7 @@ setInterval(clockTZ, 1000);
 clockTZ();
 
 // ===== Tabs (Claude's panels, untouched, embedded) =====
-const PANELS = [
+let PANELS = [
   {id:'heatmap', label:'HEATMAP', url:'features/panels/afri_heatmap.html'},
   {id:'screener',label:'SCREENER', url:'features/panels/afri_screener.html'},
   {id:'financials',label:'FINANCIALS', url:'features/panels/afri_financials.html'},
@@ -371,22 +377,118 @@ const PANELS = [
   {id:'tas',     label:'TAS',      url:'features/panels/afri_tas.html'},
   {id:'ratings', label:'RATINGS',  url:'features/panels/afri_ratings.html'},
 ];
+// restore the user's saved tab order (workflow persistence)
+try{
+  const saved = localStorage.getItem('mt_tabs');
+  if(saved){
+    const ids = saved.split(',');
+    const byId = {};
+    PANELS.forEach(p => { byId[p.id] = p; });
+    const reordered = ids.map(id => byId[id]).filter(Boolean);
+    if(reordered.length === PANELS.length) PANELS = reordered;
+  }
+}catch(e){}
 // panel URL with the current exchange appended (?ex=NGX) so EVERY panel
 // loads that exchange's data when opened
 function panelUrl(p){
   return p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 'ex=' + currentEx + '&v=' + Date.now();
 }
-PANELS.forEach((p, i) => {
-  const t = document.createElement('div');
-  t.className = 'ctab' + (i === 0 ? ' active' : '');
-  t.textContent = p.label;
-  t.onclick = () => {
-    document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    $('stageFrame').src = panelUrl(p);
-  };
-  $('centerTabs').appendChild(t);
-});
+// render the center panel tabs (rebuilt when the user drags them into a new order)
+function renderTabs(){
+  const nav = $('centerTabs');
+  nav.innerHTML = '';
+  PANELS.forEach((p, i) => {
+    const t = document.createElement('div');
+    t.className = 'ctab' + (i === 0 ? ' active' : '');
+    t.textContent = p.label;
+    t.draggable = true;
+    t.title = 'drag to reorder panel';
+    t.onclick = () => {
+      document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      $('stageFrame').src = panelUrl(p);
+    };
+    nav.appendChild(t);
+  });
+}
+// ===== drag-and-drop: arrange the workspace like Godel =====
+// columns: drag the watchlist / info grip to swap which side each sits on
+(function(){
+  function bindColDrag(){
+    let dragCol = null;
+    document.querySelectorAll('.dgrip').forEach(g => {
+      g.addEventListener('dragstart', e => {
+        dragCol = g.getAttribute('data-col');
+        e.dataTransfer.effectAllowed = 'move';
+        try{ e.dataTransfer.setData('text/plain', dragCol); }catch(err){}
+        g.classList.add('dragging');
+      });
+      g.addEventListener('dragend', () => {
+        dragCol = null;
+        document.querySelectorAll('.dgrip').forEach(x => x.classList.remove('dragging'));
+        document.querySelectorAll('#colWatch, #colInfo').forEach(x => x.classList.remove('drop-ok'));
+      });
+    });
+    ['colWatch', 'colInfo'].forEach(id => {
+      const el = document.getElementById(id);
+      el.addEventListener('dragover', e => {
+        if(dragCol && dragCol !== id.replace('col','').toLowerCase()){ e.preventDefault(); el.classList.add('drop-ok'); }
+      });
+      el.addEventListener('dragleave', () => el.classList.remove('drop-ok'));
+      el.addEventListener('drop', e => {
+        e.preventDefault();
+        el.classList.remove('drop-ok');
+        if(!dragCol) return;
+        const target = id.replace('col','').toLowerCase();
+        if(dragCol !== target){
+          const main = document.querySelector('.main');
+          const watch = document.getElementById('colWatch');
+          const info = document.getElementById('colInfo');
+          // put the dragged rail first
+          if(dragCol === 'info') main.insertBefore(info, watch);
+          else main.insertBefore(watch, info);
+          try{ localStorage.setItem('mt_cols', dragCol === 'info' ? 'info,watch' : 'watch,info'); }catch(err){}
+        }
+        dragCol = null;
+      });
+    });
+  }
+  // restore the saved rail order
+  try{
+    const cols = localStorage.getItem('mt_cols');
+    if(cols){
+      const main = document.querySelector('.main');
+      const watch = document.getElementById('colWatch');
+      const info = document.getElementById('colInfo');
+      if(cols.indexOf('info') === 0 && watch.nextElementSibling === info) main.insertBefore(info, watch);
+      if(cols.indexOf('watch') === 0 && info.nextElementSibling === watch) main.insertBefore(watch, info);
+    }
+  }catch(e){}
+  // tab reordering
+  let dragTab = null;
+  document.addEventListener('dragstart', e => {
+    if(e.target.classList.contains('ctab')) dragTab = Array.prototype.indexOf.call(e.target.parentNode.children, e.target);
+  });
+  document.addEventListener('dragover', e => {
+    if(dragTab !== null && e.target.classList.contains('ctab')){ e.preventDefault(); }
+  });
+  document.addEventListener('drop', e => {
+    if(dragTab === null || !e.target.classList.contains('ctab')) return;
+    e.preventDefault();
+    const to = Array.prototype.indexOf.call(e.target.parentNode.children, e.target);
+    const from = dragTab;
+    if(from !== to && from >= 0 && to >= 0){
+      const moved = PANELS.splice(from, 1)[0];
+      PANELS.splice(to, 0, moved);
+      try{ localStorage.setItem('mt_tabs', PANELS.map(p => p.id).join(',')); }catch(err){}
+      renderTabs();
+    }
+    dragTab = null;
+  });
+  document.addEventListener('dragend', () => { dragTab = null; });
+  bindColDrag();
+})();
+renderTabs();
 // load the default panel WITH the current exchange
 // (?panel= deep-link support for the landing showcase; unknown panels fall back to default)
 let __startIdx = 0;
