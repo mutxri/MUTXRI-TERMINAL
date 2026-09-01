@@ -248,6 +248,28 @@ def me(token):
     u = _find_user(s["email"])
     return {"ok": True, "email": s["email"], "name": (u or {}).get("name", "")}
 
+
+def admin_list(key):
+    """Admin: list signed-up users. Requires ADMIN_KEY env (constant-time compare).
+    Never exposes password hashes."""
+    expected = os.environ.get("ADMIN_KEY", "")
+    if not expected or not key or not hmac.compare_digest(key, expected):
+        return {"ok": False, "error": "unauthorized"}
+    users = []
+    try:
+        if _USE_MONGO:
+            for u in _DB["users"].find({}, {"_id": 0, "email": 1, "name": 1, "created": 1, "oauth": 1}):
+                users.append(u)
+        else:
+            data = _load_json()
+            for email, rec in data.items():
+                users.append({"email": email, "name": rec.get("name", ""),
+                              "created": rec.get("created"), "oauth": rec.get("oauth", "")})
+    except Exception as e:
+        return {"ok": False, "error": "db error: %s" % str(e)[:80]}
+    users.sort(key=lambda r: r.get("created") or 0, reverse=True)
+    return {"ok": True, "count": len(users), "users": users}
+
 def handle_auth(path, q):
     """Router for /api/auth/*  (signup | login | logout | me | oauth exchange)."""
     action = path.split("/")[-1]
