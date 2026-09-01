@@ -1353,6 +1353,25 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self.json({"ticker": ticker, "statement": statement, "available": False,
                            "rows": [], "note": "financials unavailable: %s" % str(e)[:60]})
+        elif path.path.startswith("/api/auth/oauth/"):
+            # /api/auth/oauth/<provider>/<start|callback>
+            parts = [pp for pp in path.path.split("/") if pp]
+            if len(parts) >= 5:
+                provider, action = parts[3], parts[4]
+                if action == "start":
+                    out = auth_api.oauth_start(provider, self.headers.get("Host", ""))
+                    self.json(out)
+                    return
+                if action == "callback":
+                    qq = urllib.parse.parse_qs(path.query)
+                    target = auth_api.oauth_callback(provider, (qq.get("code") or [""])[0],
+                                                     (qq.get("state") or [""])[0],
+                                                     self.headers.get("Host", ""))
+                    self.send_response(302)
+                    self.send_header("Location", target)
+                    self.end_headers()
+                    return
+            self.json({"ok": False, "error": "unknown oauth route"})
         elif path.path.startswith("/api/auth/"):
             q = urllib.parse.parse_qs(path.query)
             action = path.path.split("/")[-1]
