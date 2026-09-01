@@ -11,6 +11,19 @@ _JSON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.jso
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _SESSIONS = {}  # token -> {email, exp}
+# owner account: full lifetime access (token never expires)
+_OWNER = (os.environ.get("OWNER_EMAIL", "") or "jimmymuturi99@gmail.com").lower().strip()
+
+def _is_owner(email):
+    return bool(_OWNER) and (email or "").lower().strip() == _OWNER
+
+def _issue_token(email):
+    token = secrets.token_hex(32)
+    exp = time.time() + (3650 * 86400 if _is_owner(email) else 30 * 86400)  # owner: ~10y
+    _SESSIONS[token] = {"email": email, "exp": exp}
+    return token
+
+
 
 def _init(db, mongo_ok):
     global _DB, _USE_MONGO
@@ -195,9 +208,8 @@ def oauth_exchange(one_time_code):
     rec = _OAUTH_CODES.pop(one_time_code or "", None)
     if not rec or rec.get("exp", 0) < time.time():
         return {"ok": False, "error": "Sign-in link expired. Please try again."}
-    token = secrets.token_hex(32)
-    _SESSIONS[token] = {"email": rec["email"], "exp": time.time() + 30 * 86400}
-    return {"ok": True, "token": token, "email": rec["email"], "name": rec.get("name", "")}
+    token = _issue_token(rec["email"])
+    return {"ok": True, "token": token, "email": rec["email"], "name": rec.get("name", ""), "owner": _is_owner(rec["email"])}
 
 def signup(email, password, name=""):
     email = (email or "").lower().strip()
@@ -220,18 +232,16 @@ def signup(email, password, name=""):
         threading.Thread(target=_send_confirmation_email, args=(email, record["name"]), daemon=True).start()
     except Exception:
         pass
-    token = secrets.token_hex(32)
-    _SESSIONS[token] = {"email": email, "exp": time.time() + 30 * 86400}
-    return {"ok": True, "token": token, "email": email, "name": record["name"]}
+    token = _issue_token(email)
+    return {"ok": True, "token": token, "email": email, "name": record["name"], "owner": _is_owner(email)}
 
 def login(email, password):
     email = (email or "").lower().strip()
     u = _find_user(email)
     if not u or not _check_password(password, u.get("pw", "")):
         return {"ok": False, "error": "invalid email or password"}
-    token = secrets.token_hex(32)
-    _SESSIONS[token] = {"email": email, "exp": time.time() + 30 * 86400}
-    return {"ok": True, "token": token, "email": email, "name": u.get("name", "")}
+    token = _issue_token(email)
+    return {"ok": True, "token": token, "email": email, "name": u.get("name", ""), "owner": _is_owner(email)}
 
 def logout(token):
     if token:
@@ -246,7 +256,7 @@ def me(token):
         _SESSIONS.pop(token, None)
         return {"ok": False, "error": "session expired"}
     u = _find_user(s["email"])
-    return {"ok": True, "email": s["email"], "name": (u or {}).get("name", "")}
+    return {"ok": True, "email": s["email"], "name": (u or {}).get("name", ""), "owner": _is_owner(s["email"])}
 
 
 def admin_list(key, delete_email=None):
