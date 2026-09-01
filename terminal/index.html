@@ -116,6 +116,25 @@ body{
 .panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--line2);padding:0 var(--s3);
   overflow-x:auto}
+/* auth gate (sign in required) */
+.auth-gate-holder #authGate, #authGate{position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;font-family:var(--mono);}
+#authGate .gate-card{width:340px;border:1px solid var(--line2);border-radius:8px;padding:28px;background:var(--bg2);box-shadow:0 24px 80px rgba(0,0,0,.6);}
+#authGate .gate-brand{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+#authGate .gate-mark{width:30px;height:30px;background:var(--acc);color:#000;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:13px;}
+#authGate .gate-name{font-size:15px;letter-spacing:.08em;color:var(--tx);}
+#authGate .gate-name small{color:var(--tx3);font-size:10px;letter-spacing:.15em;display:block;}
+#authGate .gate-sub{color:var(--tx3);font-size:11px;margin:10px 0 14px;letter-spacing:.05em;}
+#authGate .gate-tabs{display:flex;border:1px solid var(--line2);border-radius:4px;margin-bottom:14px;overflow:hidden;}
+#authGate .gate-tab{flex:1;background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:8px 0;cursor:pointer;}
+#authGate .gate-tab.on{background:var(--acc);color:#000;font-weight:700;}
+#authGate .gate-field input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--line2);color:var(--tx);font-family:var(--mono);font-size:12px;padding:10px;margin-bottom:10px;border-radius:4px;outline:none;}
+#authGate .gate-field input:focus{border-color:var(--acc);}
+#authGate .gate-msg{min-height:16px;font-size:11px;color:#ff5f56;margin-bottom:10px;}
+#authGate .gate-msg.ok{color:var(--acc);}
+#authGate .gate-btn{width:100%;background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.1em;padding:11px;border-radius:4px;cursor:pointer;}
+#authGate .gate-btn:hover{background:#26c98a;}
+#authGate .gate-back{margin-top:14px;text-align:center;color:var(--tx3);font-size:11px;cursor:pointer;}
+#authGate .gate-back:hover{color:var(--acc);}
 /* workspace drag handles (Godel-style panel arrangement) */
 .dgrip{color:var(--tx3);cursor:grab;font-size:11px;padding:0 4px;user-select:none;opacity:.6;}
 .dgrip:hover{opacity:1;color:var(--acc);}
@@ -189,6 +208,76 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 </style>
 </head>
 <body>
+<!-- ===== auth gate: sign in required to enter the terminal ===== -->
+<div id="authGate" style="display:none">
+  <div class="gate-card">
+    <div class="gate-brand"><span class="gate-mark">MX</span><span class="gate-name">MUTXRI<small>TERMINAL</small></span></div>
+    <div class="gate-sub">SIGN IN TO ENTER THE TERMINAL</div>
+    <div class="gate-tabs">
+      <button class="gate-tab on" data-gmode="login" onclick="gateMode('login')">SIGN IN</button>
+      <button class="gate-tab" data-gmode="signup" onclick="gateMode('signup')">CREATE ACCOUNT</button>
+    </div>
+    <div class="gate-field"><input id="gateEmail" type="email" placeholder="EMAIL" autocomplete="email"></div>
+    <div class="gate-field" id="gateNameWrap" style="display:none"><input id="gateName" type="text" placeholder="NAME (OPTIONAL)" autocomplete="name"></div>
+    <div class="gate-field"><input id="gatePwd" type="password" placeholder="PASSWORD (MIN 8)" autocomplete="current-password" onkeydown="if(event.key==='Enter')gateSubmit()"></div>
+    <div class="gate-msg" id="gateMsg"></div>
+    <button class="gate-btn" onclick="gateSubmit()">SIGN IN</button>
+    <div class="gate-back" onclick="location.href='/'">&larr; Back to mutxriterminal.com</div>
+  </div>
+</div>
+<script>
+(function(){
+  var AUTH_API = (window.AUTH_API || (new URLSearchParams(location.search).get("api") || "")) || "https://mutxri-backend.onrender.com";
+  var gate = document.getElementById("authGate");
+  var q = new URLSearchParams(location.search);
+  // landing previews (view= modes) and embedded iframes are not gated
+  if(q.get("view") || window.self !== window.top){ if(gate) gate.remove(); return; }
+  var mode = "login";
+  function show(){ if(gate) gate.style.display = "flex"; }
+  function hide(){ if(gate) gate.remove(); }
+  function msg(t, ok){ var m = document.getElementById("gateMsg"); if(!m) return; m.textContent = t || ""; m.className = "gate-msg" + (ok ? " ok" : ""); }
+  window.gateMode = function(m){
+    mode = m;
+    document.querySelectorAll(".gate-tab").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-gmode") === m); });
+    var nm = document.getElementById("gateNameWrap"); if(nm) nm.style.display = (m === "signup") ? "block" : "none";
+    var btn = document.querySelector(".gate-btn"); if(btn) btn.textContent = (m === "signup") ? "CREATE ACCOUNT" : "SIGN IN";
+  };
+  function tok(){ try{ return localStorage.getItem("mt_token") || ""; }catch(e){ return ""; } }
+  function check(){
+    var t = tok();
+    if(!t){ show(); return; }
+    msg("Verifying session…");
+    fetch(AUTH_API + "/api/auth/me", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(d){ if(d && d.ok){ hide(); } else { show(); msg("Session expired. Sign in to continue."); } })
+      .catch(function(){ show(); msg("Could not reach the sign-in server. Check your connection and try again."); });
+  }
+  window.gateSubmit = function(){
+    var email = (document.getElementById("gateEmail").value || "").trim();
+    var pwd = document.getElementById("gatePwd").value || "";
+    var name = document.getElementById("gateName") ? document.getElementById("gateName").value.trim() : "";
+    if(!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg("Enter a valid email address."); return; }
+    if(!pwd){ msg("Enter your password."); return; }
+    if(mode === "signup" && pwd.length < 8){ msg("Password must be at least 8 characters."); return; }
+    var payload = {email: email, password: pwd};
+    if(mode === "signup" && name) payload.name = name;
+    msg(mode === "login" ? "Signing in…" : "Creating your account…");
+    fetch(AUTH_API + "/api/auth/" + (mode === "login" ? "login" : "signup"), {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
+      .then(function(d){
+        if(d && d.ok){
+          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); }catch(e){}
+          msg("Welcome. Loading the terminal…", true);
+          setTimeout(hide, 600);
+        } else {
+          msg((d && d.error) ? d.error : "Sign in failed. Try again.");
+        }
+      })
+      .catch(function(){ msg("Could not reach the sign-in server. Try again shortly."); });
+  };
+  check();
+})();
+</script>
 <div class="term">
 
   <!-- TOP BAR -->
