@@ -1372,6 +1372,19 @@ class Handler(SimpleHTTPRequestHandler):
                     self.end_headers()
                     return
             self.json({"ok": False, "error": "unknown oauth route"})
+        if path.path == "/api/admin/users":
+            data = {}
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 0 and length <= 65536:
+                    body = self.rfile.read(length).decode("utf-8", "ignore")
+                    data = json.loads(body) if body.strip() else {}
+                    if not isinstance(data, dict):
+                        data = {}
+            except Exception:
+                data = {}
+            self.json(auth_api.admin_list((data or {}).get("key", "")))
+            return
         elif path.path.startswith("/api/auth/"):
             q = urllib.parse.parse_qs(path.query)
             action = path.path.split("/")[-1]
