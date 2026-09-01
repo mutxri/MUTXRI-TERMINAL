@@ -29,7 +29,7 @@
 <div class="ok" id="msg"></div>
 <div class="err" id="err"></div>
 <table id="tbl" style="display:none">
-  <thead><tr><th>EMAIL</th><th>NAME</th><th>SIGN-IN</th><th>SIGNED UP</th></tr></thead>
+  <thead><tr><th>EMAIL</th><th>NAME</th><th>SIGN-IN</th><th>SIGNED UP</th><th></th></tr></thead>
   <tbody id="rows"></tbody>
 </table>
 <script>
@@ -40,11 +40,23 @@ function fmt(ts){
 function esc(s){
   return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+var CURRENT_KEY = "";
+function delUser(email){
+  if(!confirm("Remove " + email + "?")) return;
+  fetch("/api/admin/users", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({key: CURRENT_KEY, delete: email})})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d && d.ok && d.deleted){ loadUsers(); }
+      else { document.getElementById("err").textContent = (d && d.error) ? d.error : "Remove failed."; }
+    })
+    .catch(function(){ document.getElementById("err").textContent = "Could not reach the server."; });
+}
 function loadUsers(){
   var key = document.getElementById("key").value.trim();
   var msg = document.getElementById("msg"), err = document.getElementById("err");
   msg.textContent = ""; err.textContent = "";
   if(!key){ err.textContent = "Enter the admin key."; return; }
+  CURRENT_KEY = key;
   fetch("/api/admin/users", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({key: key})})
     .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"bad response"}; }); })
     .then(function(d){
@@ -53,7 +65,8 @@ function loadUsers(){
         rows.innerHTML = "";
         (d.users || []).forEach(function(u){
           var tr = document.createElement("tr");
-          tr.innerHTML = "<td>" + esc(u.email) + "</td><td>" + esc(u.name) + "</td><td>" + esc(u.oauth || "email") + "</td><td>" + esc(fmt(u.created)) + "</td>";
+          tr.innerHTML = "<td>" + esc(u.email) + "</td><td>" + esc(u.name) + "</td><td>" + esc(u.oauth || "email") + "</td><td>" + esc(fmt(u.created)) + "</td>" +
+                     "<td><a href='#' onclick='delUser(\"" + esc(u.email).replace(/"/g, "&quot;") + "\");return false;' style='color:#ff5f56;text-decoration:none;font-size:11px'>remove</a></td>";
           rows.appendChild(tr);
         });
         document.getElementById("tbl").style.display = "";
