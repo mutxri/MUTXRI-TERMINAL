@@ -36,6 +36,10 @@ if os.path.exists(os.path.join(BASE, "404.html")):
 # links hub page
 shutil.copy(os.path.join(BASE, "LINKS.html"), os.path.join(DEPLOY, "LINKS.html"))
 
+# legal pages (Google OAuth publishing requires a public privacy policy)
+shutil.copy(os.path.join(BASE, "privacy.html"), os.path.join(DEPLOY, "privacy.html"))
+shutil.copy(os.path.join(BASE, "terms.html"), os.path.join(DEPLOY, "terms.html"))
+
 # panels (static heatmap + static screener + the shell's other panels for completeness)
 os.makedirs(os.path.join(TERM, "features", "panels"), exist_ok=True)
 # build the static heatmap from the LIVE panel source: remap /api/heatmap ->
