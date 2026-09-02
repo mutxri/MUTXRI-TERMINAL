@@ -1014,7 +1014,7 @@ function openChartModal(sym){
 
 function openStock(sym){
   if(!sym) return;
-  if(_view === 'watchlist'){ openChartModal(sym); return; }
+  try{ if(new URLSearchParams(location.search).get('view') === 'watchlist'){ openChartModal(sym); return; } }catch(e){}
   const ex = currentEx;
   const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
   $('rightInfo').innerHTML = `<div style="padding:6px 0;color:var(--acc);font-weight:700">${esc(sym)}</div>
