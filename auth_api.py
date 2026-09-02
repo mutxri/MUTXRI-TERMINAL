@@ -122,6 +122,12 @@ _OAUTH_STATE = {}   # state -> {provider, exp}
 _OAUTH_CODES = {}   # one-time code -> {email, name, exp}
 
 def _cb_url(host, provider):
+    base = os.environ.get("OAUTH_BASE", "").strip().rstrip("/")
+    if base:
+        # fixed callback domain (e.g. https://mutxriterminal.com) so Google's
+        # registered redirect can live on the authorized domain regardless of
+        # which host the browser hit (Render proxy keeps its own Host).
+        return "%s/api/auth/oauth/%s/callback" % (base, provider)
     host = (host or "").strip()
     return "https://%s/api/auth/oauth/%s/callback" % (host, provider)
 
