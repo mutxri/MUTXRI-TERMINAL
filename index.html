@@ -376,6 +376,19 @@ a{color:var(--acc);text-decoration:none;}
 
 }
 
+
+/* live chart modal (landing preview: click a security -> candle/line/area) */
+.lp-chart{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;font-family:ui-monospace,Consolas,monospace;}
+.lp-chart-box{width:min(720px,92vw);background:#0a0a0a;border:1px solid #262626;border-radius:8px;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.7);}
+.lp-chart-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1a1a1a;}
+.lp-chart-head .t{color:#33e29a;font-size:12px;letter-spacing:.08em;font-weight:700;}
+.lp-chart-head .sub{color:#6a6a6a;font-size:10px;letter-spacing:.05em;}
+.lp-ct{background:none;border:1px solid #262626;color:#8a8a8a;font-family:inherit;font-size:10px;letter-spacing:.08em;padding:5px 10px;cursor:pointer;margin-left:6px;border-radius:3px;}
+.lp-ct.on{background:#33e29a;border-color:#33e29a;color:#000;font-weight:700;}
+.lp-chart-close{background:none;border:0;color:#8a8a8a;font-size:18px;cursor:pointer;line-height:1;padding:0 4px;}
+.lp-chart-close:hover{color:#ff5f56;}
+.lp-chart-body{height:360px;}
+.lp-chart-load{color:#6a6a6a;font-size:12px;padding:24px;text-align:center;}
 </style>
 
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
@@ -1357,6 +1370,101 @@ function submitAuth(e){
 </script>
 
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"3ff7df4484cd4731b0b76b939941a311","r":1}' crossorigin="anonymous"></script>
+
+<!-- ===== live chart: click a security in the previews (landing only) ===== -->
+<div id="lpChart" class="lp-chart" style="display:none">
+  <div class="lp-chart-box">
+    <div class="lp-chart-head">
+      <span><span class="t" id="lpChartTitle">MUTXRI TERMINAL</span> <span class="sub" id="lpChartSub"></span></span>
+      <span>
+        <button class="lp-ct on" data-t="candle" onclick="lpSetType('candle')">CANDLE</button>
+        <button class="lp-ct" data-t="line" onclick="lpSetType('line')">LINE</button>
+        <button class="lp-ct" data-t="area" onclick="lpSetType('area')">AREA</button>
+        <button class="lp-chart-close" onclick="lpCloseChart()">&times;</button>
+      </span>
+    </div>
+    <div class="lp-chart-body" id="lpChartBox"><div class="lp-chart-load">Click a security to load its chart.</div></div>
+  </div>
+</div>
+
+<script>
+// ===== live chart on security click (landing previews only; the terminal app is untouched) =====
+(function(){
+  var lpc = document.getElementById("lpChart");
+  if(!lpc || typeof LightweightCharts === "undefined") return;
+  var chart = null, series = null, curBars = [];
+  function box(){ return document.getElementById("lpChartBox"); }
+  function renderChart(bars){
+    var b = box();
+    if(!bars || !bars.length){ b.innerHTML = '<div class="lp-chart-load">No chart data for this security yet.</div>'; return; }
+    curBars = bars;
+    b.innerHTML = "";
+    chart = LightweightCharts.createChart(b, {
+      layout:{background:{type:"solid",color:"#0a0a0a"},textColor:"#9a9a9a",fontFamily:"ui-monospace,Consolas,monospace"},
+      grid:{vertLines:{color:"#141414"},horzLines:{color:"#141414"}},
+      timeScale:{borderColor:"#262626"}, rightPriceScale:{borderColor:"#262626"}, crosshair:{mode:0},
+      width:b.clientWidth || 700, height:360
+    });
+    chart.timeScale().fitContent();
+    addSeries("candle");
+  }
+  function addSeries(t){
+    if(chart){ try{ chart.removeSeries(series); }catch(e){} }
+    var c = curBars;
+    if(t === "candle"){
+      series = chart.addCandlestickSeries({ upColor:"#33e29a", downColor:"#ff5f56", borderVisible:false, wickUpColor:"#33e29a", wickDownColor:"#ff5f56" });
+      series.setData(c.map(function(b){ return { time:b.t, open:b.o, high:b.h, low:b.l, close:b.c }; }));
+    } else if(t === "line"){
+      series = chart.addLineSeries({ color:"#33e29a", lineWidth:2 });
+      series.setData(c.map(function(b){ return { time:b.t, value:b.c }; }));
+    } else {
+      series = chart.addAreaSeries({ lineColor:"#33e29a", topColor:"rgba(51,226,154,.25)", bottomColor:"rgba(51,226,154,0)" });
+      series.setData(c.map(function(b){ return { time:b.t, value:b.c }; }));
+    }
+    chart.timeScale().fitContent();
+  }
+  window.lpSetType = function(t){
+    document.querySelectorAll(".lp-ct").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-t") === t); });
+    if(chart) addSeries(t);
+  };
+  window.lpCloseChart = function(){ lpc.style.display = "none"; };
+  function openChart(sym, name){
+    var t = document.getElementById("lpChartTitle"), s = document.getElementById("lpChartSub");
+    if(t) t.textContent = sym;
+    if(s) s.textContent = name || "";
+    lpc.style.display = "flex";
+    box().innerHTML = '<div class="lp-chart-load">Loading history…</div>';
+    fetch("terminal/static_data/history/" + encodeURIComponent(sym) + ".json")
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+      .then(function(d){ renderChart((d && d.bars) || []); })
+      .catch(function(){
+        return fetch("terminal/static_data/history/" + encodeURIComponent(sym) + ".max.json")
+          .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+          .then(function(d){ renderChart((d && d.bars) || []); })
+          .catch(function(){ renderChart(null); });
+      });
+  }
+  function bindFrame(fr){
+    try{
+      var doc = fr.contentDocument;
+      if(!doc || !doc.addEventListener) return;
+      doc.addEventListener("click", function(e){
+        var el = e.target;
+        while(el && el !== doc && !(el.classList && el.classList.contains("wl-row"))) el = el.parentNode;
+        if(!el || el === doc) return;
+        var m = (el.getAttribute("onclick") || "").match(/openStock\('([^']+)'\)/);
+        if(!m) return;
+        e.preventDefault(); e.stopPropagation();  // capture-phase: stops the embed's own info-sheet open
+        openChart(m[1], (el.querySelector(".sym") || {}).textContent || "");
+      }, true);
+    }catch(err){ /* cross-origin embed: skip */ }
+  }
+  document.querySelectorAll('iframe[src*="view=watchlist"]').forEach(function(fr){
+    if(fr.contentDocument && fr.contentDocument.readyState === "complete") bindFrame(fr);
+    fr.addEventListener("load", function(){ bindFrame(fr); });
+  });
+})();
+</script>
 </body>
 
 </html>
