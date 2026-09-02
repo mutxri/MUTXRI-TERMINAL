@@ -1364,9 +1364,15 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 if action == "callback":
                     qq = urllib.parse.parse_qs(path.query)
+                    # Render sits behind a proxy, so the real client address
+                    # is in X-Forwarded-For, not the socket.
+                    fwd = (self.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
+                    client_ip = fwd or self.client_address[0]
                     target = auth_api.oauth_callback(provider, (qq.get("code") or [""])[0],
                                                      (qq.get("state") or [""])[0],
-                                                     self.headers.get("Host", ""))
+                                                     self.headers.get("Host", ""),
+                                                     self.headers.get("User-Agent", ""),
+                                                     client_ip)
                     self.send_response(302)
                     self.send_header("Location", target)
                     self.end_headers()
@@ -1374,6 +1380,11 @@ class Handler(SimpleHTTPRequestHandler):
             self.json({"ok": False, "error": "unknown oauth route"})
         elif path.path.startswith("/api/auth/"):
             q = urllib.parse.parse_qs(path.query)
+            # the client cannot set these - they are read off the request so the
+            # login log records the real caller, not whatever was in the query
+            fwd = (self.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
+            q["_ip"] = [fwd or self.client_address[0]]
+            q["_ua"] = [self.headers.get("User-Agent", "")]
             action = path.path.split("/")[-1]
             if rate_limited(self.client_address[0], action):
                 self.send_error(429, "too many attempts")
