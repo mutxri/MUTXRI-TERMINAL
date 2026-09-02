@@ -118,6 +118,17 @@ body{
 .panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--line2);padding:0 var(--s3);
   overflow-x:auto}
+/* in-window chart (view=watchlist previews) */
+#wlChart{position:fixed;inset:0;z-index:60000;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;font-family:var(--mono);}
+#wlChart .wc-box{width:min(680px,94vw);background:var(--bg2);border:1px solid var(--line2);border-radius:8px;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.7);}
+#wlChart .wc-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);}
+#wlChart .wc-t{color:var(--acc);font-size:13px;letter-spacing:.08em;font-weight:700;}
+#wlChart .wc-ct{background:none;border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:5px 10px;cursor:pointer;margin-left:6px;border-radius:3px;}
+#wlChart .wc-ct.on{background:var(--acc);border-color:var(--acc);color:#000;font-weight:700;}
+#wlChart .wc-close{background:none;border:0;color:var(--tx3);font-size:18px;cursor:pointer;line-height:1;padding:0 4px;}
+#wlChart .wc-close:hover{color:#ff5f56;}
+#wlChart .wc-body{height:380px;}
+#wlChart .wc-load{color:var(--tx3);font-size:12px;padding:24px;text-align:center;}
 /* auth gate (sign in required) */
 .auth-gate-holder #authGate, #authGate{position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;font-family:var(--mono);}
 #authGate .gate-card{width:340px;border:1px solid var(--line2);border-radius:8px;padding:28px;background:var(--bg2);box-shadow:0 24px 80px rgba(0,0,0,.6);}
@@ -236,6 +247,21 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
     <div class="gate-msg" id="gateMsg"></div>
     <button class="gate-btn" onclick="gateSubmit()">SIGN IN</button>
     <div class="gate-back" onclick="location.href='/'">&larr; Back to mutxriterminal.com</div>
+  </div>
+</div>
+<!-- in-window chart for view=watchlist mode (landing previews): click a security -> candles -->
+<div id="wlChart" style="display:none">
+  <div class="wc-box">
+    <div class="wc-head">
+      <span class="wc-t" id="wcTitle">MUTXRI</span>
+      <span class="wc-types">
+        <button class="wc-ct on" data-t="candle" onclick="wcSetType('candle')">CANDLE</button>
+        <button class="wc-ct" data-t="line" onclick="wcSetType('line')">LINE</button>
+        <button class="wc-ct" data-t="area" onclick="wcSetType('area')">AREA</button>
+      </span>
+      <button class="wc-close" onclick="wcClose()">&times;</button>
+    </div>
+    <div class="wc-body" id="wcBody"><div class="wc-load">Loading history…</div></div>
   </div>
 </div>
 <script>
@@ -931,8 +957,64 @@ function renderMarketStatic(rec, info){
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
 
+
+// ===== in-window chart (view=watchlist previews only; normal terminal keeps info sheet) =====
+let __wcChart = null, __wcSeries = null, __wcBars = [], __wcType = 'candle';
+function wcRender(bars){
+  const body = $('wcBody');
+  if(!body) return;
+  if(!bars || !bars.length){ body.innerHTML = '<div class="wc-load">No chart data for this security yet.</div>'; return; }
+  __wcBars = bars;
+  body.innerHTML = '';
+  try{
+    __wcChart = LightweightCharts.createChart(body, {
+      layout:{background:{type:'solid',color:'#0a0a0a'},textColor:'#9a9a9a',fontFamily:'ui-monospace,Consolas,monospace'},
+      grid:{vertLines:{color:'#141414'},horzLines:{color:'#141414'}},
+      timeScale:{borderColor:'#262626'}, rightPriceScale:{borderColor:'#262626'}, crosshair:{mode:0},
+      width: body.clientWidth || 640, height: 380
+    });
+    __wcChart.timeScale().fitContent();
+  }catch(e){ body.innerHTML = '<div class="wc-load">Chart could not render.</div>'; return; }
+  wcSetType('candle');
+}
+function wcSetType(t){
+  __wcType = t;
+  document.querySelectorAll('.wc-ct').forEach(b => b.classList.toggle('on', b.getAttribute('data-t') === t));
+  if(!__wcChart) return;
+  try{ __wcChart.removeSeries(__wcSeries); }catch(e){}
+  const c = __wcBars;
+  try{
+    if(t === 'candle'){
+      __wcSeries = __wcChart.addCandlestickSeries({ upColor:'#33e29a', downColor:'#ff5f56', borderVisible:false, wickUpColor:'#33e29a', wickDownColor:'#ff5f56' });
+      __wcSeries.setData(c.map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c })));
+    } else if(t === 'line'){
+      __wcSeries = __wcChart.addLineSeries({ color:'#33e29a', lineWidth: 2 });
+      __wcSeries.setData(c.map(b => ({ time: b.t, value: b.c })));
+    } else {
+      __wcSeries = __wcChart.addAreaSeries({ lineColor:'#33e29a', topColor:'rgba(51,226,154,.25)', bottomColor:'rgba(51,226,154,0)' });
+      __wcSeries.setData(c.map(b => ({ time: b.t, value: b.c })));
+    }
+    __wcChart.timeScale().fitContent();
+  }catch(e){}
+}
+function wcClose(){ const m = $('wlChart'); if(m) m.style.display = 'none'; }
+function openChartModal(sym){
+  const m = $('wlChart'); if(!m) return;
+  const ttl = $('wcTitle'); if(ttl) ttl.textContent = sym;
+  m.style.display = 'flex';
+  $('wcBody').innerHTML = '<div class="wc-load">Loading history…</div>';
+  fetch('static_data/history/' + encodeURIComponent(sym) + '.json')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(d => wcRender((d && d.bars) || []))
+    .catch(() => fetch('static_data/history/' + encodeURIComponent(sym) + '.max.json')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => wcRender((d && d.bars) || []))
+      .catch(() => wcRender(null)));
+}
+
 function openStock(sym){
   if(!sym) return;
+  if(_view === 'watchlist'){ openChartModal(sym); return; }
   const ex = currentEx;
   const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
   $('rightInfo').innerHTML = `<div style="padding:6px 0;color:var(--acc);font-weight:700">${esc(sym)}</div>
