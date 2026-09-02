@@ -22,14 +22,19 @@ def raw(path, method="GET", data=None):
 files = {
     "afri_server.py": r"D:\mutxri-terminal\backend_render\afri_server.py",
     "auth_api.py": r"D:\mutxri-terminal\backend_render\auth_api.py",
+    "login_log.py": r"D:\mutxri-terminal\backend_render\login_log.py",
 }
 for rel, local in files.items():
     content = open(local, "rb").read()
     st, out = raw(f"contents/{rel}?ref=backend")
-    if st != 200:
+    data = {"message": "Sign-in notifications + login log: welcome/new-device emails (SES) and durable attempt log (Mongo login_events, JSON fallback)",
+            "content": base64.b64encode(content).decode(), "branch": BR}
+    if st == 200:
+        data["sha"] = out["sha"]  # update existing file
+    elif st == 404:
+        pass  # new file - create without sha
+    else:
         print(f"{rel}: sha lookup failed ({st})")
         continue
-    data = {"message": "Security hardening: block sensitive files, CORS restrict, POST auth, rate limit, param validation",
-            "content": base64.b64encode(content).decode(), "branch": BR, "sha": out["sha"]}
     st2, out2 = raw(f"contents/{rel}", "PUT", data)
     print(f"{rel}: push {st2} ({len(content)} bytes)")
