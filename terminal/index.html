@@ -953,6 +953,46 @@ function renderMarketStatic(rec, info){
   }
   html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend</div>`;
   $('rightInfo').innerHTML = html;
+  // financials summary from the collected statement files (static, honest)
+  try{
+    var _fsym = String(rec.sym || rec.ticker || '').replace(/\//g, '_');
+    if(_fsym){
+      fetch('static_data/financials/' + encodeURIComponent(_fsym) + '__income.json')
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => {
+          if(!d || d.available === false) return;
+          var rows = d.rows || [];
+          var periods = d.periods || [];
+          var cur = d.currency || '';
+          var fnum = (n) => {
+            if(n == null || !isFinite(Number(n))) return '—';
+            var x = Number(n), abs = Math.abs(x);
+            if(abs >= 1e9) return (x/1e9).toFixed(2).replace(/\.?0+$/, '') + 'B';
+            if(abs >= 1e6) return (x/1e6).toFixed(2).replace(/\.?0+$/, '') + 'M';
+            if(abs >= 1e3) return (x/1e3).toFixed(1).replace(/\.?0+$/, '') + 'K';
+            return x.toLocaleString(undefined, {maximumFractionDigits: 2});
+          };
+          var want = ['Revenue','Gross Profit','Operating Profit (EBIT)','Net Profit','EPS'];
+          var pick = {};
+          rows.forEach(rr => { if(want.indexOf(rr.label) >= 0) pick[rr.label] = rr.values; });
+          var year = periods[0] || '';
+          var h = `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--acc);font-size:10px;letter-spacing:.1em;font-weight:700">FINANCIALS · ${esc(year)}</div>`;
+          var keys = ['Revenue','Gross Profit','Operating Profit (EBIT)','Net Profit','EPS'];
+          var any = false;
+          keys.forEach(k => {
+            var v = pick[k] && pick[k][0];
+            if(v == null) return;
+            any = true;
+            h += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(k)}</span><span style="color:var(--tx);font-family:var(--mono)">${esc(fnum(v))}${cur ? ' ' + esc(cur) : ''}</span></div>`;
+          });
+          if(any){
+            var ri = $('rightInfo');
+            if(ri) ri.insertAdjacentHTML('beforeend', h + `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">From filed statements · full detail in FINANCIALS</div>`);
+          }
+        })
+        .catch(() => {});
+    }
+  }catch(e){}
 }
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
