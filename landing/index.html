@@ -691,11 +691,11 @@ a{color:var(--acc);text-decoration:none;}
           <li>Logos for 600+ companies, monogram fallback</li>
           <li>Type-to-filter across the full universe</li>
         </ul>
-        <a class="btn btn-ghost" href="terminal/?ex=JSE" target="_blank">Open Watchlist</a>
+        <a class="btn btn-ghost" href="terminal/?ex=NSE" target="_blank">Open Watchlist</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/?ex=JSE&view=watchlist" data-ex="JSE" loading="lazy" title="Live watchlist"></iframe>
-        <span class="shot-tag">WATCHLIST · LIVE</span>
+        <iframe src="terminal/?ex=NSE&view=watchlist" data-ex="NSE" data-quote="1" loading="lazy" title="Live quote monitor"></iframe>
+        <span class="shot-tag">QUOTE MONITOR · NSE</span>
       </div>
     </div>
 
@@ -703,18 +703,18 @@ a{color:var(--acc);text-decoration:none;}
       <div class="f-text">
         <div class="code">CH · CHARTS</div>
         <h3>Real candles, honest history.</h3>
-        <p>Click any security for its candlestick, line or area chart — built in-house from real exchange data. NSE official history (475–494 bars for the majors), NGX official price lists, JSE/EGX full coverage. No third-party widgets.</p>
+        <p>Click any security for its candlestick, line or area chart — built in-house from real exchange data. JSE/EGX full coverage (most JSE names have years of candles), NSE official history (475–494 bars for the majors), NGX official price lists. No third-party widgets.</p>
         <ul class="feats">
           <li>Click a security → CANDLE / LINE / AREA chart</li>
           <li>NSE majors: real official daily bars since 2024</li>
           <li>Single-bar securities render their real last close</li>
           <li>Honest EOD card where no free feed exists</li>
         </ul>
-        <a class="btn btn-ghost" href="terminal/?ex=NSE" target="_blank">Open Charts</a>
+        <a class="btn btn-ghost" href="terminal/?ex=JSE" target="_blank">Open Charts</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/?ex=NSE&view=watchlist" data-ex="NSE" loading="lazy" title="Live charts"></iframe>
-        <span class="shot-tag">CHARTS · REAL DATA</span>
+        <iframe src="terminal/?ex=JSE&view=watchlist" data-ex="JSE" loading="lazy" title="Live charts"></iframe>
+        <span class="shot-tag">CHARTS · JSE CANDLES</span>
       </div>
     </div>
 
@@ -1357,6 +1357,30 @@ function submitAuth(e){
 </script>
 
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"3ff7df4484cd4731b0b76b939941a311","r":1}' crossorigin="anonymous"></script>
+
+<script>
+// QUOTE MONITOR (NSE): security clicks are view-only - no candlesticks, no info sheet
+(function(){
+  function swallow(fr){
+    try{
+      var doc = fr.contentDocument;
+      if(!doc || !doc.addEventListener) return;
+      doc.addEventListener("click", function(e){
+        var el = e.target;
+        while(el && el !== doc && !(el.classList && el.classList.contains("wl-row"))) el = el.parentNode;
+        if(!el || el === doc) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }, true);
+    }catch(err){}
+  }
+  var fr = document.querySelector('iframe[data-quote="1"]');
+  if(fr){
+    if(fr.contentDocument && fr.contentDocument.readyState === "complete") swallow(fr);
+    fr.addEventListener("load", function(){ swallow(fr); });
+  }
+})();
+</script>
 </body>
 
 </html>
