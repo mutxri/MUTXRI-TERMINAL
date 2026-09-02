@@ -1003,10 +1003,14 @@ function openChartModal(sym){
   const ttl = $('wcTitle'); if(ttl) ttl.textContent = sym;
   m.style.display = 'flex';
   $('wcBody').innerHTML = '<div class="wc-load">Loading history…</div>';
-  fetch('static_data/history/' + encodeURIComponent(sym) + '.json')
+  var histBase = String(sym).replace(/\//g, '_');
+  try{
+    if(currentEx === 'NSE' || currentEx === 'NGX'){ histBase = currentEx + '_' + String(sym).split('.')[0]; }
+  }catch(e){}
+  fetch('static_data/history/' + encodeURIComponent(histBase) + '.json')
     .then(r => r.ok ? r.json() : Promise.reject())
     .then(d => wcRender((d && d.bars) || []))
-    .catch(() => fetch('static_data/history/' + encodeURIComponent(sym) + '.max.json')
+    .catch(() => fetch('static_data/history/' + encodeURIComponent(histBase) + '.max.json')
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => wcRender((d && d.bars) || []))
       .catch(() => wcRender(null)));
