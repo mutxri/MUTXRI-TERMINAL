@@ -1087,7 +1087,9 @@ function openStock(sym){
     fetch('static_data/market_' + ex + '.json').then(r => { if(!r.ok) throw 0; return r.json(); })
       .then(d => {
         const rows = d.stocks || [];
+        const lr = (listing[ex]||[]).find(l => (l.sym||l.ticker||l.name) === sym);
         const rec = rows.find(x => x.sym === sym || x.ticker === sym || (x.name||'') === sym)
+                || (lr ? rows.find(x => (x.name||'') && lr.name && String(x.name).toLowerCase() === String(lr.name).toLowerCase()) : null)
                 || rows.find(x => (x.sym||'').split('.')[0] === sym.split('.')[0]);
         if(!rec){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no snapshot data for ${esc(sym)}</div>`; return; }
         // company info from company_info.json (cached, fetched once)
