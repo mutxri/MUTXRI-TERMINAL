@@ -29,6 +29,11 @@ def _init(db, mongo_ok):
     global _DB, _USE_MONGO
     _DB = db
     _USE_MONGO = bool(mongo_ok and db is not None)
+    try:
+        import login_log
+        login_log.init(db, mongo_ok)   # same handle, same lifetime
+    except Exception as exc:
+        print("[auth] login_log unavailable: %s" % str(exc)[:90], flush=True)
 
 def _load_json():
     try:
@@ -55,6 +60,14 @@ def _save_user(record):
         data = _load_json()
         data[record["email"]] = record
         _save_json(data)
+
+def _log(email, provider="password", event="login", ok=True, **kw):
+    """Durable record of the attempt. Never allowed to affect the result."""
+    try:
+        import login_log
+        login_log.record(email, provider=provider, event=event, ok=ok, **kw)
+    except Exception:
+        pass
 
 def _hash_password(password, salt=None):
     salt = salt or secrets.token_hex(16)
@@ -174,7 +187,7 @@ def _gg_profile(token):
     u = json.loads(urllib.request.urlopen(req, timeout=25).read().decode())
     return (u.get("email") or ""), (u.get("name") or "")
 
-def oauth_callback(provider, code, state, host):
+def oauth_callback(provider, code, state, host, user_agent="", ip=""):
     """Exchange the provider code, find/create the account, return a one-time
     frontend code (redirect target) — never put the session token in a URL."""
     fail = "https://mutxriterminal.com/terminal/?oauth=error"
@@ -195,10 +208,42 @@ def oauth_callback(provider, code, state, host):
     if not email:
         return fail
     u = _find_user(email)
-    if not u:
+    is_new = not u
+    if is_new:
         u = {"email": email, "name": (name or "")[:80], "pw": _hash_password(secrets.token_hex(16)),
-             "created": time.time(), "oauth": provider}
+             "created": time.time(), "oauth": provider, "devices": []}
         _save_user(u)
+
+    # Tell the user their account was just used. Sends on its own thread,
+    # and only for a device this account has not signed in from before -
+    # a notice on every single sign-in is noise, not security.
+    try:
+        import signin_notify
+
+        def _remember(fingerprint):
+            seen = list(u.get("devices") or [])
+            if fingerprint not in seen:
+                u["devices"] = (seen + [fingerprint])[-10:]
+                _save_user(u)
+
+        _log(email, provider=provider, event="oauth", ok=True, ip=ip,
+             user_agent=user_agent, device=signin_notify.describe_device(user_agent),
+             new_device=signin_notify.device_fingerprint(user_agent, ip)
+                        not in set(u.get("devices") or []))
+
+        signin_notify.notify_signin(
+            email,
+            name=u.get("name") or name,
+            provider=provider,
+            new_account=is_new,
+            user_agent=user_agent,
+            ip=ip,
+            known_devices=u.get("devices") or [],
+            on_new_device=_remember,
+        )
+    except Exception as exc:
+        # never let a mail problem break a completed sign-in
+        print("[auth] sign-in notice skipped: %s" % str(exc)[:100], flush=True)
     otc = secrets.token_hex(32)
     _OAUTH_CODES[otc] = {"email": email, "name": u.get("name", ""), "exp": time.time() + 120}
     return "https://mutxriterminal.com/terminal/?oauth=%s&code=%s" % (provider, otc)
@@ -211,13 +256,15 @@ def oauth_exchange(one_time_code):
     token = _issue_token(rec["email"])
     return {"ok": True, "token": token, "email": rec["email"], "name": rec.get("name", ""), "owner": _is_owner(rec["email"])}
 
-def signup(email, password, name=""):
+def signup(email, password, name="", ip="", user_agent=""):
     email = (email or "").lower().strip()
     if not _EMAIL_RE.match(email):
         return {"ok": False, "error": "valid email required"}
     if not password or len(password) < 8:
         return {"ok": False, "error": "password must be at least 8 characters"}
     if _find_user(email):
+        _log(email, event="signup", ok=False, ip=ip, user_agent=user_agent,
+             detail="email already registered")
         return {"ok": False, "error": "an account with this email already exists"}
     record = {
         "email": email,
@@ -232,14 +279,19 @@ def signup(email, password, name=""):
         threading.Thread(target=_send_confirmation_email, args=(email, record["name"]), daemon=True).start()
     except Exception:
         pass
+    _log(email, event="signup", ok=True, ip=ip, user_agent=user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": record["name"], "owner": _is_owner(email)}
 
-def login(email, password):
+def login(email, password, ip="", user_agent=""):
     email = (email or "").lower().strip()
     u = _find_user(email)
     if not u or not _check_password(password, u.get("pw", "")):
+        # a log of successes only cannot show a credential-stuffing run
+        _log(email, event="login", ok=False, ip=ip, user_agent=user_agent,
+             detail="no such account" if not u else "wrong password")
         return {"ok": False, "error": "invalid email or password"}
+    _log(email, event="login", ok=True, ip=ip, user_agent=user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": u.get("name", ""), "owner": _is_owner(email)}
 
@@ -302,10 +354,14 @@ def handle_auth(path, q):
     action = path.split("/")[-1]
     if "oauth" in path and action == "exchange":
         return oauth_exchange((q.get("code") or [""])[0])
+    ip = (q.get("_ip") or [""])[0]
+    ua = (q.get("_ua") or [""])[0]
     if action == "signup":
-        return signup((q.get("email") or [""])[0], (q.get("password") or [""])[0], (q.get("name") or [""])[0])
+        return signup((q.get("email") or [""])[0], (q.get("password") or [""])[0],
+                      (q.get("name") or [""])[0], ip=ip, user_agent=ua)
     if action == "login":
-        return login((q.get("email") or [""])[0], (q.get("password") or [""])[0])
+        return login((q.get("email") or [""])[0], (q.get("password") or [""])[0],
+                     ip=ip, user_agent=ua)
     if action == "logout":
         return logout((q.get("token") or [""])[0])
     if action == "me":
