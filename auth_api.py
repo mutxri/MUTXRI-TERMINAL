@@ -82,45 +82,6 @@ def _check_password(password, stored):
     except Exception:
         return False
 
-def _send_confirmation_email(email, name):
-    """Send a confirmation email on signup via SES SMTP (env-configured).
-    Non-blocking: failures are logged, never fail the signup."""
-    try:
-        import smtplib, ssl, os, html as _html
-        from email.mime.text import MIMEText
-        server = os.environ.get("SES_SERVER", "")
-        user = os.environ.get("SES_USER", "")
-        pwd = os.environ.get("SES_PASS", "")
-        sender = os.environ.get("BRIEF_FROM", "jimmy@mutxri.com")
-        if not server or not user or not pwd:
-            return  # email not configured - skip silently
-        first = (name or email).split()[0] if (name or "").strip() else email
-        first = _html.escape(first)  # never let a user-supplied name inject HTML into the email
-        html = f"""<div style="background:#000;color:#f0f0f0;font-family:monospace;padding:32px">
-  <h2 style="color:#33e29a">MUTXRI TERMINAL</h2>
-  <p>Hi {first},</p>
-  <p>Your MUTXRI TERMINAL account has been created. Welcome to African markets intelligence.</p>
-  <p style="color:#9a9a9a">You can now log in at <a href="https://mutxriterminal.com" style="color:#33e29a">mutxriterminal.com</a> and start exploring 1,021 securities across the JSE, NGX, NSE and EGX.</p>
-  <p style="color:#6a6a6a;font-size:12px">This is a confirmation email for your account — no action needed. If you did not create this account, reply and we will remove it.</p>
-</div>"""
-        msg = MIMEText(html, "html")
-        msg["Subject"] = "Welcome to MUTXRI TERMINAL — account confirmed"
-        msg["From"] = sender
-        msg["To"] = email
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP(server, int(os.environ.get("SES_PORT", "587")), timeout=30) as s:
-            s.starttls(context=ctx)
-            s.login(user, pwd)
-            s.sendmail(sender, [email], msg.as_string())
-    except Exception as e:
-        print(f"[auth] confirmation email failed for {email}: {str(e)[:80]}", flush=True)
-
-
-
-# ===== OAuth sign-in (Google / GitHub) — stdlib only =====
-_OAUTH_STATE = {}   # state -> {provider, exp}
-_OAUTH_CODES = {}   # one-time code -> {email, name, exp}
-
 def _cb_url(host, provider):
     base = os.environ.get("OAUTH_BASE", "").strip().rstrip("/")
     if base:
@@ -131,18 +92,16 @@ def _cb_url(host, provider):
     host = (host or "").strip()
     return "https://%s/api/auth/oauth/%s/callback" % (host, provider)
 
+_OAUTH_STATE = {}   # state -> {provider, exp}
+_OAUTH_CODES = {}   # one-time code -> {email, name, exp}
+
+
 def oauth_start(provider, host):
     """Return the provider authorize URL (or an error string if unconfigured)."""
     provider = (provider or "").lower()
     state = secrets.token_hex(16)
     _OAUTH_STATE[state] = {"provider": provider, "exp": time.time() + 600}
     cb = _cb_url(host, provider)
-    if provider == "github":
-        cid = os.environ.get("GITHUB_CLIENT_ID", "")
-        if not cid:
-            return {"ok": False, "error": "GitHub sign-in is not configured yet."}
-        return {"ok": True, "url": "https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=read:user%%20user:email&state=%s" % (
-            urllib.parse.quote(cid, safe=""), urllib.parse.quote(cb, safe=""), state)}
     if provider == "google":
         cid = os.environ.get("GOOGLE_CLIENT_ID", "")
         if not cid:
@@ -150,34 +109,6 @@ def oauth_start(provider, host):
         return {"ok": True, "url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid%%20email%%20profile&state=%s" % (
             urllib.parse.quote(cid, safe=""), urllib.parse.quote(cb, safe=""), state)}
     return {"ok": False, "error": "Unknown provider."}
-
-def _gh_access_token(code, cb):
-    cid = os.environ.get("GITHUB_CLIENT_ID", ""); csec = os.environ.get("GITHUB_CLIENT_SECRET", "")
-    req = urllib.request.Request("https://github.com/login/oauth/access_token",
-        data=urllib.parse.urlencode({"client_id": cid, "client_secret": csec, "code": code, "redirect_uri": cb}).encode(),
-        headers={"Accept": "application/json"}, method="POST")
-    d = json.loads(urllib.request.urlopen(req, timeout=25).read().decode())
-    return d.get("access_token", "")
-
-def _gh_profile(token):
-    req = urllib.request.Request("https://api.github.com/user",
-        headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json", "User-Agent": "MUTXRI-TERMINAL"})
-    u = json.loads(urllib.request.urlopen(req, timeout=25).read().decode())
-    email = u.get("email") or ""
-    name = u.get("name") or u.get("login") or ""
-    if not email:
-        try:
-            req2 = urllib.request.Request("https://api.github.com/user/emails",
-                headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json", "User-Agent": "MUTXRI-TERMINAL"})
-            em = json.loads(urllib.request.urlopen(req2, timeout=25).read().decode())
-            for e in em:
-                if e.get("primary") and e.get("verified"): email = e.get("email"); break
-            if not email:
-                for e in em:
-                    if e.get("verified"): email = e.get("email"); break
-        except Exception:
-            pass
-    return email, name
 
 def _gg_access_token(code, cb):
     cid = os.environ.get("GOOGLE_CLIENT_ID", ""); csec = os.environ.get("GOOGLE_CLIENT_SECRET", "")
@@ -202,9 +133,7 @@ def oauth_callback(provider, code, state, host, user_agent="", ip=""):
         return fail
     cb = _cb_url(host, provider)
     try:
-        if provider == "github":
-            tok = _gh_access_token(code, cb); email, name = _gh_profile(tok)
-        elif provider == "google":
+        if provider == "google":
             tok = _gg_access_token(code, cb); email, name = _gg_profile(tok)
         else:
             return fail
@@ -220,36 +149,7 @@ def oauth_callback(provider, code, state, host, user_agent="", ip=""):
              "created": time.time(), "oauth": provider, "devices": []}
         _save_user(u)
 
-    # Tell the user their account was just used. Sends on its own thread,
-    # and only for a device this account has not signed in from before -
-    # a notice on every single sign-in is noise, not security.
-    try:
-        import signin_notify
-
-        def _remember(fingerprint):
-            seen = list(u.get("devices") or [])
-            if fingerprint not in seen:
-                u["devices"] = (seen + [fingerprint])[-10:]
-                _save_user(u)
-
-        _log(email, provider=provider, event="oauth", ok=True, ip=ip,
-             user_agent=user_agent, device=signin_notify.describe_device(user_agent),
-             new_device=signin_notify.device_fingerprint(user_agent, ip)
-                        not in set(u.get("devices") or []))
-
-        signin_notify.notify_signin(
-            email,
-            name=u.get("name") or name,
-            provider=provider,
-            new_account=is_new,
-            user_agent=user_agent,
-            ip=ip,
-            known_devices=u.get("devices") or [],
-            on_new_device=_remember,
-        )
-    except Exception as exc:
-        # never let a mail problem break a completed sign-in
-        print("[auth] sign-in notice skipped: %s" % str(exc)[:100], flush=True)
+    _log(email, provider=provider, event="oauth", ok=True, ip=ip, user_agent=user_agent)
     otc = secrets.token_hex(32)
     _OAUTH_CODES[otc] = {"email": email, "name": u.get("name", ""), "exp": time.time() + 120}
     return "https://mutxriterminal.com/terminal/?oauth=%s&code=%s" % (provider, otc)
@@ -279,12 +179,6 @@ def signup(email, password, name="", ip="", user_agent=""):
         "created": time.time(),
     }
     _save_user(record)
-    # fire the confirmation email in a background thread (never blocks signup)
-    try:
-        import threading
-        threading.Thread(target=_send_confirmation_email, args=(email, record["name"]), daemon=True).start()
-    except Exception:
-        pass
     _log(email, event="signup", ok=True, ip=ip, user_agent=user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": record["name"], "owner": _is_owner(email)}
