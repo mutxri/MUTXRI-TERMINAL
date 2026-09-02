@@ -23,6 +23,14 @@
   --ui:'Inter',system-ui,sans-serif;
   --brand:'Sofia Sans Semi Condensed','Inter',sans-serif;
 }
+body[data-theme="light"]{
+  --bg:#f7f7f5; --bg2:#efefec; --bg3:#e7e7e3; --bg4:#dededa;
+  --line:#e0e0dc; --line2:#d2d2cd;
+  --tx:#161616; --tx2:#4a4a4a; --tx3:#8a8a8a;
+  --acc:#0d9e63; --acc2:#0b8f6b; --up:#0d9e63; --down:#d33; --warn:#a16207;
+  --mint-dim:rgba(13,158,99,.10); --mint-line:rgba(13,158,99,.35);
+}
+
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{
@@ -63,6 +71,10 @@ body{
   font-family:inherit;font-size:10px;padding:var(--s1) 10px;border-radius:2px;cursor:pointer;
   transition:border-color .15s,color .15s}
 .acct button:hover{border-color:var(--mint-line)}
+.theme-btn{background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
+  font-family:inherit;font-size:13px;line-height:1;padding:var(--s1) 9px;border-radius:2px;cursor:pointer;
+  transition:border-color .15s,color .15s;margin-left:var(--s2)}
+.theme-btn:hover{border-color:var(--mint-line)}
 .clock{display:flex;align-items:center;gap:var(--s2);color:var(--tx2);font-size:11px}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);
   box-shadow:0 0 0 0 rgba(51,226,154,.5);animation:pulse 2.4s infinite}
@@ -357,6 +369,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <span>&#9906;</span>
       <input id="q" placeholder="Search ticker or command…" autocomplete="off" aria-label="Search">
     </label>
+    <button class="theme-btn" id="themeBtn" title="Toggle dark / light mode">☀</button>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
   </header>
 
@@ -429,6 +442,29 @@ window.API_BASE = API_BASE;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 let currentEx = 'JSE';
+
+// ---- dark / light theme ----
+function applyTheme(){
+  const th = localStorage.getItem('mtTheme') || 'dark';
+  document.body.setAttribute('data-theme', th);
+  const btn = document.getElementById('themeBtn');
+  if(btn) btn.textContent = (th === 'dark') ? '☀' : '☾';
+  const fr = document.getElementById('stageFrame');
+  if(fr && fr.src && fr.src.indexOf('theme=') < 0){
+    fr.src = fr.src + (fr.src.indexOf('?') >= 0 ? '&' : '?') + 'theme=' + th;
+  }
+}
+(function(){
+  const btn = document.getElementById('themeBtn');
+  if(btn){
+    btn.addEventListener('click', function(){
+      localStorage.setItem('mtTheme', (document.body.getAttribute('data-theme') === 'light') ? 'dark' : 'light');
+      applyTheme();
+    });
+  }
+  applyTheme();
+})();
+
 // support ?ex=NGX deep-link (landing dropdown passes the exchange)
 try{
   const _pex = new URLSearchParams(location.search).get('ex');
@@ -544,7 +580,8 @@ try{
 // panel URL with the current exchange appended (?ex=NGX) so EVERY panel
 // loads that exchange's data when opened
 function panelUrl(p){
-  return p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 'ex=' + currentEx + '&v=' + Date.now();
+  const th = (document.body.getAttribute('data-theme') === 'light') ? '&theme=light' : '';
+  return p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 'ex=' + currentEx + '&v=' + Date.now() + th;
 }
 // render the center panel tabs (rebuilt when the user drags them into a new order)
 function renderTabs(){
