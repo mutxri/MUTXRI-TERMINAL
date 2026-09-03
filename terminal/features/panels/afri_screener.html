@@ -77,7 +77,7 @@
     <table class="grid"><thead><tr id="hrow"></tr></thead><tbody id="body"></tbody></table>
     <div class="empty" id="empty" style="display:none;">No stocks match these filters.</div>
   </div>
-  <div class="foot"><span id="src">-</span><span>LIVE = JSE/EGX intraday &middot; EOD = NGX/NSE end-of-day</span></div>
+  <div class="foot"><span id="src">-</span></div>
 </div>
 <script>
 (function(){
@@ -149,7 +149,7 @@
     $("body").innerHTML=rows.map(function(r){
       var cc=r.chgPct==null?"muted":(r.chgPct>=0?"up":"down");
       var ct=r.chgPct==null?'<span class="muted">-</span>':(r.chgPct>=0?"+":"")+Number(r.chgPct).toFixed(2)+"%";
-      var feed=r.live?'<span class="tag live">LIVE</span>':'<span class="tag eod">EOD</span>';
+      var feed=r.live?'';
       return "<tr>"+
         '<td><span class="tkr">'+esc(r.ticker||"-")+"</span></td>"+
         '<td class="nm">'+esc(r.name||"-")+"</td>"+
@@ -181,8 +181,8 @@
   function run(){
     var f=readFilters();save(f);
     fetch((window.STATIC_MODE ? ENDPOINT+"_"+state.ex+".json" : ENDPOINT+"?"+q(f))).then(function(r){if(!r.ok)throw 0;return r.json();})
-      .then(function(d){state.rows=d.stocks||[];$("src").textContent=window.STATIC_MODE?"source: static snapshot":"source: /api/screener";sectors(state.rows);body();})
-      .catch(function(){state.rows=localFilter(SAMPLE_STOCKS,f);$("src").textContent="source: SAMPLE DATA (server not reachable)";body();});
+      .then(function(d){state.rows=d.stocks||[];$("src").textContent=window.STATIC_MODE?"":"source: /api/screener";sectors(state.rows);body();})
+      .catch(function(){state.rows=localFilter(SAMPLE_STOCKS,f);$("src").textContent="";body();});
   }
   function csv(){
     var rows=sortRows(state.rows.slice());if(!rows.length)return;
