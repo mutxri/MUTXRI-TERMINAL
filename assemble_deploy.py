@@ -57,10 +57,10 @@ _hm = _hm.replace(
 )
 # the deployed build reads a snapshot file, not a live feed: the panel must
 # not claim "LIVE - polling 15s" over data that only moves when we redeploy.
-# Label it EOD and show the snapshot's own asOf date instead.
+# Show the snapshot's own asOf date only (no EOD SNAPSHOT wording).
 _hm = _hm.replace(
     '''    $("statusTxt").textContent=live?"LIVE - polling "+(POLL_MS/1000)+"s":"SAMPLE";''',
-    '''    $("statusTxt").textContent=live?("EOD SNAPSHOT"+(snapAsOf?" \u00b7 "+snapAsOf:"")):"SAMPLE";''',
+    '''    $("statusTxt").textContent=live?(snapAsOf?"\\u00b7 "+snapAsOf:""):"";''',
 )
 _hm = _hm.replace(
     '    $("dot").className="dot "+(live?"live":"sample");',
