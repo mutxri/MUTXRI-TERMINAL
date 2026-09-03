@@ -149,7 +149,9 @@
     $("body").innerHTML=rows.map(function(r){
       var cc=r.chgPct==null?"muted":(r.chgPct>=0?"up":"down");
       var ct=r.chgPct==null?'<span class="muted">-</span>':(r.chgPct>=0?"+":"")+Number(r.chgPct).toFixed(2)+"%";
-      var feed=r.live?'';
+      // this build is an end-of-day snapshot, so the Feed column always reads
+      // EOD - never claim LIVE over a file that only changes on deploy
+      var feed='<span class="tag eod">EOD</span>';
       return "<tr>"+
         '<td><span class="tkr">'+esc(r.ticker||"-")+"</span></td>"+
         '<td class="nm">'+esc(r.name||"-")+"</td>"+
