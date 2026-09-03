@@ -86,7 +86,7 @@ def build(ex):
     for s in stocks:
         sym = s.get("sym") or s.get("ticker")
         row = {
-            "sym": sym, "ticker": s.get("ticker"), "name": s.get("name"),
+            "sym": sym, "ticker": (s.get("ticker") or sym.split(".")[0]), "name": s.get("name"),
             "price": None, "chgPct": None, "volume": None,
             "w52High": None, "w52Low": None, "ipo": None,
             "currency": s.get("currency"), "sector": s.get("sector"),

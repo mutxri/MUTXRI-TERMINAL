@@ -13,6 +13,12 @@ import json, os
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
+def _num(v):
+    try:
+        return float(str(v).replace(",", "").strip())
+    except Exception:
+        return None
+
 EX_INDICES = {
     "JSE": [{"ticker": "^JSE", "name": "FTSE/JSE All Share", "price": None}],
     "EGX": [{"ticker": "^EGX30", "name": "EGX 30", "price": None},
@@ -70,13 +76,28 @@ def build(ex):
                     if ("nasi" in rt and "all-share" in it["name"].lower()) or \
                        ("n20i" in rt and "20-share" in it["name"].lower()) or \
                        ("n25i" in rt and "25-share" in it["name"].lower()):
-                        it["price"] = rv.get("price")
-                        it["changePct"] = rv.get("changePct")
+                        it["price"] = _num(rv.get("price"))
+                        it["changePct"] = _num(rv.get("changePct"))
                         it["change"] = rv.get("change")
         except Exception:
             pass
     json.dump(idx, open(os.path.join(BASE, "static_data", f"ex_{ex}_indices.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"{ex}: {len(gainers)} gainers, {len(losers)} losers, {len(movers)} movers, {len(idx)} indices")
+
+# JSE: FTSE/JSE All Share has a real free quote (^JSE on Yahoo) - fill it in
+try:
+    import yfinance as yf
+    h = yf.Ticker("^JSE").history(period="5d")
+    if len(h) >= 2:
+        last = float(h["Close"].iloc[-1]); prev = float(h["Close"].iloc[-2])
+        for it in EX_INDICES.get("JSE", []):
+            it["price"] = last
+            it["changePct"] = round((last - prev) / prev * 100.0, 2)
+            it["change"] = ("%+.2f (%+.2f%%)" % (last - prev, (last - prev) / prev * 100.0))
+        json.dump(EX_INDICES["JSE"], open(os.path.join(BASE, "static_data", "ex_JSE_indices.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        print("JSE: ^JSE real value", round(last, 2))
+except Exception as e:
+    print("JSE ^JSE fetch failed (honest None):", str(e)[:60])
 
 for ex in ["JSE", "EGX", "NGX", "NSE"]:
     build(ex)

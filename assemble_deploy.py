@@ -115,7 +115,8 @@ shutil.copytree(os.path.join(BASE, "static_data"),
                 # them by absolute local path). Shipping them would triple the
                 # Pages payload for files no visitor can reach.
                 ignore=shutil.ignore_patterns("afri_heatmap_static.html",
-                                              "ngx_pdfs", "nse_pdfs", "jse_pdfs"))
+                                              "ngx_pdfs", "nse_pdfs", "jse_pdfs",
+                                              "financials_all.json"))
 
 # ================= LANDING PAGE (served at /) =================
 # landing/index.html -> root index.html
