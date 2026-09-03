@@ -298,6 +298,7 @@ def fetch_news(limit=40):
     return out
 
 # ---------------- MongoDB Atlas data layer (optional; falls back to local JSON) ----------------
+# Accounts/data persist in MongoDB Atlas (TERMINALDATABASE); redeploy-safe since 2026-09-03.
 # The hosted backend reads the dataset from MongoDB Atlas; local dev keeps using
 # the checked-in JSON files. Set MONGODB_URI to enable, leave empty for local.
 _MONGO_URI = os.environ.get("MONGODB_URI", "")
