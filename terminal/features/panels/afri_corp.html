@@ -8,6 +8,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - CORP</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
 <style>
   :root{
     --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
@@ -16,9 +18,8 @@
     --up:#33e29a;--down:#f87171;--acc:#33e29a;--acc2:#1ecfb0;
     --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
   }
-
   *{box-sizing:border-box}
-  body{margin:0;background:#000;color:var(--tx);font-family:var(--ui);font-size:13px}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--ui);font-size:13px}
   .wrap{max-width:640px;margin:0 auto;padding:14px}
   .head{display:flex;align-items:center;gap:10px;padding:8px 4px 12px;border-bottom:1px solid var(--line2)}
   .code{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.1em;border:1px solid var(--line2);padding:2px 6px;border-radius:2px}
@@ -57,7 +58,6 @@
 </style>
 </head>
 <body>
-
 <div class="wrap">
   <div class="head">
     <span class="code">CORP</span>
@@ -82,7 +82,8 @@
 (function(){
   "use strict";
   var KIND_CLASS = { "DIVIDEND PAYMENT": "pay", "BOOK CLOSURE": "closure" };
-  function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}
+  function num(v){ var n = Number(String(v).replace(/,/g,"").trim()); return isNaN(n) ? null : n; }[c]; }); }
   function loadIdx(){
     fetch("../../static_data/ex_" + CUR + "_indices.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(list){
@@ -90,10 +91,11 @@
         if(!list || !list.length){ el.innerHTML = '<div class="empty">no index data</div>'; return; }
         el.innerHTML = list.map(function(i){
           var up = String(i.changePct||"").indexOf("-") !== 0;
+          var pv = i.price != null ? num(i.price) : null;
           return '<div class="idx">' +
             '<div class="n">' + esc(i.name) + '</div>' +
-            '<div class="v">' + esc(i.price != null ? Number(i.price).toLocaleString(undefined,{maximumFractionDigits:2}) : "—") + '</div>' +
-            '<div class="c ' + (up ? "up" : "down") + '">' + esc(i.changePct || "—") + '</div></div>';
+            '<div class="v">' + (pv != null ? pv.toLocaleString(undefined,{maximumFractionDigits:2}) : "—") + '</div>' +
+            '<div class="c ' + (up ? "up" : "down") + '">' + (i.changePct != null ? esc(i.changePct) : (pv != null && i.change ? esc(i.change) : "—")) + '</div></div>';
         }).join("");
       })
       .catch(function(){ document.getElementById("idxGrid").innerHTML = '<div class="empty">no index data</div>'; });
