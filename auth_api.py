@@ -29,6 +29,11 @@ def _init(db, mongo_ok):
     global _DB, _USE_MONGO
     _DB = db
     _USE_MONGO = bool(mongo_ok and db is not None)
+    try:
+        import login_log
+        login_log.init(db, mongo_ok)   # same handle, same lifetime
+    except Exception as exc:
+        print("[auth] login_log unavailable: %s" % str(exc)[:90], flush=True)
 
 def _load_json():
     try:
@@ -55,6 +60,15 @@ def _save_user(record):
         data = _load_json()
         data[record["email"]] = record
         _save_json(data)
+
+
+def _log(email, provider="password", event="login", ok=True, **kw):
+    """Durable record of the attempt. Never allowed to change the outcome."""
+    try:
+        import login_log
+        login_log.record(email, provider=provider, event=event, ok=ok, **kw)
+    except Exception:
+        pass
 
 
 def _hash_password(password, salt=None):
@@ -137,6 +151,8 @@ def oauth_callback(provider, code, state, host, user_agent="", ip=""):
              "created": time.time(), "oauth": provider, "devices": []}
         _save_user(u)
 
+    _log(email, provider=provider, event="oauth", ok=True,
+         ip=ip, user_agent=user_agent)
     otc = secrets.token_hex(32)
     _OAUTH_CODES[otc] = {"email": email, "name": u.get("name", ""), "exp": time.time() + 120}
     return "https://mutxriterminal.com/terminal/?oauth=%s&code=%s" % (provider, otc)
@@ -156,6 +172,8 @@ def signup(email, password, name="", ip="", user_agent=""):
     if not password or len(password) < 8:
         return {"ok": False, "error": "password must be at least 8 characters"}
     if _find_user(email):
+        _log(email, event="signup", ok=False, ip=ip, user_agent=user_agent,
+             detail="email already registered")
         return {"ok": False, "error": "an account with this email already exists"}
     record = {
         "email": email,
@@ -164,6 +182,7 @@ def signup(email, password, name="", ip="", user_agent=""):
         "created": time.time(),
     }
     _save_user(record)
+    _log(email, event="signup", ok=True, ip=ip, user_agent=user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": record["name"], "owner": _is_owner(email)}
 
@@ -171,7 +190,11 @@ def login(email, password, ip="", user_agent=""):
     email = (email or "").lower().strip()
     u = _find_user(email)
     if not u or not _check_password(password, u.get("pw", "")):
+        # a log of successes alone cannot show a credential-stuffing run
+        _log(email, event="login", ok=False, ip=ip, user_agent=user_agent,
+             detail="no such account" if not u else "wrong password")
         return {"ok": False, "error": "invalid email or password"}
+    _log(email, event="login", ok=True, ip=ip, user_agent=user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": u.get("name", ""), "owner": _is_owner(email)}
 
