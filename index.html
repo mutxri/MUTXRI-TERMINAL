@@ -88,7 +88,15 @@ body{
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--tx3)}
 
 /* ---------- main grid ---------- */
-.main{display:grid;grid-template-columns:232px 1fr 288px;min-height:0}
+.main{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px);min-height:0;position:relative}
+/* rail resizers (drag the divider to size panels) */
+.rsz{position:absolute;top:34px;bottom:0;width:7px;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
+.rsz:hover{background:rgba(51,226,154,.10)}
+.rsz::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:1px;background:var(--line2);transition:width .12s,background .12s}
+.rsz:hover::after{width:2px;background:var(--acc)}
+#rszL{left:calc(var(--wW,232px) - 4px)}
+#rszR{right:calc(var(--wI,288px) - 3px)}
+.view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
 .rail.right{border-right:0;border-left:1px solid var(--line2)}
@@ -388,6 +396,10 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
+    <!-- RESIZERS (drag the divider lines to size the rails) -->
+    <div class="rsz" id="rszL" title="Drag to resize watchlist"></div>
+    <div class="rsz" id="rszR" title="Drag to resize info panel"></div>
+
   </div>
 
   <!-- STATUS -->
@@ -619,6 +631,51 @@ function renderTabs(){
     const cols = localStorage.getItem('mt_cols');
     if(cols) setColOrder(cols.indexOf('info') === 0 ? 'info' : 'watch');
   }catch(e){}
+  // ===== resize the rails: drag the divider between panels =====
+  (function(){
+    const main = document.querySelector('.main');
+    function cur(v, dflt){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? dflt : x; }
+    function restoreSizes(){
+      try{
+        const s = (localStorage.getItem('mt_sizes') || '').split(',');
+        if(s.length < 2) return;
+        const vw = window.innerWidth;
+        const wl = Math.min(parseInt(s[0], 10) || 232, Math.max(180, vw - 420));
+        const ir = Math.min(parseInt(s[1], 10) || 288, Math.max(180, vw - wl - 380));
+        main.style.setProperty('--wW', Math.max(180, wl) + 'px');
+        main.style.setProperty('--wI', Math.max(180, ir) + 'px');
+      }catch(e){}
+    }
+    restoreSizes();
+    function begin(side, e){
+      e.preventDefault();
+      const startX = e.clientX, wL = cur('--wW', 232), wI = cur('--wI', 288);
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:col-resize;';
+      document.body.appendChild(ov);
+      function move(ev){
+        const dx = ev.clientX - startX;
+        if(side === 'L'){
+          const maxW = Math.max(180, window.innerWidth - wI - 380);
+          main.style.setProperty('--wW', Math.min(maxW, Math.max(180, wL + dx)) + 'px');
+        }else{
+          const maxW = Math.max(180, window.innerWidth - wL - 380);
+          main.style.setProperty('--wI', Math.min(maxW, Math.max(180, wI - dx)) + 'px');
+        }
+      }
+      function end(){
+        ov.remove();
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', end);
+        try{ localStorage.setItem('mt_sizes', Math.round(cur('--wW', 232)) + ',' + Math.round(cur('--wI', 288))); }catch(e2){}
+      }
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+    }
+    const l = document.getElementById('rszL'), r = document.getElementById('rszR');
+    if(l) l.addEventListener('mousedown', function(e){ begin('L', e); });
+    if(r) r.addEventListener('mousedown', function(e){ begin('R', e); });
+  })();
   // tab reordering
   let dragTab = null;
   document.addEventListener('dragstart', e => {
