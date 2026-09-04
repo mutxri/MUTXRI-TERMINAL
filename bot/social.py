@@ -203,9 +203,43 @@ def _make_draft(text, platform, kind, grounding):
         "status": "pending" if ok else "blocked",
         "screen": {"ok": ok, "problems": problems},
         "grounding": grounding,
+        "media": None,
         "approvedBy": None, "approvedAt": None,
         "publishedAt": None, "publishedId": None, "error": None,
     }
+
+
+def attach_card(draft, path, credits=None, alt_text=None, provenance=None):
+    """Attach a built card to a draft.
+
+    `provenance` is kept on the draft so the person approving it can see where
+    every picture came from and on what licence, without re-deriving it, and so
+    the audit log records the credits that actually went out.
+    """
+    draft["media"] = {"path": path, "credits": credits or [],
+                      "altText": alt_text, "provenance": provenance}
+    return draft
+
+
+def card_alt_text(headline, company=None, people=None, monograms=()):
+    """Alt text describing the card, for screen readers.
+
+    People shown as initials are described as initials, not as photographs -
+    a reader who cannot see the card should get the same honest picture as one
+    who can.
+    """
+    bits = ["MUTXRI Terminal card"]
+    if company:
+        bits.append("for %s" % company)
+    bits.append("headlined %r" % headline)
+    shown = [p.get("name") for p in (people or []) if p.get("name")]
+    photos = [n for n in shown if n not in (monograms or ())]
+    if photos:
+        bits.append("with a photograph of %s" % ", ".join(photos))
+    if monograms:
+        bits.append("and initials (no photograph available) for %s"
+                    % ", ".join(monograms))
+    return ". ".join(bits)[:1000]
 
 
 def enqueue(drafts):
@@ -291,7 +325,62 @@ def _oauth1_header(method, url, params, ck, cs, at, ats):
                                 for k, v in sorted(oauth.items()))
 
 
-def _publish_x(text):
+def _multipart(fields, files):
+    """Build a multipart/form-data body with the standard library."""
+    boundary = "----MUTXRI" + uuid.uuid4().hex
+    out = []
+    for k, v in (fields or {}).items():
+        out.append(("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n"
+                    % (boundary, k, v)).encode())
+    for k, (fname, ctype, data) in (files or {}).items():
+        out.append(("--%s\r\nContent-Disposition: form-data; name=\"%s\"; "
+                    "filename=\"%s\"\r\nContent-Type: %s\r\n\r\n"
+                    % (boundary, k, fname, ctype)).encode())
+        out.append(data)
+        out.append(b"\r\n")
+    out.append(("--%s--\r\n" % boundary).encode())
+    return b"".join(out), "multipart/form-data; boundary=" + boundary
+
+
+def _upload_x_media(path):
+    """Upload an image to X and return its media id.
+
+    Uses the v1.1 media endpoint, which is still the upload path for v2 posts.
+    Multipart is deliberate: with a multipart body the OAuth 1.0a signature covers
+    only the oauth parameters, so a megabyte of image bytes never has to be folded
+    into the signature base string the way a form-encoded `media_data` upload
+    would require.
+    """
+    ck = os.environ.get("X_API_KEY", "").strip()
+    cs = os.environ.get("X_API_SECRET", "").strip()
+    at = os.environ.get("X_ACCESS_TOKEN", "").strip()
+    ats = os.environ.get("X_ACCESS_SECRET", "").strip()
+    if not all([ck, cs, at, ats]):
+        raise RuntimeError("X media upload needs the OAuth 1.0a credentials")
+    with open(path, "rb") as f:
+        data = f.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise RuntimeError("image is %d bytes; X caps images at 5MB" % len(data))
+    ext = os.path.splitext(path)[1].lower()
+    ctype = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+             ".gif": "image/gif", ".webp": "image/webp"}.get(ext, "image/png")
+
+    url = "https://upload.twitter.com/1.1/media/upload.json"
+    body, content_type = _multipart({"media_category": "tweet_image"},
+                                    {"media": (os.path.basename(path), ctype, data)})
+    auth = _oauth1_header("POST", url, {}, ck, cs, at, ats)
+    req = urllib.request.Request(url, data=body, method="POST", headers={
+        "Authorization": auth, "Content-Type": content_type,
+        "Content-Length": str(len(body))})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        out = json.loads(r.read().decode("utf-8", "replace"))
+    mid = out.get("media_id_string") or out.get("media_id")
+    if not mid:
+        raise RuntimeError("X media upload returned no media id: %s" % str(out)[:200])
+    return str(mid)
+
+
+def _publish_x(text, media_path=None, alt_text=None):
     ck = os.environ.get("X_API_KEY", "").strip()
     cs = os.environ.get("X_API_SECRET", "").strip()
     at = os.environ.get("X_ACCESS_TOKEN", "").strip()
@@ -301,8 +390,11 @@ def _publish_x(text):
             "X posting needs user-context OAuth 1.0a: set X_API_KEY, X_API_SECRET, "
             "X_ACCESS_TOKEN and X_ACCESS_SECRET (the read-only X_BEARER_TOKEN "
             "cannot post)")
+    payload = {"text": text}
+    if media_path:
+        payload["media"] = {"media_ids": [_upload_x_media(media_path)]}
     url = "https://api.twitter.com/2/tweets"
-    body = json.dumps({"text": text}).encode()
+    body = json.dumps(payload).encode()
     # JSON bodies are not part of the OAuth 1.0a signature base string.
     auth = _oauth1_header("POST", url, {}, ck, cs, at, ats)
     req = urllib.request.Request(url, data=body, method="POST", headers={
@@ -312,12 +404,19 @@ def _publish_x(text):
     return (out.get("data") or {}).get("id")
 
 
-def _publish_linkedin(text):
+def _publish_linkedin(text, media_path=None, alt_text=None):
     tok = os.environ.get("LINKEDIN_ACCESS_TOKEN", "").strip()
     urn = os.environ.get("LINKEDIN_URN", "").strip()
     if not tok or not urn:
         raise RuntimeError("LinkedIn posting needs LINKEDIN_ACCESS_TOKEN and "
                            "LINKEDIN_URN (e.g. urn:li:organization:12345)")
+    if media_path:
+        # LinkedIn images need a three-step register/upload/reference flow against
+        # the assets API, which is not implemented here. Refusing is better than
+        # silently dropping the card and posting text as though it had one.
+        raise RuntimeError("image posts to LinkedIn are not implemented - the "
+                           "assets registerUpload flow is needed; post to X, or "
+                           "publish this draft without the card")
     payload = {
         "author": urn, "lifecycleState": "PUBLISHED",
         "specificContent": {"com.linkedin.ugc.ShareContent": {
@@ -368,8 +467,13 @@ def publish(draft_id, approver, confirmed=False):
     pub = PUBLISHERS.get(d["platform"])
     if not pub:
         raise ValueError("no publisher for platform %r" % d["platform"])
+    media = (d.get("media") or {}).get("path")
+    if media and not os.path.exists(media):
+        raise ValueError("draft %s references a card that no longer exists: %s"
+                         % (draft_id, media))
     try:
-        posted_id = pub(d["text"])
+        posted_id = pub(d["text"], media_path=media,
+                        alt_text=(d.get("media") or {}).get("altText"))
     except Exception as e:
         detail = "%s: %s" % (type(e).__name__, e)
         if hasattr(e, "read"):
@@ -385,7 +489,8 @@ def publish(draft_id, approver, confirmed=False):
                    publishedAt=dt.datetime.now(dt.timezone.utc)
                    .isoformat(timespec="seconds"))
     _audit("published", draftId=draft_id, approver=approver,
-           platform=d["platform"], postId=posted_id, text=d["text"])
+           platform=d["platform"], postId=posted_id, text=d["text"],
+           media=media, imageCredits=(d.get("media") or {}).get("credits"))
     return d
 
 

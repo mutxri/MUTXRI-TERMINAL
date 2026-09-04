@@ -364,6 +364,102 @@ def extract_document(path, name=None, max_pages=40, effort="high"):
     return doc, report
 
 
+# ------------------------------------------------- reading a story's entities
+_STORY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "company": {"type": ["string", "null"],
+                    "description": "The listed company the story is about, as "
+                                   "normally written. Null if the story is macro."},
+        "event_type": {
+            "type": "string",
+            "enum": ["appointment", "results", "dividend", "deal", "regulatory",
+                     "listing", "macro", "other"],
+        },
+        "people": {
+            "type": "array",
+            "description": "People the story names, at most three, most central "
+                           "first. Only people actually named in the text.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string",
+                             "description": "Full name exactly as written."},
+                    "role": {"type": "string",
+                             "description": "Their role per the story, e.g. "
+                                            "'Incoming board member'. Short."},
+                    "is_new_appointee": {"type": "boolean"},
+                },
+                "required": ["name", "role", "is_new_appointee"],
+                "additionalProperties": False,
+            },
+        },
+        "headline": {
+            "type": "string",
+            "description": "A factual headline for a card, at most 70 characters. "
+                           "State what happened. No hype, no speculation, no "
+                           "prediction, and nothing not present in the source.",
+        },
+        "confidence": {
+            "type": "string", "enum": ["high", "medium", "low"],
+            "description": "How certain you are that company and people are "
+                           "correctly identified from the text alone.",
+        },
+    },
+    "required": ["company", "event_type", "people", "headline", "confidence"],
+    "additionalProperties": False,
+}
+
+STORY_SYSTEM = """You read financial news headlines for the MUTXRI TERMINAL and \
+identify what the story is about, so the terminal can find the right pictures.
+
+Rules:
+
+- Name only people who actually appear in the text you are given. Never add a \
+CEO, chairman or director from your own knowledge - the terminal will attach a \
+photograph to whoever you name, and naming the wrong person puts a real face \
+against a story they have nothing to do with.
+- If the story names nobody, return an empty people list. That is a normal and \
+correct answer.
+- Give roles exactly as the story frames them.
+- The headline must be supported by the source text alone. Do not add figures, \
+outcomes or implications that are not there.
+- Set confidence to low when the text is thin, ambiguous, or you are inferring \
+the company rather than reading it."""
+
+
+def read_story(title, summary="", effort="medium"):
+    """Identify company, people and a factual headline from a news story.
+
+    This is what lets a card be built automatically: the model reads who the story
+    names, and bot/images.py then binds each name to a licensed photograph - or
+    reports that none exists. The model is explicitly barred from supplying names
+    from memory, because an invented name becomes a real face on a published card.
+    """
+    client = _client()
+    text = (title or "").strip()
+    if summary:
+        text += "\n\n" + summary.strip()
+    try:
+        with client.messages.stream(
+            model=MODEL,
+            max_tokens=4000,
+            system=[{"type": "text", "text": STORY_SYSTEM,
+                     "cache_control": {"type": "ephemeral"}}],
+            thinking={"type": "adaptive"},
+            output_config={"effort": effort,
+                           "format": {"type": "json_schema",
+                                      "schema": _STORY_SCHEMA}},
+            messages=[{"role": "user", "content": "STORY:\n" + text[:8000]}],
+        ) as s:
+            msg = s.get_final_message()
+    except Exception as e:
+        raise AnalystUnavailable(_describe_error(e))
+    if msg.stop_reason == "refusal":
+        raise AnalystUnavailable("the model declined to read this story")
+    return json.loads(_text(msg))
+
+
 # ------------------------------------------------------------- market brief
 def market_brief(signals, digest, state=None, top=12, effort="high"):
     """Narrative brief over the news signals and exchange state."""

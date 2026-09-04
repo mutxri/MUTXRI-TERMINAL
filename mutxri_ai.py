@@ -30,9 +30,9 @@ Publishing needs the platform keys listed in .env.example. Everything
 deterministic - the statement analysis, the ratios, the flags, the drafting
 templates - runs with no credentials at all.
 """
-import argparse, json, os, sys, textwrap
+import argparse, json, os, re, sys, textwrap
 
-from bot import analyst, ingest, social, statements as S
+from bot import analyst, cards, images, ingest, social, statements as S
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 SD = os.path.join(BASE, "static_data")
@@ -231,10 +231,129 @@ def _print_draft(d):
     print("  " + d["text"].replace("\n", "\n  "))
     for p in d["screen"]["problems"]:
         print(c("  ! %s" % p, RED))
+    m = d.get("media")
+    if m:
+        mono = ((m.get("provenance") or {}).get("notes") or [])
+        print(c("  card: %s" % m["path"], CYAN))
+        for cr in (m.get("credits") or []):
+            print(c("        image: %s" % cr, DIM))
+        for note in mono:
+            print(c("        %s" % note, DIM))
+        for r in ((m.get("provenance") or {}).get("refused") or []):
+            print(c("        REFUSED %s of %s (%s)" % (r["what"], r["subject"], r["why"]), RED))
     if d.get("publishedId"):
         print(c("  published as %s at %s" % (d["publishedId"], d["publishedAt"]), DIM))
     if d.get("error"):
         print(c("  last error: %s" % d["error"], RED))
+
+
+
+CARD_DIR = os.path.join(SD, "cards")
+
+
+def _person_args(specs):
+    """--person \"Name:Role\" pairs into the shape cards.build_for_story wants."""
+    out = []
+    for spec in specs or []:
+        name, _, role = spec.partition(":")
+        if name.strip():
+            out.append({"name": name.strip(), "role": role.strip() or None})
+    return out
+
+
+def _print_provenance(prov):
+    lg = prov.get("logo")
+    if lg:
+        print(c("  logo    %-28s %s" % ((lg.get("subject") or "")[:28],
+                                        lg.get("licence") or "licence not stated"),
+                DIM if lg.get("reuse") in ("permitted", "attribution") else YELLOW))
+    for p in prov.get("people", []):
+        if p.get("found"):
+            warn = " (VERIFY: may not be a portrait)" if p.get("needsVisualCheck") else ""
+            print(c("  photo   %-28s %s conf %.2f%s"
+                    % (p["name"][:28], p.get("licence"), p.get("confidence") or 0, warn),
+                    YELLOW if p.get("needsVisualCheck") else GREEN))
+            if p.get("source"):
+                print(c("          %s" % p["source"], DIM))
+        else:
+            print(c("  no photo %-27s %s -> shown as initials"
+                    % (p["name"][:27], p.get("reason")), DIM))
+    for r in prov.get("refused", []):
+        print(c("  REFUSED %s of %s: %s (%s)"
+                % (r["what"], r["subject"], r["why"], r.get("licence") or "no licence"),
+                RED))
+    for n in prov.get("notes", []):
+        print(c("  note: %s" % n, DIM))
+
+
+def _build_card(plan, out_path, allow_unlicensed=False):
+    res, prov = cards.build_for_story(
+        plan["headline"], out_path,
+        company=plan.get("company"), ticker=plan.get("ticker"),
+        exchange=plan.get("exchange"), people=plan.get("people"),
+        eyebrow=plan.get("eyebrow"), source=plan.get("source"),
+        date=plan.get("date"), allow_unlicensed=allow_unlicensed)
+    return res, prov
+
+
+def cmd_card(args):
+    os.makedirs(CARD_DIR, exist_ok=True)
+    if args.signal is not None:
+        d = _load_signals()
+        if not d:
+            return 1
+        sigs = d["signals"]
+        if args.signal >= len(sigs):
+            print("only %d signals available" % len(sigs))
+            return 1
+        sig = sigs[args.signal]
+        plan = cards.plan_from_signal(sig, use_model=not args.no_model)
+        plan["date"] = None
+        print(c("story read by %s (confidence %s)" % (plan["readBy"], plan["confidence"]), DIM))
+        if plan.get("modelError"):
+            print(c("  model unavailable: %s" % plan["modelError"], DIM))
+    else:
+        if not args.headline:
+            print("give --headline (and optionally --company/--person), or --signal N")
+            return 1
+        plan = {"headline": args.headline, "company": args.company,
+                "ticker": args.ticker, "exchange": args.exchange,
+                "people": _person_args(args.person), "eyebrow": args.eyebrow,
+                "source": args.source, "date": args.date,
+                "readBy": "manual", "confidence": "high"}
+
+    print(c("\nheadline: %s" % plan["headline"], BOLD))
+    print("company: %s   people: %s"
+          % (plan.get("company") or "-",
+             ", ".join(p["name"] for p in plan.get("people") or []) or "none"))
+    out = args.out or os.path.join(CARD_DIR, "card_%s.png" % (
+        re.sub(r"[^A-Za-z0-9]+", "_", (plan.get("company") or plan["headline"])[:40]).strip("_").lower()))
+    print(c("\nresolving images...", DIM))
+    res, prov = _build_card(plan, out, allow_unlicensed=args.allow_unlicensed)
+    _print_provenance(prov)
+    print(c("\ncard: %s (%d bytes)" % (res["path"], res["bytes"]), GREEN))
+
+    if args.draft:
+        text = plan["headline"]
+        if plan.get("exchange"):
+            text = "%s: %s" % (plan["exchange"], text)
+        draft = social.draft_from_signal(
+            {"title": plan["headline"], "exchange": plan.get("exchange") or "",
+             "securities": [{"ticker": plan.get("ticker")}] if plan.get("ticker") else [],
+             "themes": [], "url": args.link or "", "publisher": plan.get("source")},
+            platform=args.platform) if plan.get("exchange") else social._make_draft(
+            text, args.platform, kind="card", grounding=plan)
+        alt = social.card_alt_text(plan["headline"], plan.get("company"),
+                                   plan.get("people"), res["monograms"])
+        social.attach_card(draft, res["path"], credits=res["credits"],
+                           alt_text=alt, provenance=prov)
+        added = social.enqueue([draft])
+        if added:
+            print(c("\nqueued draft %s with the card attached" % added[0]["id"], GREEN))
+            _print_draft(added[0])
+        else:
+            print(c("an identical draft is already queued", DIM))
+    return 0
 
 
 def cmd_social(args):
@@ -382,6 +501,28 @@ def main():
     p.add_argument("question")
     p.add_argument("--entity", action="append", help="include a company's analysis")
     p.set_defaults(fn=cmd_ask)
+
+    p = sub.add_parser("card", help="build a social card from real, licensed images")
+    p.add_argument("--signal", type=int, help="build from signal N of the last scan")
+    p.add_argument("--headline")
+    p.add_argument("--company")
+    p.add_argument("--ticker")
+    p.add_argument("--exchange")
+    p.add_argument("--person", action="append", metavar="NAME:ROLE",
+                   help='repeatable, e.g. --person "Jane Mwangi:Incoming director"')
+    p.add_argument("--eyebrow", help="small label above the headline")
+    p.add_argument("--source", help="publication the story came from")
+    p.add_argument("--date")
+    p.add_argument("--link", help="URL to include in the drafted post")
+    p.add_argument("--out", help="output PNG path")
+    p.add_argument("--draft", action="store_true", help="queue a post with this card")
+    p.add_argument("--platform", default="x", choices=sorted(social.LIMITS))
+    p.add_argument("--no-model", action="store_true",
+                   help="use the heuristic story reader even if a key is set")
+    p.add_argument("--allow-unlicensed", action="store_true",
+                   help="permit images whose licence could not be established "
+                        "(you take responsibility for clearing them)")
+    p.set_defaults(fn=cmd_card)
 
     p = sub.add_parser("social", help="draft, review and publish posts")
     p.add_argument("action",

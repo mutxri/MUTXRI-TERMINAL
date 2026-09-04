@@ -137,6 +137,52 @@ it not to derive numbers — if a figure is missing it must say so.
   in Python.
 - `bot/social.py` — drafting and publishing, below.
 
+### Social cards: real photographs only (`bot/images.py`, `bot/cards.py`)
+
+```
+python mutxri_ai.py card --signal 0 --draft
+python mutxri_ai.py card --headline "Safaricom appoints Jane Mwangi to the board" \
+    --company Safaricom --ticker SCOM --exchange NSE \
+    --person "Jane Wanjiru Mwangi:Incoming non-executive director" \
+    --person "Peter Ndegwa:Chief Executive" --draft
+```
+
+Builds a 1200×675 card from the company logo and photographs of the people a story
+names. **No image is ever generated** — every picture is a real photo or logo from a
+source that states who made it and on what terms.
+
+Two problems this solves, both of which bite hard:
+
+- **Identity.** An image search for a person's name matches the *description* of a
+  photo, not the person in it — searching Commons for "Peter Ndegwa" returns a
+  Nigerian civil-society photo with his name nowhere in it. So people are never
+  resolved by image search. Instead: find the person's Wikipedia article, confirm
+  it is about a person and that it corroborates the company, and take that
+  article's lead image. A further check requires *both* given name and surname in
+  the filename — "Al Shabani at the acquisition of Dangote Cement" contains
+  "Dangote" because that is the company, and a surname-only test would wave it
+  through as a portrait of Aliko Dangote. When it fails, confidence drops and the
+  card is flagged `VERIFY: may not be a portrait`.
+- **Licensing.** Republishing a press photo under a brand account is a copyright
+  act. Wikimedia returns machine-readable licence metadata, so each asset is
+  graded: CC0/public-domain and CC BY(-SA) are publishable; anything whose terms
+  cannot be read is `unknown` and **blocked** unless you pass `--allow-unlicensed`
+  and take responsibility for clearing it. Credits are drawn *into the pixels*,
+  because CC BY requires attribution and a caption is stripped when a post is
+  reshared.
+
+**Often there is no licensed photograph of an African executive — including
+Safaricom's own CEO.** In that case the card draws a typographic initials tile with
+the person's name. A monogram is obviously a monogram; it is not a picture of some
+other person, and the alt text says so too. The bot never substitutes a different
+face and never invents one.
+
+Reading *who* a story is about works with or without a model: the company comes
+from the securities the signal is already linked to (computed against the real
+listing), and names come from Claude when a key is set, or a capitalised-run
+heuristic otherwise — cross-checked against the listing index so "Dangote Refinery"
+is not read as a person.
+
 ### Social posting: drafted by the bot, published only by a person
 
 The bot writes posts. It does not decide to publish them. Every draft lands in a
@@ -161,7 +207,12 @@ Posting to X needs user-context OAuth 1.0a (`X_API_KEY`/`X_API_SECRET`/
 `X_ACCESS_TOKEN`/`X_ACCESS_SECRET`) — the read-only `X_BEARER_TOKEN` used by the
 news scan cannot post. LinkedIn needs `LINKEDIN_ACCESS_TOKEN` + `LINKEDIN_URN`.
 
-Dependencies: `pip install anthropic pdfplumber openpyxl`.
+Cards attach to drafts and upload with the post (X image upload is implemented
+via the v1.1 media endpoint with OAuth 1.0a; LinkedIn image posts need the
+assets `registerUpload` flow and are refused rather than silently posted as
+text-only).
+
+Dependencies: `pip install anthropic pdfplumber openpyxl pillow`.
 
 ## Known active scripts
 
