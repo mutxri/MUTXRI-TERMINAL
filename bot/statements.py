@@ -267,16 +267,20 @@ def compute(doc):
             "gross_margin": _pct(gp, rev),
             "ebit_margin": _pct(ebit, rev),
             "net_margin": _pct(np_, rev),
-            # returns
-            "roe": _pct(np_, te),
-            "roa": _pct(np_, ta),
+            # Returns. A ratio over negative equity is arithmetic without
+            # meaning: ArcelorMittal SA's -2.9bn loss over -317m of equity
+            # computes to ROE +915%, which reads as spectacular performance and
+            # is the opposite of the truth. Equity-based ratios are withheld
+            # when the denominator is not positive; `negative_equity` says why.
+            "roe": _pct(np_, te) if (te or 0) > 0 else None,
+            "roa": _pct(np_, ta) if (ta or 0) > 0 else None,
             # leverage & liquidity
             "debt_to_equity": (round(_safe_div(debt, te), 3)
-                               if _safe_div(debt, te) is not None else None),
+                               if (te or 0) > 0 and _safe_div(debt, te) is not None else None),
             "liabilities_to_equity": (round(_safe_div(tl, te), 3)
-                                      if _safe_div(tl, te) is not None else None),
+                                      if (te or 0) > 0 and _safe_div(tl, te) is not None else None),
             "net_debt_to_equity": (round(_safe_div(net_debt, te), 3)
-                                   if _safe_div(net_debt, te) is not None else None),
+                                   if (te or 0) > 0 and _safe_div(net_debt, te) is not None else None),
             "current_ratio": (round(_safe_div(ca, cl), 3)
                               if _safe_div(ca, cl) is not None else None),
             "interest_cover": (round(_safe_div(ebit, abs(fin)), 2)
@@ -301,10 +305,18 @@ def compute(doc):
                            ("ebit", "ebit_growth"),
                            ("ocf", "ocf_growth")):
             a, b = cur.get(field), prv.get(field)
-            if contiguous and a is not None and b not in (None, 0):
+            # Percentage change off a negative base is not growth: a loss
+            # narrowing from -5.8bn to -2.9bn computes to "+50%", which reads as
+            # profit rising when the company lost money in both years. Report the
+            # direction of travel separately instead of a misleading percentage.
+            if contiguous and a is not None and b not in (None, 0) and b > 0:
                 cur[out] = round((a - b) / abs(b) * 100, 2)
             else:
                 cur[out] = None
+            if contiguous and a is not None and b is not None and (b <= 0 or a <= 0):
+                cur[out + "_note"] = ("negative in %s%s - percentage change is not "
+                                      "meaningful" % (prv["period"] if b <= 0 else cur["period"],
+                                                      " and " + cur["period"] if (b <= 0 and a <= 0) else ""))
     if rows:
         rows[-1]["yearsSincePrior"] = None
         rows[-1]["priorIsAdjacentYear"] = None
@@ -331,7 +343,8 @@ def flags(rows):
                               % cur["total_equity"]})
 
     npg, ocfg = cur.get("net_profit_growth"), cur.get("ocf_growth")
-    if npg is not None and ocfg is not None and npg > 5 and ocfg < -5:
+    profitable = (cur.get("net_profit") or 0) > 0
+    if profitable and npg is not None and ocfg is not None and npg > 5 and ocfg < -5:
         out.append({"id": "earnings_cash_divergence", "severity": "high",
                     "label": "Profit rising while operating cash falls",
                     "detail": "Net profit %+.1f%% but operating cash flow %+.1f%% - "
@@ -347,7 +360,7 @@ def flags(rows):
                               "generating it." % (revg, ocfg)})
 
     conv = [r["ocf_to_net_profit"] for r in rows[:3]
-            if r.get("ocf_to_net_profit") is not None]
+            if r.get("ocf_to_net_profit") is not None and (r.get("net_profit") or 0) > 0]
     if len(conv) >= 2 and all(c < 0.8 for c in conv):
         out.append({"id": "weak_cash_conversion", "severity": "medium",
                     "label": "Persistently weak cash conversion",

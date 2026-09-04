@@ -288,6 +288,38 @@ def _logo_domain(ticker):
         return None
 
 
+# Words in a Commons filename that describe the file rather than the owner.
+_FILE_NOISE = {
+    "file", "logo", "logos", "wordmark", "icon", "symbol", "emblem", "brand",
+    "vector", "svg", "png", "jpg", "jpeg", "gif", "webp", "seeklogo", "new",
+    "old", "current", "official", "transparent", "black", "white", "colour",
+    "color", "horizontal", "vertical", "square", "full", "text", "type", "crop",
+    "cropped", "small", "large", "en", "the", "and", "of", "plc", "ltd",
+    "limited", "group", "holdings", "company", "inc", "sae", "nv", "co",
+}
+
+
+def _title_matches_company(file_title, company_name):
+    """True when every meaningful word in a file title belongs to the company.
+
+    A Commons search for a short brand hits other organisations that share it.
+    Requiring the filename to introduce no significant word of its own is a
+    cheap, strict test that separates "ABSA Group Limited Logo.svg" (all words
+    accounted for) from "NCBA CLUSA logo" (CLUSA is a different body).
+    """
+    co_words = {w for w in re.findall(r"[a-z0-9]+", (company_name or "").lower())}
+    for w in re.findall(r"[a-z0-9]+", (file_title or "").lower()):
+        if w in _FILE_NOISE or w.isdigit() or len(w) <= 2:
+            continue
+        if w in co_words:
+            continue
+        # Allow a longer form of a company word, e.g. "safaricomplc".
+        if any(w.startswith(c) or c.startswith(w) for c in co_words if len(c) > 3):
+            continue
+        return False
+    return True
+
+
 def find_logo(company_name, ticker=None, allow_favicon=True):
     """Find a company logo, preferring a licensed Commons file over a favicon."""
     report = {"query": company_name, "ticker": ticker, "tried": []}
@@ -304,6 +336,13 @@ def find_logo(company_name, ticker=None, allow_favicon=True):
                 continue
             first = stem.split()[0].lower() if stem.split() else ""
             if first and first not in title:
+                continue
+            if not _title_matches_company(title, company_name):
+                # "NCBA CLUSA logo" contains NCBA but belongs to the National
+                # Cooperative Business Association, not NCBA Group of Kenya.
+                # A file carrying a significant word the company name does not
+                # have is a different organisation.
+                report.setdefault("rejected", []).append(a.get("title"))
                 continue
             if a["reuse"] in ("permitted", "attribution"):
                 a["kind"] = "logo"
