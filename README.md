@@ -93,8 +93,79 @@ Outputs `static_data/bot_market_state.json` and `static_data/bot_signals.json`.
 Nitter mirrors are gone). Without it the bot reports the tier as `disabled` rather than
 implying the timeline was quiet — the other 25 sources run normally.
 
+## MUTXRI analyst (`mutxri_ai.py` + `bot/statements.py`, `ingest.py`, `analyst.py`, `social.py`)
+
+Reads financial statements — listed **and** private companies — and puts language
+around the numbers. Companion to `market_bot.py`, which scans markets and news.
+
+```
+python mutxri_ai.py analyse ABG.JO --explain
+python mutxri_ai.py ingest accounts.xlsx --name "Savanna Logistics" --save
+python mutxri_ai.py ingest filing.pdf --name "Acme Ltd" --read-with-claude
+python mutxri_ai.py brief
+python mutxri_ai.py ask "which NGX banks show weak cash conversion?"
+python mutxri_ai.py social draft --from-signals 5
+```
+
+**The load-bearing rule: Python computes, Claude explains.** `bot/statements.py`
+calculates every margin, growth rate, return, leverage and liquidity ratio in code;
+`bot/analyst.py` only ever interprets figures handed to it. A language model must
+never be the thing doing arithmetic on a balance sheet, and the system prompt tells
+it not to derive numbers — if a figure is missing it must say so.
+
+- `bot/statements.py` — canonical line-item mapping, ~20 metrics per period, and
+  earnings-quality flags (profit rising while operating cash falls, weak cash
+  conversion, thin interest cover, margin compression, cash burn, negative equity).
+  Growth is computed **only between adjacent fiscal years** — the corpus has gaps
+  like FY2026 → FY2025 → FY2022, and a three-year gap is reported, not silently
+  treated as one year of growth.
+- **Consistency audit** — `verify()` checks the accounting identities (assets =
+  liabilities + equity, gross profit = revenue − cost of sales, net profit = PBT −
+  tax). This is what makes model-assisted extraction safe: if a digit was misread,
+  the identities stop holding and the caller is told, instead of a confident wrong
+  ratio reaching a user.
+- `bot/ingest.py` — private companies. CSV/XLSX/JSON/PDF into the same canonical
+  shape, so a private company gets the same ratios and flags as a listed one.
+  Handles accounting negatives in brackets, section headings, and out-of-order
+  periods. Ingested private financials live in `static_data/private/`, which is
+  **gitignored** — they never enter version control or the deploy.
+- `bot/analyst.py` — Claude Opus 5 with adaptive thinking; the system prompt is
+  cached across calls. Also does **model-assisted transcription** of filings the
+  deterministic reader can't handle: real NSE/JSE filing PDFs are laid out
+  visually and `pdfplumber` loses the label column entirely, so Claude reads the
+  document into a strict schema and every number is then recomputed and audited
+  in Python.
+- `bot/social.py` — drafting and publishing, below.
+
+### Social posting: drafted by the bot, published only by a person
+
+The bot writes posts. It does not decide to publish them. Every draft lands in a
+review queue at `static_data/social_queue.json` with status `pending`, and there is
+**no scheduled path from "the bot noticed something" to "it went out under MUTXRI's
+name"** — `refresh_all.py` never calls the publisher. A market account that posts
+unattended can be wrong in public, at speed, about real companies.
+
+Three gates:
+
+1. **Grounding** — a draft is built from a scored signal or a computed analysis and
+   carries the source URL and figures it came from.
+2. **Screen** — compliance screen rejects buy/sell instructions, price targets and
+   return promises, and enforces length. X counts every URL as 23 characters via
+   t.co, so `post_length()` counts the way the platform does.
+3. **Approval** — a person approves a named draft id, then publishes it in a
+   separate command with an interactive confirmation. Both are appended to
+   `static_data/social_audit.log`. The text is **re-screened at publish**, so
+   editing a draft after approval blocks it rather than posting it.
+
+Posting to X needs user-context OAuth 1.0a (`X_API_KEY`/`X_API_SECRET`/
+`X_ACCESS_TOKEN`/`X_ACCESS_SECRET`) — the read-only `X_BEARER_TOKEN` used by the
+news scan cannot post. LinkedIn needs `LINKEDIN_ACCESS_TOKEN` + `LINKEDIN_URN`.
+
+Dependencies: `pip install anthropic pdfplumber openpyxl`.
+
 ## Known active scripts
 
+- `mutxri_ai.py` — statement analysis, private-company ingest, briefs, post drafting
 - `market_bot.py` — market intelligence bot (exchange state + news signals), see above
 - `fetch_nse_history_fast.py` — threaded NSE IR-feed history (24 months, 19 majors)
 - `fetch_ngx_history.py` — NGX official price-list zips → per-symbol OHLC (3 PDF formats)

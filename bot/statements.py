@@ -1,0 +1,511 @@
+#!/usr/bin/env python3
+"""bot/statements.py - reading financial statements into something reasoned about.
+
+Two jobs, both deterministic:
+
+  1. NORMALISE  Any statement - a parsed public filing from static_data/financials,
+                or a private company's PDF/CSV/XLSX run through bot/ingest.py -
+                becomes one canonical shape, so downstream code never cares where
+                the numbers came from.
+  2. COMPUTE    Margins, growth, returns, leverage, liquidity, cash conversion and
+                earnings-quality flags, calculated in Python.
+
+Nothing in this module calls a language model, and that is deliberate: an LLM must
+never be the thing that does arithmetic on a balance sheet. bot/analyst.py explains
+what these numbers mean; this module decides what they are.
+
+Periods are newest-first and may have gaps (FY2026, FY2025, FY2022...). Growth is
+only computed between genuinely adjacent fiscal years, and a gap is reported rather
+than silently treated as a one-year change.
+"""
+import json, os, re
+
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SD = os.path.join(BASE, "static_data")
+FIN_DIR = os.path.join(SD, "financials")
+
+# Canonical line items -> the label spellings actually seen in the corpus.
+# Matching is case-insensitive and punctuation-insensitive; first hit wins, so
+# the more specific spellings come first.
+INCOME_MAP = [
+    ("revenue", ["revenue", "turnover", "total revenue", "net sales", "sales",
+                 "gross revenue", "interest income", "total income"]),
+    ("cost_of_sales", ["cost of sales", "cost of goods sold", "cogs",
+                       "cost of revenue"]),
+    ("gross_profit", ["gross profit", "gross income"]),
+    ("operating_expenses", ["operating expenses", "opex", "total operating expenses",
+                            "administrative expenses"]),
+    ("ebit", ["operating profit (ebit)", "operating profit", "ebit",
+              "operating income", "results from operating activities"]),
+    ("net_finance_costs", ["net finance costs", "finance costs", "interest expense",
+                           "net interest expense", "finance cost"]),
+    ("pbt", ["profit before tax", "pbt", "profit before taxation",
+             "earnings before tax", "profit/(loss) before tax"]),
+    ("tax", ["income tax", "tax", "taxation", "income tax expense", "tax expense"]),
+    ("net_profit", ["net profit", "profit for the year", "profit after tax",
+                    "net income", "pat", "profit/(loss) for the year",
+                    "profit attributable to owners"]),
+    ("eps", ["eps", "earnings per share", "basic eps", "basic earnings per share"]),
+]
+
+BALANCE_MAP = [
+    ("total_assets", ["total assets"]),
+    ("non_current_assets", ["non-current assets", "non current assets",
+                            "noncurrent assets"]),
+    ("current_assets", ["current assets", "total current assets"]),
+    ("cash", ["cash & equivalents", "cash and equivalents", "cash",
+              "cash and cash equivalents", "cash & cash equivalents"]),
+    ("total_liabilities", ["total liabilities"]),
+    ("non_current_liabilities", ["non-current liabilities", "non current liabilities",
+                                 "noncurrent liabilities"]),
+    ("current_liabilities", ["current liabilities", "total current liabilities"]),
+    ("total_equity", ["total equity", "shareholders equity", "total shareholders equity",
+                      "equity", "net assets"]),
+    ("borrowings", ["borrowings", "total borrowings", "debt", "total debt",
+                    "interest-bearing debt", "loans and borrowings"]),
+    ("inventory", ["inventory", "inventories", "stock"]),
+    ("receivables", ["receivables", "trade receivables", "trade and other receivables"]),
+]
+
+CASHFLOW_MAP = [
+    ("ocf", ["operating cash flow", "net cash from operating activities",
+             "cash from operations", "net cash generated from operations",
+             "net cash provided by operating activities"]),
+    ("icf", ["investing cash flow", "net cash from investing activities",
+             "net cash used in investing activities"]),
+    ("fcf_financing", ["financing cash flow", "net cash from financing activities",
+                       "net cash used in financing activities"]),
+    ("capex", ["capital expenditure", "capex", "purchase of property plant and equipment",
+               "additions to property plant and equipment"]),
+    ("fcf", ["free cash flow", "fcf"]),
+    ("net_change_cash", ["net change in cash", "net increase in cash",
+                         "net increase/(decrease) in cash"]),
+    ("dividends_paid", ["dividends paid", "dividend paid", "dividends to shareholders"]),
+]
+
+SECTION_MAPS = {"income": INCOME_MAP, "balance": BALANCE_MAP, "cashflow": CASHFLOW_MAP}
+
+
+def _norm_label(s):
+    return re.sub(r"[^a-z0-9 &]+", " ", (s or "").lower()).strip()
+
+
+def _canon(label, mapping):
+    """Map a raw statement label to a canonical key, or None if unrecognised."""
+    n = _norm_label(label)
+    n_compact = re.sub(r"\s+", " ", n)
+    for key, spellings in mapping:
+        for sp in spellings:
+            if n_compact == _norm_label(sp):
+                return key
+    # Fall back to a contained-phrase match, longest spelling first so
+    # "profit before tax" wins over "profit".
+    for key, spellings in mapping:
+        for sp in sorted(spellings, key=len, reverse=True):
+            spn = _norm_label(sp)
+            if len(spn) >= 8 and spn in n_compact:
+                return key
+    return None
+
+
+def _num(v):
+    if isinstance(v, (int, float)):
+        return float(v)
+    if v is None:
+        return None
+    s = str(v).strip().replace(",", "").replace("−", "-")
+    if not s or s in ("-", "--", "n/a", "na", "nil"):
+        return None
+    neg = s.startswith("(") and s.endswith(")")   # accounting negatives
+    if neg:
+        s = s[1:-1]
+    s = re.sub(r"[^\d.\-eE]", "", s)
+    try:
+        f = float(s)
+    except ValueError:
+        return None
+    return -f if neg else f
+
+
+def normalise_section(raw, section):
+    """Turn {rows:[{label,values}], periods:[...]} into {canonical_key: [values]}."""
+    mapping = SECTION_MAPS[section]
+    out, unmapped = {}, []
+    for row in raw.get("rows", []) or []:
+        key = _canon(row.get("label"), mapping)
+        vals = [_num(v) for v in (row.get("values") or [])]
+        if key is None:
+            unmapped.append(row.get("label"))
+            continue
+        # First mapped occurrence wins; statements often repeat a concept in
+        # subtotals further down, and the headline line comes first.
+        if key not in out:
+            out[key] = vals
+    return out, unmapped
+
+
+# ------------------------------------------------------------------- loading
+def load_public(ticker):
+    """Load the three statements for a listed security from static_data/financials."""
+    got, periods, meta = {}, None, {}
+    for section in ("income", "balance", "cashflow"):
+        p = os.path.join(FIN_DIR, "%s__%s.json" % (ticker, section))
+        if not os.path.exists(p):
+            continue
+        raw = json.load(open(p, encoding="utf-8"))
+        if not raw.get("available", True):
+            continue
+        vals, _unmapped = normalise_section(raw, section)
+        got[section] = vals
+        periods = periods or raw.get("periods")
+        meta = meta or {
+            "name": raw.get("name"), "currency": raw.get("currency"),
+            "source": raw.get("source"), "asOf": raw.get("asOf"),
+            "marketCap": raw.get("marketCap"),
+            "sharesOutstanding": raw.get("sharesOutstanding"),
+        }
+    if not got:
+        return None
+    return {
+        "entity": {
+            "id": ticker, "kind": "public", "ticker": ticker,
+            "name": meta.get("name") or ticker,
+            "currency": meta.get("currency"),
+            "marketCap": meta.get("marketCap"),
+            "sharesOutstanding": meta.get("sharesOutstanding"),
+        },
+        "periods": periods or [],
+        "sections": got,
+        "source": {"kind": "parsed-filing", "detail": meta.get("source"),
+                   "asOf": meta.get("asOf")},
+    }
+
+
+def available_public():
+    """Tickers that have at least one parsed statement on disk."""
+    if not os.path.isdir(FIN_DIR):
+        return []
+    return sorted({f.split("__")[0] for f in os.listdir(FIN_DIR) if "__" in f})
+
+
+# ------------------------------------------------------------------- metrics
+def _at(series, i):
+    """Value at period index i, or None."""
+    if not series or i >= len(series):
+        return None
+    return series[i]
+
+
+def _safe_div(a, b):
+    if a is None or b in (None, 0):
+        return None
+    return a / b
+
+
+def _pct(a, b):
+    r = _safe_div(a, b)
+    return None if r is None else round(r * 100, 2)
+
+
+def _fy(period):
+    """Extract a fiscal year integer from 'FY2026', '2026', 'Dec 2026'."""
+    m = re.search(r"(19|20)\d{2}", str(period or ""))
+    return int(m.group(0)) if m else None
+
+
+def compute(doc):
+    """Compute the metric set for a normalised statement document.
+
+    Returns per-period metrics newest-first, aligned to doc['periods'].
+    Every value is either a real number or None - never a guess or a zero
+    standing in for missing data.
+    """
+    inc = doc["sections"].get("income", {})
+    bal = doc["sections"].get("balance", {})
+    cfs = doc["sections"].get("cashflow", {})
+    periods = doc.get("periods") or []
+    n = len(periods)
+
+    rows = []
+    for i in range(n):
+        rev = _at(inc.get("revenue"), i)
+        gp = _at(inc.get("gross_profit"), i)
+        ebit = _at(inc.get("ebit"), i)
+        pbt = _at(inc.get("pbt"), i)
+        np_ = _at(inc.get("net_profit"), i)
+        fin = _at(inc.get("net_finance_costs"), i)
+        ta = _at(bal.get("total_assets"), i)
+        tl = _at(bal.get("total_liabilities"), i)
+        te = _at(bal.get("total_equity"), i)
+        cash = _at(bal.get("cash"), i)
+        debt = _at(bal.get("borrowings"), i)
+        ca = _at(bal.get("current_assets"), i)
+        cl = _at(bal.get("current_liabilities"), i)
+        ocf = _at(cfs.get("ocf"), i)
+        capex = _at(cfs.get("capex"), i)
+        fcf = _at(cfs.get("fcf"), i)
+        if fcf is None and ocf is not None and capex is not None:
+            # capex is reported as an outflow in some sources and a positive
+            # magnitude in others; subtract its magnitude either way.
+            fcf = ocf - abs(capex)
+
+        net_debt = None
+        if debt is not None and cash is not None:
+            net_debt = debt - cash
+        elif tl is not None and cash is not None and debt is None:
+            net_debt = None   # total liabilities is not debt - do not pretend
+
+        rows.append({
+            "period": periods[i],
+            "fy": _fy(periods[i]),
+            # scale
+            "revenue": rev, "net_profit": np_, "ebit": ebit, "pbt": pbt,
+            "total_assets": ta, "total_equity": te, "total_liabilities": tl,
+            "cash": cash, "borrowings": debt, "net_debt": net_debt,
+            "ocf": ocf, "capex": capex, "fcf": fcf,
+            # margins
+            "gross_margin": _pct(gp, rev),
+            "ebit_margin": _pct(ebit, rev),
+            "net_margin": _pct(np_, rev),
+            # returns
+            "roe": _pct(np_, te),
+            "roa": _pct(np_, ta),
+            # leverage & liquidity
+            "debt_to_equity": (round(_safe_div(debt, te), 3)
+                               if _safe_div(debt, te) is not None else None),
+            "liabilities_to_equity": (round(_safe_div(tl, te), 3)
+                                      if _safe_div(tl, te) is not None else None),
+            "net_debt_to_equity": (round(_safe_div(net_debt, te), 3)
+                                   if _safe_div(net_debt, te) is not None else None),
+            "current_ratio": (round(_safe_div(ca, cl), 3)
+                              if _safe_div(ca, cl) is not None else None),
+            "interest_cover": (round(_safe_div(ebit, abs(fin)), 2)
+                               if fin not in (None, 0) and ebit is not None else None),
+            # cash quality
+            "ocf_to_net_profit": (round(_safe_div(ocf, np_), 3)
+                                  if _safe_div(ocf, np_) is not None else None),
+            "fcf_margin": _pct(fcf, rev),
+        })
+
+    # Growth, only between adjacent fiscal years.
+    for i in range(len(rows) - 1):
+        cur, prv = rows[i], rows[i + 1]
+        gap = None
+        if cur["fy"] and prv["fy"]:
+            gap = cur["fy"] - prv["fy"]
+        cur["yearsSincePrior"] = gap
+        contiguous = gap == 1
+        cur["priorIsAdjacentYear"] = contiguous
+        for field, out in (("revenue", "revenue_growth"),
+                           ("net_profit", "net_profit_growth"),
+                           ("ebit", "ebit_growth"),
+                           ("ocf", "ocf_growth")):
+            a, b = cur.get(field), prv.get(field)
+            if contiguous and a is not None and b not in (None, 0):
+                cur[out] = round((a - b) / abs(b) * 100, 2)
+            else:
+                cur[out] = None
+    if rows:
+        rows[-1]["yearsSincePrior"] = None
+        rows[-1]["priorIsAdjacentYear"] = None
+    return rows
+
+
+# --------------------------------------------------------------------- flags
+def flags(rows):
+    """Earnings-quality and balance-sheet warnings, with the numbers behind them.
+
+    Each flag states the evidence so a reader can check it. These are prompts for
+    scrutiny, not verdicts - a single year of weak cash conversion can be working
+    capital timing, not a problem.
+    """
+    out = []
+    if not rows:
+        return out
+    cur = rows[0]
+
+    if cur.get("total_equity") is not None and cur["total_equity"] < 0:
+        out.append({"id": "negative_equity", "severity": "high",
+                    "label": "Negative shareholders' equity",
+                    "detail": "Total equity is %.0f - liabilities exceed assets."
+                              % cur["total_equity"]})
+
+    npg, ocfg = cur.get("net_profit_growth"), cur.get("ocf_growth")
+    if npg is not None and ocfg is not None and npg > 5 and ocfg < -5:
+        out.append({"id": "earnings_cash_divergence", "severity": "high",
+                    "label": "Profit rising while operating cash falls",
+                    "detail": "Net profit %+.1f%% but operating cash flow %+.1f%% - "
+                              "check receivables and revenue recognition."
+                              % (npg, ocfg)})
+
+    revg = cur.get("revenue_growth")
+    if revg is not None and ocfg is not None and revg > 5 and ocfg < -15:
+        out.append({"id": "growth_without_cash", "severity": "high",
+                    "label": "Revenue growing while operating cash falls",
+                    "detail": "Revenue %+.1f%% but operating cash flow %+.1f%% - "
+                              "growth is consuming working capital rather than "
+                              "generating it." % (revg, ocfg)})
+
+    conv = [r["ocf_to_net_profit"] for r in rows[:3]
+            if r.get("ocf_to_net_profit") is not None]
+    if len(conv) >= 2 and all(c < 0.8 for c in conv):
+        out.append({"id": "weak_cash_conversion", "severity": "medium",
+                    "label": "Persistently weak cash conversion",
+                    "detail": "Operating cash flow has been under 80%% of net profit "
+                              "for %d straight periods (latest %.2fx)."
+                              % (len(conv), conv[0])})
+
+    ic = cur.get("interest_cover")
+    if ic is not None and ic < 2:
+        out.append({"id": "thin_interest_cover", "severity": "high",
+                    "label": "Thin interest cover",
+                    "detail": "EBIT covers finance costs only %.2fx." % ic})
+
+    de = cur.get("debt_to_equity")
+    if de is not None and de > 2:
+        out.append({"id": "high_leverage", "severity": "medium",
+                    "label": "High leverage",
+                    "detail": "Debt/equity of %.2fx." % de})
+
+    cr = cur.get("current_ratio")
+    if cr is not None and cr < 1:
+        out.append({"id": "liquidity_pressure", "severity": "medium",
+                    "label": "Current liabilities exceed current assets",
+                    "detail": "Current ratio %.2f." % cr})
+
+    margins = [r["net_margin"] for r in rows[:3] if r.get("net_margin") is not None]
+    if len(margins) >= 3 and margins[0] < margins[1] < margins[2]:
+        out.append({"id": "margin_compression", "severity": "low",
+                    "label": "Net margin compressing",
+                    "detail": "Net margin %.1f%% -> %.1f%% -> %.1f%% (newest first)."
+                              % (margins[0], margins[1], margins[2])})
+
+    if cur.get("net_profit") is not None and cur["net_profit"] < 0:
+        out.append({"id": "loss_making", "severity": "high",
+                    "label": "Loss-making in the latest period",
+                    "detail": "Net result of %.0f." % cur["net_profit"]})
+
+    fcfs = [r["fcf"] for r in rows[:3] if r.get("fcf") is not None]
+    if len(fcfs) >= 2 and all(f < 0 for f in fcfs):
+        out.append({"id": "cash_burn", "severity": "medium",
+                    "label": "Sustained negative free cash flow",
+                    "detail": "Free cash flow negative in the last %d periods "
+                              "(latest %.0f)." % (len(fcfs), fcfs[0])})
+    return out
+
+
+def coverage(doc, rows):
+    """How much of the statement we actually have - stated, never papered over."""
+    have = {}
+    for section in ("income", "balance", "cashflow"):
+        keys = doc["sections"].get(section) or {}
+        have[section] = sorted(k for k, v in keys.items() if any(x is not None for x in v))
+    gaps = [r["period"] for r in rows
+            if r.get("yearsSincePrior") not in (None, 1)]
+    return {
+        "sections": have,
+        "periods": doc.get("periods", []),
+        "nonContiguousAfter": gaps,
+        "missingSections": [s for s in ("income", "balance", "cashflow")
+                            if not have.get(s)],
+    }
+
+
+def verify(doc, tolerance=0.02):
+    """Internal-consistency checks on the statements themselves.
+
+    Independent of where the numbers came from, and the audit that makes
+    model-assisted extraction safe to rely on: if a figure was misread off a
+    page, the accounting identities stop holding. A failure means the numbers
+    disagree with each other - investigate before trusting any ratio built on them.
+    """
+    inc = doc["sections"].get("income", {})
+    bal = doc["sections"].get("balance", {})
+    periods = doc.get("periods") or []
+    checks = []
+
+    def _close(a, b):
+        if a is None or b is None:
+            return None
+        scale = max(abs(a), abs(b), 1.0)
+        return abs(a - b) / scale <= tolerance
+
+    for i, p in enumerate(periods):
+        ta, tl, te = (_at(bal.get("total_assets"), i), _at(bal.get("total_liabilities"), i),
+                      _at(bal.get("total_equity"), i))
+        if ta is not None and tl is not None and te is not None:
+            ok = _close(ta, tl + te)
+            checks.append({"period": p, "check": "assets = liabilities + equity",
+                           "ok": ok, "lhs": ta, "rhs": tl + te})
+        rev, cos, gp = (_at(inc.get("revenue"), i), _at(inc.get("cost_of_sales"), i),
+                        _at(inc.get("gross_profit"), i))
+        if rev is not None and cos is not None and gp is not None:
+            ok = _close(gp, rev - abs(cos))
+            checks.append({"period": p, "check": "gross profit = revenue - cost of sales",
+                           "ok": ok, "lhs": gp, "rhs": rev - abs(cos)})
+        pbt, tax, np_ = (_at(inc.get("pbt"), i), _at(inc.get("tax"), i),
+                         _at(inc.get("net_profit"), i))
+        if pbt is not None and tax is not None and np_ is not None:
+            expected = pbt - abs(tax)
+            ok = _close(np_, expected)
+            # This identity legitimately breaks on group accounts: the reported
+            # figure is often profit *attributable to owners*, after non-
+            # controlling interests, and discontinued operations sit below the
+            # line too. A shortfall is therefore normal and only noteworthy;
+            # net profit exceeding PBT less tax is the anomaly worth chasing.
+            benign = (not ok) and np_ < expected
+            checks.append({"period": p, "check": "net profit = PBT - tax",
+                           "ok": ok, "lhs": np_, "rhs": expected,
+                           "severity": "informational" if benign else "strict",
+                           "note": ("shortfall is consistent with non-controlling "
+                                    "interests or discontinued operations")
+                                   if benign else None})
+
+    # Only strict breaks count as failures; the informational ones are surfaced
+    # separately so they prompt a look without crying wolf on every group.
+    failed = [c for c in checks
+              if c["ok"] is False and c.get("severity") != "informational"]
+    noted = [c for c in checks
+             if c["ok"] is False and c.get("severity") == "informational"]
+    return {"checks": checks, "failed": failed, "noted": noted,
+            "passed": len([c for c in checks if c["ok"]]), "total": len(checks)}
+
+
+def analyse(doc):
+    """Full deterministic read of one entity's statements."""
+    rows = compute(doc)
+    return {
+        "entity": doc["entity"],
+        "source": doc.get("source", {}),
+        "periods": doc.get("periods", []),
+        "metrics": rows,
+        "flags": flags(rows),
+        "coverage": coverage(doc, rows),
+        "verification": verify(doc),
+    }
+
+
+if __name__ == "__main__":
+    import sys
+    tick = sys.argv[1] if len(sys.argv) > 1 else "ABG.JO"
+    d = load_public(tick)
+    if not d:
+        print("no statements for", tick)
+        print("try:", ", ".join(available_public()[:12]))
+        raise SystemExit(1)
+    a = analyse(d)
+    e = a["entity"]
+    print("%s - %s (%s)" % (e["ticker"], e["name"], e.get("currency")))
+    print("periods:", ", ".join(a["periods"]))
+    for r in a["metrics"]:
+        print("  %-8s rev %14s  net %13s  margin %7s  roe %7s  ocf/np %6s  rev g %8s"
+              % (r["period"],
+                 "%.0f" % r["revenue"] if r["revenue"] is not None else "-",
+                 "%.0f" % r["net_profit"] if r["net_profit"] is not None else "-",
+                 "%.1f%%" % r["net_margin"] if r["net_margin"] is not None else "-",
+                 "%.1f%%" % r["roe"] if r["roe"] is not None else "-",
+                 "%.2f" % r["ocf_to_net_profit"] if r["ocf_to_net_profit"] is not None else "-",
+                 "%+.1f%%" % r["revenue_growth"] if r.get("revenue_growth") is not None else "-"))
+    for f in a["flags"]:
+        print("  [%s] %s - %s" % (f["severity"].upper(), f["label"], f["detail"]))
+    print("  coverage:", a["coverage"]["sections"])
