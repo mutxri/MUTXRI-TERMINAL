@@ -25,11 +25,16 @@ INC_SOURCES = [("Revenue from contracts with customers", "Revenue"), ("Revenue",
                ("Profit before income tax", "Profit Before Tax"),
                ("Profit before tax from continuing operations", "Profit Before Tax"),
                ("Profit for the year", "Net Profit"), ("Profit after tax", "Net Profit"),
-               ("Net profit for the year", "Net Profit")]
+               ("Net profit for the year", "Net Profit"),
+               ("TOTAL OPERATING INCOME", "Revenue"), ("Total operating income", "Revenue"),
+               ("Profit / (loss) after exceptional items", "Profit Before Tax"),
+               ("Profit / (loss) after tax and exceptional items", "Net Profit")]
 BAL_SOURCES = [("Non-current assets", "Non-current assets"), ("Current assets", "Current assets"),
                ("Total assets", "Total assets"), ("Total liabilities", "Total liabilities"),
                ("Total equity", "Total equity"), ("Total Assets", "Total assets"),
-               ("Total Liabilities", "Total liabilities"), ("Total Equity", "Total equity")]
+               ("Total Liabilities", "Total liabilities"), ("Total Equity", "Total equity"),
+               ("TOTAL ASSETS", "Total assets"), ("TOTAL LIABILITIES", "Total liabilities"),
+               ("TOTAL EQUITY", "Total equity")]
 CF_SOURCES = [("Net cash from operating activities", "Net Cash from Operating Activities"),
               ("Net cash used in operating activities", "Net Cash from Operating Activities"),
               ("Net cash generated from operating activities", "Net Cash from Operating Activities"),
@@ -52,36 +57,57 @@ def load_pages(pdf):
 def page_unit(text):
     if not text:
         return 1
-    if re.search(r"millions? of naira|₦\s*million|'000,000|000,000|kshs?\s*mn|kes\s*millions?|kShs Mn", text, re.I):
+    if re.search(r"millions? of naira|₦\s*million|[’']000,000\b|kshs?\s*mn\b|kes\s*millions?|kShs Mn", text, re.I):
         return 1_000_000
-    if re.search(r"₦'000|thousands? of naira|'000\b|\(000\)|kshs?\s*'?000", text, re.I):
+    if re.search(r"₦'000|thousands? of naira|[’']000\b|\(000\)|kshs?\s*[’']?000\b", text, re.I):
         return 1_000
     return 1
 
 
-def occurrences(text, labels):
+def occurrences(text, labels, fuzzy=False):
     """First occurrence per label per page: {label: [(page_idx, unit, values), ...]}
-    `labels` items are (source_label, output_label) tuples."""
+    `labels` items are (source_label, output_label) tuples.
+    fuzzy=True additionally matches case-insensitively (Kenya-layout pages only).
+    Value runs accept jammed multi-number lines and skip section/footnote refs.
+    Kenya 6-column (Bank/Company/Group x 2 years) pages keep the LAST pair
+    (the GROUP columns); other layouts keep the raw run."""
     lines = text.split("\n")
+    stripped = [l.strip() for l in lines]
+    kenya6 = any(stripped[i].lower() == "bank" and stripped[i + 1].lower() == "company"
+                 and stripped[i + 2].lower() == "group" for i in range(len(stripped) - 2))
     out = {}
     for src, _out in labels:
-        for i, ln in enumerate(lines):
-            if ln.strip() == src:
+        sl = src.lower()
+        for i, ln in enumerate(stripped):
+            if ln == src or (fuzzy and ln.lower() == sl):
+                # skip wrapped-label fragments ("... and minority interest" continues the row)
+                nxt = stripped[i + 1].lower() if i + 1 < len(stripped) else ""
+                if re.match(r"^(and|after|before|less|for|attributable|to|net of)\b", nxt):
+                    continue
                 j = i + 1
                 while j < len(lines) and NOTE_RE.fullmatch(lines[j].strip()):
                     j += 1
                 nums = []
-                while j < len(lines):
+                while j < len(lines) and len(nums) < 14:
                     x = lines[j].strip()
+                    if not x or x in ("-", "–", "—"):
+                        j += 1
+                        continue
+                    if re.fullmatch(r"\d+\.\d+|\d+[.)]|\d+\)", x):
+                        j += 1  # section/footnote number between values ("12.1", "6.", "4)")
+                        continue
                     if NUM_RE.fullmatch(x):
                         nums.append(float(x.replace(",", "").replace("(", "-").replace(")", "")))
                         j += 1
-                    elif x in ("", "-", "–", "—"):
+                        continue
+                    toks = re.findall(r"\(?\d[\d,]*\.?\d*\)?", x)
+                    if toks and not re.search(r"[A-Za-z%]", x):
+                        nums.extend(float(z.replace(",", "").replace("(", "-").replace(")", "")) for z in toks)
                         j += 1
-                    else:
-                        break
+                        continue
+                    break
                 if nums:
-                    out[src] = nums
+                    out[src] = nums[-2:] if (kenya6 and len(nums) >= 4) else nums
                 break
     return out
 
@@ -109,6 +135,12 @@ def main():
         unit = page_unit(page)
         for lab, vals in occurrences(page, INC_SOURCES + BAL_SOURCES + CF_SOURCES).items():
             cand.setdefault(lab, []).append((idx, unit, vals))
+        # Kenya-layout pages (Shs/KShs/KES currency or Bank/Company/Group header):
+        # second, case-insensitive pass only for labels the page matched exactly.
+        if re.search(r"\bshs\b|\bkshs?\b|\bkes\b|bank\s*\n\s*company\s*\n\s*group", page, re.I):
+            have = set(lab for lab in cand if any(e[0] == idx for e in cand[lab]))
+            for lab, vals in occurrences(page, [s for s in INC_SOURCES + BAL_SOURCES + CF_SOURCES if s[0] not in have], fuzzy=True).items():
+                cand.setdefault(lab, []).append((idx, unit, vals))
 
     def pick(sources):
         """Best (unit, values) for an output row across mapped source labels."""
@@ -168,22 +200,30 @@ def main():
     n_periods = min(max_cand, 5) if max_cand >= 5 else min(max_cand, 2)
     periods = []
     if widest_idx is not None:
-        if widest_idx is not None:
-            pg = pages[widest_idx]
-            # prefer column-header years ("31 December 2025"); fall back to any year mention
-            hdr = {int(m) for m in re.findall(
-                r"(?:31|30|1)\s+(?:December|Dec|March|Mar|January|Jan|February|Feb|June|Jun|July|Jul|September|Sep|October|Oct|November|Nov|April|Apr|May|August|Aug)\s+(20\d\d)",
-                pg, re.I)}
-            ys = sorted({int(m) for m in re.findall(r"20\d\d", pg) if 1990 <= int(m) <= 2040} - set(), reverse=True)
-            if len(hdr) >= n_periods:
-                ys = sorted(hdr, reverse=True)
-            periods = ["FY" + str(y) for y in ys[:n_periods]] if ys else []
+        pg = pages[widest_idx]
+        # column-header years ("31 December 2025", "31st December 2025", "December 2025")
+        hdr = {int(m) for m in re.findall(
+            r"(?:(?:31|30|1|2[0-9])(?:st|nd|rd|th)?\s+)?(?:December|Dec|March|Mar|January|Jan|February|Feb|June|Jun|July|Jul|September|Sep|October|Oct|November|Nov|April|Apr|May|August|Aug)\.?\s+(20\d\d)",
+            pg, re.I)}
+        if not hdr:
+            hdr = {int(m) for m in re.findall(r"20\d\d", pg) if 1990 <= int(m) <= 2040}
+        if hdr:
+            # 1) the fiscal year-end from the statement title ("year/period ended ... 20XX")
+            ttl = re.search(r"(?:year|period)\s+ended\s+(?:the\s+)?(?:\d{1,2}(?:st|nd|rd|th)?\s+)?(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(20\d\d)",
+                            pg, re.I)
+            if ttl:
+                base = int(ttl.group(1))
+            else:
+                # 2) December-dated header (classic fiscal year end), else the max date
+                dec = {y for y in hdr if re.search(r"(?:Dec(?:ember)?)\.?\s+" + str(y) + r"\b", pg, re.I)}
+                base = max(dec) if dec else max(hdr)
+            periods = ["FY" + str(base - i) for i in range(n_periods)]
     if not periods or len(periods) < n_periods:
         base = int(periods[0][2:]) if periods else 2026
         periods = ["FY" + str(base - i) for i in range(n_periods)]
 
     def build_file(stmt, stmt_title, rows):
-        cur = "KES" if re.search(r"\bkshs?\b|\bkes\b|kenyan shillings?", "\n".join(pages), re.I) else "NGN"
+        cur = "KES" if re.search(r"\bkshs?\b|\bkes\b|kenyan shillings?|\bshs\b", "\n".join(pages), re.I) else "NGN"
         src = "NSE (nse.co.ke)" if cur == "KES" else "NGX (doclib.ngxgroup.com)"
         return {
             "ticker": symbol, "name": name, "currency": cur, "source": src,
