@@ -8,8 +8,9 @@ Chain (each step safe to re-run):
   4. ex_<EX>_summary/indices <- build_ex_summaries.py
   5. fx/bonds/commodities/reg/ratings/tas <- refresh_live_data.py (LIVE backend)
   6. jse_news.json <- news_collect_jse.py (Moneyweb, current)
-  7. assemble gh_pages_deploy2
-  8. push changed files to the gh-pages branch (bulk_push tree-compare)
+  7. bot_market_state/bot_signals.json <- market_bot.py (exchange state + news scan)
+  8. assemble gh_pages_deploy2
+  9. push changed files to the gh-pages branch (bulk_push tree-compare)
 
 usage: python refresh_all.py [--history]     (--history adds step 1)
 """
@@ -44,6 +45,7 @@ run("screener", ["build_screener.py"])
 run("exchange summaries/indices", ["build_ex_summaries.py"])
 run("live panel data (fx/bonds/commodities/reg/ratings/tas)", ["refresh_live_data.py"], env={"API": API})
 run("jse news", ["news_collect_jse.py"])
+run("market bot (state + news signals)", ["market_bot.py", "--quiet"], timeout=900)
 run("assemble deploy", ["assemble_deploy.py"])
 run("push changed files", ["bulk_push.py"], timeout=3600)
 

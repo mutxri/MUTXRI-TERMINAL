@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - BOT panel. Market intelligence: exchange financial state plus
+  ranked news signals linked to listed securities. Reads static_data/bot_signals.json
+  and static_data/bot_market_state.json, both written by market_bot.py.
+  Vanilla JS, Godel palette, matches the other static snapshot panels.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - BOT</title>
+<style>
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--dn:#ff5c5c;--flat:#c8a24a;
+    --acc:#33e29a;--acc2:#1ecfb0;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#000;color:var(--tx);font-family:var(--ui);font-size:13px}
+  .wrap{max-width:880px;margin:0 auto;padding:14px}
+  .head{display:flex;align-items:center;gap:10px;padding:8px 4px 12px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+  .code{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.1em;border:1px solid var(--line2);padding:2px 6px;border-radius:2px}
+  .title{font-family:var(--mono);font-size:12px;color:var(--tx2);letter-spacing:.06em}
+  .title b{color:var(--acc)}
+  .spacer{flex:1}
+  .src{font-family:var(--mono);font-size:9px;color:var(--tx3)}
+
+  .tabs{display:flex;gap:6px;margin:12px 0 4px;flex-wrap:wrap}
+  .tab{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--tx2);
+       background:var(--bg2);border:1px solid var(--line2);border-radius:3px;
+       padding:5px 10px;cursor:pointer}
+  .tab:hover{color:var(--tx)}
+  .tab[aria-selected="true"]{color:#000;background:var(--acc);border-color:var(--acc);font-weight:600}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:8px;margin-top:12px}
+  .card{border:1px solid var(--line);background:var(--bg2);border-radius:4px;padding:10px 12px}
+  .card .ex{font-family:var(--mono);font-size:10px;color:var(--acc);letter-spacing:.1em}
+  .card .val{font-family:var(--mono);font-size:19px;margin-top:5px}
+  .card .sub{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:5px;line-height:1.5}
+  .up{color:var(--up)}.dn{color:var(--dn)}.flat{color:var(--flat)}
+
+  .sec{font-family:var(--mono);font-size:10px;color:var(--tx3);letter-spacing:.12em;
+       margin:20px 0 6px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+
+  .item{border:1px solid var(--line);border-radius:4px;background:var(--bg2);
+        padding:10px 12px;margin-top:7px;display:flex;gap:11px;align-items:flex-start}
+  .score{font-family:var(--mono);font-size:14px;min-width:44px;text-align:right;padding-top:1px}
+  .body{flex:1;min-width:0}
+  .body a{color:var(--tx);text-decoration:none;font-size:13px;line-height:1.45;display:block}
+  .body a:hover{color:var(--acc)}
+  .meta{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:6px;
+        display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{border:1px solid var(--line2);border-radius:2px;padding:1px 5px;color:var(--tx2)}
+  .pill.b-bullish{color:var(--up);border-color:#1c4d3a}
+  .pill.b-bearish{color:var(--dn);border-color:#5c2222}
+  .pill.b-neutral{color:var(--flat);border-color:#4a3a18}
+  .tick{color:var(--acc2)}
+  .why{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:5px;line-height:1.5}
+  .empty{padding:26px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:11px}
+  .note{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:9px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="head">
+    <span class="code">BOT</span>
+    <span class="title">MARKET INTELLIGENCE <b>· SIGNALS</b></span>
+    <span class="spacer"></span>
+    <span class="src" id="src">loading…</span>
+  </div>
+
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <div class="cards" id="cards"></div>
+
+  <div class="sec">SIGNALS · impact = relevance × confidence</div>
+  <div id="items"><div class="empty">loading…</div></div>
+  <div class="note" id="foot"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var EXS = ["ALL","NSE","NGX","JSE","EGX"];
+  var cur = "ALL";
+  try{ var q = new URLSearchParams(window.location.search);
+       if(q.get("ex")) cur = q.get("ex").toUpperCase(); }catch(e){}
+  if(EXS.indexOf(cur) < 0) cur = "ALL";
+
+  var DATA = null, STATE = null;
+
+  function esc(s){
+    return String(s==null?"":s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;");
+  }
+  function cls(v){ return v>0 ? "up" : (v<0 ? "dn" : "flat"); }
+  function pct(v){ return (v==null||isNaN(v)) ? "–" : (v>0?"+":"") + Number(v).toFixed(2) + "%"; }
+  function ago(ts){
+    var m = Math.max(0, Math.floor(Date.now()/1000 - ts)/60);
+    if(m < 60) return Math.round(m) + "m ago";
+    if(m < 2880) return Math.round(m/60) + "h ago";
+    return Math.round(m/1440) + "d ago";
+  }
+
+  function drawTabs(){
+    document.getElementById("tabs").innerHTML = EXS.map(function(x){
+      return '<button class="tab" role="tab" data-ex="'+x+'" aria-selected="'+
+             (x===cur)+'">'+x+'</button>';
+    }).join("");
+    Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(b){
+      b.addEventListener("click", function(){ cur = b.getAttribute("data-ex"); draw(); });
+    });
+  }
+
+  function drawCards(){
+    var el = document.getElementById("cards");
+    if(!STATE || !STATE.exchanges){ el.innerHTML = ""; return; }
+    var dg = (DATA && DATA.digest) || {};
+    var keys = Object.keys(STATE.exchanges).filter(function(k){
+      return cur === "ALL" || k === cur; });
+    el.innerHTML = keys.map(function(k){
+      var b = STATE.exchanges[k], d = dg[k] || {};
+      var chg = b.breadth.trimmedTradedChgPct;
+      return '<div class="card">' +
+        '<div class="ex">' + esc(k) + '</div>' +
+        '<div class="val ' + cls(chg) + '">' + pct(chg) + '</div>' +
+        '<div class="sub">adv ' + b.breadth.advancers + ' · dec ' + b.breadth.decliners +
+          ' · traded ' + b.breadth.traded + '<br>' +
+          esc(b.breadth.tone) + ' · news ' + esc(d.newsBias || "–") +
+          ' (' + (d.signals || 0) + ')</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function drawItems(){
+    var el = document.getElementById("items");
+    if(!DATA){ el.innerHTML = '<div class="empty">no bot data</div>'; return; }
+    var list = (DATA.signals || []).filter(function(s){
+      return cur === "ALL" || s.exchange === cur; }).slice(0, 60);
+    if(!list.length){ el.innerHTML = '<div class="empty">no signals</div>'; return; }
+    el.innerHTML = list.map(function(s){
+      var ticks = (s.securities || []).map(function(x){
+        return x.ticker || x.name; });
+      ticks = ticks.filter(function(v,i){ return ticks.indexOf(v) === i; }).slice(0,4);
+      var themes = (s.themes || []).map(function(t){ return t.label; });
+      themes = themes.filter(function(v,i){ return themes.indexOf(v) === i; });
+      var why = (s.themes || []).length ? (s.themes[0].note || "") : "";
+      var dirCls = s.direction > 0 ? "up" : (s.direction < 0 ? "dn" : "flat");
+      return '<div class="item">' +
+        '<div class="score ' + dirCls + '">' + Number(s.impact).toFixed(0) + '</div>' +
+        '<div class="body">' +
+          '<a href="' + esc(s.url || "#") + '" target="_blank" rel="nofollow noopener">' +
+            esc(s.title) + '</a>' +
+          '<div class="meta">' +
+            '<span class="pill">' + esc(s.exchange) + '</span>' +
+            '<span class="pill b-' + esc(s.bias) + '">' + esc(s.bias) + '</span>' +
+            (ticks.length ? '<span class="tick">' + esc(ticks.join(" · ")) + '</span>' : '') +
+            (themes.length ? '<span>' + esc(themes.join(" · ")) + '</span>' : '') +
+            '<span>' + esc(s.publisher || "") + '</span>' +
+            '<span>' + ago(s.ts) + '</span>' +
+            '<span>' + esc(s.tier) + '</span>' +
+          '</div>' +
+          (why ? '<div class="why">' + esc(why) + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function drawFoot(){
+    if(!DATA){ return; }
+    var r = DATA.sourceReport || {}, soc = (r.social || {}).status || "n/a";
+    var bits = [];
+    bits.push((r.sources || []).length + " sources scanned");
+    if((r.errors || []).length) bits.push((r.errors || []).length + " unreachable");
+    bits.push((DATA.counts || {}).itemsUnique + " stories → " +
+              (DATA.counts || {}).signals + " signals");
+    bits.push("social tier: " + soc +
+              (soc === "disabled" ? " (set X_BEARER_TOKEN to enable X/Twitter)" : ""));
+    document.getElementById("foot").textContent = bits.join(" · ");
+    document.getElementById("src").textContent =
+      "generated " + String(DATA.generated || "").replace("T", " ").replace("+00:00", "Z");
+  }
+
+  function draw(){ drawTabs(); drawCards(); drawItems(); drawFoot(); }
+
+  function load(name){
+    return fetch("../../static_data/" + name)
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .catch(function(){ return null; });
+  }
+
+  drawTabs();
+  Promise.all([load("bot_signals.json"), load("bot_market_state.json")])
+    .then(function(res){
+      DATA = res[0]; STATE = res[1];
+      if(!DATA && !STATE){
+        document.getElementById("items").innerHTML =
+          '<div class="empty">bot has not run yet — run <code>python market_bot.py</code></div>';
+        document.getElementById("src").textContent = "no data";
+        return;
+      }
+      draw();
+    });
+})();
+</script>
+</body>
+</html>

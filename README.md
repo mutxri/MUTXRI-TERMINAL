@@ -53,8 +53,49 @@ JSE Johannesburg/ZAc, EGX Cairo/EGP; ~1,030 listed securities).
 4. No em dashes in UI strings. No TradingView widget. Godel palette (mint #33e29a / teal #1ecfb0 on black, Oxygen Mono).
 5. Landing page must match terminal reality (no "real-time" claims over snapshots).
 
+## Market intelligence bot (`market_bot.py` + `bot/`)
+
+Pulls the financial state of all four exchanges and scans news that can move them,
+linking each story to the listed securities and macro themes it actually touches.
+Runs as step 7 of `refresh_all.py`; surfaces in the terminal as the **BOT** panel.
+
+```
+python market_bot.py                 # full run, writes both JSON files
+python market_bot.py --brief         # desk brief only, writes nothing
+python market_bot.py --exchange NSE  # focus one market
+python market_bot.py --no-social     # skip the X/Twitter tier
+```
+
+- `bot/universe.py` — the 922-security match index built from `listing_*`/`market_*`.
+  Aliases must be *distinctive*: a surface made only of generic words ("middle east",
+  "the egyptian") is dropped, and issuer names that are ordinary English words
+  (Equity, Zenith, Discovery, Access, Clicks) require an exchange or country cue in
+  the same text before news is pinned on them. Tickers under 4 characters need a cue too.
+- `bot/sources.py` — 26 reachability-checked feeds in three tiers: **local** home-market
+  press per exchange, **global** macro wires, and **social** (X/Twitter). Google News
+  search RSS carries the Kenyan and Egyptian coverage, where the direct feeds are
+  404/WAF-gated. Failing sources are reported, never silently dropped.
+- `bot/impact.py` — scoring. A story reaches a market either by **entity** (it names a
+  listed company, direction from a corporate-event lexicon) or by **theme** (oil, the
+  Fed, a currency, a policy rate — each theme carries an exposure map with a sign per
+  exchange/sector, so a rising oil price is bullish NGX energy and bearish import-heavy
+  NSE/EGX). `impact = relevance × confidence`, confidence blending source weight with a
+  48-hour recency half-life. It ranks what to read first; it does not forecast prices.
+- `bot/market.py` — consolidated breadth, movers, sectors and cross-asset context.
+  Tone reads off a **trimmed mean of rows that actually traded**: a plain mean is
+  hostage to one mispriced small cap, and a median is structurally 0 on boards where
+  most listings don't trade. Rows printing beyond ±35% are excluded as bad prints and
+  reported in `breadth.suspectRows` rather than quietly poisoning the average.
+
+Outputs `static_data/bot_market_state.json` and `static_data/bot_signals.json`.
+
+**X/Twitter tier** needs `X_BEARER_TOKEN` (X has no free search tier and the public
+Nitter mirrors are gone). Without it the bot reports the tier as `disabled` rather than
+implying the timeline was quiet — the other 25 sources run normally.
+
 ## Known active scripts
 
+- `market_bot.py` — market intelligence bot (exchange state + news signals), see above
 - `fetch_nse_history_fast.py` — threaded NSE IR-feed history (24 months, 19 majors)
 - `fetch_ngx_history.py` — NGX official price-list zips → per-symbol OHLC (3 PDF formats)
 - `fetch_nse_official.py` / `fetch_nse_mystocks.py` — NSE market snapshots
