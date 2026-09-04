@@ -132,8 +132,22 @@ def _aliases(name, core):
     return {a for a in out if len(a) >= 5 and _distinctive(a)}
 
 
+# The widest credible one-day move per exchange, matching MAX_MOVE in
+# build_market_snapshots.py. A move past the cap means the previous close came
+# from a different price scale (cents vs units, or an unadjusted split), not a
+# real session.
+MAX_MOVE = {"JSE": 50.0, "EGX": 25.0, "NGX": 15.0, "NSE": 15.0}
+
+
 def _rows(ex):
-    """Merge listing_<EX>.json with market_<EX>.json for the fullest picture."""
+    """Merge listing_<EX>.json with market_<EX>.json for the fullest picture.
+
+    The two files key securities differently: listing_JSE calls Absa "ABG.JO"
+    while market_JSE stores ticker "ABG" with sym "ABG.JO". Indexing the market
+    file under both keys matters - keying it on ticker alone matched 0 of 431 JSE
+    rows, so every JSE security silently ran on listing data only, without the
+    sanitising that build_market_snapshots.py applies.
+    """
     listing = os.path.join(SD, f"listing_{ex}.json")
     market = os.path.join(SD, f"market_{ex}.json")
     rows = []
@@ -144,16 +158,38 @@ def _rows(ex):
     if os.path.exists(market):
         d = json.load(open(market, encoding="utf-8"))
         for s in d.get("stocks", d if isinstance(d, list) else []):
-            k = s.get("ticker") or s.get("sym")
-            if k:
-                mkt[k] = s
+            for k in (s.get("ticker"), s.get("sym")):
+                if k:
+                    mkt.setdefault(k, s)
     for r in rows:
-        k = r.get("ticker") or r.get("sym")
-        if k and k in mkt:
-            merged = dict(mkt[k])
+        # The listing's own identifier is what the terminal displays, and it
+        # differs by exchange: JSE listings identify as "ABG.JO" while EGX
+        # listings use the readable "INFI" rather than the ISIN-style sym. Keep
+        # it through the merge so market_<EX>'s internal ticker form does not
+        # rename securities.
+        display = r.get("ticker") or r.get("sym")
+        m = None
+        for k in (r.get("ticker"), r.get("sym")):
+            if k and k in mkt:
+                m = mkt[k]
+                break
+        if m is not None:
+            merged = dict(m)
             merged.update({a: b for a, b in r.items() if b not in (None, "")})
             r.clear()
             r.update(merged)
+        if display:
+            r["ticker"] = display
+
+    # Same cap the upstream builder applies, enforced again here because the
+    # listing file keeps the raw figure the builder deliberately nulled, and the
+    # merge above lets a non-null listing value win.
+    cap = MAX_MOVE.get(ex, 50.0)
+    for r in rows:
+        c = r.get("chgPct")
+        if isinstance(c, (int, float)) and abs(c) > cap:
+            r["chgPct"] = None
+            r["chgFlag"] = "suspect-baseline"
     return rows
 
 
@@ -174,6 +210,7 @@ def load():
             secs.append({
                 "exchange": ex,
                 "ticker": tic,
+                "chgFlag": r.get("chgFlag"),
                 "name": name,
                 "sector": sector,
                 "country": r.get("country") or EX_META[ex]["country"],

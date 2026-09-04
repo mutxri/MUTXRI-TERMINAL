@@ -45,14 +45,27 @@ SANE_CHG_PCT = 35.0
 
 
 def _sane_rows(stocks):
-    """Split rows into usable and suspect on the chgPct sanity bound."""
+    """Split rows into usable and suspect.
+
+    Two ways a row lands in `suspect`: it still carries an implausible move, or
+    bot/universe.py already nulled one and left `chgFlag`. Reading the flag keeps
+    the count honest - without it the exclusions became invisible the moment the
+    sanitising moved upstream, and the panel would report a clean board while
+    quietly dropping rows.
+    """
     good, suspect = [], []
     for s in stocks:
         c = _num(s.get("chgPct"))
-        if c is not None and abs(c) > SANE_CHG_PCT:
+        flagged = bool(s.get("chgFlag"))
+        if flagged or (c is not None and abs(c) > SANE_CHG_PCT):
             suspect.append({"ticker": s.get("ticker") or s.get("sym"),
                             "name": s.get("name"), "chgPct": c,
+                            "reason": s.get("chgFlag") or "implausible one-day move",
                             "price": _num(s.get("price"))})
+            if flagged and c is None:
+                # The value is already withheld, so the row is still usable for
+                # everything that does not depend on the day change.
+                good.append(s)
         else:
             good.append(s)
     return good, suspect

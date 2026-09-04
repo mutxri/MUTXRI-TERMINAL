@@ -32,7 +32,7 @@ templates - runs with no credentials at all.
 """
 import argparse, json, os, re, sys, textwrap
 
-from bot import analyst, cards, images, ingest, social, statements as S
+from bot import analyst, cards, ingest, social, statements as S
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 SD = os.path.join(BASE, "static_data")

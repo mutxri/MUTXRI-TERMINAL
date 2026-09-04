@@ -17,7 +17,7 @@ Two rules the layout enforces, both of which are about not lying to a reader:
 
 Needs Pillow.
 """
-import os, textwrap
+import os
 
 from . import images as I
 

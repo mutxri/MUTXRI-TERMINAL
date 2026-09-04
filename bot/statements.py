@@ -249,11 +249,10 @@ def compute(doc):
             # magnitude in others; subtract its magnitude either way.
             fcf = ocf - abs(capex)
 
-        net_debt = None
-        if debt is not None and cash is not None:
-            net_debt = debt - cash
-        elif tl is not None and cash is not None and debt is None:
-            net_debt = None   # total liabilities is not debt - do not pretend
+        # Net debt needs a real borrowings line. Total liabilities is not debt -
+        # it includes payables, provisions and deferred tax - so when borrowings
+        # are absent the figure stays unavailable rather than being approximated.
+        net_debt = (debt - cash) if (debt is not None and cash is not None) else None
 
         rows.append({
             "period": periods[i],
