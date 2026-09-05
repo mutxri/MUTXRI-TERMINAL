@@ -427,13 +427,7 @@ const API_BASE = (function(){
     if(q) return q;
     if(window.AUTH_API) return window.AUTH_API;
   }catch(e){}
-  // Auth already defaulted to the Render backend; data did not, so the three
-  // endpoints that survive assemble_deploy - /api/quotes, /api/metrics and
-  // /api/chart - resolved against the static host and 404d on every load.
-  // Heatmap, listing and market stay on static_data by design (assemble_deploy
-  // rewrites those). Note there is no automatic static fallback for these
-  // three: if the backend is down, quotes/metrics/charts go blank.
-  return "https://mutxri-terminal.onrender.com";
+  return "";
 })();
 const __origFetch = window.fetch;
 window.fetch = function(url, opts){
@@ -742,10 +736,11 @@ async function loadListing(ex){
     const r = await fetch(url);
     const d = await r.json();
     listing[ex] = d.stocks || [];
-    // static mode: overlay the freshest market snapshot prices onto the listing
-    // so the watchlist shows the SAME prices as the info sheet (no stale listing)
-    if(!window.API_BASE){
-      try{
+    // Overlay the freshest market-snapshot prices onto the listing (EOD base)
+    // in BOTH modes: pure static AND API mode (backend /api/quotes returns a
+    // throttled subset, e.g. ~80 of 431 JSE names -> most rows would render
+    // "—"). Live quotes still win per row when present.
+    try{
         const mr = await fetch('static_data/market_' + ex + '.json');
         const md = await mr.json();
         const byTkr = {};
@@ -765,7 +760,6 @@ async function loadListing(ex){
           return s;
         });
       }catch(e2){ console.error('market overlay fail', e2); }
-    }
     $('wlEx').textContent = ex + ' · ' + listing[ex].length;
     renderWatchlist($('q').value);
     buildTape(ex);            // tape now shows the new exchange immediately
