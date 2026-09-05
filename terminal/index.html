@@ -107,17 +107,12 @@ body{
 .wl{overflow-y:auto;min-height:0;flex:1}
 .wl-head{display:flex;justify-content:space-between;padding:var(--s2) var(--s4);font-size:10px;
   color:var(--tx3);border-bottom:1px solid var(--line);letter-spacing:.05em}
-.wl-row{display:grid;grid-template-columns:26px 1fr auto;gap:2px var(--s3);
+.wl-row{display:grid;grid-template-columns:1fr auto;gap:2px var(--s3);
   align-items:center;padding:var(--s2) var(--s4);border-bottom:1px solid var(--line);
   cursor:pointer;transition:background .12s}
 .wl-row:hover{background:var(--bg3)}
 .wl-row.active{background:var(--bg3);box-shadow:inset 2px 0 0 var(--acc)}
-.wl-logo-cell{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:center}
-.wl-logo{width:22px;height:22px;border-radius:3px;background:var(--bg4);object-fit:contain;padding:2px}
-.wl-mono{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
-  border:1px solid var(--line2);border-radius:3px;color:var(--acc);font-size:10px;font-weight:700;
-  background:var(--bg3);letter-spacing:.02em}
-.wl-main{grid-column:2;min-width:0}
+.wl-main{min-width:0}
 .wl-main .sym{font-weight:500;color:var(--tx);letter-spacing:.02em}
 .wl-main .nm{font-family:var(--ui);font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wl-main .wl-ceo{display:block;font-family:var(--ui);font-size:9px;color:var(--tx3);opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -479,15 +474,6 @@ try{
 }catch(e){}
 let listing = {};
 
-// ===== Company logos =====
-let LOGO_MAP = {};
-try{
-  fetch((window.API_BASE ? window.API_BASE : '') + 'static_data/logos.json')
-    .then(r => r.ok ? r.json() : Promise.reject())
-    .then(d => { LOGO_MAP = d || {}; })
-    .catch(() => {});
-}catch(e){}
-
 // ===== company_info cache (fetched once, reused) =====
 window.__CINFO = null; window.__CINFO_P = null;
 function loadCompanyInfo(){
@@ -788,16 +774,8 @@ function renderWatchlist(filter){
     const sign = chg === null || chg === undefined ? '' : TickerFix.fmtPct(chg);
     const sym = stockTicker(s);
     const volTxt = vol != null ? (Number(String(vol).replace(/,/g,'')).toLocaleString() || String(vol)) : '';
-    // logo: official domain -> favicon service (or direct image URL); monogram fallback (no broken images)
-    const rawLogo = LOGO_MAP[s.sym] || LOGO_MAP[s.ticker] || LOGO_MAP[sym] || '';
-    const isUrl = /^https?:\/\//i.test(rawLogo);
-    const dom = rawLogo.replace(/^www\./, '');
-    const logoSrc = isUrl ? rawLogo : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64`;
-    const logoHtml = rawLogo
-      ? `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'" onload="if(this.naturalWidth<=16&&this.naturalHeight<=16)this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'" >`
-      : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
+    // logo removed from watchlist rows (user: "no logos") - ticker/name/price only
     return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
-      <span class="wl-logo-cell">${logoHtml}</span>
       <span class="wl-main">
         <span class="sym">${esc(sym)}</span>
         <span class="nm">${esc(s.name||'')}</span>
