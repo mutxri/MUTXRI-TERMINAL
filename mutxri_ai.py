@@ -363,6 +363,196 @@ def cmd_card(args):
     return 0
 
 
+def _fmt(v, suffix=""):
+    if v is None:
+        return "-"
+    if isinstance(v, float):
+        return ("%.2f%s" % (v, suffix)) if abs(v) < 1000 else ("%,.0f" % v).replace(",", ",")
+    return "%s%s" % (v, suffix)
+
+
+def cmd_screen(args):
+    from bot import screen as SC
+    conds = []
+    for expr in args.where or []:
+        try:
+            conds.append(SC.parse_condition(expr))
+        except ValueError as e:
+            print(c(str(e), RED))
+            return 1
+    companies = SC.load(rebuild=args.rebuild, verbose=not args.quiet)
+
+    if args.list_flags:
+        print(c("flags present across %d companies:" % len(companies), BOLD))
+        for f in SC.flag_counts(companies):
+            print("  %-26s %-8s %4d   %s" % (f["id"], f["severity"], f["count"],
+                                             f["label"]))
+        return 0
+
+    hits = SC.screen(companies, exchange=args.exchange, sector=args.sector,
+                     flags=args.flag or (), severity=args.severity,
+                     conditions=conds, require_all_flags=args.all_flags)
+    cols = args.show or ["net_margin", "roe", "revenue_growth", "ocf_to_net_profit"]
+    hits.sort(key=lambda x: (x["latest"].get(cols[0]) is None,
+                             -(x["latest"].get(cols[0]) or 0)))
+    print(c("\n%d of %d companies match" % (len(hits), len(companies)), BOLD))
+    head = "%-12s %-30s %-4s " % ("TICKER", "NAME", "EX") + \
+           " ".join("%14s" % col[:14] for col in cols) + "  FLAGS"
+    print(c(head, DIM))
+    for h in hits[:args.limit]:
+        vals = " ".join("%14s" % _fmt(h["latest"].get(col)) for col in cols)
+        fl = ",".join(f["id"] for f in h["flags"] if f["severity"] == "high")
+        print("%-12s %-30s %-4s %s  %s"
+              % (h["ticker"][:12], (h["name"] or "")[:30], h.get("exchange") or "-",
+                 vals, c(fl[:40], RED) if fl else ""))
+    if len(hits) > args.limit:
+        print(c("  ... %d more (use --limit)" % (len(hits) - args.limit), DIM))
+    return 0
+
+
+def cmd_peers(args):
+    from bot import screen as SC
+    companies = SC.load(verbose=not args.quiet)
+    p = SC.peers(companies, args.ticker, by=args.by)
+    if not p:
+        print(c("no statements for %s" % args.ticker, RED))
+        return 1
+    print(c("\n%s - %s" % (p["ticker"], p["name"]), BOLD))
+    print(c("compared against %s (%d peers), latest period %s"
+            % (p["group"], p["groupSize"], p["latestPeriod"] or "?"), DIM))
+    if p.get("widened"):
+        print(c("too few %s peers on this exchange - widened to all sectors"
+                % (p.get("sector") or "sector"), YELLOW))
+    print(c("\n%-20s %12s %12s %10s" % ("METRIC", "COMPANY", "PEER MEDIAN",
+                                        "PERCENTILE"), DIM))
+    for r in p["metrics"]:
+        pct = "-"
+        if r["percentile"] is not None:
+            pct = "%.0f" % r["percentile"]
+            if not r["reliable"]:
+                pct += "*"
+        col = GREEN if (r["percentile"] or 0) >= 60 else (
+            RED if r["percentile"] is not None and r["percentile"] <= 25 else "")
+        line = "%-20s %12s %12s %10s" % (r["metric"], _fmt(r["value"]),
+                                         _fmt(r["peerMedian"]), pct)
+        print(c(line, col) if col else line)
+    if any(not r["reliable"] for r in p["metrics"] if r["percentile"] is not None):
+        print(c("\n* fewer than %d peers - an ordering, not a measurement"
+                % SC.MIN_PEERS, DIM))
+    if p["flags"]:
+        print(c("\nflags: %s" % ", ".join(f["id"] for f in p["flags"]), YELLOW))
+    return 0
+
+
+def cmd_watch(args):
+    from bot import watch as W
+    if args.watch_cmd == "add":
+        wl = W.add(tickers=args.ticker or (), exchanges=args.exchange or (),
+                   min_impact=args.min_impact)
+        print("watching %d ticker(s), %d exchange(s), impact >= %.0f"
+              % (len(wl["tickers"]), len(wl["exchanges"]), wl["minImpact"]))
+        return 0
+    if args.watch_cmd == "remove":
+        wl = W.remove(tickers=args.ticker or (), exchanges=args.exchange or ())
+        print("watching %d ticker(s), %d exchange(s)"
+              % (len(wl["tickers"]), len(wl["exchanges"])))
+        return 0
+    if args.watch_cmd == "list":
+        wl = W.watchlist()
+        print("tickers  :", ", ".join(wl["tickers"]) or "(none)")
+        print("exchanges:", ", ".join(wl["exchanges"]) or "(none)")
+        print("min impact:", wl["minImpact"], "| flag severities:",
+              ", ".join(wl["flagSeverities"]))
+        return 0
+    if args.watch_cmd == "reset":
+        W.reset()
+        print("seen-state cleared - the next check reports everything again")
+        return 0
+
+    res = W.check(record=not args.dry_run)
+    if res.get("error"):
+        print(c(res["error"], RED))
+        print("e.g. python mutxri_ai.py watch add --ticker SCOM --ticker ABG.JO")
+        return 1
+    news, stmts = res["news"], res["statements"]
+    if not news and not stmts:
+        print(c("nothing new since the last check", DIM))
+        if args.dry_run:
+            print(c("(dry run - nothing was marked as reported)", DIM))
+        return 0
+    if news:
+        print(c("\n%d NEW SIGNAL(S)" % len(news), BOLD))
+        for n in news:
+            print("  %s %-4s %-8s %s"
+                  % (c("%5.1f" % n["impact"], CYAN), n["exchange"],
+                     c(n["bias"], GREEN if n["bias"] == "bullish"
+                       else (RED if n["bias"] == "bearish" else YELLOW)),
+                     n["title"][:62]))
+            print(c("        %s | %s | %s" % (n["why"], n["publisher"] or "",
+                                              ", ".join(x for x in n["securities"] if x)),
+                    DIM))
+    if stmts:
+        print(c("\n%d STATEMENT FLAG CHANGE(S)" % len(stmts), BOLD))
+        for s in stmts:
+            col = RED if s["change"] == "appeared" else GREEN
+            print("  %s %-10s %-28s %s"
+                  % (c(s["change"].upper()[:8].ljust(8), col), s["ticker"],
+                     (s["name"] or "")[:28], s["label"]))
+    if args.dry_run:
+        print(c("\n(dry run - nothing was marked as reported)", DIM))
+    return 0
+
+
+def cmd_doctor(args):
+    from bot import health as H
+    r = H.report()
+    icon = {"ok": GREEN, "ageing": YELLOW, "stale": RED, "missing": RED,
+            "thin": YELLOW, "poor": RED, "degraded": YELLOW, "down": RED,
+            "unreadable": RED}
+    print(c("\nDATA HEALTH - %s" % r["overall"].upper(),
+            GREEN if r["overall"] == "ok" else YELLOW))
+
+    print(c("\nFILES", BOLD))
+    for f in r["files"]:
+        age = "%.1fd" % f["ageDays"] if f["ageDays"] is not None else "missing"
+        line = "  %-26s %-9s %-9s %s" % (f["file"], f["status"], age, f["what"])
+        print(c(line, icon.get(f["status"], "")))
+
+    print(c("\nEXCHANGE COVERAGE", BOLD))
+    for e in r["coverage"]:
+        if e.get("securities"):
+            line = ("  %-5s %3d securities, %3d priced (%.0f%%), %d suspect row(s)"
+                    % (e["exchange"], e["securities"], e["priced"], e["pricedPct"],
+                       e["suspectRows"]))
+        else:
+            line = "  %-5s no data" % e["exchange"]
+        print(c(line, icon.get(e["status"], "")))
+
+    st, sr = r["statements"], r["sources"]
+    print(c("\nSTATEMENTS", BOLD))
+    print("  %d tickers with parsed statements (%d in the index)"
+          % (st["tickersWithStatements"], st["indexEntries"]))
+
+    print(c("\nNEWS SOURCES", BOLD))
+    if sr.get("sourcesOk") is not None:
+        print(c("  %d ok, %d failed | %s signals | scanned %s"
+                % (sr["sourcesOk"], sr["sourcesFailed"], sr.get("signals"),
+                   sr.get("generated")), icon.get(sr["status"], "")))
+        for f in sr.get("failures", [])[:6]:
+            print(c("    down: %s (%s)" % (f["source"], f["error"]), DIM))
+        if sr.get("social") and sr["social"] != "ok":
+            print(c("    social tier: %s" % sr["social"], DIM))
+    else:
+        print(c("  %s" % sr.get("detail", sr.get("status")), RED))
+
+    print(c("\nCAPABILITIES", BOLD))
+    for cap in r["credentials"]:
+        mark = "on " if cap["enabled"] else "off"
+        print(c("  %-3s %-48s %s" % (mark, cap["capability"], cap["env"]),
+                GREEN if cap["enabled"] else DIM))
+    return 0 if r["overall"] == "ok" else 0
+
+
 def cmd_social(args):
     if args.action == "status":
         print("publishing credentials:")
@@ -508,6 +698,51 @@ def main():
     p.add_argument("question")
     p.add_argument("--entity", action="append", help="include a company's analysis")
     p.set_defaults(fn=cmd_ask)
+
+    p = sub.add_parser("screen", help="screen every parsed statement at once")
+    p.add_argument("--exchange")
+    p.add_argument("--sector", help="substring match, e.g. bank")
+    p.add_argument("--flag", action="append",
+                   help="repeatable; matches any unless --all-flags")
+    p.add_argument("--all-flags", action="store_true",
+                   help="require every --flag rather than any")
+    p.add_argument("--severity", choices=["high", "medium", "low"])
+    p.add_argument("--where", action="append", metavar="EXPR",
+                   help='repeatable metric test, e.g. --where "roe>15"')
+    p.add_argument("--show", action="append", metavar="METRIC",
+                   help="columns to display (repeatable)")
+    p.add_argument("--list-flags", action="store_true",
+                   help="show every flag and how many companies carry it")
+    p.add_argument("--limit", type=int, default=25)
+    p.add_argument("--rebuild", action="store_true", help="force a corpus rebuild")
+    p.add_argument("--quiet", action="store_true")
+    p.set_defaults(fn=cmd_screen)
+
+    p = sub.add_parser("peers", help="rank a company against its sector")
+    p.add_argument("ticker")
+    p.add_argument("--by", choices=["sector", "exchange"], default="sector")
+    p.add_argument("--quiet", action="store_true")
+    p.set_defaults(fn=cmd_peers)
+
+    p = sub.add_parser("watch", help="alert on what is new for your holdings")
+    w = p.add_subparsers(dest="watch_cmd")
+    wa = w.add_parser("add", help="add tickers or exchanges to the watchlist")
+    wa.add_argument("--ticker", action="append")
+    wa.add_argument("--exchange", action="append")
+    wa.add_argument("--min-impact", type=float)
+    wr = w.add_parser("remove", help="stop watching")
+    wr.add_argument("--ticker", action="append")
+    wr.add_argument("--exchange", action="append")
+    w.add_parser("list", help="show the watchlist")
+    w.add_parser("reset", help="forget what has already been reported")
+    wc = w.add_parser("check", help="report what is new since the last check")
+    wc.add_argument("--dry-run", action="store_true",
+                    help="preview without marking anything as reported")
+    p.set_defaults(fn=cmd_watch, watch_cmd="check", dry_run=False,
+                   ticker=None, exchange=None, min_impact=None)
+
+    p = sub.add_parser("doctor", help="data freshness, coverage and capabilities")
+    p.set_defaults(fn=cmd_doctor)
 
     p = sub.add_parser("card", help="build a social card from real, licensed images")
     p.add_argument("--signal", type=int, help="build from signal N of the last scan")

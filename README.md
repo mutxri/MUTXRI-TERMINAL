@@ -160,6 +160,59 @@ it not to derive numbers — if a figure is missing it must say so.
   every number is then recomputed and audited in Python.
 - `bot/social.py` — drafting and publishing, below.
 
+### Screening and peers (`bot/screen.py`)
+
+`analyse` reads one company; this reads all 557 at once.
+
+```
+python mutxri_ai.py screen --list-flags
+python mutxri_ai.py screen --exchange JSE --sector mining --flag cash_burn
+python mutxri_ai.py screen --where "roe>15" --where "ocf_to_net_profit<0.8"
+python mutxri_ai.py peers ABG.JO
+```
+
+A ratio without a peer group means little — 12% net margin is excellent for a
+retailer and poor for a bank — so `peers` gives the sector median and a
+percentile beside the company's own figure. Two honesty rules: a percentile from
+fewer than 5 peers is marked `*` as an ordering rather than a measurement, and
+where a sector group is too small (Safaricom is the NSE's only telecom) the
+comparison widens to the whole exchange and **says so** instead of showing
+blanks. The corpus takes ~40s to build and is cached until the statement files
+change.
+
+Across the corpus today: 90 companies with thin interest cover, 77 with
+persistently weak cash conversion, 60 loss-making, 8 with negative equity.
+
+### Watchlist alerts (`bot/watch.py`)
+
+```
+python mutxri_ai.py watch add --ticker SCOM --ticker ACL.JO --min-impact 45
+python mutxri_ai.py watch check
+python mutxri_ai.py watch check --dry-run
+```
+
+Every other part of this package produces a snapshot — run the scan twice and
+you see the same stories twice. This reports **only what is new since the last
+check**, for the securities you actually hold: news signals above your impact
+floor, and statement flags as they appear *or clear* (a going-concern flag
+lifting is news too). Seen-state is held for 30 days, deliberately longer than
+the 7-day news window, so nothing can expire from state while still in the scan
+and re-fire as new. `--dry-run` previews without consuming.
+
+### Data health (`bot/health.py`)
+
+```
+python mutxri_ai.py doctor
+```
+
+Stale data fails quietly: a three-week-old price file still parses, still
+renders, and reports last month's market with total confidence. `doctor` grades
+every input by age against a per-file expectation (prices go stale in a day,
+parsed annual statements do not), reports per-exchange price coverage and
+suspect rows, whether the last news scan reached its feeds, and which optional
+capabilities are switched on. It fixes nothing — it tells you which collector to
+run.
+
 ### Social cards: real photographs only (`bot/images.py`, `bot/cards.py`)
 
 ```
