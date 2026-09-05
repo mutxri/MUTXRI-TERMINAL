@@ -195,24 +195,213 @@ def pdf_text(path, max_pages=40):
     return "\n".join(out)
 
 
-def from_pdf(path, name=None, **kw):
-    """Deterministic PDF path: try each extracted table until one parses.
+# One figure. Thousands are comma-grouped ("35,946") or space-grouped in the
+# South African style ("7 535"); a space is only part of a number when it is
+# followed by exactly three digits, otherwise it separates two columns. Getting
+# this wrong fuses "35,946 41,083" into 3594641083 - two years of revenue read
+# as one impossible number.
+_NUM_TOKEN = re.compile(r"\(?-?\d{1,3}(?:,\d{3})+(?:\.\d+)?\)?"
+                        r"|\(?-?\d{1,3}(?:\s\d{3})+(?:\.\d+)?\)?"
+                        r"|\(?-?\d+(?:\.\d+)?\)?%?")
 
-    Raises when no table yields a statement - the caller can then fall back to
-    the model-assisted reader in bot/analyst.py rather than guessing here.
+
+def _parse_statement_line(line):
+    """Split one text line into (label, values) pairs.
+
+    Filings print two statements side by side, so a single extracted line can
+    read "Profit after tax 5,246 4,483 Non-current assets 9,687 10,061" - the
+    income statement and the balance sheet on the same row of the page. Scanning
+    label-then-figures-then-label recovers both instead of mangling the first
+    label and losing the second entirely.
     """
+    out, i, n = [], 0, len(line)
+    while i < n:
+        m = _NUM_TOKEN.search(line, i)
+        if not m:
+            break
+        label = line[i:m.start()].strip(" .: ")
+        vals, j = [], m.start()
+        while True:
+            m2 = _NUM_TOKEN.match(line, j)
+            if not m2:
+                break
+            tok = m2.group(0)
+            if tok.endswith("%"):        # a percentage is commentary, not a column
+                j = m2.end()
+                while j < n and line[j] == " ":
+                    j += 1
+                continue
+            v = S._num(tok)
+            if v is not None:
+                vals.append(v)
+            j = m2.end()
+            while j < n and line[j] == " ":
+                j += 1
+        if label and vals and re.search(r"[A-Za-z]", label) and len(label) >= 3:
+            out.append({"label": label, "values": vals})
+        i = j if j > i else m.end()
+    return out
+# Period headers as filings actually write them: "31-Dec-25", "31 December 2025",
+# "FY2025", "2025". Two-digit years appear in Kenyan and Nigerian releases.
+_HDR_TOKEN = re.compile(
+    r"(?:\d{1,2}[-\s](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-\s]"
+    r"(?P<yy>\d{2,4})|(?:FY\s*)?(?P<yyyy>(?:19|20)\d{2}))", re.I)
+
+
+def _header_years(line):
+    """Fiscal years named on one line, newest-first order preserved as written."""
+    out = []
+    for m in _HDR_TOKEN.finditer(line):
+        y = m.group("yyyy") or m.group("yy")
+        if not y:
+            continue
+        y = int(y)
+        if y < 100:                      # "31-Dec-25" -> 2025
+            y += 2000
+        if 1990 <= y <= 2100 and ("FY%d" % y) not in out:
+            out.append("FY%d" % y)
+    return out
+
+
+def pdf_line_items(path, max_pages=40):
+    """Read statement lines straight out of the PDF's text layer.
+
+    Real filings lay their statements out with whitespace rather than ruled
+    cells, so pdfplumber's table extractor returns value-only columns and drops
+    the labels entirely - which makes the table path useless on every real
+    document tested here. The text layer keeps them: "Net revenue 23,192 25,716"
+    is one line, and a label followed by figures is all a statement line is.
+
+    Two-column pages interleave the income statement with the balance sheet, but
+    that is harmless: each line is mapped on its own label, so the order the
+    lines arrive in does not matter.
+    """
+    text = pdf_text(path, max_pages=max_pages)
+    periods, rows = [], []
+    for raw in text.split("\n"):
+        line = raw.replace("\u00a0", " ").strip()
+        if not line:
+            continue
+        yrs = _header_years(line)
+        # A period header names years and is mostly dates. A statement line that
+        # merely mentions a year ("Dividend for 2025  1,200  900") is not one.
+        if len(yrs) >= 2 and len(re.sub(r"[^A-Za-z]", "", line)) < 40:
+            if len(yrs) > len(periods):
+                periods = yrs
+            continue
+        rows.extend(_parse_statement_line(line))
+    return periods, rows
+
+
+def _lines_to_sections(periods, rows, entity, source):
+    """Build the canonical document from label/value lines."""
+    if len(periods) < 1:
+        raise ValueError("no period header found in the text layer")
+    sections = {"income": {}, "balance": {}, "cashflow": {}}
+    unmapped = []
+    n = len(periods)
+    for r in rows:
+        vals = r["values"]
+        if len(vals) < n:
+            # A line reporting fewer figures than there are periods cannot be
+            # aligned to them safely; keep it visible rather than guess.
+            unmapped.append(r["label"])
+            continue
+        # Statements print "Label | Note | FY2025 | FY2024", so a row with more
+        # figures than periods usually carries a note reference on the left.
+        # Taking the trailing values keeps the money columns; taking the leading
+        # ones read Aveng's revenue as 27 and ArcelorMittal's as 4.
+        vals = vals[-n:]
+        placed = False
+        for sec, mapping in (("income", S.INCOME_MAP), ("balance", S.BALANCE_MAP),
+                             ("cashflow", S.CASHFLOW_MAP)):
+            key = S._canon(r["label"], mapping)
+            if key and key not in sections[sec]:
+                sections[sec][key] = vals
+                placed = True
+                break
+        if not placed:
+            unmapped.append(r["label"])
+    if not any(sections.values()):
+        raise ValueError("no recognisable statement lines in the text layer")
+    dropped = _drop_scale_outliers(sections)
+    if not any(sections.values()):
+        raise ValueError("no statement lines survived the scale check")
+    return {"entity": entity, "periods": periods, "sections": sections,
+            "source": source, "unmapped": unmapped[:60],
+            "droppedOutOfScale": dropped}
+
+
+# Line items whose value is legitimately small next to the rest of a statement,
+# so they must be exempt from the scale check.
+_SMALL_BY_NATURE = {"eps"}
+
+
+def _drop_scale_outliers(sections):
+    """Discard figures that cannot belong to the same statement.
+
+    A note reference left stranded on its own line ("Revenue 27") parses as a
+    perfectly good figure. Nothing about the line says it is wrong - only its
+    size relative to the rest of the document does, and a revenue of 27 sitting
+    beside a profit of 2,717,172 is a note number, not money. Anything more than
+    three orders of magnitude below the document's median figure is dropped and
+    reported rather than published as a company's revenue.
+    """
+    mags = []
+    for sec, items in sections.items():
+        for key, vals in items.items():
+            if key in _SMALL_BY_NATURE:
+                continue
+            mags += [abs(v) for v in vals if v]
+    if len(mags) < 4:
+        return []
+    mags.sort()
+    median = mags[len(mags) // 2]
+    floor = median / 1000.0
+    dropped = []
+    for sec, items in sections.items():
+        for key in list(items):
+            if key in _SMALL_BY_NATURE:
+                continue
+            vals = [v for v in items[key] if v]
+            if vals and max(abs(v) for v in vals) < floor:
+                dropped.append({"section": sec, "item": key, "values": items[key],
+                                "medianFigure": median})
+                del items[key]
+    return dropped
+
+
+def from_pdf(path, name=None, **kw):
+    """Deterministic PDF path.
+
+    Tries the text layer first - it is what actually works on real filings -
+    then falls back to extracted tables for documents that genuinely are ruled
+    grids. Raises when neither yields a statement, so the caller can fall back
+    to the model-assisted reader rather than guessing here.
+    """
+    entity = _entity(name or os.path.splitext(os.path.basename(path))[0], **kw)
+    stamp = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+
+    try:
+        periods, rows = pdf_line_items(path)
+        if periods and rows:
+            return _lines_to_sections(
+                periods, rows, entity,
+                {"kind": "pdf-text", "detail": os.path.basename(path),
+                 "ingestedAt": stamp, "linesRead": len(rows)})
+    except ValueError:
+        pass
+
     grids = pdf_tables(path)
-    errors = []
     for g in grids:
         try:
-            doc = _table_to_sections(
-                g, _entity(name or os.path.splitext(os.path.basename(path))[0], **kw),
+            return _table_to_sections(
+                g, entity,
                 {"kind": "pdf-table", "detail": os.path.basename(path),
-                 "ingestedAt": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")})
-            return doc
-        except ValueError as e:
-            errors.append(str(e))
-    raise ValueError("no parsable statement table in %s (%d tables tried)"
+                 "ingestedAt": stamp})
+        except ValueError:
+            continue
+    raise ValueError("no parsable statement in %s (text layer and %d tables tried)"
                      % (os.path.basename(path), len(grids)))
 
 

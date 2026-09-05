@@ -160,7 +160,14 @@ def cmd_ingest(args):
         print(c("\n%d line(s) kept but not mapped to a standard item:"
                 % len(doc["unmapped"]), DIM))
         for u in doc["unmapped"][:6]:
-            print(c("  %s" % (u.get("label") or u), DIM))
+            print(c("  %s" % (u.get("label") if isinstance(u, dict) else u), DIM))
+    dropped = doc.get("droppedOutOfScale") or []
+    if dropped:
+        print(c("\n%d line(s) dropped as out of scale for this statement "
+                "(most likely note references, not money):" % len(dropped), YELLOW))
+        for d in dropped:
+            print(c("  %s.%s = %s (document median figure %s)"
+                    % (d["section"], d["item"], d["values"], int(d["medianFigure"])), DIM))
     if args.explain and analyst.available():
         print(c("\nANALYST NOTE", BOLD))
         print(textwrap.fill(analyst.explain(a, effort=args.effort), 88))

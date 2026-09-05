@@ -28,8 +28,9 @@ FIN_DIR = os.path.join(SD, "financials")
 # Matching is case-insensitive and punctuation-insensitive; first hit wins, so
 # the more specific spellings come first.
 INCOME_MAP = [
-    ("revenue", ["revenue", "turnover", "total revenue", "net sales", "sales",
-                 "gross revenue", "interest income", "total income"]),
+    ("revenue", ["net revenue", "revenue", "turnover", "total revenue", "net sales",
+                 "sales", "gross revenue", "interest income", "total income",
+                 "gross sales including indirect taxes", "gross sales"]),
     ("cost_of_sales", ["cost of sales", "cost of goods sold", "cogs",
                        "cost of revenue"]),
     ("gross_profit", ["gross profit", "gross income"]),
@@ -60,7 +61,8 @@ BALANCE_MAP = [
                                  "noncurrent liabilities"]),
     ("current_liabilities", ["current liabilities", "total current liabilities"]),
     ("total_equity", ["total equity", "shareholders equity", "total shareholders equity",
-                      "equity", "net assets"]),
+                      "shareholders funds", "total shareholders funds",
+                      "capital and reserves", "equity", "net assets"]),
     ("borrowings", ["borrowings", "total borrowings", "debt", "total debt",
                     "interest-bearing debt", "loans and borrowings"]),
     ("inventory", ["inventory", "inventories", "stock"]),
@@ -68,7 +70,8 @@ BALANCE_MAP = [
 ]
 
 CASHFLOW_MAP = [
-    ("ocf", ["operating cash flow", "net cash from operating activities",
+    ("ocf", ["operating cash flow", "net cash generated from operating activities",
+             "net cash from operating activities",
              "cash from operations", "net cash generated from operations",
              "net cash provided by operating activities"]),
     ("icf", ["investing cash flow", "net cash from investing activities",
@@ -252,7 +255,8 @@ def compute(doc):
         # Net debt needs a real borrowings line. Total liabilities is not debt -
         # it includes payables, provisions and deferred tax - so when borrowings
         # are absent the figure stays unavailable rather than being approximated.
-        net_debt = (debt - cash) if (debt is not None and cash is not None) else None
+        net_debt = ((abs(debt) - cash) if (debt is not None and cash is not None)
+                    else None)
 
         rows.append({
             "period": periods[i],
@@ -274,14 +278,20 @@ def compute(doc):
             "roe": _pct(np_, te) if (te or 0) > 0 else None,
             "roa": _pct(np_, ta) if (ta or 0) > 0 else None,
             # leverage & liquidity
-            "debt_to_equity": (round(_safe_div(debt, te), 3)
-                               if (te or 0) > 0 and _safe_div(debt, te) is not None else None),
-            "liabilities_to_equity": (round(_safe_div(tl, te), 3)
-                                      if (te or 0) > 0 and _safe_div(tl, te) is not None else None),
+            "debt_to_equity": (round(_safe_div(abs(debt), te), 3)
+                               if (te or 0) > 0 and debt is not None else None),
+            "liabilities_to_equity": (round(_safe_div(abs(tl), te), 3)
+                                      if (te or 0) > 0 and tl is not None else None),
             "net_debt_to_equity": (round(_safe_div(net_debt, te), 3)
                                    if (te or 0) > 0 and _safe_div(net_debt, te) is not None else None),
-            "current_ratio": (round(_safe_div(ca, cl), 3)
-                              if _safe_div(ca, cl) is not None else None),
+            # Liabilities are a magnitude. Filings that present a net-assets
+            # layout show them bracketed as deductions - BAT Kenya reports
+            # "Current liabilities (6,198)" - and dividing by the signed value
+            # returns a current ratio of -2.24 for a company that is comfortably
+            # liquid at 2.24. A negative liability is a presentation convention,
+            # never an economic fact.
+            "current_ratio": (round(_safe_div(ca, abs(cl)), 3)
+                              if cl not in (None, 0) and ca is not None else None),
             "interest_cover": (round(_safe_div(ebit, abs(fin)), 2)
                                if fin not in (None, 0) and ebit is not None else None),
             # cash quality
