@@ -30,6 +30,7 @@
   .item a:hover{color:var(--acc)}
   .meta{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:7px;display:flex;gap:10px;align-items:center}
   .pub{color:var(--acc)}
+  .tick{color:var(--acc2);border:1px solid var(--line2);border-radius:2px;padding:1px 5px}
   .empty{padding:30px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:11px}
 </style>
 </head>
@@ -49,27 +50,84 @@
   "use strict";
   var CUR = "NSE";
   try{ var _q = new URLSearchParams(window.location.search); if(_q.get("ex")) CUR = _q.get("ex").toUpperCase(); }catch(e){}
-  var EX_FILE = { "NSE": "nse_news.json", "NGX": "ngx_news.json" };
+  // Each exchange draws on its official/collector feed plus the market-bot scan.
+  // JSE had headlines in jse_news.json all along that this panel never loaded,
+  // and EGX had no feed at all - the scan reaches it through three sources.
+  var EX_FILE = {
+    "NSE": ["nse_news.json", "bot_news_NSE.json"],
+    "NGX": ["ngx_news.json", "bot_news_NGX.json"],
+    "JSE": ["jse_news.json", "bot_news_JSE.json"],
+    "EGX": ["bot_news_EGX.json"]
+  };
   var EX_NAME = { "NSE": "NSE", "NGX": "NGX", "JSE": "JSE", "EGX": "EGX" };
+  var MONTHS = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+
   function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  // The feeds date their items differently: the bot emits an epoch ts, the NGX
+  // disclosures use "2026-08-28", and the older collectors use "Sep 3". Reduce
+  // them all to one number so a merged list can be ordered honestly; anything
+  // unparseable sorts last rather than pretending to be recent.
+  function stamp(n){
+    if(n && typeof n.ts === "number" && n.ts > 0) return n.ts;
+    var d = String((n && n.date) || "").trim();
+    var iso = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(iso) return Date.UTC(+iso[1], +iso[2]-1, +iso[3]) / 1000;
+    var md = d.match(/^([A-Z][a-z]{2})\s+(\d{1,2})$/);
+    if(md && MONTHS[md[1]] != null){
+      var now = new Date(), y = now.getUTCFullYear();
+      var t = Date.UTC(y, MONTHS[md[1]], +md[2]) / 1000;
+      // A date more than a week ahead is last year's, not the future.
+      if(t > now.getTime()/1000 + 7*86400) t = Date.UTC(y-1, MONTHS[md[1]], +md[2]) / 1000;
+      return t;
+    }
+    return 0;
+  }
+
+  function key(n){
+    var u = String((n && n.url) || "").split("?")[0];
+    if(u) return "u:" + u;
+    return "t:" + String((n && n.title) || "").toLowerCase().replace(/[^a-z0-9 ]/g, "").slice(0, 90);
+  }
+
   document.getElementById("exTitle").textContent = EX_NAME[CUR] || CUR;
-  var file = EX_FILE[CUR];
+  var files = EX_FILE[CUR];
   var el = document.getElementById("items");
-  if(!file){
-    el.innerHTML = '<div class="empty">no free news feed for ' + esc(CUR) + '</div>';
+  if(!files || !files.length){
+    el.innerHTML = '<div class="empty">no news feed for ' + esc(CUR) + '</div>';
     return;
   }
-  fetch("../../static_data/" + file).then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(list){
-      if(!list || !list.length){ el.innerHTML = '<div class="empty">no news</div>'; return; }
-      el.innerHTML = list.map(function(n){
-        return '<div class="item">' +
-          '<a href="' + esc(n.url || "#") + '" target="_blank" rel="nofollow noopener">' + esc(n.title) + '</a>' +
-          '<div class="meta"><span class="pub">' + esc(n.publisher || "") + '</span><span>' + esc(n.date || "") + '</span></div>' +
-          '</div>';
-      }).join("");
-    })
-    .catch(function(){ document.getElementById("items").innerHTML = '<div class="empty">no news</div>'; });
+
+  function load(name){
+    return fetch("../../static_data/" + name)
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .catch(function(){ return []; });
+  }
+
+  Promise.all(files.map(load)).then(function(lists){
+    var seen = {}, all = [];
+    lists.forEach(function(list){
+      (list || []).forEach(function(n){
+        if(!n || !n.title) return;
+        var k = key(n);
+        if(seen[k]) return;
+        seen[k] = 1;
+        n._t = stamp(n);
+        all.push(n);
+      });
+    });
+    if(!all.length){ el.innerHTML = '<div class="empty">no news</div>'; return; }
+    all.sort(function(a, b){ return b._t - a._t; });
+    el.innerHTML = all.slice(0, 80).map(function(n){
+      var ticks = (n.tickers || []).slice(0, 3).map(function(t){
+        return '<span class="tick">' + esc(t) + '</span>'; }).join(" ");
+      return '<div class="item">' +
+        '<a href="' + esc(n.url || "#") + '" target="_blank" rel="nofollow noopener">' + esc(n.title) + '</a>' +
+        '<div class="meta"><span class="pub">' + esc(n.publisher || "") + '</span>' +
+          '<span>' + esc(n.date || "") + '</span>' + ticks + '</div>' +
+        '</div>';
+    }).join("");
+  });
 })();
 </script>
 </body>
