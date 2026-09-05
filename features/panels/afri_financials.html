@@ -110,6 +110,7 @@
       var q = new URLSearchParams(window.location.search);
       var e = q.get("ex"); if(e) s.ex = e.toUpperCase();
       var t = q.get("ticker"); if(t) s.ticker = t.toUpperCase();
+      var sy = q.get("sym"); if(sy) s.sym = sy.toUpperCase();
     }catch(err){}
     return s;
   })();
@@ -332,9 +333,19 @@
       }
       var exLbl = document.getElementById("exLabel");
       if(exLbl) exLbl.textContent = state.ex + " · " + SECS.length + " securities";
-      // if the current ticker isn't in this exchange's list (or none set), pick the first
+      // ?sym= (Bloomberg-style sticky security) overrides the default pick
+      var want = state.sym ? state.sym.toUpperCase() : '';
+      var pick = SECS.length ? SECS[0].t : '';
+      if(want && SECS.length){
+        for(var si = 0; si < SECS.length; si++){
+          var k = SECS[si].t;
+          var kb = k.split('.')[0];
+          if(k === want || kb === want || (want.indexOf('.') < 0 && k === want + '.' + state.ex)){ pick = k; break; }
+        }
+      }
+      // if the current ticker isn't in this exchange's list (or none set), pick
       if((!state.ticker || !Object.prototype.hasOwnProperty.call(seen, state.ticker)) && SECS.length){
-        state.ticker = SECS[0].t;
+        state.ticker = pick || SECS[0].t;
         load();
       }
     }).catch(function(){});
