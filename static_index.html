@@ -1011,16 +1011,16 @@ function renderMarketStatic(rec, info){
     const last = d[d.length-1];
     divTxt = (typeof last === 'object' && last !== null) ? (last.year ? 'FY' + last.year : '') + ' ' + (last.amount != null ? last.amount : '') : String(d.length) + ' paid';
   }
-  // relations show the CODE only (no company name appended)
+  // relations show the CODE only as PLAIN TEXT (no anchor markup — the row
+  // renderer esc()s the value, so any <a> tag would print as literal source)
   const codesOnly = function(arr){
     if(!Array.isArray(arr) || !arr.length) return dash;
     return arr.map(function(x){
       var s = String(x).trim();
       if(!s) return '';
       var m = s.match(/^([A-Z0-9][A-Z0-9.\-]{1,14})/);
-      if(m) return '<a class="qlink" data-goto="' + m[1] + '">' + esc(m[1]) + '</a>';
-      return esc(s);
-    }).join(', ');
+      return m ? m[1] : s;
+    }).filter(Boolean).join(', ');
   };
   let html = `
     <div class="qhead">
