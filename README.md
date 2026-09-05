@@ -206,6 +206,44 @@ a gap in the fiscal years, a bank's EBIT. **47/47 pass.** Writing it immediately
 caught a live boundary bug - the EBIT gate admitted a rebuild worth exactly 100%
 of revenue, which implies a company with no costs.
 
+### Named models (`bot/models.py`)
+
+Ratios describe a company; these score it, using published methods with cited
+thresholds rather than house rules invented here.
+
+- **Piotroski F-Score** — nine binary tests of profitability, leverage and
+  efficiency. Scored only over the signals the data supports, and the score
+  says so (`4/8`). The share-issuance signal needs a share count for two years
+  and these filings carry one, so it is reported unavailable rather than assumed
+  clean — assuming it would inflate every score by a point.
+- **Altman Z''-score**, emerging-market variant, which drops the sales/assets
+  term and adds a constant precisely so it works outside US manufacturing. It
+  **refuses to compute without retained earnings** rather than dropping a term:
+  a partial Z'' looks like a Z-score and is not one.
+- **Sloan accruals** — the gap between reported profit and cash over average
+  assets. High accruals predict weaker earnings next period.
+- **Cost-to-income** — what banks are actually judged on, and banks are a large
+  share of these markets by value.
+- **Graham number** and book value per share; **operating leverage**.
+
+Deliberately **not** implemented, because this corpus cannot support them
+honestly — the line items are not in the filings:
+
+| Model | Missing |
+|---|---|
+| Beneish M-Score | receivables, depreciation, SG&A across two periods |
+| Cash conversion cycle | inventory, receivables, payables |
+| Dividend cover and yield | a dividends-paid line in the cash flow statement |
+
+Those items are mapped in `statements.py` anyway, so each model activates by
+itself for a private company whose accounts do carry them. Reporting "not
+computable, and here is what was missing" beats a number built from substitutes.
+
+**A coverage fix worth more than any single model:** only 7% of these filings
+print a current-assets line, but 63% print non-current assets against a total —
+and current is the remainder by definition. Deriving it took the current ratio,
+working capital and everything built on them from ~0% of the corpus to 56%.
+
 ### Screening and peers (`bot/screen.py`)
 
 `analyse` reads one company; this reads all 557 at once.

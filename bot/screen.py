@@ -100,11 +100,33 @@ def build(verbose=False):
                 **{k: (a.get("valuation") or {}).get(k) for k in
                    ("pe", "pb", "ps", "earnings_yield", "ev_ebit")}),
             "growth": a.get("growth") or {},
+            # The named models, flattened so a screen can filter on them:
+            # "F-Score of 7 or better, cheap on earnings" is one query.
+            "models": _model_summary(a),
             "flags": [{"id": f["id"], "severity": f["severity"], "label": f["label"]}
                       for f in a["flags"]],
             "coverage": a["coverage"]["missingSections"],
         })
     return out
+
+
+def _model_summary(a):
+    """The scoring models, reduced to the few fields a screen filters on."""
+    try:
+        from . import models as M
+        m = M.score_all(a)
+    except Exception:
+        return {}
+    pio, z, acc = m["piotroski"], m["altmanZ"], m["accruals"]
+    return {
+        "fscore": pio.get("score") if pio.get("available") else None,
+        "fscore_outOf": pio.get("outOf") if pio.get("available") else None,
+        "altman_z": z.get("score") if z.get("available") else None,
+        "altman_band": z.get("band") if z.get("available") else None,
+        "accruals": acc.get("ratio") if acc.get("available") else None,
+        "cost_to_income": m["costToIncome"].get("ratio"),
+        "operating_leverage": m["operatingLeverage"].get("dol"),
+    }
 
 
 def load(rebuild=False, verbose=False):
@@ -171,6 +193,8 @@ def screen(companies, exchange=None, sector=None, flags=(), severity=None,
         ok = True
         for field, op, val in conditions:
             have = c["latest"].get(field)
+            if have is None:
+                have = (c.get("models") or {}).get(field)
             if have is None or not COMPARATORS[op](have, val):
                 ok = False
                 break

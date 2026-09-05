@@ -67,6 +67,11 @@ BALANCE_MAP = [
                     "interest-bearing debt", "loans and borrowings"]),
     ("inventory", ["inventory", "inventories", "stock"]),
     ("receivables", ["receivables", "trade receivables", "trade and other receivables"]),
+    ("payables", ["payables", "trade payables", "trade and other payables",
+                  "accounts payable", "creditors"]),
+    ("retained_earnings", ["retained earnings", "accumulated profits",
+                           "retained income", "accumulated losses",
+                           "revenue reserves"]),
 ]
 
 CASHFLOW_MAP = [
@@ -83,7 +88,10 @@ CASHFLOW_MAP = [
     ("fcf", ["free cash flow", "fcf"]),
     ("net_change_cash", ["net change in cash", "net increase in cash",
                          "net increase/(decrease) in cash"]),
-    ("dividends_paid", ["dividends paid", "dividend paid", "dividends to shareholders"]),
+    ("dividends_paid", ["dividends paid", "dividend paid", "dividends to shareholders",
+                        "dividends paid to shareholders", "dividend distribution"]),
+    ("depreciation", ["depreciation", "depreciation and amortisation",
+                      "depreciation and amortization", "depreciation & amortisation"]),
 ]
 
 SECTION_MAPS = {"income": INCOME_MAP, "balance": BALANCE_MAP, "cashflow": CASHFLOW_MAP}
@@ -248,6 +256,18 @@ def compute(doc):
         debt = _at(bal.get("borrowings"), i)
         ca = _at(bal.get("current_assets"), i)
         cl = _at(bal.get("current_liabilities"), i)
+        nca = _at(bal.get("non_current_assets"), i)
+        ncl = _at(bal.get("non_current_liabilities"), i)
+        # Only 7% of these filings print a current-assets line, but 63% print
+        # non-current assets against a total - and current is the remainder by
+        # definition. Deriving it takes working capital, the current ratio and
+        # everything built on them from a rounding error to most of the corpus.
+        ca_derived = cl_derived = False
+        if ca is None and ta is not None and nca is not None:
+            ca, ca_derived = ta - nca, True
+        if cl is None and tl is not None and ncl is not None:
+            cl, cl_derived = abs(tl) - abs(ncl), True
+
         inv = _at(bal.get("inventory"), i)
         recv = _at(bal.get("receivables"), i)
         cos = _at(inc.get("cost_of_sales"), i)
@@ -340,6 +360,11 @@ def compute(doc):
             # the effective rate the company actually paid rather than a statutory
             # guess, so it is only computed when both PBT and tax are present.
             "ebit_derived": ebit_derived,
+            "current_assets": ca, "current_liabilities": cl,
+            "current_split_derived": ca_derived or cl_derived,
+            "retained_earnings": _at(bal.get("retained_earnings"), i),
+            "dividends_paid": _at(cfs.get("dividends_paid"), i),
+            "operating_expenses": _at(inc.get("operating_expenses"), i),
             "capital_employed": cap_emp,
             "capital_employed_basis": cap_basis,
             "roce": _pct(ebit, cap_emp) if (

@@ -135,6 +135,49 @@ def print_analysis(a, show_all=False):
         print(c("\nCOMPOUND GROWTH", BOLD) + c("  (%s to %s)" % (g.get("from"), g.get("to")), DIM))
         print("  " + "".join("%-14s %+8.2f%%   " % (k, v) for k, v in cagrs))
 
+    try:
+        from bot import models as MOD
+        mods = MOD.score_all(a)
+    except Exception:
+        mods = None
+    if mods:
+        lines = []
+        pio = mods["piotroski"]
+        if pio.get("available"):
+            failed = [x["label"] for x in pio["signals"] if x["passed"] is False]
+            lines.append(("Piotroski F-Score", "%d/%d  %s" % (pio["score"], pio["outOf"],
+                                                             pio.get("reading", ""))))
+            if failed:
+                lines.append(("  failing", "; ".join(failed[:4])))
+        z = mods["altmanZ"]
+        if z.get("available"):
+            lines.append(("Altman Z''", "%.2f  %s" % (z["score"], z["band"])))
+        elif z.get("missing"):
+            lines.append(("Altman Z''", "not computable - missing %s"
+                          % ", ".join(z["missing"][:3])))
+        acc = mods["accruals"]
+        if acc.get("available"):
+            lines.append(("accruals (Sloan)", "%.2f%%  %s" % (acc["ratio"], acc["reading"])))
+        cti = mods["costToIncome"]
+        if cti.get("available"):
+            lines.append(("cost-to-income", "%.2f%%  %s" % (cti["ratio"], cti["reading"])))
+        dol = mods["operatingLeverage"]
+        if dol.get("available"):
+            lines.append(("operating leverage", "%.2fx" % dol["dol"]))
+        ps = mods["perShare"]
+        if ps.get("available") and ps.get("bookValuePerShare") is not None:
+            g = ps.get("grahamNumber")
+            lines.append(("book value / share", "%.4f%s"
+                          % (ps["bookValuePerShare"],
+                             "   Graham number %.4f" % g if g else "")))
+        if lines:
+            print(c("\nMODELS", BOLD))
+            for k, val in lines:
+                print("  %-22s %s" % (k, val))
+            if show_all:
+                for k, why in mods["notComputable"].items():
+                    print(c("  %-22s not computable: %s" % (k, why), DIM))
+
     v = a.get("verification") or {}
     if v.get("total"):
         ok = not v["failed"]
@@ -452,7 +495,9 @@ def cmd_screen(args):
            " ".join("%14s" % col[:14] for col in cols) + "  FLAGS"
     print(c(head, DIM))
     for h in hits[:args.limit]:
-        vals = " ".join("%14s" % _fmt(h["latest"].get(col)) for col in cols)
+        vals = " ".join("%14s" % _fmt(h["latest"].get(col) if h["latest"].get(col) is not None
+                                       else (h.get("models") or {}).get(col))
+                        for col in cols)
         fl = ",".join(f["id"] for f in h["flags"] if f["severity"] == "high")
         print("%-12s %-30s %-4s %s  %s"
               % (h["ticker"][:12], (h["name"] or "")[:30], h.get("exchange") or "-",

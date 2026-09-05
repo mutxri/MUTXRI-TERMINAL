@@ -52,6 +52,7 @@ FIXTURE = {
             "current_liabilities": [500.0, 450.0],
             "borrowings": [600.0, 550.0],
             "total_equity": [800.0, 700.0],
+            "retained_earnings": [400.0, 340.0],
         },
         "cashflow": {
             "ocf": [140.0, 100.0],
@@ -251,8 +252,76 @@ def check_edges():
     return out
 
 
+def check_models():
+    """The named models, each against a hand-worked answer."""
+    from . import models as M
+    a = S.analyse(FIXTURE)
+    m = M.score_all(a)
+    out = []
+
+    # Altman Z'' (EM variant), worked by hand:
+    #   X1 = 300/2000 = 0.15      6.56 x 0.15    = 0.984
+    #   X2 = 400/2000 = 0.20      3.26 x 0.20    = 0.652
+    #   X3 = 150/2000 = 0.075     6.72 x 0.075   = 0.504
+    #   X4 = 800/1200 = 0.6667    1.05 x 0.6667  = 0.700
+    #   + 3.25 constant                          = 3.250
+    #                                      total = 6.09  -> safe (> 2.6)
+    z = m["altmanZ"]
+    out.append({"group": "model", "name": "altman_z_score", "expected": 6.09,
+                "got": z.get("score"), "how": "6.56(.15)+3.26(.20)+6.72(.075)+1.05(.6667)+3.25",
+                "ok": z.get("available") and _close(z.get("score"), 6.09, 0.02)})
+    out.append({"group": "model", "name": "altman_band", "expected": "safe",
+                "got": z.get("band"), "how": "6.09 is above the 2.6 cut",
+                "ok": z.get("band") == "safe"})
+
+    # Sloan accruals: (70 - 140) / ((2000 + 1800)/2) = -70/1900 = -3.68%
+    acc = m["accruals"]
+    out.append({"group": "model", "name": "sloan_accruals", "expected": -3.68,
+                "got": acc.get("ratio"), "how": "(net profit 70 - OCF 140) / average assets 1900",
+                "ok": _close(acc.get("ratio"), -3.68, 0.02)})
+
+    # Piotroski: every signal passes on this fixture except share issuance,
+    # which has no data, so the score is 8 out of 8 scored.
+    pio = m["piotroski"]
+    out.append({"group": "model", "name": "piotroski_score", "expected": "8/8",
+                "got": "%s/%s" % (pio.get("score"), pio.get("outOf")),
+                "how": "all measurable signals improve year on year",
+                "ok": pio.get("score") == 8 and pio.get("outOf") == 8})
+    out.append({"group": "model", "name": "piotroski_excludes_unmeasurable",
+                "expected": ["no_dilution"], "got": pio.get("unavailableSignals"),
+                "how": "no share-count history, so the signal is not assumed clean",
+                "ok": pio.get("unavailableSignals") == ["no_dilution"]})
+
+    # Book value per share 800/100 = 8.00; Graham sqrt(22.5 x 0.70 x 8) = 11.225
+    ps = m["perShare"]
+    out.append({"group": "model", "name": "book_value_per_share", "expected": 8.0,
+                "got": ps.get("bookValuePerShare"), "how": "800 equity / 100 shares",
+                "ok": _close(ps.get("bookValuePerShare"), 8.0)})
+    out.append({"group": "model", "name": "graham_number", "expected": 11.225,
+                "got": ps.get("grahamNumber"), "how": "sqrt(22.5 x 0.70 EPS x 8.00 book)",
+                "ok": _close(ps.get("grahamNumber"), 11.225, 0.01)})
+
+    # Cost-to-income 250/1000 = 25%; DOL = EBIT growth 50% / revenue growth 25% = 2.0
+    out.append({"group": "model", "name": "cost_to_income", "expected": 25.0,
+                "got": m["costToIncome"].get("ratio"), "how": "250 opex / 1000 revenue",
+                "ok": _close(m["costToIncome"].get("ratio"), 25.0)})
+    out.append({"group": "model", "name": "operating_leverage", "expected": 2.0,
+                "got": m["operatingLeverage"].get("dol"),
+                "how": "EBIT +50% / revenue +25%",
+                "ok": _close(m["operatingLeverage"].get("dol"), 2.0, 0.02)})
+
+    # Without retained earnings the Z-score must refuse rather than drop a term.
+    noz = M.altman_z(S.analyse(_mutate(balance__retained_earnings=None))["metrics"][0])
+    out.append({"group": "model", "name": "altman_refuses_partial",
+                "expected": False, "got": noz.get("available"),
+                "how": "dropping a term yields something that is not a Z-score",
+                "ok": noz.get("available") is False
+                      and "retained_earnings" in (noz.get("missing") or [])})
+    return out
+
+
 def run():
-    results = check_formulas() + check_identities() + check_edges()
+    results = check_formulas() + check_identities() + check_edges() + check_models()
     passed = sum(1 for r in results if r["ok"])
     return {"results": results, "passed": passed, "total": len(results),
             "ok": passed == len(results)}
