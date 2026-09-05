@@ -129,12 +129,35 @@ it not to derive numbers — if a figure is missing it must say so.
   Handles accounting negatives in brackets, section headings, and out-of-order
   periods. Ingested private financials live in `static_data/private/`, which is
   **gitignored** — they never enter version control or the deploy.
+
+  **PDFs are read from the text layer, not from extracted tables.** Real filings
+  lay statements out with whitespace rather than ruled cells, so `pdfplumber`'s
+  table extractor returns value-only columns with every label dropped — it parsed
+  0 of 30 real filings. The text layer keeps them (`Net revenue 23,192 25,716`).
+  Four things the parser has to get right, each found by running it over
+  `_nse_pdf`, `jse_pdfs` and `_ngx_pdf`:
+  - A space is only part of a figure when followed by exactly three digits (the
+    `7 535` style). Otherwise `35,946 41,083` fuses into one impossible number.
+  - Pages print two statements side by side, so one line reads `Profit after tax
+    5,246 4,483 Non-current assets 9,687 10,061`. It is scanned
+    label-then-figures repeatedly, recovering both rows.
+  - Filings print `Label | Note | FY2025 | FY2024`, so rows with more figures
+    than periods align to the **trailing** columns — leading ones made
+    ArcelorMittal's revenue 4 and Aveng's 27.
+  - A stranded note number is only wrong by its size: figures 1000× below the
+    document's median are dropped and reported as `droppedOutOfScale` (EPS
+    exempt). This caught Africa Prudential's revenue of 6 against a median
+    figure of 1,663,845.
+
+  **Honest rate: 23 of 30 real filings parse, with plausible headline figures on
+  20 of those.** The rest, and anything scanned (BAMB.pdf has no text layer at
+  all), are the model-assisted reader's job. `unmapped` and `droppedOutOfScale`
+  are both printed so the output is auditable against the source document.
 - `bot/analyst.py` — Claude Opus 5 with adaptive thinking; the system prompt is
-  cached across calls. Also does **model-assisted transcription** of filings the
-  deterministic reader can't handle: real NSE/JSE filing PDFs are laid out
-  visually and `pdfplumber` loses the label column entirely, so Claude reads the
-  document into a strict schema and every number is then recomputed and audited
-  in Python.
+  cached across calls. Also does **model-assisted transcription** of the filings
+  the deterministic reader cannot handle — scanned pages, and layouts too broken
+  for the text-layer parser. Claude reads the document into a strict schema and
+  every number is then recomputed and audited in Python.
 - `bot/social.py` — drafting and publishing, below.
 
 ### Social cards: real photographs only (`bot/images.py`, `bot/cards.py`)
