@@ -12,6 +12,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Financials</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
 <style>
   :root{
     --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
@@ -19,9 +21,8 @@
     --mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
     --ui:Inter,system-ui,sans-serif;
   }
-
   *{box-sizing:border-box}
-  body{margin:0;background:#000;color:var(--tx);font-family:var(--mono);font-size:12px}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--mono);font-size:12px}
   .wrap{border:1px solid var(--line2);background:var(--bg);max-width:900px}
   .head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line2);background:var(--bg2)}
   .code{color:var(--acc);font-weight:700;letter-spacing:.04em}
@@ -57,7 +58,6 @@
 </style>
 </head>
 <body>
-
 <div class="wrap" id="panel">
   <div class="head">
     <span class="code">FA</span>
@@ -110,6 +110,7 @@
       var q = new URLSearchParams(window.location.search);
       var e = q.get("ex"); if(e) s.ex = e.toUpperCase();
       var t = q.get("ticker"); if(t) s.ticker = t.toUpperCase();
+      var sy = q.get("sym"); if(sy) s.sym = sy.toUpperCase();
     }catch(err){}
     return s;
   })();
@@ -242,7 +243,7 @@
     if(source==="FILED"){dot.classList.add("live");lab.textContent="FILED - from company disclosure";}
     else if(source==="LINKS"){lab.textContent="verified filing links - open PDF for full statements";}
     else if(source==="NONE"){lab.textContent="no filings on file";}
-    else{dot.classList.add("live");lab.textContent=esc(source);}
+    else{dot.classList.add("live");lab.textContent="";}
     document.getElementById("asOf").textContent=asOf?("as of "+asOf):"";
   }
 
@@ -332,9 +333,19 @@
       }
       var exLbl = document.getElementById("exLabel");
       if(exLbl) exLbl.textContent = state.ex + " · " + SECS.length + " securities";
-      // if the current ticker isn't in this exchange's list (or none set), pick the first
+      // ?sym= (Bloomberg-style sticky security) overrides the default pick
+      var want = state.sym ? state.sym.toUpperCase() : '';
+      var pick = SECS.length ? SECS[0].t : '';
+      if(want && SECS.length){
+        for(var si = 0; si < SECS.length; si++){
+          var k = SECS[si].t;
+          var kb = k.split('.')[0];
+          if(k === want || kb === want || (want.indexOf('.') < 0 && k === want + '.' + state.ex)){ pick = k; break; }
+        }
+      }
+      // if the current ticker isn't in this exchange's list (or none set), pick
       if((!state.ticker || !Object.prototype.hasOwnProperty.call(seen, state.ticker)) && SECS.length){
-        state.ticker = SECS[0].t;
+        state.ticker = pick || SECS[0].t;
         load();
       }
     }).catch(function(){});
