@@ -88,6 +88,10 @@ CASHFLOW_MAP = [
 
 SECTION_MAPS = {"income": INCOME_MAP, "balance": BALANCE_MAP, "cashflow": CASHFLOW_MAP}
 
+# Ceiling on a rebuilt EBIT, as a share of revenue. See the derivation in
+# compute(): above this the finance line is operating cost, not financing.
+MAX_DERIVED_EBIT_MARGIN = 0.60
+
 
 def _norm_label(s):
     return re.sub(r"[^a-z0-9 &]+", " ", (s or "").lower()).strip()
@@ -244,6 +248,10 @@ def compute(doc):
         debt = _at(bal.get("borrowings"), i)
         ca = _at(bal.get("current_assets"), i)
         cl = _at(bal.get("current_liabilities"), i)
+        inv = _at(bal.get("inventory"), i)
+        recv = _at(bal.get("receivables"), i)
+        cos = _at(inc.get("cost_of_sales"), i)
+        tax = _at(inc.get("tax"), i)
         ocf = _at(cfs.get("ocf"), i)
         capex = _at(cfs.get("capex"), i)
         fcf = _at(cfs.get("fcf"), i)
@@ -257,6 +265,38 @@ def compute(doc):
         # are absent the figure stays unavailable rather than being approximated.
         net_debt = ((abs(debt) - cash) if (debt is not None and cash is not None)
                     else None)
+
+        # Capital employed, two ways. The textbook form is total assets less
+        # current liabilities, but most filings in this corpus never print a
+        # current-liabilities line, which left ROCE and ROIC null for almost
+        # every company. Equity plus debt measures the same capital from the
+        # funding side and is available far more often; the basis is recorded
+        # so the two are never silently compared as if identical.
+        # EBIT is often absent from a condensed filing. It can be rebuilt as PBT
+        # plus net finance costs - but not for a bank, where interest expense is
+        # a cost of revenue rather than a financing item, and the sum exceeds
+        # revenue itself. Absa's rebuild comes to 121.6bn against 115.2bn of
+        # revenue, which is the tell. Accept a derived EBIT only when it lands
+        # inside revenue, and record that it was derived.
+        ebit_derived = False
+        if ebit is None and pbt is not None and fin is not None and rev:
+            cand = pbt + abs(fin)
+            # A derived EBIT worth more than this share of revenue means the
+            # finance line is not a financing cost - it is a bank's interest
+            # expense, which belongs above the operating line. An operating
+            # margin above 60% is vanishingly rare outside financials, so it is
+            # a safe ceiling; allowing the full 100% let a bank through, since
+            # EBIT equal to revenue implies a company with no costs at all.
+            if 0 < cand <= abs(rev) * MAX_DERIVED_EBIT_MARGIN:
+                ebit, ebit_derived = cand, True
+
+        cap_emp, cap_basis = None, None
+        if ta is not None and cl is not None:
+            cap_emp, cap_basis = ta - abs(cl), "assets less current liabilities"
+        elif te is not None and debt is not None:
+            cap_emp, cap_basis = te + abs(debt), "equity plus debt"
+        elif te is not None:
+            cap_emp, cap_basis = te, "equity only (no debt line reported)"
 
         rows.append({
             "period": periods[i],
@@ -294,10 +334,43 @@ def compute(doc):
                               if cl not in (None, 0) and ca is not None else None),
             "interest_cover": (round(_safe_div(ebit, abs(fin)), 2)
                                if fin not in (None, 0) and ebit is not None else None),
+            # Return on capital - the "ROI" of a business, and a better one than
+            # ROE because it is not flattered by leverage. Capital employed is
+            # total assets less current liabilities; ROIC taxes EBIT first, using
+            # the effective rate the company actually paid rather than a statutory
+            # guess, so it is only computed when both PBT and tax are present.
+            "ebit_derived": ebit_derived,
+            "capital_employed": cap_emp,
+            "capital_employed_basis": cap_basis,
+            "roce": _pct(ebit, cap_emp) if (
+                ebit is not None and (cap_emp or 0) > 0) else None,
+            "effective_tax_rate": _pct(abs(tax), pbt) if (
+                tax is not None and (pbt or 0) > 0) else None,
+            "roic": _pct(ebit * (1 - min(max(abs(tax) / pbt, 0.0), 1.0)), cap_emp) if (
+                ebit is not None and tax is not None and (pbt or 0) > 0
+                and (cap_emp or 0) > 0) else None,
+            # DuPont: ROE = net margin x asset turnover x equity multiplier.
+            # Splitting it says whether a return comes from trading well, using
+            # assets hard, or simply borrowing - three very different companies
+            # can print the same ROE.
+            "asset_turnover": (round(_safe_div(rev, ta), 3)
+                               if (ta or 0) > 0 and rev is not None else None),
+            "equity_multiplier": (round(_safe_div(ta, te), 3)
+                                  if (te or 0) > 0 and ta is not None else None),
+            # efficiency and liquidity depth
+            "working_capital": (ca - abs(cl)) if (ca is not None and cl is not None) else None,
+            "quick_ratio": (round(_safe_div(ca - abs(inv), abs(cl)), 3)
+                            if (ca is not None and inv is not None
+                                and cl not in (None, 0)) else None),
+            "inventory_days": (round(_safe_div(abs(inv) * 365.0, abs(cos)), 1)
+                               if (inv is not None and cos not in (None, 0)) else None),
+            "receivable_days": (round(_safe_div(abs(recv) * 365.0, rev), 1)
+                                if (recv is not None and (rev or 0) > 0) else None),
             # cash quality
             "ocf_to_net_profit": (round(_safe_div(ocf, np_), 3)
                                   if _safe_div(ocf, np_) is not None else None),
             "fcf_margin": _pct(fcf, rev),
+            "eps": _at(inc.get("eps"), i),
         })
 
     # Growth, only between adjacent fiscal years.
@@ -493,6 +566,93 @@ def verify(doc, tolerance=0.02):
             "passed": len([c for c in checks if c["ok"]]), "total": len(checks)}
 
 
+def valuation(doc, rows):
+    """Market-based ratios for the latest period only.
+
+    Market capitalisation is a snapshot of today. Earnings are a historical
+    period. Pairing today's price with FY2023 profit and calling it that year's
+    P/E invents a ratio that was never true, so valuation is attached to the
+    latest period alone and labelled with the period it was earned against.
+
+    P/E is computed two independent ways when the data allows - market cap over
+    net profit, and price over EPS - and the pair is reported. They should agree;
+    where they do not, something upstream (a share count, a currency unit, a
+    stale market cap) is wrong, and a reader can see that rather than trust one.
+    """
+    if not rows:
+        return None
+    e = doc.get("entity", {})
+    mcap = _num(e.get("marketCap"))
+    shares = _num(e.get("sharesOutstanding"))
+    cur = rows[0]
+    np_, rev, te = cur.get("net_profit"), cur.get("revenue"), cur.get("total_equity")
+    eps = cur.get("eps")
+    nd = cur.get("net_debt")
+
+    out = {"asOfPeriod": cur.get("period"), "marketCap": mcap,
+           "sharesOutstanding": shares, "basis": "current market cap vs latest reported period"}
+    if not mcap:
+        out["unavailable"] = "no market capitalisation on file"
+        return out
+
+    out["pe"] = round(mcap / np_, 2) if (np_ or 0) > 0 else None
+    out["pb"] = round(mcap / te, 2) if (te or 0) > 0 else None
+    out["ps"] = round(mcap / rev, 2) if (rev or 0) > 0 else None
+    out["earnings_yield"] = round(100.0 * np_ / mcap, 2) if (np_ or 0) > 0 else None
+    if shares:
+        price = mcap / shares
+        out["impliedPrice"] = round(price, 4)
+        out["pe_from_eps"] = round(price / eps, 2) if (eps or 0) > 0 else None
+        if out["pe"] and out["pe_from_eps"]:
+            spread = abs(out["pe"] - out["pe_from_eps"]) / out["pe"]
+            out["peCrossCheck"] = ("agree" if spread <= 0.05
+                                   else "differ by %.0f%%" % (spread * 100))
+    if nd is not None:
+        out["enterpriseValue"] = round(mcap + nd, 2)
+        ebit = cur.get("ebit")
+        out["ev_ebit"] = (round((mcap + nd) / ebit, 2)) if (ebit or 0) > 0 else None
+    if (np_ or 0) <= 0:
+        out["note"] = "loss-making in the latest period, so P/E is not meaningful"
+    return out
+
+
+def growth(rows):
+    """Compound growth across the longest run of consecutive fiscal years."""
+    out = {}
+    if len(rows) < 2:
+        return out
+    # rows are newest-first; walk back while the years stay adjacent.
+    span = [rows[0]]
+    for prev in rows[1:]:
+        if prev.get("fy") and span[-1].get("fy") and span[-1]["fy"] - prev["fy"] == 1:
+            span.append(prev)
+        else:
+            break
+    years = len(span) - 1
+    out["contiguousYears"] = years
+    out["from"], out["to"] = (span[-1].get("period"), span[0].get("period")) if years else (None, None)
+    if years < 1:
+        return out
+    for field in ("revenue", "net_profit", "ebit", "ocf"):
+        # The oldest contiguous year is often an empty row - the corpus carries
+        # period labels it has no figures for - so anchor each field on the
+        # oldest year that actually reports it, and record the span used.
+        newest = span[0].get(field)
+        oldest, back = None, 0
+        for k in range(len(span) - 1, 0, -1):
+            if span[k].get(field) is not None:
+                oldest, back = span[k].get(field), k
+                break
+        # A CAGR needs both endpoints positive; from a loss to a profit there is
+        # no meaningful compound rate, only a change of sign.
+        if newest is not None and oldest is not None and newest > 0 and oldest > 0 and back:
+            out[field + "_cagr"] = round(((newest / oldest) ** (1.0 / back) - 1) * 100, 2)
+            out[field + "_cagr_years"] = back
+        else:
+            out[field + "_cagr"] = None
+    return out
+
+
 def analyse(doc):
     """Full deterministic read of one entity's statements."""
     rows = compute(doc)
@@ -501,6 +661,8 @@ def analyse(doc):
         "source": doc.get("source", {}),
         "periods": doc.get("periods", []),
         "metrics": rows,
+        "valuation": valuation(doc, rows),
+        "growth": growth(rows),
         "flags": flags(rows),
         "coverage": coverage(doc, rows),
         "verification": verify(doc),

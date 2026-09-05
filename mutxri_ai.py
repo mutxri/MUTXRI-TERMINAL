@@ -83,6 +83,58 @@ def print_analysis(a, show_all=False):
     else:
         print(c("\nno flags raised", DIM))
 
+    m = a["metrics"][0] if a.get("metrics") else {}
+    ratios = [
+        ("ROCE", m.get("roce"), "%"), ("ROIC", m.get("roic"), "%"),
+        ("asset turnover", m.get("asset_turnover"), "x"),
+        ("equity multiplier", m.get("equity_multiplier"), "x"),
+        ("quick ratio", m.get("quick_ratio"), ""),
+        ("current ratio", m.get("current_ratio"), ""),
+        ("inventory days", m.get("inventory_days"), "d"),
+        ("receivable days", m.get("receivable_days"), "d"),
+        ("effective tax", m.get("effective_tax_rate"), "%"),
+    ]
+    shown = [(k, val, u) for k, val, u in ratios if val is not None]
+    if shown:
+        print(c("\nRETURNS AND EFFICIENCY", BOLD))
+        for i in range(0, len(shown), 3):
+            print("  " + "".join("%-16s %10s   " % (k, ("%.2f%s" % (val, u)))
+                                 for k, val, u in shown[i:i+3]))
+        if m.get("capital_employed_basis"):
+            print(c("  capital employed: %s" % m["capital_employed_basis"], DIM))
+        if m.get("ebit_derived"):
+            print(c("  EBIT was not reported; rebuilt as PBT + net finance costs", DIM))
+        if m.get("roe") is not None and m.get("asset_turnover") and m.get("equity_multiplier"):
+            print(c("  DuPont: ROE %.2f%% = margin %.2f%% x turnover %.2fx x leverage %.2fx"
+                    % (m["roe"], m["net_margin"], m["asset_turnover"],
+                       m["equity_multiplier"]), DIM))
+
+    val = a.get("valuation") or {}
+    if val.get("marketCap"):
+        print(c("\nVALUATION", BOLD) + c("  (current market cap vs %s)"
+                                         % val.get("asOfPeriod"), DIM))
+        pairs = [("P/E", val.get("pe")), ("P/B", val.get("pb")), ("P/S", val.get("ps")),
+                 ("earnings yield", val.get("earnings_yield")),
+                 ("EV/EBIT", val.get("ev_ebit"))]
+        print("  " + "".join("%-16s %8s   " % (k, ("%.2f" % v) if v is not None else "-")
+                             for k, v in pairs))
+        if val.get("peCrossCheck"):
+            col = GREEN if val["peCrossCheck"] == "agree" else YELLOW
+            print(c("  P/E cross-check: market cap route %.2f vs price/EPS route %.2f - %s"
+                    % (val["pe"], val["pe_from_eps"], val["peCrossCheck"]), col))
+        if val.get("note"):
+            print(c("  %s" % val["note"], DIM))
+    elif val.get("unavailable"):
+        print(c("\nvaluation: %s" % val["unavailable"], DIM))
+
+    g = a.get("growth") or {}
+    cagrs = [(k.replace("_cagr", ""), g[k]) for k in
+             ("revenue_cagr", "net_profit_cagr", "ebit_cagr", "ocf_cagr")
+             if g.get(k) is not None]
+    if cagrs:
+        print(c("\nCOMPOUND GROWTH", BOLD) + c("  (%s to %s)" % (g.get("from"), g.get("to")), DIM))
+        print("  " + "".join("%-14s %+8.2f%%   " % (k, v) for k, v in cagrs))
+
     v = a.get("verification") or {}
     if v.get("total"):
         ok = not v["failed"]
@@ -553,6 +605,30 @@ def cmd_doctor(args):
     return 0 if r["overall"] == "ok" else 0
 
 
+def cmd_selftest(args):
+    from bot import selftest
+    rep = selftest.run()
+    groups = {}
+    for r in rep["results"]:
+        groups.setdefault(r["group"], []).append(r)
+    for g, rows in groups.items():
+        ok = sum(1 for r in rows if r["ok"])
+        print(c("\n%s  %d/%d" % (g.upper(), ok, len(rows)),
+                BOLD if ok == len(rows) else RED))
+        for r in rows:
+            if r["ok"] and not args.verbose:
+                continue
+            mark = c("PASS", GREEN) if r["ok"] else c("FAIL", RED)
+            print("  %s %-44s got=%-14s want=%s" % (mark, r["name"], r["got"], r["expected"]))
+            if not r["ok"]:
+                print(c("       %s" % r["how"], DIM))
+    col = GREEN if rep["ok"] else RED
+    print(c("\n%d/%d checks passed" % (rep["passed"], rep["total"]), col))
+    if not args.verbose and rep["ok"]:
+        print(c("(--verbose to list every check)", DIM))
+    return 0 if rep["ok"] else 1
+
+
 def cmd_social(args):
     if args.action == "status":
         print("publishing credentials:")
@@ -743,6 +819,10 @@ def main():
 
     p = sub.add_parser("doctor", help="data freshness, coverage and capabilities")
     p.set_defaults(fn=cmd_doctor)
+
+    p = sub.add_parser("selftest", help="verify every financial formula against worked examples")
+    p.add_argument("--verbose", action="store_true", help="list every check, not just failures")
+    p.set_defaults(fn=cmd_selftest)
 
     p = sub.add_parser("card", help="build a social card from real, licensed images")
     p.add_argument("--signal", type=int, help="build from signal N of the last scan")

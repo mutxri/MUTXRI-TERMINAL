@@ -160,6 +160,52 @@ it not to derive numbers — if a figure is missing it must say so.
   every number is then recomputed and audited in Python.
 - `bot/social.py` — drafting and publishing, below.
 
+### The metric engine, and proving it (`bot/statements.py`, `bot/selftest.py`)
+
+```
+python mutxri_ai.py selftest          # 47 checks against worked examples
+python mutxri_ai.py analyse ABG.JO    # margins, DuPont, ROCE/ROIC, P/E, CAGR
+```
+
+**Python computes, Claude interprets.** The model is explicitly barred from
+re-deriving any figure, and its system prompt carries the definition of every
+metric so it reads them correctly. An LLM doing arithmetic on a balance sheet is
+how you get a confident wrong P/E.
+
+What is computed: margins; **ROE** with a **DuPont** split (margin x asset
+turnover x equity multiplier); **ROCE and ROIC** on capital employed, which
+unlike ROE are not flattered by leverage; **P/E, P/B, P/S, earnings yield,
+EV/EBIT**; CAGR; interest cover; quick and current ratios; inventory and
+receivable days; effective tax rate; cash conversion.
+
+Several of these need judgment the formula alone does not encode:
+
+- **P/E is computed two ways** - market cap / net profit, and price / EPS - and
+  the pair is reported. They should agree; where they do not, a share count or a
+  currency unit is wrong upstream, and `peCrossCheck` says so instead of asking
+  you to trust one.
+- **Valuation is attached to the latest period only.** Market cap is a snapshot
+  of today; pairing it with FY2023 earnings would invent a ratio that was never
+  true.
+- **EBIT is rebuilt** as PBT + net finance costs when a condensed filing omits
+  it, but only up to 60% of revenue. Above that the finance line is a bank's
+  interest expense, which is a cost of revenue, not financing - Absa's rebuild
+  comes to 121.6bn against 115.2bn of revenue, which is the tell.
+- **Capital employed has two bases** (assets less current liabilities, or equity
+  plus debt) because most filings here never print a current-liabilities line.
+  The basis is recorded so two companies are never silently compared on
+  different ones. This took ROCE coverage from 0% to 56%.
+
+`selftest` is what "self-improving" honestly means for calculation: not a model
+that learns arithmetic, but a fixed engine whose arithmetic is measurably
+correct. A fixture of round numbers with every answer worked out by hand, plus
+identities that must hold whatever the numbers (DuPont reconciling to ROE, the
+two P/E routes agreeing, the balance sheet balancing), plus the edge cases that
+produced wrong answers before: negative equity, a loss, liabilities in brackets,
+a gap in the fiscal years, a bank's EBIT. **47/47 pass.** Writing it immediately
+caught a live boundary bug - the EBIT gate admitted a rebuild worth exactly 100%
+of revenue, which implies a company with no costs.
+
 ### Screening and peers (`bot/screen.py`)
 
 `analyse` reads one company; this reads all 557 at once.

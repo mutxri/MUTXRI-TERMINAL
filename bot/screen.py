@@ -87,11 +87,19 @@ def build(verbose=False):
             "inListing": bool(meta),
             "currency": a["entity"].get("currency"),
             "periods": a["periods"],
-            "latest": {k: latest.get(k) for k in (
-                "period", "revenue", "net_profit", "net_margin", "gross_margin",
-                "ebit_margin", "roe", "roa", "revenue_growth", "net_profit_growth",
-                "ocf", "ocf_to_net_profit", "fcf", "fcf_margin", "current_ratio",
-                "debt_to_equity", "interest_cover", "total_equity")},
+            "latest": dict(
+                {k: latest.get(k) for k in (
+                    "period", "revenue", "net_profit", "net_margin", "gross_margin",
+                    "ebit_margin", "roe", "roa", "revenue_growth", "net_profit_growth",
+                    "ocf", "ocf_to_net_profit", "fcf", "fcf_margin", "current_ratio",
+                    "quick_ratio", "debt_to_equity", "interest_cover", "total_equity",
+                    "roce", "roic", "asset_turnover", "equity_multiplier",
+                    "effective_tax_rate", "inventory_days", "receivable_days")},
+                # Valuation lives beside the metrics so a screen can mix them -
+                # "cheap on earnings and generating cash" is one query, not two.
+                **{k: (a.get("valuation") or {}).get(k) for k in
+                   ("pe", "pb", "ps", "earnings_yield", "ev_ebit")}),
+            "growth": a.get("growth") or {},
             "flags": [{"id": f["id"], "severity": f["severity"], "label": f["label"]}
                       for f in a["flags"]],
             "coverage": a["coverage"]["missingSections"],
@@ -199,8 +207,10 @@ def _median(xs):
 
 
 PEER_METRICS = ["net_margin", "gross_margin", "ebit_margin", "roe", "roa",
-                "revenue_growth", "ocf_to_net_profit", "fcf_margin",
-                "current_ratio", "debt_to_equity", "interest_cover"]
+                "roce", "roic", "asset_turnover", "revenue_growth",
+                "ocf_to_net_profit", "fcf_margin", "current_ratio",
+                "quick_ratio", "debt_to_equity", "interest_cover",
+                "pe", "pb", "ps"]
 
 
 def peers(companies, ticker, by="sector"):
