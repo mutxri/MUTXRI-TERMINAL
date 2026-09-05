@@ -69,15 +69,16 @@
 <div class="wrap">
   <div class="head">
     <span class="code">BOT</span>
-    <span class="title">MARKET INTELLIGENCE <b>· SIGNALS</b></span>
+    <span class="title">MARKET INTELLIGENCE <b id="viewName">· SIGNALS</b></span>
     <span class="spacer"></span>
     <span class="src" id="src">loading…</span>
   </div>
 
+  <div class="tabs" id="views" role="tablist"></div>
   <div class="tabs" id="tabs" role="tablist"></div>
   <div class="cards" id="cards"></div>
 
-  <div class="sec">SIGNALS · impact = relevance × confidence</div>
+  <div class="sec" id="secLabel">SIGNALS · impact = relevance × confidence</div>
   <div id="items"><div class="empty">loading…</div></div>
   <div class="note" id="foot"></div>
 </div>
@@ -91,7 +92,14 @@
        if(q.get("ex")) cur = q.get("ex").toUpperCase(); }catch(e){}
   if(EXS.indexOf(cur) < 0) cur = "ALL";
 
-  var DATA = null, STATE = null;
+  var VIEWS = [
+    {id: "signals", label: "SIGNALS",
+     sec: "SIGNALS · impact = relevance × confidence"},
+    {id: "flags", label: "FLAGS",
+     sec: "STATEMENT FLAGS · computed from parsed filings, not opinions"}
+  ];
+  var view = "signals";
+  var DATA = null, STATE = null, FLAGS = null;
 
   function esc(s){
     return String(s==null?"":s)
@@ -112,9 +120,15 @@
       return '<button class="tab" role="tab" data-ex="'+x+'" aria-selected="'+
              (x===cur)+'">'+x+'</button>';
     }).join("");
-    Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(b){
-      b.addEventListener("click", function(){ cur = b.getAttribute("data-ex"); draw(); });
-    });
+    // Scoped to #tabs: an unscoped ".tab" selector also binds the view tabs
+    // above, so clicking FLAGS set cur to their (absent) data-ex and filtered
+    // every company out of the list.
+    Array.prototype.forEach.call(
+      document.querySelectorAll("#tabs .tab"), function(b){
+        b.addEventListener("click", function(){
+          cur = b.getAttribute("data-ex"); draw();
+        });
+      });
   }
 
   function drawCards(){
@@ -172,6 +186,17 @@
   }
 
   function drawFoot(){
+    if(view === "flags"){
+      var f = document.getElementById("foot");
+      if(!FLAGS){ f.textContent = ""; return; }
+      var top = (FLAGS.flagCounts || []).slice(0, 4).map(function(x){
+        return x.id.replace(/_/g, " ") + " " + x.count; }).join(" · ");
+      f.textContent = FLAGS.companiesFlagged + " of " + FLAGS.companiesAnalysed
+        + " companies with parsed statements carry a flag · " + top;
+      document.getElementById("src").textContent =
+        "generated " + String(FLAGS.generated || "").replace("T", " ").replace("+00:00", "Z");
+      return;
+    }
     if(!DATA){ return; }
     var r = DATA.sourceReport || {}, soc = (r.social || {}).status || "n/a";
     var bits = [];
@@ -186,7 +211,75 @@
       "generated " + String(DATA.generated || "").replace("T", " ").replace("+00:00", "Z");
   }
 
-  function draw(){ drawTabs(); drawCards(); drawItems(); drawFoot(); }
+  function drawViews(){
+    document.getElementById("views").innerHTML = VIEWS.map(function(v){
+      return '<button class="tab" role="tab" data-view="' + v.id + '" aria-selected="'
+             + (v.id === view) + '">' + v.label + '</button>';
+    }).join("");
+    Array.prototype.forEach.call(
+      document.querySelectorAll('#views .tab'), function(b){
+        b.addEventListener("click", function(){
+          view = b.getAttribute("data-view"); draw();
+        });
+      });
+    var v = VIEWS.filter(function(x){ return x.id === view; })[0];
+    document.getElementById("secLabel").textContent = v ? v.sec : "";
+    document.getElementById("viewName").textContent = "· " + (v ? v.label : "");
+  }
+
+  var SEV_ORDER = {high: 0, medium: 1, low: 2};
+
+  function drawFlags(){
+    var el = document.getElementById("items");
+    if(!FLAGS){
+      el.innerHTML = '<div class="empty">no statement analysis yet — run '
+                   + '<code>python market_bot.py</code></div>';
+      return;
+    }
+    var list = (FLAGS.companies || []).filter(function(x){
+      return cur === "ALL" || x.exchange === cur; }).slice(0, 80);
+    if(!list.length){ el.innerHTML = '<div class="empty">no flagged companies</div>'; return; }
+    el.innerHTML = list.map(function(x){
+      var m = x.latest || {};
+      var sev = x.worst || "low";
+      var badge = sev === "high" ? "b-bearish" : (sev === "medium" ? "b-neutral" : "");
+      var flags = (x.flags || []).slice().sort(function(a,b){
+        return (SEV_ORDER[a.severity]||9) - (SEV_ORDER[b.severity]||9); });
+      var chips = flags.map(function(f){
+        return '<span class="pill ' + (f.severity === "high" ? "b-bearish"
+               : (f.severity === "medium" ? "b-neutral" : "")) + '">'
+               + esc(f.id.replace(/_/g, " ")) + '</span>';
+      }).join(" ");
+      function metric(label, val, suffix){
+        if(val == null) return "";
+        return '<span>' + label + " " + Number(val).toFixed(2) + (suffix||"") + '</span>';
+      }
+      return '<div class="item">' +
+        '<div class="score ' + (sev === "high" ? "dn" : (sev === "medium" ? "flat" : "")) + '">'
+          + flags.length + '</div>' +
+        '<div class="body">' +
+          '<a href="#" onclick="return false" style="cursor:default">' +
+            '<span class="tick">' + esc(x.ticker) + '</span> · ' + esc(x.name || "") + '</a>' +
+          '<div class="meta">' +
+            '<span class="pill ' + badge + '">' + esc(x.exchange || "?") + '</span>' +
+            (x.sector ? '<span>' + esc(x.sector) + '</span>' : '') +
+            (m.period ? '<span>' + esc(m.period) + '</span>' : '') +
+            metric("margin", m.net_margin, "%") +
+            metric("ROE", m.roe, "%") +
+            metric("rev g", m.revenue_growth, "%") +
+            metric("OCF/NP", m.ocf_to_net_profit) +
+          '</div>' +
+          '<div class="meta">' + chips + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function draw(){
+    drawViews(); drawTabs(); drawCards();
+    if(view === "flags"){ drawFlags(); } else { drawItems(); }
+    drawFoot();
+  }
 
   function load(name){
     return fetch("../../static_data/" + name)
@@ -194,10 +287,12 @@
       .catch(function(){ return null; });
   }
 
+  drawViews();
   drawTabs();
-  Promise.all([load("bot_signals.json"), load("bot_market_state.json")])
+  Promise.all([load("bot_signals.json"), load("bot_market_state.json"),
+               load("bot_flags.json")])
     .then(function(res){
-      DATA = res[0]; STATE = res[1];
+      DATA = res[0]; STATE = res[1]; FLAGS = res[2];
       if(!DATA && !STATE){
         document.getElementById("items").innerHTML =
           '<div class="empty">bot has not run yet — run <code>python market_bot.py</code></div>';

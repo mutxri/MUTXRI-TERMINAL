@@ -68,13 +68,21 @@ def build(verbose=False):
             continue
         latest = a["metrics"][0] if a["metrics"] else {}
         meta = sectors.get(t, {})
+        # 109 statements are keyed by a symbol the listing does not carry - EGX
+        # ISIN-style codes, and JSE securities that have since been renamed. The
+        # suffix still identifies the exchange, which is enough to filter by even
+        # when the sector is unknown, and beats dropping them into a null bucket.
+        exch = meta.get("exchange")
+        if not exch:
+            suffix = t.rsplit(".", 1)[-1].upper() if "." in t else ""
+            exch = {"CA": "EGX", "JO": "JSE"}.get(suffix)
         out.append({
             "ticker": t,
             "name": meta.get("name") or a["entity"].get("name") or t,
             # A statement can exist for a security the listing no longer carries
             # (delisted, renamed, or keyed differently). Say so rather than
             # filing it under a sector it was never in.
-            "exchange": meta.get("exchange"),
+            "exchange": exch,
             "sector": meta.get("sector"),
             "inListing": bool(meta),
             "currency": a["entity"].get("currency"),
@@ -251,6 +259,49 @@ def peers(companies, ticker, by="sector"):
             "groupSize": len(group), "metrics": rows, "widened": widened,
             "sector": me.get("sector"),
             "flags": me["flags"], "latestPeriod": me["latest"].get("period")}
+
+
+# ------------------------------------------------------------ panel export
+PANEL_FILE = os.path.join(S.SD, "bot_flags.json")
+# Fields the panel actually renders. The full corpus is ~490KB because it holds
+# every metric for every company; a panel that only lists flagged names does not
+# need to download the other 320 companies to do it.
+_PANEL_METRICS = ("period", "net_margin", "roe", "revenue_growth",
+                  "ocf_to_net_profit", "interest_cover")
+
+
+def export_panel_digest(companies=None, path=None):
+    """Write the slim, flagged-only view the BOT panel fetches."""
+    companies = companies if companies is not None else load()
+    rows = []
+    for c in companies:
+        if not c["flags"]:
+            continue
+        rows.append({
+            "ticker": c["ticker"], "name": c["name"],
+            "exchange": c.get("exchange"), "sector": c.get("sector"),
+            "currency": c.get("currency"),
+            "latest": {k: c["latest"].get(k) for k in _PANEL_METRICS},
+            "flags": c["flags"],
+            "worst": ("high" if any(f["severity"] == "high" for f in c["flags"])
+                      else ("medium" if any(f["severity"] == "medium"
+                                            for f in c["flags"]) else "low")),
+        })
+    order = {"high": 0, "medium": 1, "low": 2}
+    rows.sort(key=lambda r: (order[r["worst"]], -len(r["flags"]), r["ticker"]))
+    blob = {
+        "generated": __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).isoformat(timespec="seconds"),
+        "companiesAnalysed": len(companies),
+        "companiesFlagged": len(rows),
+        "flagCounts": flag_counts(companies),
+        "companies": rows,
+    }
+    path = path or PANEL_FILE
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(blob, f, ensure_ascii=False, indent=1)
+    return {"path": path, "flagged": len(rows), "analysed": len(companies),
+            "bytes": os.path.getsize(path)}
 
 
 if __name__ == "__main__":

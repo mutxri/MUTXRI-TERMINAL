@@ -9,9 +9,11 @@ Chain (each step safe to re-run):
   4. ex_<EX>_summary/indices <- build_ex_summaries.py
   5. fx/bonds/commodities/reg/ratings/tas <- refresh_live_data.py (LIVE backend)
   6. jse_news.json <- news_collect_jse.py (Moneyweb, current)
-  7. bot_market_state/bot_signals.json <- market_bot.py (exchange state + news scan)
-  8. assemble gh_pages_deploy2
-  9. push changed files to the gh-pages branch (bulk_push tree-compare)
+  7. bot_market_state/bot_signals/bot_flags.json <- market_bot.py
+     (exchange state, news scan, statement-flag digest for the BOT panel)
+  8. data health check <- mutxri_ai.py doctor (reported, never fatal)
+  9. assemble gh_pages_deploy2
+ 10. push changed files to the gh-pages branch (bulk_push tree-compare)
 
 usage: python refresh_all.py [--history]     (--history adds step 1)
 """
@@ -51,6 +53,16 @@ run("live panel data (fx/bonds/commodities/reg/ratings/tas)", ["refresh_live_dat
 run("jse news", ["news_collect_jse.py"])
 run("ngx/nse news", ["news_collect_ngx_nse.py"], timeout=300)
 run("market bot (state + news signals)", ["market_bot.py", "--quiet"], timeout=900)
+
+# Data health is reported, never fatal: a stale feed should surface in the log,
+# not abort a refresh that has already collected everything else successfully.
+print("\n=== data health ===", flush=True)
+try:
+    _h = subprocess.run([PY, "mutxri_ai.py", "doctor"], capture_output=True,
+                        text=True, cwd=BASE, timeout=300)
+    print((_h.stdout or "")[-2200:], flush=True)
+except Exception as _e:
+    print("doctor skipped: %s" % _e, flush=True)
 run("assemble deploy", ["assemble_deploy.py"])
 run("push changed files", ["bulk_push.py"], timeout=3600)
 

@@ -25,7 +25,7 @@ the tier as disabled rather than pretending the timeline was quiet.
 """
 import argparse, datetime as dt, json, os, sys, time
 
-from bot import impact, market, sources, universe
+from bot import impact, market, screen as screen_mod, sources, universe
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 SD = os.path.join(BASE, "static_data")
@@ -196,6 +196,19 @@ def main():
             json.dump(state, f, ensure_ascii=False, indent=1)
         with open(SIGNALS_FILE, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=1)
+
+    if not args.brief:
+        # The BOT panel reads a slim, flagged-only digest of the statement
+        # corpus. Building it here keeps it in step with each scan without the
+        # panel having to download all 557 companies' full metrics.
+        try:
+            dg = screen_mod.export_panel_digest()
+            if verbose:
+                print("statement flags: %d of %d companies (%s)"
+                      % (dg["flagged"], dg["analysed"],
+                         os.path.relpath(dg["path"], BASE)))
+        except Exception as e:
+            print("statement digest skipped: %s: %s" % (type(e).__name__, str(e)[:70]))
 
     if args.json:
         json.dump(payload, sys.stdout, ensure_ascii=False, indent=1)
