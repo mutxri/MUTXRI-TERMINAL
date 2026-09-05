@@ -427,7 +427,13 @@ const API_BASE = (function(){
     if(q) return q;
     if(window.AUTH_API) return window.AUTH_API;
   }catch(e){}
-  return "";
+  // Auth already defaulted to the Render backend; data did not, so the three
+  // endpoints that survive assemble_deploy - /api/quotes, /api/metrics and
+  // /api/chart - resolved against the static host and 404d on every load.
+  // Heatmap, listing and market stay on static_data by design (assemble_deploy
+  // rewrites those). Note there is no automatic static fallback for these
+  // three: if the backend is down, quotes/metrics/charts go blank.
+  return "https://mutxri-terminal.onrender.com";
 })();
 const __origFetch = window.fetch;
 window.fetch = function(url, opts){
