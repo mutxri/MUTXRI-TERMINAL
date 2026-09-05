@@ -25,7 +25,7 @@ the tier as disabled rather than pretending the timeline was quiet.
 """
 import argparse, datetime as dt, json, os, sys, time
 
-from bot import impact, market, screen as screen_mod, sources, universe
+from bot import impact, market, screen as screen_mod, sources, terminal_news, universe
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 SD = os.path.join(BASE, "static_data")
@@ -201,6 +201,18 @@ def main():
         # The BOT panel reads a slim, flagged-only digest of the statement
         # corpus. Building it here keeps it in step with each scan without the
         # panel having to download all 557 companies' full metrics.
+        # Headlines for the terminal's NEWS panel. The scored signals stay
+        # local; this is the public half - press coverage per exchange, which
+        # is the only source the panel has for EGX and the one that finally
+        # gets JSE's existing headlines in front of a reader.
+        try:
+            news = terminal_news.write(items, signals)
+            if verbose:
+                print("terminal news: " + ", ".join(
+                    "%s %d" % (k, v) for k, v in sorted(news.items())))
+        except Exception as e:
+            print("terminal news skipped: %s: %s" % (type(e).__name__, str(e)[:70]))
+
         try:
             dg = screen_mod.export_panel_digest()
             if verbose:
