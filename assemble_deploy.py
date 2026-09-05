@@ -27,6 +27,14 @@ with open(os.path.join(DEPLOY, "CNAME"), "w", encoding="utf-8") as _c:
 # documentation page (root-level, linked from landing)
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 
+# favicon + og:image targets - referenced by index.html and terminal/index.html.
+# These lived only in the repo root, so a clean rebuild dropped the favicon
+# and the social preview image.
+for _logo in ("mutxri_logo.png", "mutxri_logo.svg", "mutxri_logo_256.png"):
+    _src = os.path.join(BASE, _logo)
+    if os.path.exists(_src):
+        shutil.copy(_src, os.path.join(DEPLOY, _logo))
+
 # 404 page
 if os.path.exists(os.path.join(BASE, "404.html")):
     shutil.copy(os.path.join(BASE, "404.html"), os.path.join(DEPLOY, "404.html"))
@@ -34,7 +42,9 @@ if os.path.exists(os.path.join(BASE, "404.html")):
     shutil.copy(os.path.join(BASE, "sitemap.xml"), os.path.join(DEPLOY, "sitemap.xml"))
 
 # links hub page
-shutil.copy(os.path.join(BASE, "LINKS.html"), os.path.join(DEPLOY, "LINKS.html"))
+# LINKS.html is an internal scratch page - it names the Atlas cluster and user,
+# and was publicly reachable, unlinked and indexable. Not deployed.
+# shutil.copy(os.path.join(BASE, "LINKS.html"), os.path.join(DEPLOY, "LINKS.html"))
 
 # legal pages (Google OAuth publishing requires a public privacy policy)
 shutil.copy(os.path.join(BASE, "privacy.html"), os.path.join(DEPLOY, "privacy.html"))

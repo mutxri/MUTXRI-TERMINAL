@@ -5,6 +5,7 @@ Chain (each step safe to re-run):
   1. [optional, daily] history top-up for JSE/EGX from Yahoo (prices source)
   2. market_<EX>.json  <- build_market_snapshots.py (prices/chg/volume)
   3. screener_<EX>.json <- build_screener.py
+  3b. heatmap_<EX>.json <- rebuild_heatmaps.py (derived from step 2)
   4. ex_<EX>_summary/indices <- build_ex_summaries.py
   5. fx/bonds/commodities/reg/ratings/tas <- refresh_live_data.py (LIVE backend)
   6. jse_news.json <- news_collect_jse.py (Moneyweb, current)
@@ -42,9 +43,13 @@ if "--history" in sys.argv:
     steps += 1
 run("market snapshots", ["build_market_snapshots.py"])
 run("screener", ["build_screener.py"])
+# heatmap_<EX>.json is derived from market_<EX>.json - without this the
+# default view silently ages while every price behind it refreshes
+run("heatmaps", ["rebuild_heatmaps.py"])
 run("exchange summaries/indices", ["build_ex_summaries.py"])
 run("live panel data (fx/bonds/commodities/reg/ratings/tas)", ["refresh_live_data.py"], env={"API": API})
 run("jse news", ["news_collect_jse.py"])
+run("ngx/nse news", ["news_collect_ngx_nse.py"], timeout=300)
 run("market bot (state + news signals)", ["market_bot.py", "--quiet"], timeout=900)
 run("assemble deploy", ["assemble_deploy.py"])
 run("push changed files", ["bulk_push.py"], timeout=3600)
