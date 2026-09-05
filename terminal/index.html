@@ -792,9 +792,14 @@ function renderWatchlist(filter){
     const isUrl = /^https?:\/\//i.test(rawLogo);
     const dom = rawLogo.replace(/^www\./, '');
     const logoSrc = isUrl ? rawLogo : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64`;
+    const monoFallback = `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
+    // Direct image URLs are real logos (even 16x16 favicons) -> only onerror fallback.
+    // s2 favicon-service URLs get the globe check (16x16 = no icon) too.
     const logoHtml = rawLogo
-      ? `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'" onload="if(this.naturalWidth<=16&&this.naturalHeight<=16)this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'" >`
-      : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
+      ? (isUrl
+        ? `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
+        : `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'" onload="if(this.naturalWidth<=16&&this.naturalHeight<=16)this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`)
+      : monoFallback;
     return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
       <span class="wl-logo-cell">${logoHtml}</span>
       <span class="wl-main">
