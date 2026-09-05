@@ -1033,13 +1033,14 @@ function renderMarketStatic(rec, info){
     const last = d[d.length-1];
     divTxt = (typeof last === 'object' && last !== null) ? (last.year ? 'FY' + last.year : '') + ' ' + (last.amount != null ? last.amount : '') : String(d.length) + ' paid';
   }
-  const linkify = function(arr){
+  // relations show the CODE only (no company name appended)
+  const codesOnly = function(arr){
     if(!Array.isArray(arr) || !arr.length) return dash;
     return arr.map(function(x){
       var s = String(x).trim();
       if(!s) return '';
       var m = s.match(/^([A-Z0-9][A-Z0-9.\-]{1,14})/);
-      if(m){ return '<a class="qlink" data-goto="' + m[1] + '">' + esc(m[1]) + '</a>' + esc(s.slice(m[1].length)); }
+      if(m) return '<a class="qlink" data-goto="' + m[1] + '">' + esc(m[1]) + '</a>';
       return esc(s);
     }).join(', ');
   };
@@ -1057,10 +1058,10 @@ function renderMarketStatic(rec, info){
       ${row('SECTOR', rec.sector || i.sector || dash)}
       ${row('COUNTRY', i.country || dash)}
       ${row('CEO', window.__CEOS && window.__CEOS[rec.sym] ? window.__CEOS[rec.sym] : (window.__CEOS && window.__CEOS[rec.ticker] ? window.__CEOS[rec.ticker] : dash))}
-      ${row('COMPETITORS', linkify(i.competitors))}
-      ${row('CUSTOMERS', linkify(i.customers))}
-      ${row('PARTNERS', linkify(i.partners))}
-      ${row('SUPPLIERS', linkify(i.suppliers))}
+      ${row('COMPETITORS', codesOnly(i.competitors))}
+      ${row('CUSTOMERS', codesOnly(i.customers))}
+      ${row('PARTNERS', codesOnly(i.partners))}
+      ${row('SUPPLIERS', codesOnly(i.suppliers))}
       ${row('FOUNDED', i.founded || dash)}
       ${row('LISTED', i.listed || dash)}
       ${row('YEAR END', rec.yearEnd || i.year_end || dash)}
