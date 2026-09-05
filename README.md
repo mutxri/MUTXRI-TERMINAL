@@ -10,4 +10,4 @@ from the live server - it does not update in real time.
 - Per-security candlestick history: static_data/history/<SYM>.json (JSE/EGX,
   Yahoo EOD 1y daily bars). NGX/NSE have no free historical feed.
 
-Data snapshot: 2026-09-04 21:00
+Data snapshot: 2026-09-05 07:58
