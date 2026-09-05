@@ -183,6 +183,8 @@ body{
 
 /* ---------- right rail ---------- */
 .rightinfo{flex:1;overflow-y:auto;padding:0;font-family:var(--mono);font-size:11px;color:var(--tx2)}
+.rightinfo .qlink{color:var(--acc);cursor:pointer;text-decoration:none}
+.rightinfo .qlink:hover{text-decoration:underline}
 .rightinfo .qhead{padding:var(--s4) var(--s4) var(--s2);border-bottom:1px solid var(--line)}
 .rightinfo .qsym{font-size:16px;font-weight:500;color:var(--tx)}
 .rightinfo .qname{font-family:var(--ui);font-size:11px;color:var(--tx3);margin-top:2px}
@@ -966,6 +968,16 @@ function renderMarketStatic(rec, info){
     const last = d[d.length-1];
     divTxt = (typeof last === 'object' && last !== null) ? (last.year ? 'FY' + last.year : '') + ' ' + (last.amount != null ? last.amount : '') : String(d.length) + ' paid';
   }
+  const linkify = function(arr){
+    if(!Array.isArray(arr) || !arr.length) return dash;
+    return arr.map(function(x){
+      var s = String(x).trim();
+      if(!s) return '';
+      var m = s.match(/^([A-Z0-9][A-Z0-9.\-]{1,14})/);
+      if(m){ return '<a class="qlink" data-goto="' + m[1] + '">' + esc(m[1]) + '</a>' + esc(s.slice(m[1].length)); }
+      return esc(s);
+    }).join(', ');
+  };
   let html = `
     <div class="qhead">
       <div class="qsym">${esc(rec.ticker || sym0(rec))}</div>
@@ -978,13 +990,12 @@ function renderMarketStatic(rec, info){
       ${row('CHANGE', chgTxt || dash)}
       ${row('VOLUME', vol)}
       ${row('SECTOR', rec.sector || i.sector || dash)}
-      ${row('INDUSTRY', i.industry || dash)}
       ${row('COUNTRY', i.country || dash)}
       ${row('CEO', window.__CEOS && window.__CEOS[rec.sym] ? window.__CEOS[rec.sym] : (window.__CEOS && window.__CEOS[rec.ticker] ? window.__CEOS[rec.ticker] : dash))}
-      ${row('COMPETITORS', Array.isArray(i.competitors) && i.competitors.length ? i.competitors.join(', ') : dash)}
-      ${row('CUSTOMERS', Array.isArray(i.customers) && i.customers.length ? i.customers.join('; ') : dash)}
-      ${row('PARTNERS', Array.isArray(i.partners) && i.partners.length ? i.partners.join('; ') : dash)}
-      ${row('SUPPLIERS', Array.isArray(i.suppliers) && i.suppliers.length ? i.suppliers.join('; ') : dash)}
+      ${row('COMPETITORS', linkify(i.competitors))}
+      ${row('CUSTOMERS', linkify(i.customers))}
+      ${row('PARTNERS', linkify(i.partners))}
+      ${row('SUPPLIERS', linkify(i.suppliers))}
       ${row('FOUNDED', i.founded || dash)}
       ${row('LISTED', i.listed || dash)}
       ${row('YEAR END', rec.yearEnd || i.year_end || dash)}
@@ -1078,6 +1089,30 @@ function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
 
 
+document.addEventListener('click', function(e){
+  var a = e.target && e.target.closest ? e.target.closest('.qlink') : null;
+  if(!a) return;
+  var code = a.getAttribute('data-goto');
+  if(!code) return;
+  e.preventDefault();
+  var ex = (typeof currentEx !== 'undefined') ? currentEx : 'JSE';
+  var ls = (typeof listing !== 'undefined' && listing[ex]) ? listing[ex] : [];
+  var row = ls.find(function(s){ var st = String(s.ticker || s.sym || ''); var b = st.split('.')[0];
+    return st.toUpperCase() === code.toUpperCase() || b.toUpperCase() === code.toUpperCase() || String(s.name||'').toUpperCase() === code.toUpperCase(); });
+  if(row && typeof openStock === 'function'){ openStock(row.sym || row.ticker); }
+});
+document.addEventListener('click', function(e){
+  var a = e.target && e.target.closest ? e.target.closest('.qlink') : null;
+  if(!a) return;
+  var code = a.getAttribute('data-goto');
+  if(!code) return;
+  e.preventDefault();
+  var ex = (typeof currentEx !== 'undefined') ? currentEx : 'JSE';
+  var ls = (typeof listing !== 'undefined' && listing[ex]) ? listing[ex] : [];
+  var row = ls.find(function(s){ var st = String(s.ticker || s.sym || ''); var b = st.split('.')[0];
+    return st.toUpperCase() === code.toUpperCase() || b.toUpperCase() === code.toUpperCase() || String(s.name||'').toUpperCase() === code.toUpperCase(); });
+  if(row && typeof openStock === 'function'){ openStock(row.sym || row.ticker); }
+});
 // ===== in-window chart (view=watchlist previews only; normal terminal keeps info sheet) =====
 let __wcChart = null, __wcSeries = null, __wcBars = [], __wcType = 'candle';
 function wcRender(bars){
