@@ -68,7 +68,26 @@ CF_SOURCES = [("Net cash from operating activities", "Net Cash from Operating Ac
               ("Net cash used in financing activities", "Net Cash from Financing Activities"),
               ("Net cash generated from financing activities", "Net Cash from Financing Activities"),
               ("Net (decrease)/increase in cash and cash equivalents", "Net Change in Cash"),
-              ("Net increase/(decrease) in cash and cash equivalents", "Net Change in Cash")]
+              ("Net increase/(decrease) in cash and cash equivalents", "Net Change in Cash"),
+              ("Net cash flows from operating activities", "Net Cash from Operating Activities"),
+              ("Net cash flows used in operating activities", "Net Cash from Operating Activities"),
+              ("Net cash flows generated from operating activities", "Net Cash from Operating Activities"),
+              ("Net cash flows from investing activities", "Net Cash from Investing Activities"),
+              ("Net cash flows used in investing activities", "Net Cash from Investing Activities"),
+              ("Net cash flows generated from investing activities", "Net Cash from Investing Activities"),
+              ("Net cash flows from financing activities", "Net Cash from Financing Activities"),
+              ("Net cash flows used in financing activities", "Net Cash from Financing Activities"),
+              ("Net cash flows generated from financing activities", "Net Cash from Financing Activities"),
+              ("Net cash flow from operating activities", "Net Cash from Operating Activities"),
+              ("Net cash flow used in operating activities", "Net Cash from Operating Activities"),
+              ("Net cash flow from investing activities", "Net Cash from Investing Activities"),
+              ("Net cash flow from financing activities", "Net Cash from Financing Activities"),
+              ("Net increase in cash and cash equivalents", "Net Change in Cash"),
+              ("Net decrease in cash and cash equivalents", "Net Change in Cash"),
+              ("Increase in cash and cash equivalents", "Net Change in Cash"),
+              ("Decrease in cash and cash equivalents", "Net Change in Cash"),
+              ("increase in cash and cash equivalents", "Net Change in Cash"),
+              ("decrease in cash and cash equivalents", "Net Change in Cash")]
 NUM_RE = re.compile(r"-?[\d,]+\.?\d*|\([\d,]+\)")
 NOTE_RE = re.compile(r"[A-Za-z0-9()\[\].]{1,12}")
 
