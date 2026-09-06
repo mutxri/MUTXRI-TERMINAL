@@ -55,6 +55,19 @@ _RATE = {}          # (ip, action) -> [timestamps]
 _RATE_LOCK = threading.Lock()
 RATE_LIMITS = {"login": (10, 600), "signup": (10, 600), "logout": (60, 600), "me": (120, 600)}
 
+def real_ip(handler):
+    """The caller's address, not the proxy's.
+
+    Render terminates TLS in front of this process, so client_address is the
+    proxy for every request on the internet. Keying the rate limiter on it put
+    every visitor in one bucket: at 10 logins per 10 minutes, the eleventh
+    person to sign in anywhere got a 429, and one person refreshing a login
+    form could lock out the whole site.
+    """
+    fwd = (handler.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
+    return fwd or handler.client_address[0]
+
+
 def rate_limited(ip, action):
     maxn, window = RATE_LIMITS.get(action, (60, 600))
     key = (ip, action)
@@ -298,7 +311,6 @@ def fetch_news(limit=40):
     return out
 
 # ---------------- MongoDB Atlas data layer (optional; falls back to local JSON) ----------------
-# Accounts/data persist in MongoDB Atlas (TERMINALDATABASE); redeploy-safe since 2026-09-03.
 # The hosted backend reads the dataset from MongoDB Atlas; local dev keeps using
 # the checked-in JSON files. Set MONGODB_URI to enable, leave empty for local.
 _MONGO_URI = os.environ.get("MONGODB_URI", "")
@@ -1365,10 +1377,7 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 if action == "callback":
                     qq = urllib.parse.parse_qs(path.query)
-                    # Render sits behind a proxy, so the real client address
-                    # is in X-Forwarded-For, not the socket.
-                    fwd = (self.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
-                    client_ip = fwd or self.client_address[0]
+                    client_ip = real_ip(self)
                     target = auth_api.oauth_callback(provider, (qq.get("code") or [""])[0],
                                                      (qq.get("state") or [""])[0],
                                                      self.headers.get("Host", ""),
@@ -1383,11 +1392,10 @@ class Handler(SimpleHTTPRequestHandler):
             q = urllib.parse.parse_qs(path.query)
             # the client cannot set these - they are read off the request so the
             # login log records the real caller, not whatever was in the query
-            fwd = (self.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
-            q["_ip"] = [fwd or self.client_address[0]]
+            q["_ip"] = [real_ip(self)]
             q["_ua"] = [self.headers.get("User-Agent", "")]
             action = path.path.split("/")[-1]
-            if rate_limited(self.client_address[0], action):
+            if rate_limited(real_ip(self), action):
                 self.send_error(429, "too many attempts")
                 return
             self.json(auth_api.handle_auth(path.path, q))
@@ -1452,7 +1460,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path.path.startswith("/api/auth/"):
             action = path.path.split("/")[-1]
-            if rate_limited(self.client_address[0], action):
+            if rate_limited(real_ip(self), action):
                 self.send_error(429, "too many attempts")
                 return
             # read JSON (or form) body — never accept credentials in URLs
