@@ -74,6 +74,13 @@
       <button data-st="cashflow" aria-pressed="false">Cash Flow</button>
     </div>
     <span class="spacer"></span>
+    <label class="lbl" for="exSel">Exchange</label>
+    <select id="exSel">
+      <option value="NSE">NSE</option>
+      <option value="NGX">NGX</option>
+      <option value="JSE">JSE</option>
+      <option value="EGX">EGX</option>
+    </select>
     <label class="lbl" for="secSel">Security</label>
     <input id="secSel" list="secList" placeholder="Type ticker or name..." autocomplete="off"
            style="min-width:180px;background:var(--bg);color:var(--tx);border:1px solid var(--line2);
@@ -354,6 +361,12 @@
     var v = String(e.target.value || "").trim().toUpperCase();
     if(v){ state.ticker = v; load(); }
   });
+  document.getElementById("exSel").addEventListener("change", function(e){
+    state.ex = e.target.value;
+    state.ticker = "";
+    loadSecurities();
+  });
+  if(document.getElementById("exSel")) document.getElementById("exSel").value = state.ex;
   document.getElementById("secSel").addEventListener("keydown", function(e){
     if(e.key === "Enter"){
       var v = String(this.value || "").trim().toUpperCase();
