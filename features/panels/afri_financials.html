@@ -342,7 +342,15 @@
       if(exLbl) exLbl.textContent = state.ex + " · " + SECS.length + " securities";
       // ?sym= (Bloomberg-style sticky security) overrides the default pick
       var want = state.sym ? state.sym.toUpperCase() : '';
+      var PREFERRED = {NSE:'SCOM', NGX:'DANGCEM', JSE:'MTN.JO', EGX:''};
       var pick = SECS.length ? SECS[0].t : '';
+      var pref = PREFERRED[state.ex] || '';
+      if(pref && SECS.length){
+        for(var pi = 0; pi < SECS.length; pi++){
+          var pk = SECS[pi].t;
+          if(pk === pref || pk.split('.')[0] === pref){ pick = pk; break; }
+        }
+      }
       if(want && SECS.length){
         for(var si = 0; si < SECS.length; si++){
           var k = SECS[si].t;

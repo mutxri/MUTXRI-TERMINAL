@@ -100,9 +100,12 @@ def load_pages(pdf):
 def page_unit(text):
     if not text:
         return 1
-    if re.search(r"millions? of naira|₦\s*million|[’']000,000\b|kshs?\s*mn\b|kes\s*millions?|kShs Mn", text, re.I):
+    # Q matches any single-quote glyph (straight ', right ’, left ‘) — many NSE PDFs
+    # render "'000" with the left curly quote which a bare [’'] regex misses.
+    Q = r"[\u2018\u2019']"
+    if re.search(r"millions? of naira|₦\s*million|" + Q + r"000,000\b|kshs?\s*mn\b|kes\s*millions?|kShs Mn", text, re.I):
         return 1_000_000
-    if re.search(r"₦'000|thousands? of naira|[’']000\b|\(000\)|kshs?\s*[’']?000\b", text, re.I):
+    if re.search(r"₦'000|thousands? of naira|" + Q + r"000\b|\(000\)|kshs?\s*" + Q + r"?000\b|shs?\.?\s*" + Q + r"?\s*000\b", text, re.I):
         return 1_000
     return 1
 
