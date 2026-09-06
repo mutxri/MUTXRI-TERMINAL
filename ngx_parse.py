@@ -23,12 +23,36 @@ INC_SOURCES = [("Revenue from contracts with customers", "Revenue"), ("Revenue",
                ("Operating profit", "Operating Profit (EBIT)"), ("Operating profit (loss)", "Operating Profit (EBIT)"),
                ("Profit before tax", "Profit Before Tax"), ("Profit before taxation", "Profit Before Tax"),
                ("Profit before income tax", "Profit Before Tax"),
+               ("Profit before Income tax expense", "Profit Before Tax"),
                ("Profit before tax from continuing operations", "Profit Before Tax"),
                ("Profit for the year", "Net Profit"), ("Profit after tax", "Net Profit"),
                ("Net profit for the year", "Net Profit"),
                ("TOTAL OPERATING INCOME", "Revenue"), ("Total operating income", "Revenue"),
                ("Profit / (loss) after exceptional items", "Profit Before Tax"),
-               ("Profit / (loss) after tax and exceptional items", "Net Profit")]
+               ("Profit / (loss) after tax and exceptional items", "Net Profit"),
+               # NGX IFRS "/ (loss)" + "(expense)/credit" phrasings + missing targets (Sep 5)
+               ("Result from operating activities", "Operating Profit (EBIT)"),
+               ("Profit from operations", "Operating Profit (EBIT)"),
+               ("Operating income", "Operating Profit (EBIT)"),
+               ("Operating profit/(loss)", "Operating Profit (EBIT)"),
+               ("Net finance cost", "Net Finance Costs"),
+               ("Net finance costs", "Net Finance Costs"),
+               ("Net finance (costs)/income", "Net Finance Costs"),
+               ("Finance costs - net", "Net Finance Costs"),
+               ("Profit/(loss) before tax", "Profit Before Tax"),
+               ("Profit/(loss) before taxation", "Profit Before Tax"),
+               ("Profit (loss) before tax", "Profit Before Tax"),
+               ("Profit/(loss) for the year", "Net Profit"),
+               ("Profit/(loss) for the period", "Net Profit"),
+               ("Profit (loss) for the year", "Net Profit"),
+               ("Income tax (expense)/credit", "Income Tax"),
+               ("Income tax expense/(credit)", "Income Tax"),
+               ("Income tax expense", "Income Tax"),
+               ("Income tax", "Income Tax"),
+               ("Taxation", "Income Tax")]
+OPEX_SOURCES = ["Selling and distribution expenses", "Administrative expenses",
+                "Selling, general and administrative expenses",
+                "Selling and marketing expenses", "Other operating expenses"]
 BAL_SOURCES = [("Non-current assets", "Non-current assets"), ("Current assets", "Current assets"),
                ("Total assets", "Total assets"), ("Total liabilities", "Total liabilities"),
                ("Total equity", "Total equity"), ("Total Assets", "Total assets"),
@@ -102,6 +126,12 @@ def occurrences(text, labels, fuzzy=False):
                         continue
                     toks = re.findall(r"\(?\d[\d,]*\.?\d*\)?", x)
                     if toks and not re.search(r"[A-Za-z%]", x):
+                        # comma-less space-grouped figures ("4 354 828") are ONE
+                        # number in NGX/NSE '000 statements; comma'd groups
+                        # ("1,040,612,239 1,027,679,730") are separate Kenya columns
+                        if "," not in x:
+                            x = re.sub(r"(?<=\d) (?=\d)", "", x)
+                            toks = re.findall(r"\(?\d[\d,]*\.?\d*\)?", x)
                         nums.extend(float(z.replace(",", "").replace("(", "-").replace(")", "")) for z in toks)
                         j += 1
                         continue
@@ -115,12 +145,20 @@ def occurrences(text, labels, fuzzy=False):
 def find_eps(corpus):
     for marker in ["Basic and diluted (Naira)", "Basic and diluted (Kobo)", "Basic earnings per share",
                    "Basic earnings per share (Naira)", "Basic earnings per share (Kobo)",
-                   "Basic and diluted earnings per share (EPS)", "Basic and diluted earnings per share"]:
+                   "Basic and diluted earnings per share (EPS)", "Basic and diluted earnings per share",
+                   "Basic and diluted earnings/(loss) per share", "Basic and diluted earnings (loss) per share",
+                   "Basic earnings/(loss) per share"]:
         i = corpus.find(marker)
         if i >= 0:
             seg = corpus[i:i + 160]
             nums = [float(x) for x in re.findall(r"\d+\.\d+", seg)]
-            return nums[:2] if len(nums) >= 2 else (nums[:1] if nums else None)
+            if len(nums) >= 2:
+                return nums[:2]
+            # integer (kobo) EPS: "393 (975)" — take the last two 2+ digit tokens (note ref is first)
+            ints = re.findall(r"\(?\d{2,}\)?", seg)
+            if len(ints) >= 2:
+                return [float(x.replace("(", "-").replace(")", "")) for x in ints[-2:]]
+            return nums[:1] if nums else None
     return None
 
 
@@ -131,15 +169,16 @@ def main():
 
     # gather per-label candidates across pages: {label: [(page_idx, unit, values)]}
     cand = {}
+    ALL_SOURCES = INC_SOURCES + BAL_SOURCES + CF_SOURCES + [(x, x) for x in OPEX_SOURCES]
     for idx, page in enumerate(pages):
         unit = page_unit(page)
-        for lab, vals in occurrences(page, INC_SOURCES + BAL_SOURCES + CF_SOURCES).items():
+        for lab, vals in occurrences(page, ALL_SOURCES).items():
             cand.setdefault(lab, []).append((idx, unit, vals))
         # Kenya-layout pages (Shs/KShs/KES currency or Bank/Company/Group header):
         # second, case-insensitive pass only for labels the page matched exactly.
         if re.search(r"\bshs\b|\bkshs?\b|\bkes\b|bank\s*\n\s*company\s*\n\s*group", page, re.I):
             have = set(lab for lab in cand if any(e[0] == idx for e in cand[lab]))
-            for lab, vals in occurrences(page, [s for s in INC_SOURCES + BAL_SOURCES + CF_SOURCES if s[0] not in have], fuzzy=True).items():
+            for lab, vals in occurrences(page, [s for s in ALL_SOURCES if s[0] not in have], fuzzy=True).items():
                 cand.setdefault(lab, []).append((idx, unit, vals))
 
     def pick(sources):
@@ -181,6 +220,19 @@ def main():
         return rows
 
     inc_rows = build_rows(INC_SOURCES)
+    # Operating Expenses = sum of the expense line items (Selling + Admin + Other),
+    # each matched on the same page so units align.
+    opex = None; opex_unit = 1
+    for lab in OPEX_SOURCES:
+        for idx, unit, vals in cand.get(lab, []):
+            if opex is None:
+                opex = [0.0] * len(vals); opex_unit = unit
+            n = min(len(vals), len(opex))
+            for i in range(n):
+                if vals[i] is not None:
+                    opex[i] += vals[i]
+    if opex is not None:
+        inc_rows.append({"label": "Operating Expenses", "values": [round(x * opex_unit, 2) for x in opex]})
     eps = find_eps(corpus)
     if eps:
         inc_rows.append({"label": "EPS", "values": [round(v, 4) for v in eps]})
