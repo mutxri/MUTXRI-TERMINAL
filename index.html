@@ -1139,7 +1139,49 @@ var API = window.API_BASE ? window.API_BASE : "";  // set to backend URL when li
 
 
 
+// Auto sign-in: if the stored token still validates, never show the form.
+// The check runs in the background so a cold backend cannot stall the page.
+var __SIGNED_IN = false;
+function __token(){ try{ return localStorage.getItem("mt_token") || ""; }catch(e){ return ""; } }
+function __verifySession(then){
+  var t = __token();
+  if(!t){ if(then) then(false); return; }
+  fetch(AUTH_API + "/api/auth/me", {method:"POST", headers:{"Content-Type":"application/json"},
+                                    body: JSON.stringify({token: t})})
+    .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+    .then(function(d){
+      __SIGNED_IN = !!(d && d.ok);
+      if(!__SIGNED_IN){ try{ localStorage.removeItem("mt_token"); }catch(e){} }
+      if(then) then(__SIGNED_IN);
+    })
+    .catch(function(){ if(then) then(false); });
+}
+// on load: a signed-in visitor gets a way straight in, not a login button
+function __signedInNav(){
+  __verifySession(function(ok){
+    if(!ok) return;
+    // match by what the button is, not by position: the first .btn in the bar
+    // is "Get a demo", which must survive
+    document.querySelectorAll('.nav-cta .btn').forEach(function(b){
+      var t = (b.textContent || "").trim().toLowerCase();
+      if(t === "login"){ b.style.display = "none"; }
+      else if(t === "sign up"){
+        b.textContent = "Open the Terminal";
+        b.onclick = function(){ location.href = "terminal/"; };
+      }
+    });
+  });
+}
+// this script sits near the end of the body, so DOMContentLoaded may already
+// have fired - registering a listener alone would silently never run
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", __signedInNav);
+else __signedInNav();
+
 function openAuth(mode){
+
+  // already signed in - go straight through instead of asking again
+  if(__SIGNED_IN){ location.href = "terminal/"; return; }
+  __verifySession(function(ok){ if(ok) location.href = "terminal/"; });
 
   switchAuth(mode || "login");
 
