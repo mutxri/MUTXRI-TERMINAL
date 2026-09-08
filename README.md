@@ -206,6 +206,40 @@ a gap in the fiscal years, a bank's EBIT. **47/47 pass.** Writing it immediately
 caught a live boundary bug - the EBIT gate admitted a rebuild worth exactly 100%
 of revenue, which implies a company with no costs.
 
+### The bot updates the terminal: news and financials
+
+Two exports, written by `market_bot.py` on every run, so the terminal stays in
+step with the scan:
+
+- **News** — `bot_news_<EX>.json`, merged into the NEWS panel alongside each
+  exchange's existing collector feed (see below).
+- **Financials** — `static_data/analytics/<TICKER>.json`, one small file per
+  security (~1.5 KB), rendered as an ANALYSIS block beneath the statement in the
+  FINANCIALS panel.
+
+The panel previously showed filed statements and nothing else, while the engine
+computed thirty-odd metrics and six models no reader could see. Per-ticker files
+match how statements already ship: the panel fetches one small file for the
+security on screen rather than a 490 KB corpus.
+
+The block carries its own provenance, because a reader should not have to assume
+any of it. ArcelorMittal renders as:
+
+```
+ANALYSIS · COMPUTED FROM THE STATEMENT ABOVE (FY2025)
+Net margin -8.98%   Gross margin 39.65%   Operating margin -7.21%   ROCE -27.28%
+Asset turnover 1.53x   Current ratio 0.90   Interest cover -1.48x   Cash conversion 0.01x
+Revenue growth -16.34%   Piotroski F-Score 3/8   Accruals -12.49%   Cost-to-income 46.86%
+[negative equity] [thin interest cover] [liquidity pressure] [loss making] [cash burn]
+12/12 accounting identities hold · current assets and liabilities derived from the
+non-current split · capital employed: assets less current liabilities · Altman Z″
+not computable: missing retained earnings
+```
+
+That last line is the point: what was filed, what was derived, whether the
+statement reconciles, and what could not be computed — all stated rather than
+implied.
+
 ### Named models (`bot/models.py`)
 
 Ratios describe a company; these score it, using published methods with cited

@@ -213,6 +213,15 @@ def main():
         except Exception as e:
             print("terminal news skipped: %s: %s" % (type(e).__name__, str(e)[:70]))
 
+        # Per-ticker analytics for the FINANCIALS panel, so the ratios and
+        # models computed from each filing are visible next to the filing.
+        try:
+            an = screen_mod.export_per_ticker()
+            if verbose:
+                print("financial analytics: %d securities" % an["written"])
+        except Exception as e:
+            print("analytics export skipped: %s: %s" % (type(e).__name__, str(e)[:70]))
+
         try:
             dg = screen_mod.export_panel_digest()
             if verbose:

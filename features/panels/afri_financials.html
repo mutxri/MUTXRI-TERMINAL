@@ -54,6 +54,19 @@
   .dot.sample{background:#e0a340}
   .badge{border:1px solid var(--line2);border-radius:2px;padding:1px 6px;color:var(--tx2)}
   .empty{padding:34px 14px;text-align:center;color:var(--tx3)}
+  /* Bot analysis: computed from the filed statements above, never from a model. */
+  .an{border-top:1px solid var(--line2);padding:12px 14px}
+  .an h4{margin:0 0 8px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);font-weight:600}
+  .an-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(184px,1fr));gap:5px 16px}
+  .an-row{display:flex;justify-content:space-between;gap:10px;font-size:11px;padding:2px 0}
+  .an-row span:first-child{color:var(--tx3)}
+  .an-row span:last-child{color:var(--tx);font-variant-numeric:tabular-nums}
+  .an-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .an-chip{font-size:9.5px;letter-spacing:.04em;border:1px solid var(--line2);border-radius:2px;padding:2px 6px;color:var(--tx2)}
+  .an-chip.hi{color:var(--down);border-color:#5c2222}
+  .an-chip.md{color:#c8a24a;border-color:#4a3a18}
+  .an-chip.ok{color:var(--acc);border-color:#1c4d3a}
+  .an-note{font-size:9.5px;color:var(--tx3);margin-top:8px;line-height:1.55}
   .empty a{color:var(--acc)}
 </style>
 </head>
@@ -74,13 +87,8 @@
       <button data-st="cashflow" aria-pressed="false">Cash Flow</button>
     </div>
     <span class="spacer"></span>
-    <label class="lbl" for="exSel">Exchange</label>
-    <select id="exSel">
-      <option value="NSE">NSE</option>
-      <option value="NGX">NGX</option>
-      <option value="JSE">JSE</option>
-      <option value="EGX">EGX</option>
-    </select>
+    <!-- no exchange picker: the market is already chosen upstream and arrives
+         as ?ex=, and the header label above shows which one is in view -->
     <label class="lbl" for="secSel">Security</label>
     <input id="secSel" list="secList" placeholder="Type ticker or name..." autocomplete="off"
            style="min-width:180px;background:var(--bg);color:var(--tx);border:1px solid var(--line2);
@@ -240,7 +248,84 @@
     body.innerHTML=h;
   }
 
-  function render(rec){renderScaffold(rec);}
+  // ---- bot analysis -------------------------------------------------------
+  // Ratios, models and flags computed by market_bot.py from the very statement
+  // rendered above. One small per-ticker file, matching how statements ship.
+  var ANALYTICS = {};
+
+  function fmtVal(v, unit){
+    if(v == null || isNaN(v)) return DASH;
+    var n = Number(v);
+    if(unit === '%') return n.toFixed(2) + '%';
+    if(unit === 'x') return n.toFixed(2) + 'x';
+    return n.toFixed(2);
+  }
+
+  function renderAnalysis(a){
+    var body = document.getElementById('body');
+    if(!body || !a) return;
+    // renderScaffold replaces the table but a pending fetch can land twice
+    // (statement switch, or a second render before the first resolved), which
+    // appended the analysis block over and over. Clear any previous one first.
+    var prev = body.querySelector('.an');
+    if(prev) prev.remove();
+    var h = '<div class="an"><h4>Analysis &middot; computed from the statement above (' +
+            esc(a.period || '') + ')</h4><div class="an-grid">';
+    (a.ratios || []).forEach(function(r){
+      h += '<div class="an-row"><span>' + esc(r.label) + '</span><span>' +
+           fmtVal(r.value, r.unit) + '</span></div>';
+    });
+    var v = a.valuation || {};
+    [['P/E', v.pe, ''], ['P/B', v.pb, ''], ['Earnings yield', v.earnings_yield, '%']].forEach(function(p){
+      if(p[1] != null) h += '<div class="an-row"><span>' + p[0] + '</span><span>' + fmtVal(p[1], p[2]) + '</span></div>';
+    });
+    var m = a.models || {};
+    if(m.fscore != null) h += '<div class="an-row"><span>Piotroski F-Score</span><span>' + m.fscore + '/' + m.fscoreOutOf + '</span></div>';
+    if(m.altmanZ != null) h += '<div class="an-row"><span>Altman Z&Prime;</span><span>' + Number(m.altmanZ).toFixed(2) + ' ' + esc(m.altmanBand || '') + '</span></div>';
+    if(m.accruals != null) h += '<div class="an-row"><span>Accruals</span><span>' + Number(m.accruals).toFixed(2) + '%</span></div>';
+    if(m.costToIncome != null) h += '<div class="an-row"><span>Cost-to-income</span><span>' + Number(m.costToIncome).toFixed(2) + '%</span></div>';
+    h += '</div>';
+
+    if((a.flags || []).length){
+      h += '<div class="an-chips">' + a.flags.map(function(f){
+        var cl = f.severity === 'high' ? 'hi' : (f.severity === 'medium' ? 'md' : '');
+        return '<span class="an-chip ' + cl + '">' + esc(String(f.id).replace(/_/g, ' ')) + '</span>';
+      }).join('') + '</div>';
+    }
+
+    // Say what was derived rather than filed, and whether the statement
+    // reconciles - a reader should not have to assume either.
+    var notes = [];
+    var au = a.audit || {};
+    if(au.total) notes.push(au.failed ? (au.failed + ' of ' + au.total + ' accounting identities do not hold')
+                                      : (au.passed + '/' + au.total + ' accounting identities hold'));
+    var d = a.derived || {};
+    if(d.currentSplit) notes.push('current assets and liabilities derived from the non-current split');
+    if(d.ebit) notes.push('EBIT not filed; rebuilt as PBT plus net finance costs');
+    if(d.capitalEmployedBasis) notes.push('capital employed: ' + d.capitalEmployedBasis);
+    if(m.altmanZ == null && m.altmanMissing && m.altmanMissing.length)
+      notes.push('Altman Z&Prime; not computable: missing ' + m.altmanMissing.slice(0,3).join(', '));
+    if(notes.length) h += '<div class="an-note">' + notes.join(' &middot; ') + '</div>';
+    h += '</div>';
+    body.insertAdjacentHTML('beforeend', h);
+  }
+
+  var ANALYTICS_INFLIGHT = {};
+
+  function loadAnalysis(){
+    var t = state.ticker;
+    if(!t) return;
+    if(ANALYTICS[t] !== undefined){ renderAnalysis(ANALYTICS[t]); return; }
+    if(ANALYTICS_INFLIGHT[t]) return;      // one request per ticker, not one per render
+    ANALYTICS_INFLIGHT[t] = 1;
+    fetch('../../static_data/analytics/' + encodeURIComponent(t.replace(/\//g, '_')) + '.json')
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ ANALYTICS[t] = d; if(state.ticker === t) renderAnalysis(d); })
+      .catch(function(){ ANALYTICS[t] = null; })
+      .then(function(){ delete ANALYTICS_INFLIGHT[t]; });
+  }
+
+  function render(rec){ renderScaffold(rec); loadAnalysis(); }
   function STMT_TITLE(){return {income:"Income Statement",balance:"Balance Sheet",
     cashflow:"Cash Flow Statement"}[state.statement];}
 
@@ -369,12 +454,8 @@
     var v = String(e.target.value || "").trim().toUpperCase();
     if(v){ state.ticker = v; load(); }
   });
-  document.getElementById("exSel").addEventListener("change", function(e){
-    state.ex = e.target.value;
-    state.ticker = "";
-    loadSecurities();
-  });
-  if(document.getElementById("exSel")) document.getElementById("exSel").value = state.ex;
+  // the exchange picker was removed: state.ex comes from ?ex= and never changes
+  // inside the panel, so there is no listener and nothing to sync here
   document.getElementById("secSel").addEventListener("keydown", function(e){
     if(e.key === "Enter"){
       var v = String(this.value || "").trim().toUpperCase();

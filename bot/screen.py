@@ -338,6 +338,101 @@ def export_panel_digest(companies=None, path=None):
             "bytes": os.path.getsize(path)}
 
 
+# ------------------------------------------------- per-ticker analytics export
+ANALYTICS_DIR = os.path.join(S.SD, "analytics")
+
+# Ratios the FINANCIALS panel shows beneath the statement, in display order.
+PANEL_RATIOS = [
+    ("net_margin", "Net margin", "%"),
+    ("gross_margin", "Gross margin", "%"),
+    ("ebit_margin", "Operating margin", "%"),
+    ("roe", "Return on equity", "%"),
+    ("roce", "Return on capital employed", "%"),
+    ("roic", "Return on invested capital", "%"),
+    ("asset_turnover", "Asset turnover", "x"),
+    ("current_ratio", "Current ratio", ""),
+    ("interest_cover", "Interest cover", "x"),
+    ("ocf_to_net_profit", "Cash conversion", "x"),
+    ("revenue_growth", "Revenue growth", "%"),
+    ("effective_tax_rate", "Effective tax rate", "%"),
+]
+
+
+def export_per_ticker(companies=None, out_dir=None, verbose=False):
+    """Write static_data/analytics/<TICKER>.json, one small file per security.
+
+    The terminal's FINANCIALS panel shows filed statements and nothing else,
+    while the engine computes thirty-odd metrics and six models that no reader
+    can see. Per-ticker files match how statements already ship: the panel
+    fetches one small file for the security on screen rather than a corpus.
+    """
+    from . import models as M
+    out_dir = out_dir or ANALYTICS_DIR
+    os.makedirs(out_dir, exist_ok=True)
+    written, skipped = 0, 0
+    tickers = S.available_public()
+    for t in tickers:
+        try:
+            doc = S.load_public(t)
+            if not doc:
+                skipped += 1
+                continue
+            a = S.analyse(doc)
+        except Exception:
+            skipped += 1
+            continue
+        rows = a.get("metrics") or []
+        if not rows:
+            skipped += 1
+            continue
+        cur = rows[0]
+        mods = M.score_all(a)
+        pio, alt, acc = mods["piotroski"], mods["altmanZ"], mods["accruals"]
+        v = a.get("verification") or {}
+        blob = {
+            "ticker": t,
+            "name": a["entity"].get("name"),
+            "currency": a["entity"].get("currency"),
+            "period": cur.get("period"),
+            "periods": a.get("periods", []),
+            "ratios": [{"key": k, "label": lbl, "unit": u, "value": cur.get(k)}
+                       for k, lbl, u in PANEL_RATIOS if cur.get(k) is not None],
+            "valuation": {k: (a.get("valuation") or {}).get(k)
+                          for k in ("pe", "pb", "ps", "earnings_yield", "ev_ebit",
+                                    "asOfPeriod", "peCrossCheck", "note")},
+            "growth": {k: (a.get("growth") or {}).get(k)
+                       for k in ("revenue_cagr", "net_profit_cagr",
+                                 "contiguousYears", "from", "to")},
+            "models": {
+                "fscore": pio.get("score") if pio.get("available") else None,
+                "fscoreOutOf": pio.get("outOf") if pio.get("available") else None,
+                "fscoreReading": pio.get("reading") if pio.get("available") else None,
+                "altmanZ": alt.get("score") if alt.get("available") else None,
+                "altmanBand": alt.get("band") if alt.get("available") else None,
+                "altmanMissing": None if alt.get("available") else alt.get("missing"),
+                "accruals": acc.get("ratio") if acc.get("available") else None,
+                "accrualsReading": acc.get("reading") if acc.get("available") else None,
+                "costToIncome": mods["costToIncome"].get("ratio"),
+            },
+            "flags": a.get("flags", []),
+            # The audit result travels with the numbers, so a reader can see
+            # that the statement reconciles rather than assuming it.
+            "audit": {"passed": v.get("passed"), "total": v.get("total"),
+                      "failed": len(v.get("failed") or [])},
+            "derived": {
+                "currentSplit": bool(cur.get("current_split_derived")),
+                "ebit": bool(cur.get("ebit_derived")),
+                "capitalEmployedBasis": cur.get("capital_employed_basis"),
+            },
+        }
+        with open(os.path.join(out_dir, "%s.json" % t), "w", encoding="utf-8") as f:
+            json.dump(blob, f, ensure_ascii=False, separators=(",", ":"))
+        written += 1
+        if verbose and written % 200 == 0:
+            print("  %d/%d..." % (written, len(tickers)))
+    return {"dir": out_dir, "written": written, "skipped": skipped}
+
+
 if __name__ == "__main__":
     import sys
     cs = load(verbose=True)
