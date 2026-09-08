@@ -976,7 +976,7 @@ a{color:var(--acc);text-decoration:none;}
         <input type="text" id="authName" placeholder="Your name" />
       </div>
       <label>EMAIL</label>
-      <input type="email" id="authEmail" required placeholder="you@company.com" />
+      <input type="email" id="authEmail" required placeholder="you@company.com" autocomplete="email" />
       <div id="authPwdRow">
         <label>PASSWORD</label>
         <input type="password" id="authPwd" placeholder="At least 8 characters" />
@@ -1253,7 +1253,21 @@ function openAuth(mode){
 
   switchAuth(mode || "login");
 
+  // remember the address from last time so returning users only type a password
+  try{
+    var last = localStorage.getItem("mt_email") || "";
+    var em = document.getElementById("authEmail");
+    if(em && last && !em.value) em.value = last;
+  }catch(err){}
+
   document.getElementById("authModal").classList.add("open");
+
+  // focus what the user still has to fill in
+  setTimeout(function(){
+    var em = document.getElementById("authEmail"), pw = document.getElementById("authPwd");
+    var target = (em && em.value && pw) ? pw : em;
+    if(target) target.focus();
+  }, 60);
 
 }
 
@@ -1309,7 +1323,15 @@ function switchAuth(mode){
   if(sub) sub.textContent = isLogin ? "Welcome back" : "Create your free account";
   var nameRow = document.getElementById("authNameRow"), pwdRow = document.getElementById("authPwdRow");
   if(nameRow) nameRow.style.display = isLogin ? "none" : "";
-  if(pwdRow) pwdRow.style.display = isLogin ? "none" : "";
+  // the password row stays visible in BOTH modes. Hiding it on login left
+  // #authPwd empty, so every login posted password:"" and the server answered
+  // "invalid email or password" no matter what the user typed.
+  if(pwdRow) pwdRow.style.display = "";
+  var pwd = document.getElementById("authPwd");
+  if(pwd){
+    pwd.placeholder = isLogin ? "Your password" : "At least 8 characters";
+    pwd.setAttribute("autocomplete", isLogin ? "current-password" : "new-password");
+  }
   var btn = document.getElementById("authSubmit");
   if(btn) btn.textContent = isLogin ? "LOGIN" : "REGISTER";
   var note = document.getElementById("authNote");
@@ -1338,6 +1360,11 @@ function submitAuth(e){
     msg.textContent = "Choose a password of at least 8 characters.";
     return false;
   }
+  if(mode === "login" && !pwd){
+    msg.className = "auth-msg err";
+    msg.textContent = "Enter your password.";
+    return false;
+  }
   var action = mode === "login" ? "login" : "signup";
   var payload = {email: email, password: pwd};
   if(action === "signup"){
@@ -1351,7 +1378,9 @@ function submitAuth(e){
     .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
     .then(function(d){
       if(d && d.ok){
-        try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); }catch(err){}
+        // fall back to what was typed: a response without an email field would
+        // otherwise wipe the address we prefill next time
+        try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); }catch(err){}
         msg.className = "auth-msg ok";
         msg.textContent = mode === "login" ? "Welcome back — opening the terminal…" : "Account created — opening the terminal…";
         setTimeout(function(){ location.href = "terminal/"; }, 900);
