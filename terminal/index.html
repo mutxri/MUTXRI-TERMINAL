@@ -88,15 +88,22 @@ body{
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--tx3)}
 
 /* ---------- main grid ---------- */
-.main{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px);min-height:0;position:relative}
+.main{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);min-height:0;position:relative}
 /* rail resizers (drag the divider to size panels) */
 .rsz{position:absolute;top:34px;bottom:0;width:7px;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
 .rsz:hover{background:rgba(51,226,154,.10)}
 .rsz::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:1px;background:var(--line2);transition:width .12s,background .12s}
 .rsz:hover::after{width:2px;background:var(--acc)}
+.rsz.dragging{background:rgba(51,226,154,.16)}
+.rsz.dragging::after{width:2px;background:var(--acc)}
 #rszL{left:calc(var(--wW,232px) - 4px)}
-#rszR{right:calc(var(--wI,288px) - 3px)}
+#rszR{right:calc(var(--wI,288px) + var(--wC,300px) - 3px)}
+#rszC{right:calc(var(--wC,300px) - 3px)}
 .view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
+/* chat collapsed: the fourth column folds away and its divider goes with it */
+.chat-off .main{grid-template-columns:var(--wW,232px) 1fr var(--wI,288px)}
+.chat-off #colChat,.chat-off #rszC{display:none}
+.chat-off #rszR{right:calc(var(--wI,288px) - 3px)}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
 .rail.right{border-right:0;border-left:1px solid var(--line2)}
@@ -213,6 +220,43 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
 ::-webkit-scrollbar-track{background:transparent}
 
+
+/* ---------- chat rail (4th window) ---------- */
+.rail.chat{border-left:1px solid var(--line2);border-right:0;background:var(--bg2)}
+.chat-head{display:flex;align-items:center;gap:var(--s2);padding:var(--s3) var(--s4) var(--s2);
+  border-bottom:1px solid var(--line);color:var(--tx3);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase}
+.chat-head .chat-title{color:var(--tx2)}
+.chat-head .chat-act{margin-left:auto;display:flex;gap:4px}
+.chat-head button{background:none;border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
+  font-size:9px;letter-spacing:.08em;padding:2px 6px;border-radius:2px;cursor:pointer}
+.chat-head button:hover{border-color:var(--acc);color:var(--acc)}
+.chat-log{flex:1;min-height:0;overflow-y:auto;padding:var(--s3) var(--s4);
+  font-family:var(--mono);font-size:11px;color:var(--tx2);display:flex;flex-direction:column;gap:var(--s3)}
+.chat-msg{max-width:100%}
+.chat-msg .who{display:block;font-size:9px;letter-spacing:.14em;color:var(--tx3);margin-bottom:3px}
+.chat-msg.me .who{color:var(--tx2)}
+.chat-msg.bot .who{color:var(--acc)}
+.chat-msg .body{background:var(--bg3);border:1px solid var(--line);border-radius:3px;
+  padding:var(--s2) var(--s3);line-height:1.5;word-wrap:break-word;overflow-wrap:anywhere}
+.chat-msg .body b{color:var(--tx)}
+.chat-msg .krow{display:grid;grid-template-columns:1fr auto;gap:1px 10px;font-size:10.5px;margin-top:3px}
+.chat-msg .krow span:nth-child(odd){color:var(--tx3)}
+.chat-msg .krow span:nth-child(even){text-align:right;color:var(--tx)}
+.chat-chip{display:inline-block;background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
+  font-size:9.5px;letter-spacing:.06em;padding:2px 6px;border-radius:2px;cursor:pointer;margin:3px 3px 0 0}
+.chat-chip:hover{border-color:var(--acc)}
+.chat-form{display:flex;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--line2)}
+.chat-form input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
+  font-family:var(--mono);font-size:11px;padding:7px 9px;border-radius:2px;outline:0}
+.chat-form input:focus{border-color:var(--acc)}
+.chat-form button{background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;
+  font-size:10px;letter-spacing:.08em;padding:0 12px;border-radius:2px;cursor:pointer}
+.status .chatbtn{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
+  font-size:10px;letter-spacing:.08em;padding:2px 8px;border-radius:2px;cursor:pointer}
+.status .chatbtn:hover{border-color:var(--acc);color:var(--acc)}
+.no-rails #colChat,.no-rails #rszC{display:none}
+.view-panel #colChat,.view-watchlist #colChat,.view-info #colChat,.hide-panel #colChat{display:none}
+.view-panel #rszC,.view-watchlist #rszC,.view-info #rszC,.hide-panel #rszC{display:none}
 /* ---- embed mode (?rails=0 / ?view=): focused showcase, no app chrome ---- */
 .no-rails .rail.right{display:none;}
 .no-rails .main{grid-template-columns:1fr;}
@@ -409,15 +453,33 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
+    <!-- CHAT (4th window) -->
+    <aside class="rail chat" id="colChat">
+      <div class="chat-head">
+        <span class="chat-title">Chat</span>
+        <span class="chat-act">
+          <button id="chatClear" type="button" title="Clear the conversation">CLEAR</button>
+          <button id="chatHide" type="button" title="Hide the chat window">HIDE</button>
+        </span>
+      </div>
+      <div class="chat-log" id="chatLog" aria-live="polite"></div>
+      <form class="chat-form" id="chatForm" autocomplete="off">
+        <input id="chatInput" placeholder="Ask about a ticker or market..." aria-label="Chat message" spellcheck="false">
+        <button type="submit" id="chatSend">SEND</button>
+      </form>
+    </aside>
+
     <!-- RESIZERS (drag the divider lines to size the rails) -->
     <div class="rsz" id="rszL" title="Drag to resize watchlist"></div>
     <div class="rsz" id="rszR" title="Drag to resize info panel"></div>
+    <div class="rsz" id="rszC" title="Drag to resize chat"></div>
 
   </div>
 
   <!-- STATUS -->
   <footer class="status">
     <span class="spacer"></span>
+    <button class="chatbtn" id="chatToggle" type="button" title="Show or hide the chat window">CHAT</button>
     <span class="cmd"><input id="cmd" placeholder="command" spellcheck="false"></span>
   </footer>
 
@@ -624,6 +686,9 @@ function renderTabs(){
     main.appendChild(center);
     main.appendChild(first === 'info' ? watch : info);
     main.insertBefore(first === 'info' ? info : watch, main.firstChild);
+    // the chat window always holds the last grid slot on the far right
+    const chat = document.getElementById('colChat');
+    if(chat) main.appendChild(chat);
   }
   function bindColDrag(){
     let dragCol = null;
@@ -664,50 +729,78 @@ function renderTabs(){
     const cols = localStorage.getItem('mt_cols');
     if(cols) setColOrder(cols.indexOf('info') === 0 ? 'info' : 'watch');
   }catch(e){}
-  // ===== resize the rails: drag the divider between panels =====
+  // ===== resize the rails: drag any divider between the four windows =====
+  // Three dividers, one rule: the dragged rail grows or shrinks and the centre
+  // panel absorbs the difference, never falling under MIN_CENTER.
   (function(){
     const main = document.querySelector('.main');
-    function cur(v, dflt){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? dflt : x; }
-    function restoreSizes(){
+    const MIN_RAIL = 180, MIN_CENTER = 380;
+    const DEF = {'--wW': 232, '--wI': 288, '--wC': 300};
+    function cur(v){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? DEF[v] : x; }
+    function chatOn(){ return !document.documentElement.classList.contains('chat-off'); }
+    // width the OTHER rails already take, so the centre keeps its floor
+    function others(varName){
+      let sum = 0;
+      ['--wW', '--wI', '--wC'].forEach(function(v){
+        if(v === varName) return;
+        if(v === '--wC' && !chatOn()) return;
+        sum += cur(v);
+      });
+      return sum;
+    }
+    function clamp(varName, px){
+      const max = Math.max(MIN_RAIL, window.innerWidth - others(varName) - MIN_CENTER);
+      return Math.min(max, Math.max(MIN_RAIL, px));
+    }
+    function apply(varName, px){ main.style.setProperty(varName, clamp(varName, px) + 'px'); }
+    function save(){
+      try{
+        localStorage.setItem('mt_sizes', [Math.round(cur('--wW')), Math.round(cur('--wI')),
+                                          Math.round(cur('--wC'))].join(','));
+      }catch(e){}
+    }
+    window.__mtSaveSizes = save;
+    (function restoreSizes(){
       try{
         const s = (localStorage.getItem('mt_sizes') || '').split(',');
         if(s.length < 2) return;
-        const vw = window.innerWidth;
-        const wl = Math.min(parseInt(s[0], 10) || 232, Math.max(180, vw - 420));
-        const ir = Math.min(parseInt(s[1], 10) || 288, Math.max(180, vw - wl - 380));
-        main.style.setProperty('--wW', Math.max(180, wl) + 'px');
-        main.style.setProperty('--wI', Math.max(180, ir) + 'px');
+        apply('--wW', parseInt(s[0], 10) || DEF['--wW']);
+        apply('--wI', parseInt(s[1], 10) || DEF['--wI']);
+        apply('--wC', parseInt(s[2], 10) || DEF['--wC']);
       }catch(e){}
-    }
-    restoreSizes();
-    function begin(side, e){
+    })();
+    // a narrower browser window can leave the rails over-wide: re-clamp
+    window.addEventListener('resize', function(){
+      ['--wW', '--wI', '--wC'].forEach(function(v){ apply(v, cur(v)); });
+    });
+    // which CSS var each divider drives, and which way "wider" points
+    const SIDES = {L: {v: '--wW', dir: 1}, R: {v: '--wI', dir: -1}, C: {v: '--wC', dir: -1}};
+    function begin(side, e, grip){
       e.preventDefault();
-      const startX = e.clientX, wL = cur('--wW', 232), wI = cur('--wI', 288);
+      const cfg = SIDES[side];
+      const startX = e.clientX, start = cur(cfg.v);
       const ov = document.createElement('div');
       ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:col-resize;';
       document.body.appendChild(ov);
-      function move(ev){
-        const dx = ev.clientX - startX;
-        if(side === 'L'){
-          const maxW = Math.max(180, window.innerWidth - wI - 380);
-          main.style.setProperty('--wW', Math.min(maxW, Math.max(180, wL + dx)) + 'px');
-        }else{
-          const maxW = Math.max(180, window.innerWidth - wL - 380);
-          main.style.setProperty('--wI', Math.min(maxW, Math.max(180, wI - dx)) + 'px');
-        }
-      }
+      if(grip) grip.classList.add('dragging');
+      function move(ev){ apply(cfg.v, start + cfg.dir * (ev.clientX - startX)); }
       function end(){
         ov.remove();
+        if(grip) grip.classList.remove('dragging');
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', end);
-        try{ localStorage.setItem('mt_sizes', Math.round(cur('--wW', 232)) + ',' + Math.round(cur('--wI', 288))); }catch(e2){}
+        save();
       }
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', end);
     }
-    const l = document.getElementById('rszL'), r = document.getElementById('rszR');
-    if(l) l.addEventListener('mousedown', function(e){ begin('L', e); });
-    if(r) r.addEventListener('mousedown', function(e){ begin('R', e); });
+    ['L', 'R', 'C'].forEach(function(side){
+      const el = document.getElementById('rsz' + side);
+      if(!el) return;
+      el.addEventListener('mousedown', function(e){ begin(side, e, el); });
+      // double-click a divider to snap that rail back to its default width
+      el.addEventListener('dblclick', function(){ apply(SIDES[side].v, DEF[SIDES[side].v]); save(); });
+    });
   })();
   // tab reordering
   let dragTab = null;
@@ -1485,6 +1578,177 @@ function renderStockInfo(d, sym){
     </div>`;
   $('rightInfo').innerHTML = html;
 }
+
+
+// ===== Chat window (4th panel) =====
+// Answers out of the terminal's own data - listings, quotes, panels. When a
+// backend is configured it gets first refusal via /api/chat; any failure there
+// falls straight back to the local answerer, so the window is never dead.
+(function(){
+  const log = $('chatLog'), form = $('chatForm'), input = $('chatInput');
+  if(!log || !form || !input) return;
+  const HIST_KEY = 'mt_chat', HIDE_KEY = 'mt_chat_hidden', MAX_HIST = 40;
+  let hist = [];
+  try{ hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]') || []; }catch(e){ hist = []; }
+  if(!Array.isArray(hist)) hist = [];
+
+  function saveHist(){
+    try{ localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(-MAX_HIST))); }catch(e){}
+  }
+  function bubble(role, html, remember){
+    const el = document.createElement('div');
+    el.className = 'chat-msg ' + (role === 'me' ? 'me' : 'bot');
+    el.innerHTML = '<span class="who">' + (role === 'me' ? 'YOU' : 'MUTXRI') + '</span>' +
+                   '<div class="body">' + html + '</div>';
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    if(remember !== false){ hist.push({r: role, h: html}); saveHist(); }
+    return el;
+  }
+  function chips(list){
+    return '<div>' + list.map(function(t){
+      return '<span class="chat-chip" data-ask="' + esc(t) + '">' + esc(t) + '</span>';
+    }).join('') + '</div>';
+  }
+  const HELP = 'Ask about the markets on this terminal:' +
+    chips(['SCOM', 'top gainers', 'open financials', 'markets']) +
+    '<div style="color:var(--tx3);margin-top:6px">A ticker gives you its quote and opens it. ' +
+    '"open &lt;panel&gt;" switches the centre window. "top gainers" / "top losers" rank the market in view.</div>';
+
+  // --- local answers ------------------------------------------------------
+  function rowsFor(ex){
+    return (typeof listing !== 'undefined' && listing[ex]) ||
+           (typeof SEARCH_IDX !== 'undefined' && SEARCH_IDX[ex]) || [];
+  }
+  function num(v, d){
+    return v == null || v === '' || isNaN(Number(v)) ? null :
+      Number(v).toLocaleString(undefined, {maximumFractionDigits: d == null ? 2 : d});
+  }
+  function tickerOf(row){
+    return (typeof stockTicker === 'function') ? stockTicker(row) : (row.ticker || row.sym || '');
+  }
+  function quoteCard(row, ex){
+    const chg = row.chgPct;
+    const cls = chg == null ? '' : (chg >= 0 ? 'up' : 'down');
+    const chgTxt = chg == null ? '\u2014' : (chg >= 0 ? '+' : '') + Number(chg).toFixed(2) + '%';
+    return '<b>' + esc(tickerOf(row)) + '</b> <span style="color:var(--tx3)">' + esc(ex) + '</span>' +
+      '<div style="color:var(--tx3);font-size:10px">' + esc(row.name || '') + '</div>' +
+      '<div class="krow">' +
+        '<span>PRICE</span><span>' + (num(row.price) || '\u2014') + ' ' + esc(row.currency || '') + '</span>' +
+        '<span>CHANGE</span><span class="' + cls + '">' + chgTxt + '</span>' +
+        '<span>VOLUME</span><span>' + (num(String(row.volume == null ? '' : row.volume).replace(/,/g, ''), 0) || '\u2014') + '</span>' +
+      '</div>';
+  }
+  function movers(ex, dir){
+    const rows = rowsFor(ex).filter(function(s){ return s.chgPct != null && !isNaN(Number(s.chgPct)); });
+    if(!rows.length) return null;
+    rows.sort(function(a, b){ return dir * (Number(b.chgPct) - Number(a.chgPct)); });
+    return '<b>' + (dir > 0 ? 'Top gainers' : 'Top losers') + ' \u2014 ' + esc(ex) + '</b>' +
+      '<div class="krow">' + rows.slice(0, 5).map(function(s){
+        const c = Number(s.chgPct);
+        return '<span>' + esc(tickerOf(s)) + '</span><span class="' + (c >= 0 ? 'up' : 'down') + '">' +
+               (c >= 0 ? '+' : '') + c.toFixed(2) + '%</span>';
+      }).join('') + '</div>';
+  }
+  function localAnswer(text){
+    const v = text.trim().toUpperCase();
+    if(!v) return null;
+    if(/^(HELP|\?|WHAT CAN YOU DO)/.test(v)) return HELP;
+    if(/^(MARKETS?|EXCHANGES?)\b/.test(v)){
+      return 'Four boards: <b>JSE</b>, <b>EGX</b>, <b>NGX</b>, <b>NSE</b>. You are on <b>' + esc(currentEx) + '</b>.' +
+        chips(['top gainers', 'top losers', 'open heatmap']);
+    }
+    if(/GAINER|RISER|UP TODAY/.test(v)) return movers(currentEx, 1) || 'No quotes loaded for ' + esc(currentEx) + ' yet.';
+    if(/LOSER|FALLER|DOWN TODAY/.test(v)) return movers(currentEx, -1) || 'No quotes loaded for ' + esc(currentEx) + ' yet.';
+    const words = v.replace(/[^A-Z0-9 .]/g, ' ').split(/\s+/).filter(Boolean);
+    const asked = words.filter(function(w){ return ['OPEN','SHOW','GO','TO','THE','PANEL'].indexOf(w) < 0; });
+    // "open <panel>" / a bare panel code
+    for(let i = 0; i < asked.length; i++){
+      const p = (typeof panelFor === 'function') ? panelFor(asked[i]) : null;
+      if(p && p.id !== 'info' && typeof openPanelTab === 'function'){
+        openPanelTab(p);
+        return 'Opened the <b>' + esc(p.label) + '</b> panel in the centre window.';
+      }
+    }
+    // a ticker anywhere in the sentence
+    for(let i = 0; i < asked.length; i++){
+      const w = asked[i];
+      const sec = (typeof resolveSec === 'function') ? resolveSec(w) : null;
+      if(!sec) continue;
+      const row = rowsFor(sec.ex).find(function(s){ return (s.sym || s.ticker) === sec.sym; }) || {sym: sec.sym};
+      if(sec.ex !== currentEx && typeof switchExchange === 'function') switchExchange(sec.ex);
+      try{ if(typeof openStock === 'function') openStock(sec.sym); }catch(e){}
+      return quoteCard(row, sec.ex) +
+        '<div style="color:var(--tx3);margin-top:4px">Opened in the market window.</div>' +
+        chips([w + ' FINANCIALS', w + ' NEWS']);
+    }
+    return null;
+  }
+
+  // --- optional backend ---------------------------------------------------
+  async function askBackend(text){
+    if(!window.API_BASE) return null;
+    try{
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: text, exchange: currentEx,
+                              symbol: (typeof curSec !== 'undefined' ? curSec : null)})
+      });
+      if(!r.ok) return null;
+      const d = await r.json();
+      const reply = d && (d.reply || d.answer || d.text);
+      return reply ? esc(String(reply)).replace(/\n/g, '<br>') : null;
+    }catch(e){ return null; }
+  }
+
+  async function send(text){
+    bubble('me', esc(text));
+    input.value = '';
+    const thinking = bubble('bot', '<span style="color:var(--tx3)">\u2026</span>', false);
+    let html = null;
+    try{ html = await askBackend(text); }catch(e){}
+    if(!html) html = localAnswer(text);
+    if(!html) html = 'I could not match that to a security or a panel. ' + HELP;
+    thinking.remove();
+    bubble('bot', html);
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    const t = input.value.trim();
+    if(t) send(t);
+  });
+  log.addEventListener('click', function(e){
+    const chip = e.target.closest('.chat-chip');
+    if(chip) send(chip.getAttribute('data-ask') || '');
+  });
+  $('chatClear').addEventListener('click', function(){
+    hist = []; saveHist(); log.innerHTML = '';
+    bubble('bot', HELP, false);
+  });
+
+  // show/hide the fourth window (remembered between sessions)
+  function setChat(on){
+    document.documentElement.classList.toggle('chat-off', !on);
+    try{ localStorage.setItem(HIDE_KEY, on ? '0' : '1'); }catch(e){}
+    if(typeof window.__mtSaveSizes === 'function') window.__mtSaveSizes();
+    if(on) input.focus();
+  }
+  $('chatHide').addEventListener('click', function(){ setChat(false); });
+  const toggle = $('chatToggle');
+  if(toggle) toggle.addEventListener('click', function(){
+    setChat(document.documentElement.classList.contains('chat-off'));
+  });
+  try{ if(localStorage.getItem(HIDE_KEY) === '1') document.documentElement.classList.add('chat-off'); }catch(e){}
+
+  // replay the stored conversation, or greet
+  if(hist.length){
+    hist.slice(-MAX_HIST).forEach(function(m){ bubble(m.r === 'me' ? 'me' : 'bot', m.h, false); });
+  }else{
+    bubble('bot', HELP, false);
+  }
+})();
 
 // ===== Init =====
 
