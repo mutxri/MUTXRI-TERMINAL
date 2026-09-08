@@ -92,20 +92,31 @@ body{
 .tape-item .pr{color:var(--tx)}
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--tx3)}
 
-/* ---------- main grid ---------- */
-.main{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);min-height:0;position:relative}
-/* rail resizers (drag the divider to size panels) */
-.rsz{position:absolute;top:34px;bottom:0;width:7px;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
+/* ---------- workspace: rows of windows ---------- */
+/* .main stacks rows; each row is its own grid of windows. Windows dock to the
+   top or bottom row, so dividers run both ways: vertical ones size the windows
+   within a row, the horizontal one sizes the rows themselves. */
+.main{display:flex;flex-direction:column;min-height:0;min-width:0;position:relative}
+.wrow{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);
+  min-height:0;min-width:0;position:relative;flex:1 1 0}
+#rowBot{flex:0 0 var(--hB,260px)}
+#rowBot:empty{display:none}                      /* embed modes never fill it */
+.main:has(#rowBot:empty) .rsz-h{display:none}
+/* dividers: vertical ones are absolutely placed inside a row by the workspace
+   manager (any window can be closed or moved, so which gap a divider sits in is
+   not a fixed thing); the horizontal one sits between the rows */
+.rsz{position:absolute;top:0;bottom:0;width:7px;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
 .rsz:hover{background:rgba(51,226,154,.10)}
 .rsz::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:1px;background:var(--line2);transition:width .12s,background .12s}
 .rsz:hover::after{width:2px;background:var(--acc)}
 .rsz.dragging{background:rgba(51,226,154,.16)}
 .rsz.dragging::after{width:2px;background:var(--acc)}
-/* dividers are placed by the workspace manager (any window can be closed, so
-   which gap a divider sits in is not a fixed thing) */
-#rszL{left:calc(var(--wW,232px) - 4px)}
-#rszR{right:calc(var(--wI,288px) + var(--wC,300px) - 3px)}
-#rszC{right:calc(var(--wC,300px) - 3px)}
+.rsz-h{flex:0 0 7px;height:7px;cursor:row-resize;position:relative;z-index:18;background:transparent;transition:background .12s}
+.rsz-h:hover{background:rgba(51,226,154,.10)}
+.rsz-h::after{content:"";position:absolute;left:0;right:0;top:3px;height:1px;background:var(--line2);transition:height .12s,background .12s}
+.rsz-h:hover::after{height:2px;background:var(--acc)}
+.rsz-h.dragging{background:rgba(51,226,154,.16)}
+.rsz-h.dragging::after{height:2px;background:var(--acc)}
 .view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
@@ -228,6 +239,9 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .win-x{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:12px;line-height:1;
   padding:0 3px;cursor:pointer;opacity:.65}
 .win-x:hover{color:#ff5f56;opacity:1}
+.win-dock{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:10px;line-height:1;
+  padding:0 2px;cursor:pointer;opacity:.65}
+.win-dock:hover{color:var(--acc);opacity:1}
 .panel-head{display:flex;align-items:center;border-bottom:1px solid var(--line2);padding-right:var(--s3)}
 .panel-head .tabs{flex:1;min-width:0;border-bottom:0}
 .eyebrow{display:flex;align-items:center;gap:var(--s2)}
@@ -296,25 +310,25 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .view-panel .wins,.view-watchlist .wins,.view-info .wins,.hide-chrome .wins{display:none}
 /* ---- embed mode (?rails=0 / ?view=): focused showcase, no app chrome ---- */
 .no-rails .rail.right{display:none;}
-.no-rails .main{grid-template-columns:1fr;}
+.no-rails .wrow{grid-template-columns:1fr;}
 .no-rails .status .cmd{display:none;}
 .no-rails .tape{display:none;}
 .hide-chrome .topbar{display:none;}
 .hide-chrome .status{display:none;}
 .hide-chrome .tape{display:none;}
 .hide-panel .panel{display:none;}
-.hide-panel .main{grid-template-columns:1fr;}
+.hide-panel .wrow{grid-template-columns:1fr;}
 .hide-tape .tape{display:none;}
 /* panel view: the center panel fills the whole embed */
-.view-panel .main{grid-template-columns:1fr;}
+.view-panel .wrow{grid-template-columns:1fr;}
 .view-panel .panel{border-right:0;}
 /* watchlist view: keep ONLY the watchlist rail, full width */
-.view-watchlist .main{grid-template-columns:1fr;}
+.view-watchlist .wrow{grid-template-columns:1fr;}
 .view-watchlist .rail{border-right:0;background:transparent;}
 .view-watchlist .wl-head{display:none;}
 .view-watchlist #wlList{max-height:none;}
 /* info view: keep only the right rail (investor sheet) */
-.view-info .main{grid-template-columns:1fr;}
+.view-info .wrow{grid-template-columns:1fr;}
 .view-info .rail{display:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
 
@@ -471,10 +485,11 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 
   <!-- MAIN -->
   <div class="main">
+   <div class="wrow" id="rowTop">
 
     <!-- WATCHLIST -->
     <aside class="rail" id="colWatch">
-      <div class="wl-head"><span class="dgrip" draggable="true" data-col="watch" title="Drag to move panel">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="win-x" type="button" data-win="watch" title="Close the watchlist">✕</button></div>
+      <div class="wl-head"><span class="dgrip" draggable="true" data-col="watch" title="Drag to move panel">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="win-dock" type="button" data-dock="watch" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="watch" title="Close the watchlist">✕</button></div>
       <div class="wl" id="wlList"></div>
     </aside>
 
@@ -482,14 +497,14 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
     <section class="panel" id="colCenter">
       <div class="panel-head">
         <nav class="tabs" id="centerTabs"></nav>
-        <button class="win-x" type="button" data-win="center" title="Close the panel window">✕</button>
+        <button class="win-dock" type="button" data-dock="center" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="center" title="Close the panel window">✕</button>
       </div>
       <div class="stage"><iframe id="stageFrame" src="features/panels/afri_heatmap.html"></iframe></div>
     </section>
 
     <!-- RIGHT RAIL -->
     <aside class="rail right" id="colInfo">
-      <div class="eyebrow"><span class="dgrip" draggable="true" data-col="info" title="Drag to move panel">⠿</span>Market<button class="win-x" type="button" data-win="info" title="Close the market window">✕</button></div>
+      <div class="eyebrow"><span class="dgrip" draggable="true" data-col="info" title="Drag to move panel">⠿</span>Market<button class="win-dock" type="button" data-dock="info" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="info" title="Close the market window">✕</button></div>
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
@@ -500,7 +515,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
         <button class="chat-tab" type="button" data-mode="ask">ASK</button>
         <span class="chat-act">
           <button id="chatClear" type="button" title="Clear the assistant thread">CLEAR</button>
-          <button class="win-x" type="button" data-win="chat" title="Close the chat window">✕</button>
+          <button class="win-dock" type="button" data-dock="chat" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="chat" title="Close the chat window">✕</button>
         </span>
       </div>
       <div class="chat-log" id="roomLog" aria-live="polite"></div>
@@ -512,10 +527,12 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       </form>
     </aside>
 
-    <!-- RESIZERS (drag the divider lines to size the rails) -->
-    <div class="rsz" id="rszL" title="Drag to resize watchlist"></div>
-    <div class="rsz" id="rszR" title="Drag to resize info panel"></div>
-    <div class="rsz" id="rszC" title="Drag to resize chat"></div>
+   </div><!-- /rowTop -->
+
+    <!-- ROW DIVIDER (drag to size the two rows) + the bottom row itself.
+         Vertical dividers are created per row by the workspace manager. -->
+    <div class="rsz-h" id="rszH" title="Drag to resize the rows"></div>
+    <div class="wrow" id="rowBot"></div>
 
   </div>
 
@@ -722,16 +739,12 @@ function renderTabs(){
 (function(){
   // keep the center panel in the 1fr middle slot; the two rails swap around it
   function setColOrder(first){
-    const main = document.querySelector('.main');
-    const watch = document.getElementById('colWatch');
-    const info = document.getElementById('colInfo');
-    const center = document.getElementById('colCenter');
-    main.appendChild(center);
-    main.appendChild(first === 'info' ? watch : info);
-    main.insertBefore(first === 'info' ? info : watch, main.firstChild);
-    // the chat window always holds the last grid slot on the far right
-    const chat = document.getElementById('colChat');
-    if(chat) main.appendChild(chat);
+    // the dragged rail moves to the front of whichever row it is docked in;
+    // everything else keeps its relative order
+    const dragged = document.getElementById(first === 'info' ? 'colInfo' : 'colWatch');
+    const row = dragged && dragged.parentNode;
+    if(row) row.insertBefore(dragged, row.firstChild);
+    if(window.MTWin) window.MTWin.layout();
   }
   function bindColDrag(){
     let dragCol = null;
@@ -772,12 +785,15 @@ function renderTabs(){
     const cols = localStorage.getItem('mt_cols');
     if(cols) setColOrder(cols.indexOf('info') === 0 ? 'info' : 'watch');
   }catch(e){}
-  // ===== the workspace: four windows, any of them closable, all resizable =====
-  // One manager owns both jobs, because they are the same job: which columns
-  // exist decides where the dividers go and how wide anything is allowed to be.
+  // ===== the workspace: windows in two rows, resizable on both axes =====
+  // One manager owns closing, docking and sizing, because they are the same
+  // job: which windows are open and which row they are in decides where every
+  // divider goes and how much room anything is allowed to take.
   window.MTWin = (function(){
     const main = document.querySelector('.main');
-    const MIN_RAIL = 180, MIN_CENTER = 380;
+    const ROWS = {top: document.getElementById('rowTop'), bottom: document.getElementById('rowBot')};
+    const hDiv = document.getElementById('rszH');
+    const MIN_RAIL = 180, MIN_CENTER = 380, MIN_ROW = 140;
     const COLS = {
       watch:  {el: 'colWatch',  v: '--wW', def: 232, label: 'WATCH'},
       center: {el: 'colCenter', v: null,   def: 0,   label: 'PANEL'},
@@ -785,45 +801,69 @@ function renderTabs(){
       chat:   {el: 'colChat',   v: '--wC', def: 300, label: 'CHAT'}
     };
     const ORDER = ['watch', 'center', 'info', 'chat'];
+    const DEF_BOT = 260;
     // embed modes (?view=, ?rails=0) lay themselves out in CSS - stay out of it
     const EMBED = /(^|\s)(view-\S+|no-rails|hide-panel)(\s|$)/.test(document.documentElement.className);
+
     let open = {watch: true, center: true, info: true, chat: true};
+    let row = {watch: 'top', center: 'top', info: 'top', chat: 'top'};
+    // what the user ASKED for, kept apart from what currently fits: a small
+    // browser window squeezes panes, and widening it should give them back
+    const want = {watch: 232, info: 288, chat: 300};
+    let wantBot = DEF_BOT;
     try{
       const saved = JSON.parse(localStorage.getItem('mt_wins') || 'null');
       if(saved && typeof saved === 'object'){
-        ORDER.forEach(function(k){ if(saved[k] === false) open[k] = false; });
+        const o = saved.open || saved;                  // older builds saved a flat map
+        ORDER.forEach(function(k){
+          if(o[k] === false) open[k] = false;
+          if(saved.row && saved.row[k] === 'bottom') row[k] = 'bottom';
+        });
       }
     }catch(e){}
     if(!ORDER.some(function(k){ return open[k]; })) open = {watch: true, center: true, info: true, chat: true};
+    try{
+      const s = (localStorage.getItem('mt_sizes') || '').split(',');
+      if(s.length >= 2){
+        want.watch = parseInt(s[0], 10) || COLS.watch.def;
+        want.info = parseInt(s[1], 10) || COLS.info.def;
+        want.chat = parseInt(s[2], 10) || COLS.chat.def;
+      }
+      wantBot = parseInt(localStorage.getItem('mt_rowh'), 10) || DEF_BOT;
+    }catch(e){}
 
     function el(k){ return document.getElementById(COLS[k].el); }
     function cur(v){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? 0 : x; }
     function keyOf(node){
       for(let i = 0; i < ORDER.length; i++){ if(node.id === COLS[ORDER[i]].el) return ORDER[i]; }
-      return null;
+      return null;   // dividers and anything else are not windows
     }
-    // DOM order, not declaration order: the rails can be dragged around
-    function visible(){
-      return Array.prototype.map.call(main.children, keyOf)
-        .filter(function(k){ return k && open[k]; });
+    // DOM order inside the row, not declaration order: rails can be dragged around
+    function visIn(r){
+      return Array.prototype.map.call(ROWS[r].children, keyOf)
+        .filter(function(k){ return k && open[k] && row[k] === r; });
     }
-    // the one column that takes the slack. The centre panel when it is open,
-    // otherwise the last rail standing - something has to fill the width.
-    function flexKey(vis){ return open.center ? 'center' : vis[vis.length - 1]; }
+    function anyOpen(){ return visIn('top').length + visIn('bottom').length; }
+    // the column that takes the slack in a row: the centre panel when it is
+    // there, otherwise the last window in that row - something must fill it
+    function flexOf(r){
+      const v = visIn(r);
+      return (open.center && row.center === r) ? 'center' : v[v.length - 1];
+    }
     function width(k){ return COLS[k].v ? cur(COLS[k].v) : 0; }
 
     function clamp(k, px){
-      const vis = visible(), flex = flexKey(vis);
+      const r = row[k], v = visIn(r), flex = flexOf(r);
       let taken = 0;
-      vis.forEach(function(o){ if(o !== k && o !== flex) taken += width(o); });
+      v.forEach(function(o){ if(o !== k && o !== flex) taken += width(o); });
       const floor = flex === 'center' ? MIN_CENTER : MIN_RAIL;
-      const max = Math.max(MIN_RAIL, window.innerWidth - taken - floor);
+      const max = Math.max(MIN_RAIL, (main.clientWidth || window.innerWidth) - taken - floor);
       return Math.min(max, Math.max(MIN_RAIL, px));
     }
-    // what the user ASKED for, kept apart from what currently fits. A narrow
-    // browser window squeezes the rails; widening it should give them back,
-    // which it cannot do if the squeeze overwrote the intent.
-    const want = {watch: COLS.watch.def, info: COLS.info.def, chat: COLS.chat.def};
+    function clampBot(px){
+      const avail = (main.clientHeight || window.innerHeight) - 7;
+      return Math.min(Math.max(MIN_ROW, avail - MIN_ROW), Math.max(MIN_ROW, px));
+    }
     function setWidth(k, px){
       if(!COLS[k].v) return;
       want[k] = Math.max(MIN_RAIL, Math.round(px));
@@ -837,90 +877,26 @@ function renderTabs(){
     function save(){
       try{
         localStorage.setItem('mt_sizes', [want.watch, want.info, want.chat].join(','));
-        localStorage.setItem('mt_wins', JSON.stringify(open));
+        localStorage.setItem('mt_rowh', String(Math.round(wantBot)));
+        localStorage.setItem('mt_wins', JSON.stringify({open: open, row: row}));
       }catch(e){}
     }
 
-    // divider i sits between vis[i] and vis[i+1]; it drives whichever of the
-    // two is NOT the flexible column, and is anchored from the side whose
-    // columns all have fixed widths
-    const RSZ = ['rszL', 'rszR', 'rszC'].map(function(id){ return document.getElementById(id); });
-    let gaps = [];
-    function layout(){
-      if(EMBED) return;
-      const vis = visible(), flex = flexKey(vis);
-      main.style.gridTemplateColumns = vis.map(function(k){
-        return k === flex ? 'minmax(0,1fr)' : 'var(' + COLS[k].v + ')';
-      }).join(' ');
-      ORDER.forEach(function(k){ const n = el(k); if(n) n.style.display = open[k] ? '' : 'none'; });
-      gaps = [];
-      const fi = vis.indexOf(flex);
-      for(let i = 0; i < vis.length - 1; i++){
-        if(fi > i){
-          let off = 0;
-          for(let j = 0; j <= i; j++) off += width(vis[j]);
-          gaps.push({k: vis[i], dir: 1, side: 'left', off: off - 4});
-        }else{
-          let off = 0;
-          for(let j = i + 1; j < vis.length; j++) off += width(vis[j]);
-          gaps.push({k: vis[i + 1], dir: -1, side: 'right', off: off - 3});
-        }
-      }
-      RSZ.forEach(function(node, i){
-        if(!node) return;
-        const g = gaps[i];
-        if(!g){ node.style.display = 'none'; return; }
-        node.style.display = '';
-        node.style.left = g.side === 'left' ? g.off + 'px' : 'auto';
-        node.style.right = g.side === 'right' ? g.off + 'px' : 'auto';
-        node.title = 'Drag to resize the ' + COLS[g.k].label.toLowerCase() + ' window';
-      });
-      buttons();
-    }
-
-    // the restore strip in the status bar - the only way back once a window is
-    // closed, so it always shows every window and its state
-    function buttons(){
-      const host = document.getElementById('winBtns');
-      if(!host) return;
-      host.innerHTML = '';
-      ORDER.forEach(function(k){
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = COLS[k].label;
-        b.className = open[k] ? 'on' : '';
-        b.title = (open[k] ? 'Close' : 'Open') + ' the ' + COLS[k].label.toLowerCase() + ' window';
-        b.onclick = function(){ toggle(k); };
-        host.appendChild(b);
-      });
-    }
-
-    function set(k, on){
-      if(!COLS[k] || open[k] === on) return;
-      // never close the last one: an empty terminal is not a layout
-      if(!on && visible().length <= 1) return;
-      open[k] = on;
-      layout();
-      applyAll();   // one fewer neighbour: the others can take their width back
-      layout();
-      save();
-      window.dispatchEvent(new Event('mt:layout'));
-    }
-    function toggle(k){ set(k, !open[k]); }
-
-    function begin(i, e){
-      const g = gaps[i];
+    // ---- vertical dividers, created per row as the layout needs them ----
+    const pool = {top: [], bottom: []}, gapMap = {top: [], bottom: []};
+    function beginW(r, i, e, node){
+      const g = gapMap[r][i];
       if(!g) return;
       e.preventDefault();
-      const startX = e.clientX, start = width(g.k), node = RSZ[i];
+      const startX = e.clientX, start = width(g.k);
       const ov = document.createElement('div');
-      ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:col-resize;';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;cursor:col-resize;';
       document.body.appendChild(ov);
-      if(node) node.classList.add('dragging');
+      node.classList.add('dragging');
       function move(ev){ setWidth(g.k, start + g.dir * (ev.clientX - startX)); layout(); }
       function end(){
         ov.remove();
-        if(node) node.classList.remove('dragging');
+        node.classList.remove('dragging');
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', end);
         save();
@@ -928,33 +904,161 @@ function renderTabs(){
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', end);
     }
-    RSZ.forEach(function(node, i){
-      if(!node) return;
-      node.addEventListener('mousedown', function(e){ begin(i, e); });
-      node.addEventListener('dblclick', function(){
+    function dividers(r, v, flex){
+      const gaps = [], fi = v.indexOf(flex);
+      for(let i = 0; i < v.length - 1; i++){
+        // anchor each divider from the side whose windows all have fixed
+        // widths - the flexible one has no width to measure from
+        if(fi > i){
+          let off = 0;
+          for(let j = 0; j <= i; j++) off += width(v[j]);
+          gaps.push({k: v[i], dir: 1, side: 'left', off: off - 4});
+        }else{
+          let off = 0;
+          for(let j = i + 1; j < v.length; j++) off += width(v[j]);
+          gaps.push({k: v[i + 1], dir: -1, side: 'right', off: off - 3});
+        }
+      }
+      gapMap[r] = gaps;
+      while(pool[r].length < gaps.length){
+        const d = document.createElement('div');
+        d.className = 'rsz';
+        d.addEventListener('mousedown', function(e){ beginW(r, pool[r].indexOf(d), e, d); });
+        d.addEventListener('dblclick', function(){
+          const g = gapMap[r][pool[r].indexOf(d)];
+          if(g){ setWidth(g.k, COLS[g.k].def); layout(); save(); }
+        });
+        ROWS[r].appendChild(d);
+        pool[r].push(d);
+      }
+      pool[r].forEach(function(d, i){
         const g = gaps[i];
-        if(g){ setWidth(g.k, COLS[g.k].def); layout(); save(); }
+        if(!g){ d.style.display = 'none'; return; }
+        d.style.display = '';
+        d.style.left = g.side === 'left' ? g.off + 'px' : 'auto';
+        d.style.right = g.side === 'right' ? g.off + 'px' : 'auto';
+        d.title = 'Drag to resize the ' + COLS[g.k].label.toLowerCase() + ' window';
       });
-    });
+    }
+
+    // ---- the horizontal divider between the rows ----
+    function beginH(e){
+      e.preventDefault();
+      const startY = e.clientY, start = clampBot(wantBot);
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;cursor:row-resize;';
+      document.body.appendChild(ov);
+      hDiv.classList.add('dragging');
+      function move(ev){
+        wantBot = Math.round(start - (ev.clientY - startY));   // drag up = taller bottom
+        main.style.setProperty('--hB', clampBot(wantBot) + 'px');
+      }
+      function end(){
+        ov.remove();
+        hDiv.classList.remove('dragging');
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', end);
+        wantBot = clampBot(wantBot);
+        save();
+        window.dispatchEvent(new Event('mt:layout'));
+      }
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+    }
+    if(hDiv){
+      hDiv.addEventListener('mousedown', beginH);
+      hDiv.addEventListener('dblclick', function(){
+        wantBot = DEF_BOT;
+        main.style.setProperty('--hB', clampBot(wantBot) + 'px');
+        save();
+      });
+    }
+
+    function layout(){
+      if(EMBED) return;
+      ORDER.forEach(function(k){
+        const n = el(k);
+        if(!n) return;
+        n.style.display = open[k] ? '' : 'none';
+        const target = ROWS[row[k]] || ROWS.top;
+        if(n.parentNode !== target) target.appendChild(n);   // moving keeps the rest in order
+      });
+      ['top', 'bottom'].forEach(function(r){
+        const v = visIn(r), flex = flexOf(r);
+        ROWS[r].style.display = v.length ? '' : 'none';
+        ROWS[r].style.gridTemplateColumns = v.map(function(k){
+          return k === flex ? 'minmax(0,1fr)' : 'var(' + COLS[k].v + ')';
+        }).join(' ');
+        dividers(r, v, flex);
+      });
+      const top = visIn('top').length, bot = visIn('bottom').length;
+      // with only one row in use it takes the whole height, divider and all
+      ROWS.bottom.style.flex = top ? '0 0 var(--hB,' + DEF_BOT + 'px)' : '1 1 0';
+      if(hDiv) hDiv.style.display = (top && bot) ? '' : 'none';
+      main.style.setProperty('--hB', clampBot(wantBot) + 'px');
+      buttons();
+    }
+
+    // the restore strip in the status bar - the only way back once a window is
+    // closed, so it always shows every window and its state
+    function buttons(){
+      const host = document.getElementById('winBtns');
+      if(host){
+        host.innerHTML = '';
+        ORDER.forEach(function(k){
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = COLS[k].label;
+          b.className = open[k] ? 'on' : '';
+          b.title = (open[k] ? 'Close' : 'Open') + ' the ' + COLS[k].label.toLowerCase() + ' window';
+          b.onclick = function(){ toggle(k); };
+          host.appendChild(b);
+        });
+      }
+      document.querySelectorAll('.win-dock').forEach(function(d){
+        const k = d.getAttribute('data-dock');
+        if(!COLS[k]) return;
+        const down = row[k] === 'top';
+        d.textContent = down ? '\u25bc' : '\u25b2';
+        d.title = down ? 'Move to the bottom row' : 'Move to the top row';
+      });
+    }
+
+    function set(k, on){
+      if(!COLS[k] || open[k] === on) return;
+      if(!on && anyOpen() <= 1) return;   // never close the last one
+      open[k] = on;
+      layout(); applyAll(); layout();
+      save();
+      window.dispatchEvent(new Event('mt:layout'));
+    }
+    function toggle(k){ set(k, !open[k]); }
+    function move(k, r){
+      if(!COLS[k] || (r !== 'top' && r !== 'bottom') || row[k] === r) return;
+      row[k] = r;
+      if(!open[k]) open[k] = true;        // docking a closed window brings it back
+      layout(); applyAll(); layout();
+      save();
+      window.dispatchEvent(new Event('mt:layout'));
+    }
+
     document.addEventListener('click', function(e){
-      const x = e.target.closest ? e.target.closest('.win-x') : null;
-      if(x) set(x.getAttribute('data-win'), false);
+      if(!e.target.closest) return;
+      const x = e.target.closest('.win-x');
+      if(x){ set(x.getAttribute('data-win'), false); return; }
+      const d = e.target.closest('.win-dock');
+      if(d){
+        const k = d.getAttribute('data-dock');
+        move(k, row[k] === 'top' ? 'bottom' : 'top');
+      }
     });
     window.addEventListener('resize', function(){ applyAll(); layout(); });
 
-    // restore the saved widths, then draw
-    try{
-      const s = (localStorage.getItem('mt_sizes') || '').split(',');
-      if(s.length >= 2){
-        want.watch = parseInt(s[0], 10) || COLS.watch.def;
-        want.info = parseInt(s[1], 10) || COLS.info.def;
-        want.chat = parseInt(s[2], 10) || COLS.chat.def;
-      }
-    }catch(e){}
     applyAll();
     layout();
 
-    return {toggle: toggle, set: set, isOpen: function(k){ return !!open[k]; }, layout: layout};
+    return {toggle: toggle, set: set, move: move, layout: layout,
+            isOpen: function(k){ return !!open[k]; }, rowOf: function(k){ return row[k]; }};
   })();
   // tab reordering
   let dragTab = null;
