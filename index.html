@@ -454,59 +454,9 @@ a{color:var(--acc);text-decoration:none;}
 
     <div class="exch-pick">
 
-      <span class="lbl">Explore an exchange</span>
+      <a class="btn btn-primary exch-go" href="terminal/" id="exchGo">Open the Terminal &rarr;</a>
 
-      <div class="exch-drop" id="exchDrop">
-
-        <button class="exch-btn" id="exchBtn" onclick="exchToggle(event)">
-
-          <span id="exchBtnCode">JSE</span>
-
-          <span style="color:var(--tx3);font-size:11px" id="exchBtnName">Johannesburg · South Africa</span>
-
-          <span class="chev">▼</span>
-
-        </button>
-
-        <div class="exch-menu" id="exchMenu">
-
-          <div class="exch-opt on" data-ex="JSE" onclick="exchPick('JSE', event)">
-
-            <span class="code">JSE</span>
-
-            <span class="info"><b>Johannesburg Stock Exchange</b>South Africa · ZAR · 431 securities</span>
-
-          </div>
-
-          <div class="exch-opt" data-ex="NGX" onclick="exchPick('NGX', event)">
-
-            <span class="code">NGX</span>
-
-            <span class="info"><b>Nigerian Exchange</b>Nigeria · NGN · 152 securities</span>
-
-          </div>
-
-          <div class="exch-opt" data-ex="NSE" onclick="exchPick('NSE', event)">
-
-            <span class="code">NSE</span>
-
-            <span class="info"><b>Nairobi Securities Exchange</b>Kenya · KES · 69 securities</span>
-
-          </div>
-
-          <div class="exch-opt" data-ex="EGX" onclick="exchPick('EGX', event)">
-
-            <span class="code">EGX</span>
-
-            <span class="info"><b>Egyptian Exchange</b>Egypt · EGP · 374 securities</span>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      <a class="btn btn-primary exch-go" href="terminal/?ex=JSE" id="exchGo">Open Terminal →</a>
+      <span class="lbl">All four markets, switch inside the terminal</span>
 
     </div>
 
@@ -686,7 +636,7 @@ a{color:var(--acc);text-decoration:none;}
 
       <h2>See it in action.</h2>
 
-      <p>The terminal is live at mutxriterminal.com. These are the real panels — <span style="color:var(--acc);font-family:var(--mono)">showing <b id="featEx">JSE</b></span>. Pick an exchange above to see each feature with that market's data.</p>
+      <p>The terminal is live at mutxriterminal.com. These are the real panels, showing <span style="color:var(--acc);font-family:var(--mono)"><b id="featEx">JSE</b></span>. Every market is one click away inside the terminal.</p>
 
     </div>
 
@@ -998,71 +948,11 @@ a{color:var(--acc);text-decoration:none;}
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 
-// ===== exchange dropdown =====
-
-var EXCH_INFO = {
-
-  JSE: {name: "Johannesburg · South Africa", opt: "Johannesburg Stock Exchange", desc: "South Africa · ZAR · 431 securities"},
-
-  NGX: {name: "Lagos · Nigeria", opt: "Nigerian Exchange", desc: "Nigeria · NGN · 152 securities"},
-
-  NSE: {name: "Nairobi · Kenya", opt: "Nairobi Securities Exchange", desc: "Kenya · KES · 69 securities"},
-
-  EGX: {name: "Cairo · Egypt", opt: "Egyptian Exchange", desc: "Egypt · EGP · 374 securities"},
-
-};
-
-function exchToggle(e){
-
-  e.stopPropagation();
-
-  document.getElementById("exchDrop").classList.toggle("open");
-
-}
-
-// per-exchange symbol for the company-info showcase
-var EXCH_SYM = {JSE:"SBK.JO", NGX:"MTNN", NSE:"SCOM", EGX:"COMI"};
-
-function exchPick(ex, e){
-
-  if(e) e.stopPropagation();
-
-  document.getElementById("exchDrop").classList.remove("open");
-
-  document.getElementById("exchBtnCode").textContent = ex;
-
-  document.getElementById("exchBtnName").textContent = EXCH_INFO[ex].name;
-
-  document.getElementById("exchGo").href = "terminal/?ex=" + ex;
-
-  document.querySelectorAll(".exch-opt").forEach(function(o){
-
-    o.classList.toggle("on", o.getAttribute("data-ex") === ex);
-
-  });
-
-  var featEx = document.getElementById("featEx");
-  if(featEx) featEx.textContent = ex;
-  // swap every feature iframe to the selected exchange
-  document.querySelectorAll(".f-shot iframe[data-ex]").forEach(function(f){
-    var src = f.getAttribute("src") || "";
-    // replace ex=<OLD> with ex=<NEW>
-    src = src.replace(/ex=[A-Z]+/, "ex=" + ex);
-    // company-info showcase: swap the symbol too
-    if(src.indexOf("view=info") >= 0){
-      src = src.replace(/sym=[A-Z0-9.]+/, "sym=" + (EXCH_SYM[ex] || EXCH_SYM.JSE));
-    }
-    // re-apply with a cache-buster so the iframe actually reloads
-    src = src.split("&v=")[0];
-    f.setAttribute("src", src + "&v=" + Date.now());
-  });
-}
-
-document.addEventListener("click", function(){
-
-  document.getElementById("exchDrop").classList.remove("open");
-
-});
+// The landing page no longer asks for an exchange: the terminal opens on the
+// visitor's remembered or timezone-inferred market and switches in one click.
+// exchToggle/exchPick and their document click handler were removed with the
+// dropdown - the handler dereferenced #exchDrop and would now throw on every
+// click on the page.
 
 // cache-bust every feature iframe on load so terminal content is always fresh
 (function(){
