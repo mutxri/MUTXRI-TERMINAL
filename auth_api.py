@@ -10,7 +10,75 @@ _USE_MONGO = False
 _JSON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-_SESSIONS = {}  # token -> {email, exp}
+_SESSIONS = {}  # in-process cache only: token -> {email, exp}
+_SESSIONS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sessions.json")
+
+
+# Sessions have to outlive the process. They used to live only in the dict
+# above, so every Render restart or idle spin-down silently invalidated every
+# token: people came back with a valid mt_token in localStorage, /api/auth/me
+# answered "session expired", and they were bounced to the login form.
+def _sessions_load():
+    try:
+        with open(_SESSIONS_JSON, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _sessions_save(d):
+    try:
+        with open(_SESSIONS_JSON, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+    except Exception:
+        pass
+
+
+def _session_put(token, rec):
+    _SESSIONS[token] = rec
+    try:
+        if _USE_MONGO:
+            _DB["sessions"].replace_one(
+                {"_id": token}, {"_id": token, "email": rec["email"], "exp": rec["exp"]},
+                upsert=True)
+        else:
+            d = _sessions_load(); d[token] = rec; _sessions_save(d)
+    except Exception:
+        pass   # the in-process cache still serves this instance
+
+
+def _session_get(token):
+    if not token:
+        return None
+    s = _SESSIONS.get(token)
+    if s:
+        return s
+    try:
+        if _USE_MONGO:
+            r = _DB["sessions"].find_one({"_id": token})
+            if r:
+                rec = {"email": r.get("email"), "exp": r.get("exp", 0)}
+                _SESSIONS[token] = rec
+                return rec
+        else:
+            r = _sessions_load().get(token)
+            if r:
+                _SESSIONS[token] = r
+                return r
+    except Exception:
+        pass
+    return None
+
+
+def _session_del(token):
+    _SESSIONS.pop(token or "", None)
+    try:
+        if _USE_MONGO:
+            _DB["sessions"].delete_one({"_id": token})
+        else:
+            d = _sessions_load(); d.pop(token, None); _sessions_save(d)
+    except Exception:
+        pass
 # owner account: full lifetime access (token never expires)
 _OWNER = (os.environ.get("OWNER_EMAIL", "") or "jimmymuturi99@gmail.com").lower().strip()
 
@@ -20,7 +88,7 @@ def _is_owner(email):
 def _issue_token(email):
     token = secrets.token_hex(32)
     exp = time.time() + (3650 * 86400 if _is_owner(email) else 30 * 86400)  # owner: ~10y
-    _SESSIONS[token] = {"email": email, "exp": exp}
+    _session_put(token, {"email": email, "exp": exp})
     return token
 
 
@@ -155,7 +223,15 @@ def signup(email, password, name="", ip="", user_agent=""):
         return {"ok": False, "error": "valid email required"}
     if not password or len(password) < 8:
         return {"ok": False, "error": "password must be at least 8 characters"}
-    if _find_user(email):
+    _existing = _find_user(email)
+    if _existing:
+        # Point Google users at the door that actually opens. Deliberately NOT
+        # setting a password here: that would let anyone who knows the address
+        # take over an OAuth account. They sign in with Google first.
+        if _existing.get("oauth") and not _existing.get("pw_set"):
+            return {"ok": False, "oauth": _existing.get("oauth"),
+                    "error": "This email already signs in with %s. Use \"Continue with %s\"."
+                             % (_existing.get("oauth").title(), _existing.get("oauth").title())}
         return {"ok": False, "error": "an account with this email already exists"}
     record = {
         "email": email,
@@ -170,22 +246,53 @@ def signup(email, password, name="", ip="", user_agent=""):
 def login(email, password, ip="", user_agent=""):
     email = (email or "").lower().strip()
     u = _find_user(email)
+    # Accounts created through Google get a random unguessable password, so a
+    # password login against one can never succeed. Saying "invalid email or
+    # password" sent people round in circles (their password manager had
+    # credentials, they looked right, they always failed). Say what is actually
+    # wrong instead.
+    if u and u.get("oauth") and not u.get("pw_set"):
+        return {"ok": False, "oauth": u.get("oauth"),
+                "error": "This account was created with %s. Use \"Continue with %s\" to sign in."
+                         % (u.get("oauth").title(), u.get("oauth").title())}
     if not u or not _check_password(password, u.get("pw", "")):
         return {"ok": False, "error": "invalid email or password"}
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": u.get("name", ""), "owner": _is_owner(email)}
 
+def set_password(token, password):
+    """Give a signed-in account a password it can actually log in with.
+
+    This is how a Google user stops being locked out of the email/password
+    form: they are already authenticated by the session token, so no email
+    round-trip is needed. It also lets a password user rotate their password.
+    """
+    if not password or len(password) < 8:
+        return {"ok": False, "error": "password must be at least 8 characters"}
+    s = _session_get(token)
+    if not s or s["exp"] < time.time():
+        _session_del(token)
+        return {"ok": False, "error": "session expired"}
+    u = _find_user(s["email"])
+    if not u:
+        return {"ok": False, "error": "account not found"}
+    u["pw"] = _hash_password(password)
+    u["pw_set"] = True            # from here on, password login is allowed
+    _save_user(u)
+    return {"ok": True, "email": s["email"]}
+
+
 def logout(token):
     if token:
-        _SESSIONS.pop(token, None)
+        _session_del(token)
     return {"ok": True}
 
 def me(token):
     if not token:
         return {"ok": False, "error": "not logged in"}
-    s = _SESSIONS.get(token)
+    s = _session_get(token)
     if not s or s["exp"] < time.time():
-        _SESSIONS.pop(token, None)
+        _session_del(token)
         return {"ok": False, "error": "session expired"}
     u = _find_user(s["email"])
     return {"ok": True, "email": s["email"], "name": (u or {}).get("name", ""), "owner": _is_owner(s["email"])}
@@ -242,6 +349,8 @@ def handle_auth(path, q):
     if action == "login":
         return login((q.get("email") or [""])[0], (q.get("password") or [""])[0],
                      ip=ip, user_agent=ua)
+    if action == "set_password":
+        return set_password((q.get("token") or [""])[0], (q.get("password") or [""])[0])
     if action == "logout":
         return logout((q.get("token") or [""])[0])
     if action == "me":
