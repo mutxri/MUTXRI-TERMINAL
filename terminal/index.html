@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL — African Markets Terminal</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link rel="icon" type="image/svg+xml" href="/mutxri_logo.svg">
+<link rel="icon" type="image/png" sizes="256x256" href="/mutxri_logo_256.png">
+<link rel="apple-touch-icon" href="/mutxri_logo_256.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oxygen+Mono&family=Sofia+Sans+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -41,13 +46,18 @@ body{
 .brandname small{display:block;font-size:8px;letter-spacing:.34em;color:var(--tx3);
   font-weight:600;margin-top:-2px}
 .exch{display:flex;gap:var(--s1);margin-left:var(--s2)}
-.exch-tab{background:none;border:0;color:var(--tx3);font-family:var(--mono);
-  font-size:11px;letter-spacing:.06em;padding:var(--s1) var(--s3);border-radius:2px;
-  cursor:pointer;transition:color .15s,background .15s}
-.exch-tab:hover{color:var(--tx2)}
-.exch-tab.active{color:#00160e;background:var(--acc);font-weight:700;
+/* All four markets have to look switchable. The three you are not on were
+   --tx3 text on black with no border, sitting next to a glowing green pill:
+   people read that as a label for the market they were already on and never
+   found the other exchanges. */
+.exch-tab{background:var(--bg3);border:1px solid var(--line2);color:var(--tx2);font-family:var(--mono);
+  font-size:12px;letter-spacing:.06em;padding:5px 10px;border-radius:2px;
+  cursor:pointer;transition:color .15s,background .15s,border-color .15s}
+.exch-tab:hover{color:var(--tx);background:var(--bg4);border-color:var(--mint-line)}
+.exch-tab.active{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700;
   font-size:13px;padding:5px 12px;letter-spacing:.08em;box-shadow:0 0 12px rgba(51,226,154,.35)}
-.exch-flag{font-size:11px;margin-right:3px}
+.exch-flag{font-size:11px;margin-right:3px;opacity:.8}
+.exch-tab:hover .exch-flag,.exch-tab.active .exch-flag{opacity:1}
 .exch-full{font-size:9px;font-weight:400;opacity:.8;margin-left:5px;letter-spacing:.04em;text-transform:uppercase}
 .search{margin-left:auto;display:flex;align-items:center;gap:var(--s2);
   background:var(--bg3);border:1px solid var(--line2);border-radius:3px;
@@ -83,7 +93,20 @@ body{
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--tx3)}
 
 /* ---------- main grid ---------- */
-.main{display:grid;grid-template-columns:232px 1fr 288px;min-height:0}
+.main{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);min-height:0;position:relative}
+/* rail resizers (drag the divider to size panels) */
+.rsz{position:absolute;top:34px;bottom:0;width:7px;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
+.rsz:hover{background:rgba(51,226,154,.10)}
+.rsz::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:1px;background:var(--line2);transition:width .12s,background .12s}
+.rsz:hover::after{width:2px;background:var(--acc)}
+.rsz.dragging{background:rgba(51,226,154,.16)}
+.rsz.dragging::after{width:2px;background:var(--acc)}
+/* dividers are placed by the workspace manager (any window can be closed, so
+   which gap a divider sits in is not a fixed thing) */
+#rszL{left:calc(var(--wW,232px) - 4px)}
+#rszR{right:calc(var(--wI,288px) + var(--wC,300px) - 3px)}
+#rszC{right:calc(var(--wC,300px) - 3px)}
+.view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
 .rail.right{border-right:0;border-left:1px solid var(--line2)}
@@ -116,6 +139,48 @@ body{
 .panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--line2);padding:0 var(--s3);
   overflow-x:auto}
+/* in-window chart (view=watchlist previews) */
+#wlChart{position:fixed;inset:0;z-index:60000;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;font-family:var(--mono);}
+#wlChart .wc-box{width:min(680px,94vw);background:var(--bg2);border:1px solid var(--line2);border-radius:8px;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.7);}
+#wlChart .wc-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);}
+#wlChart .wc-t{color:var(--acc);font-size:13px;letter-spacing:.08em;font-weight:700;}
+#wlChart .wc-ct{background:none;border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:5px 10px;cursor:pointer;margin-left:6px;border-radius:3px;}
+#wlChart .wc-ct.on{background:var(--acc);border-color:var(--acc);color:#000;font-weight:700;}
+#wlChart .wc-close{background:none;border:0;color:var(--tx3);font-size:18px;cursor:pointer;line-height:1;padding:0 4px;}
+#wlChart .wc-close:hover{color:#ff5f56;}
+#wlChart .wc-body{height:380px;}
+#wlChart .wc-load{color:var(--tx3);font-size:12px;padding:24px;text-align:center;}
+/* auth gate (sign in required) */
+.auth-gate-holder #authGate, #authGate{position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;font-family:var(--mono);}
+#authGate .gate-card{width:340px;border:1px solid var(--line2);border-radius:8px;padding:28px;background:var(--bg2);box-shadow:0 24px 80px rgba(0,0,0,.6);}
+#authGate .gate-brand{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+#authGate .gate-mark{width:30px;height:30px;background:var(--acc);color:#000;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:13px;}
+#authGate .gate-name{font-size:15px;letter-spacing:.08em;color:var(--tx);}
+#authGate .gate-name small{color:var(--tx3);font-size:10px;letter-spacing:.15em;display:block;}
+#authGate .gate-sub{color:var(--tx3);font-size:11px;margin:10px 0 14px;letter-spacing:.05em;}
+#authGate .gate-social{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+#authGate .gate-social-btn{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--line2);color:var(--tx);font-family:var(--mono);font-size:12px;letter-spacing:.03em;padding:10px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+#authGate .gate-social-btn:hover{border-color:var(--acc);color:var(--acc);}
+#authGate .gs-g{color:#4285f4;font-weight:700;}
+#authGate .gs-star{color:var(--tx3);}
+#authGate .gate-or{text-align:center;color:var(--tx3);font-size:10px;letter-spacing:.15em;margin:0 0 12px;}
+#authGate .gate-tabs{display:flex;border:1px solid var(--line2);border-radius:4px;margin-bottom:14px;overflow:hidden;}
+#authGate .gate-tab{flex:1;background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:8px 0;cursor:pointer;}
+#authGate .gate-tab.on{background:var(--acc);color:#000;font-weight:700;}
+#authGate .gate-field input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--line2);color:var(--tx);font-family:var(--mono);font-size:12px;padding:10px;margin-bottom:10px;border-radius:4px;outline:none;}
+#authGate .gate-field input:focus{border-color:var(--acc);}
+#authGate .gate-msg{min-height:16px;font-size:11px;color:#ff5f56;margin-bottom:10px;}
+#authGate .gate-msg.ok{color:var(--acc);}
+#authGate .gate-btn{width:100%;background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.1em;padding:11px;border-radius:4px;cursor:pointer;}
+#authGate .gate-btn:hover{background:#26c98a;}
+#authGate .gate-back{margin-top:14px;text-align:center;color:var(--tx3);font-size:11px;cursor:pointer;}
+#authGate .gate-back:hover{color:var(--acc);}
+/* workspace drag handles (Godel-style panel arrangement) */
+.dgrip{color:var(--tx3);cursor:grab;font-size:11px;padding:0 4px;user-select:none;opacity:.6;}
+.dgrip:hover{opacity:1;color:var(--acc);}
+.dgrip.dragging{opacity:.35;}
+#colWatch.drop-ok, #colInfo.drop-ok{outline:2px dashed var(--acc);outline-offset:-2px;background:rgba(51,226,154,.06);}
+.ctab[draggable="true"]{cursor:grab;}
 .ctab{background:none;border:0;color:var(--tx3);font-family:var(--mono);
   font-size:11px;letter-spacing:.05em;padding:var(--s3) var(--s3);cursor:pointer;
   position:relative;white-space:nowrap;transition:color .15s}
@@ -128,6 +193,8 @@ body{
 
 /* ---------- right rail ---------- */
 .rightinfo{flex:1;overflow-y:auto;padding:0;font-family:var(--mono);font-size:11px;color:var(--tx2)}
+.rightinfo .qlink{color:var(--acc);cursor:pointer;text-decoration:none}
+.rightinfo .qlink:hover{text-decoration:underline}
 .rightinfo .qhead{padding:var(--s4) var(--s4) var(--s2);border-bottom:1px solid var(--line)}
 .rightinfo .qsym{font-size:16px;font-weight:500;color:var(--tx)}
 .rightinfo .qname{font-family:var(--ui);font-size:11px;color:var(--tx3);margin-top:2px}
@@ -156,6 +223,77 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
 ::-webkit-scrollbar-track{background:transparent}
 
+
+/* ---------- window chrome: close buttons + the restore strip ---------- */
+.win-x{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:12px;line-height:1;
+  padding:0 3px;cursor:pointer;opacity:.65}
+.win-x:hover{color:#ff5f56;opacity:1}
+.panel-head{display:flex;align-items:center;border-bottom:1px solid var(--line2);padding-right:var(--s3)}
+.panel-head .tabs{flex:1;min-width:0;border-bottom:0}
+.eyebrow{display:flex;align-items:center;gap:var(--s2)}
+.wl-head .win-x,.eyebrow .win-x{margin-left:auto}
+.status .wins{display:flex;gap:4px}
+.status .wins button{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
+  font-size:9.5px;letter-spacing:.08em;padding:2px 7px;border-radius:2px;cursor:pointer}
+.status .wins button:hover{border-color:var(--acc);color:var(--acc)}
+.status .wins button.on{color:var(--acc);border-color:rgba(51,226,154,.45)}
+
+/* ---------- chat rail (4th window) ---------- */
+.rail.chat{border-left:1px solid var(--line2);border-right:0;background:var(--bg2)}
+.chat-head{display:flex;align-items:center;gap:2px;padding:var(--s2) var(--s3) var(--s2) var(--s4);
+  border-bottom:1px solid var(--line)}
+.chat-tab{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.16em;padding:3px 6px;cursor:pointer;border-radius:2px}
+.chat-tab:hover{color:var(--tx2)}
+.chat-tab.on{color:var(--acc);background:rgba(51,226,154,.08)}
+.chat-head .chat-act{margin-left:auto;display:flex;align-items:center;gap:4px}
+.chat-head .chat-act button:not(.win-x){background:none;border:1px solid var(--line2);color:var(--tx3);
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;padding:2px 6px;border-radius:2px;cursor:pointer}
+.chat-head .chat-act button:not(.win-x):hover{border-color:var(--acc);color:var(--acc)}
+.chat-log{flex:1;min-height:0;overflow-y:auto;padding:var(--s3) var(--s4);
+  font-family:var(--mono);font-size:11px;color:var(--tx2);display:flex;flex-direction:column;gap:var(--s3)}
+.chat-msg{max-width:100%}
+.chat-msg .who{display:block;font-size:9px;letter-spacing:.14em;color:var(--tx3);margin-bottom:3px}
+.chat-msg.me .who{color:var(--tx2)}
+.chat-msg.bot .who{color:var(--acc)}
+.chat-msg .body{background:var(--bg3);border:1px solid var(--line);border-radius:3px;
+  padding:var(--s2) var(--s3);line-height:1.5;word-wrap:break-word;overflow-wrap:anywhere}
+.chat-msg .body b{color:var(--tx)}
+.chat-msg .krow{display:grid;grid-template-columns:1fr auto;gap:1px 10px;font-size:10.5px;margin-top:3px}
+.chat-msg .krow span:nth-child(odd){color:var(--tx3)}
+.chat-msg .krow span:nth-child(even){text-align:right;color:var(--tx)}
+.chat-chip{display:inline-block;background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
+  font-size:9.5px;letter-spacing:.06em;padding:2px 6px;border-radius:2px;cursor:pointer;margin:3px 3px 0 0}
+.chat-chip:hover{border-color:var(--acc)}
+/* room messages */
+.room-msg{display:flex;flex-direction:column;gap:2px}
+.room-msg .rm-h{display:flex;align-items:baseline;gap:6px;font-size:9px;color:var(--tx3);letter-spacing:.06em}
+.room-msg .rm-n{color:var(--acc)}
+.room-msg.mine .rm-n{color:var(--tx)}
+.room-msg .rm-ctx{border:1px solid var(--line2);border-radius:2px;padding:0 4px;font-size:8.5px;color:var(--tx3)}
+.room-msg .rm-x{margin-left:auto;background:none;border:0;color:var(--tx3);cursor:pointer;font-size:10px;
+  padding:0 2px;opacity:0}
+.room-msg:hover .rm-x{opacity:.7}
+.room-msg .rm-x:hover{color:#ff5f56;opacity:1}
+.room-msg .rm-t{background:var(--bg3);border:1px solid var(--line);border-radius:3px;
+  padding:var(--s2) var(--s3);line-height:1.5;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}
+.room-msg.mine .rm-t{border-color:var(--line2)}
+.room-empty{color:var(--tx3);font-size:10.5px;line-height:1.6}
+.chat-note{padding:var(--s2) var(--s4);border-top:1px solid var(--line);color:var(--tx3);font-size:10px}
+.chat-note.bad{color:var(--warn,#e6a700)}
+.chat-note b{color:var(--acc)}
+.chat-form{display:flex;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--line2)}
+.chat-form input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
+  font-family:var(--mono);font-size:11px;padding:7px 9px;border-radius:2px;outline:0}
+.chat-form input:focus{border-color:var(--acc)}
+.chat-form input:disabled{opacity:.5}
+.chat-form button{background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;
+  font-size:10px;letter-spacing:.08em;padding:0 12px;border-radius:2px;cursor:pointer}
+.chat-form button:disabled{opacity:.45;cursor:default}
+.no-rails #colChat,.no-rails #rszC{display:none}
+.view-panel #colChat,.view-watchlist #colChat,.view-info #colChat,.hide-panel #colChat{display:none}
+.view-panel #rszC,.view-watchlist #rszC,.view-info #rszC,.hide-panel #rszC{display:none}
+.view-panel .wins,.view-watchlist .wins,.view-info .wins,.hide-chrome .wins{display:none}
 /* ---- embed mode (?rails=0 / ?view=): focused showcase, no app chrome ---- */
 .no-rails .rail.right{display:none;}
 .no-rails .main{grid-template-columns:1fr;}
@@ -179,9 +317,137 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .view-info .main{grid-template-columns:1fr;}
 .view-info .rail{display:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
+
 </style>
 </head>
 <body>
+<!-- ===== auth gate: sign in required to enter the terminal ===== -->
+<div id="authGate" style="display:none">
+  <div class="gate-card">
+    <div class="gate-brand"><span class="gate-mark">MX</span><span class="gate-name">MUTXRI<small>TERMINAL</small></span></div>
+    <div class="gate-sub">SIGN IN TO ENTER THE TERMINAL</div>
+    <div class="gate-social">
+      <button class="gate-social-btn" type="button" onclick="gateSocial('google')"><span class="gs-g">G</span> Continue with Google</button>
+    <div class="gate-note">By continuing you agree to the <a href="/terms.html" style="color:var(--acc)">Terms of Service</a> and <a href="/privacy.html" style="color:var(--acc)">Privacy Policy</a>.</div>
+      
+    </div>
+    <div class="gate-or">OR</div>
+    <div class="gate-tabs">
+      <button class="gate-tab on" data-gmode="login" onclick="gateMode('login')">SIGN IN</button>
+      <button class="gate-tab" data-gmode="signup" onclick="gateMode('signup')">CREATE ACCOUNT</button>
+    </div>
+    <div class="gate-field"><input id="gateEmail" type="email" placeholder="EMAIL" autocomplete="email"></div>
+    <div class="gate-field" id="gateNameWrap" style="display:none"><input id="gateName" type="text" placeholder="NAME (OPTIONAL)" autocomplete="name"></div>
+    <div class="gate-field"><input id="gatePwd" type="password" placeholder="PASSWORD (MIN 8)" autocomplete="current-password" onkeydown="if(event.key==='Enter')gateSubmit()"></div>
+    <div class="gate-msg" id="gateMsg"></div>
+    <button class="gate-btn" onclick="gateSubmit()">SIGN IN</button>
+    <div class="gate-back" onclick="location.href='/'">&larr; Back to mutxriterminal.com</div>
+  </div>
+</div>
+<!-- in-window chart for view=watchlist mode (landing previews): click a security -> candles -->
+<div id="wlChart" style="display:none">
+  <div class="wc-box">
+    <div class="wc-head">
+      <span class="wc-t" id="wcTitle">MUTXRI</span>
+      <span class="wc-types">
+        <button class="wc-ct on" data-t="candle" onclick="wcSetType('candle')">CANDLE</button>
+        <button class="wc-ct" data-t="line" onclick="wcSetType('line')">LINE</button>
+        <button class="wc-ct" data-t="area" onclick="wcSetType('area')">AREA</button>
+      </span>
+      <button class="wc-close" onclick="wcClose()">&times;</button>
+    </div>
+    <div class="wc-body" id="wcBody"><div class="wc-load">Loading history…</div></div>
+  </div>
+</div>
+<script>
+(function(){
+  var AUTH_API = (window.AUTH_API || (new URLSearchParams(location.search).get("api") || "")) || "https://mutxri-terminal.onrender.com";
+  var gate = document.getElementById("authGate");
+  var q = new URLSearchParams(location.search);
+  // landing previews (view= modes) and embedded iframes are not gated
+  if(q.get("view") || window.self !== window.top){ if(gate) gate.remove(); return; }
+  var mode = "login";
+  function show(){
+    if(!gate) return;
+    gate.style.display = "flex";
+    // prefill the address from last time so a returning user only types a password
+    try{
+      var last = localStorage.getItem("mt_email") || "";
+      var em = document.getElementById("gateEmail");
+      if(em && last && !em.value) em.value = last;
+      var pw = document.getElementById("gatePwd");
+      setTimeout(function(){ var t = (em && em.value && pw) ? pw : em; if(t) t.focus(); }, 60);
+    }catch(e){}
+  }
+  function hide(){ if(gate) gate.remove(); }
+  function msg(t, ok){ var m = document.getElementById("gateMsg"); if(!m) return; m.textContent = t || ""; m.className = "gate-msg" + (ok ? " ok" : ""); }
+  // OAuth callback: ?oauth=<provider>&code=<one-time> -> trade for a session token
+  var oauthP = q.get("oauth"), oauthCode = q.get("code");
+  if(oauthP && oauthCode){
+    msg("Completing sign-in…");
+    fetch(AUTH_API + "/api/auth/oauth/exchange", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({code: oauthCode})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(d){
+        if(d && d.ok){ try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); }catch(e){} }
+        var sp = new URLSearchParams(location.search); sp.delete("oauth"); sp.delete("code");
+        try{ history.replaceState({}, "", location.pathname + (sp.toString() ? "?" + sp.toString() : "")); }catch(e){}
+        check();
+      })
+      .catch(function(){ check(); });
+    return;
+  }
+  window.gateSocial = function(provider){
+    msg("Connecting to " + provider + "…");
+    fetch(AUTH_API + "/api/auth/oauth/" + provider + "/start")
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"could not reach server"}; }); })
+      .then(function(d){
+        if(d && d.ok && d.url){ window.location.href = d.url; }
+        else { msg((d && d.error) ? d.error : "Sign-in is not available right now."); }
+      })
+      .catch(function(){ msg("Could not reach the sign-in server."); });
+  };
+  window.gateMode = function(m){
+    mode = m;
+    document.querySelectorAll(".gate-tab").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-gmode") === m); });
+    var nm = document.getElementById("gateNameWrap"); if(nm) nm.style.display = (m === "signup") ? "block" : "none";
+    var btn = document.querySelector(".gate-btn"); if(btn) btn.textContent = (m === "signup") ? "CREATE ACCOUNT" : "SIGN IN";
+  };
+  function tok(){ try{ return localStorage.getItem("mt_token") || ""; }catch(e){ return ""; } }
+  function check(){
+    var t = tok();
+    if(!t){ show(); return; }
+    msg("Verifying session…");
+    fetch(AUTH_API + "/api/auth/me", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(d){ if(d && d.ok){ hide(); } else { show(); msg("Session expired. Sign in to continue."); } })
+      .catch(function(){ show(); msg("Could not reach the sign-in server. Check your connection and try again."); });
+  }
+  window.gateSubmit = function(){
+    var email = (document.getElementById("gateEmail").value || "").trim();
+    var pwd = document.getElementById("gatePwd").value || "";
+    var name = document.getElementById("gateName") ? document.getElementById("gateName").value.trim() : "";
+    if(!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg("Enter a valid email address."); return; }
+    if(!pwd){ msg("Enter your password."); return; }
+    if(mode === "signup" && pwd.length < 8){ msg("Password must be at least 8 characters."); return; }
+    var payload = {email: email, password: pwd};
+    if(mode === "signup" && name) payload.name = name;
+    msg(mode === "login" ? "Signing in…" : "Creating your account…");
+    fetch(AUTH_API + "/api/auth/" + (mode === "login" ? "login" : "signup"), {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
+      .then(function(d){
+        if(d && d.ok){
+          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); }catch(e){}
+          msg("Welcome. Loading the terminal…", true);
+          setTimeout(hide, 600);
+        } else {
+          msg((d && d.error) ? d.error : "Sign in failed. Try again.");
+        }
+      })
+      .catch(function(){ msg("Could not reach the sign-in server. Try again shortly."); });
+  };
+  check();
+})();
+</script>
 <div class="term">
 
   <!-- TOP BAR -->
@@ -191,10 +457,10 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <div class="brandname">MUTXRI<small>TERMINAL</small></div>
     </div>
     <nav class="exch" id="exchTabs">
-      <!-- exchange tabs are rendered dynamically - only the selected exchange shows -->
+      <!-- all four markets, rendered dynamically; the current one is the lit pill -->
     </nav>
     <label class="search">
-      <span>&#9906;</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
       <input id="q" placeholder="Search ticker or command…" autocomplete="off" aria-label="Search">
     </label>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
@@ -207,31 +473,57 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   <div class="main">
 
     <!-- WATCHLIST -->
-    <aside class="rail">
-      <div class="wl-head"><span id="wlEx">JSE</span><span id="wlState"></span></div>
+    <aside class="rail" id="colWatch">
+      <div class="wl-head"><span class="dgrip" draggable="true" data-col="watch" title="Drag to move panel">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="win-x" type="button" data-win="watch" title="Close the watchlist">✕</button></div>
       <div class="wl" id="wlList"></div>
     </aside>
 
     <!-- CENTER PANEL -->
-    <section class="panel">
-      <nav class="tabs" id="centerTabs"></nav>
+    <section class="panel" id="colCenter">
+      <div class="panel-head">
+        <nav class="tabs" id="centerTabs"></nav>
+        <button class="win-x" type="button" data-win="center" title="Close the panel window">✕</button>
+      </div>
       <div class="stage"><iframe id="stageFrame" src="features/panels/afri_heatmap.html"></iframe></div>
     </section>
 
     <!-- RIGHT RAIL -->
-    <aside class="rail right">
-      <div class="eyebrow">Market</div>
+    <aside class="rail right" id="colInfo">
+      <div class="eyebrow"><span class="dgrip" draggable="true" data-col="info" title="Drag to move panel">⠿</span>Market<button class="win-x" type="button" data-win="info" title="Close the market window">✕</button></div>
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
+
+    <!-- CHAT (4th window): the shared room, plus a local data assistant -->
+    <aside class="rail chat" id="colChat">
+      <div class="chat-head">
+        <button class="chat-tab on" type="button" data-mode="room">ROOM</button>
+        <button class="chat-tab" type="button" data-mode="ask">ASK</button>
+        <span class="chat-act">
+          <button id="chatClear" type="button" title="Clear the assistant thread">CLEAR</button>
+          <button class="win-x" type="button" data-win="chat" title="Close the chat window">✕</button>
+        </span>
+      </div>
+      <div class="chat-log" id="roomLog" aria-live="polite"></div>
+      <div class="chat-log" id="chatLog" aria-live="polite" style="display:none"></div>
+      <div class="chat-note" id="chatNote" hidden></div>
+      <form class="chat-form" id="chatForm" autocomplete="off">
+        <input id="chatInput" placeholder="Message the room..." aria-label="Chat message" spellcheck="false" maxlength="500">
+        <button type="submit" id="chatSend">SEND</button>
+      </form>
+    </aside>
+
+    <!-- RESIZERS (drag the divider lines to size the rails) -->
+    <div class="rsz" id="rszL" title="Drag to resize watchlist"></div>
+    <div class="rsz" id="rszR" title="Drag to resize info panel"></div>
+    <div class="rsz" id="rszC" title="Drag to resize chat"></div>
 
   </div>
 
   <!-- STATUS -->
   <footer class="status">
-    <span id="feedState">● SNAPSHOT</span>
-    <span>JSE / EGX intraday · NGX / NSE end-of-day</span>
-    <span class="spacer">Type <kbd>`</kbd> + command · <kbd>HELP</kbd></span>
-    <span class="cmd"><b>`</b><input id="cmd" placeholder="HELP" spellcheck="false"></span>
+    <span class="spacer"></span>
+    <span class="wins" id="winBtns" title="Show or hide a window"></span>
+    <span class="cmd"><input id="cmd" placeholder="command" spellcheck="false"></span>
   </footer>
 
 </div>
@@ -267,12 +559,30 @@ window.API_BASE = API_BASE;
 
 // ===== App state =====
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-let currentEx = 'JSE';
-// support ?ex=NGX deep-link (landing dropdown passes the exchange)
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const EXCHANGES = ['JSE', 'EGX', 'NGX', 'NSE'];
+// Nobody should have to pick a market before seeing anything. Order of
+// preference: an explicit ?ex= deep link, then whatever they used last, then
+// their own timezone, and only then a default.
+function pickInitialExchange(){
+  try{
+    const p = (new URLSearchParams(location.search).get('ex') || '').toUpperCase();
+    if(EXCHANGES.includes(p)) return p;
+  }catch(e){}
+  try{
+    const saved = localStorage.getItem('mt_ex');
+    if(EXCHANGES.includes(saved)) return saved;
+  }catch(e){}
+  try{
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    const byTz = {'Africa/Nairobi':'NSE', 'Africa/Lagos':'NGX',
+                  'Africa/Johannesburg':'JSE', 'Africa/Cairo':'EGX'};
+    if(byTz[tz]) return byTz[tz];
+  }catch(e){}
+  return 'JSE';   // deepest statement coverage, so the best first impression
+}
+let currentEx = pickInitialExchange();
 try{
-  const _pex = new URLSearchParams(location.search).get('ex');
-  if(_pex && ['JSE','EGX','NGX','NSE'].includes(_pex.toUpperCase())) currentEx = _pex.toUpperCase();
   const _pp = new URLSearchParams(location.search).get('panel');
   if(_pp) window.__INIT_PANEL = _pp.toLowerCase();
   const _rails = new URLSearchParams(location.search).get('rails');
@@ -306,7 +616,7 @@ let listing = {};
 // ===== Company logos =====
 let LOGO_MAP = {};
 try{
-  fetch((window.API_BASE ? window.API_BASE : '') + 'static_data/logos.json')
+  fetch('static_data/logos.json')
     .then(r => r.ok ? r.json() : Promise.reject())
     .then(d => { LOGO_MAP = d || {}; })
     .catch(() => {});
@@ -357,7 +667,7 @@ setInterval(clockTZ, 1000);
 clockTZ();
 
 // ===== Tabs (Claude's panels, untouched, embedded) =====
-const PANELS = [
+let PANELS = [
   {id:'heatmap', label:'HEATMAP', url:'features/panels/afri_heatmap.html'},
   {id:'screener',label:'SCREENER', url:'features/panels/afri_screener.html'},
   {id:'financials',label:'FINANCIALS', url:'features/panels/afri_financials.html'},
@@ -370,24 +680,309 @@ const PANELS = [
   {id:'tas',     label:'TAS',      url:'features/panels/afri_tas.html'},
   {id:'ratings', label:'RATINGS',  url:'features/panels/afri_ratings.html'},
 ];
+// restore the user's saved tab order (workflow persistence)
+try{
+  const saved = localStorage.getItem('mt_tabs');
+  if(saved){
+    const ids = saved.split(',');
+    const byId = {};
+    PANELS.forEach(p => { byId[p.id] = p; });
+    const reordered = ids.map(id => byId[id]).filter(Boolean);
+    if(reordered.length === PANELS.length) PANELS = reordered;
+  }
+}catch(e){}
 // panel URL with the current exchange appended (?ex=NGX) so EVERY panel
 // loads that exchange's data when opened
+let curSec = '';
 function panelUrl(p){
-  return p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 'ex=' + currentEx + '&v=' + Date.now();
+  return p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 'ex=' + currentEx
+    + (curSec ? '&sym=' + encodeURIComponent(curSec) : '') + '&v=' + Date.now();
 }
-PANELS.forEach((p, i) => {
-  const t = document.createElement('div');
-  t.className = 'ctab' + (i === 0 ? ' active' : '');
-  t.textContent = p.label;
-  t.onclick = () => {
-    document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
+// render the center panel tabs (rebuilt when the user drags them into a new order)
+function renderTabs(){
+  const nav = $('centerTabs');
+  nav.innerHTML = '';
+  PANELS.forEach((p, i) => {
+    const t = document.createElement('div');
+    t.className = 'ctab' + (i === 0 ? ' active' : '');
+    t.textContent = p.label;
+    t.draggable = true;
+    t.title = 'drag to reorder panel';
+    t.onclick = () => {
+      document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      __activePanelIdx = PANELS.indexOf(p);
     $('stageFrame').src = panelUrl(p);
-  };
-  $('centerTabs').appendChild(t);
-});
-// initial panel: load the default panel WITH the current exchange
-// (?panel=heatmap deep-link support for the landing showcase)
+    };
+    nav.appendChild(t);
+  });
+}
+// ===== drag-and-drop: arrange the workspace like Godel =====
+// columns: drag the watchlist / info grip to swap which side each sits on
+(function(){
+  // keep the center panel in the 1fr middle slot; the two rails swap around it
+  function setColOrder(first){
+    const main = document.querySelector('.main');
+    const watch = document.getElementById('colWatch');
+    const info = document.getElementById('colInfo');
+    const center = document.getElementById('colCenter');
+    main.appendChild(center);
+    main.appendChild(first === 'info' ? watch : info);
+    main.insertBefore(first === 'info' ? info : watch, main.firstChild);
+    // the chat window always holds the last grid slot on the far right
+    const chat = document.getElementById('colChat');
+    if(chat) main.appendChild(chat);
+  }
+  function bindColDrag(){
+    let dragCol = null;
+    document.querySelectorAll('.dgrip').forEach(g => {
+      g.addEventListener('dragstart', e => {
+        dragCol = g.getAttribute('data-col');
+        e.dataTransfer.effectAllowed = 'move';
+        try{ e.dataTransfer.setData('text/plain', dragCol); }catch(err){}
+        g.classList.add('dragging');
+      });
+      g.addEventListener('dragend', () => {
+        dragCol = null;
+        document.querySelectorAll('.dgrip').forEach(x => x.classList.remove('dragging'));
+        document.querySelectorAll('#colWatch, #colInfo').forEach(x => x.classList.remove('drop-ok'));
+      });
+    });
+    ['colWatch', 'colInfo'].forEach(id => {
+      const el = document.getElementById(id);
+      el.addEventListener('dragover', e => {
+        if(dragCol && dragCol !== id.replace('col','').toLowerCase()){ e.preventDefault(); el.classList.add('drop-ok'); }
+      });
+      el.addEventListener('dragleave', () => el.classList.remove('drop-ok'));
+      el.addEventListener('drop', e => {
+        e.preventDefault();
+        el.classList.remove('drop-ok');
+        if(!dragCol) return;
+        const target = id.replace('col','').toLowerCase();
+        if(dragCol !== target){
+          setColOrder(dragCol);  // the dragged rail moves to the left side
+          try{ localStorage.setItem('mt_cols', dragCol); }catch(err){}
+        }
+        dragCol = null;
+      });
+    });
+  }
+  // restore the saved rail order
+  try{
+    const cols = localStorage.getItem('mt_cols');
+    if(cols) setColOrder(cols.indexOf('info') === 0 ? 'info' : 'watch');
+  }catch(e){}
+  // ===== the workspace: four windows, any of them closable, all resizable =====
+  // One manager owns both jobs, because they are the same job: which columns
+  // exist decides where the dividers go and how wide anything is allowed to be.
+  window.MTWin = (function(){
+    const main = document.querySelector('.main');
+    const MIN_RAIL = 180, MIN_CENTER = 380;
+    const COLS = {
+      watch:  {el: 'colWatch',  v: '--wW', def: 232, label: 'WATCH'},
+      center: {el: 'colCenter', v: null,   def: 0,   label: 'PANEL'},
+      info:   {el: 'colInfo',   v: '--wI', def: 288, label: 'MARKET'},
+      chat:   {el: 'colChat',   v: '--wC', def: 300, label: 'CHAT'}
+    };
+    const ORDER = ['watch', 'center', 'info', 'chat'];
+    // embed modes (?view=, ?rails=0) lay themselves out in CSS - stay out of it
+    const EMBED = /(^|\s)(view-\S+|no-rails|hide-panel)(\s|$)/.test(document.documentElement.className);
+    let open = {watch: true, center: true, info: true, chat: true};
+    try{
+      const saved = JSON.parse(localStorage.getItem('mt_wins') || 'null');
+      if(saved && typeof saved === 'object'){
+        ORDER.forEach(function(k){ if(saved[k] === false) open[k] = false; });
+      }
+    }catch(e){}
+    if(!ORDER.some(function(k){ return open[k]; })) open = {watch: true, center: true, info: true, chat: true};
+
+    function el(k){ return document.getElementById(COLS[k].el); }
+    function cur(v){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? 0 : x; }
+    function keyOf(node){
+      for(let i = 0; i < ORDER.length; i++){ if(node.id === COLS[ORDER[i]].el) return ORDER[i]; }
+      return null;
+    }
+    // DOM order, not declaration order: the rails can be dragged around
+    function visible(){
+      return Array.prototype.map.call(main.children, keyOf)
+        .filter(function(k){ return k && open[k]; });
+    }
+    // the one column that takes the slack. The centre panel when it is open,
+    // otherwise the last rail standing - something has to fill the width.
+    function flexKey(vis){ return open.center ? 'center' : vis[vis.length - 1]; }
+    function width(k){ return COLS[k].v ? cur(COLS[k].v) : 0; }
+
+    function clamp(k, px){
+      const vis = visible(), flex = flexKey(vis);
+      let taken = 0;
+      vis.forEach(function(o){ if(o !== k && o !== flex) taken += width(o); });
+      const floor = flex === 'center' ? MIN_CENTER : MIN_RAIL;
+      const max = Math.max(MIN_RAIL, window.innerWidth - taken - floor);
+      return Math.min(max, Math.max(MIN_RAIL, px));
+    }
+    // what the user ASKED for, kept apart from what currently fits. A narrow
+    // browser window squeezes the rails; widening it should give them back,
+    // which it cannot do if the squeeze overwrote the intent.
+    const want = {watch: COLS.watch.def, info: COLS.info.def, chat: COLS.chat.def};
+    function setWidth(k, px){
+      if(!COLS[k].v) return;
+      want[k] = Math.max(MIN_RAIL, Math.round(px));
+      main.style.setProperty(COLS[k].v, clamp(k, want[k]) + 'px');
+    }
+    function applyAll(){
+      ORDER.forEach(function(k){
+        if(COLS[k].v) main.style.setProperty(COLS[k].v, clamp(k, want[k]) + 'px');
+      });
+    }
+    function save(){
+      try{
+        localStorage.setItem('mt_sizes', [want.watch, want.info, want.chat].join(','));
+        localStorage.setItem('mt_wins', JSON.stringify(open));
+      }catch(e){}
+    }
+
+    // divider i sits between vis[i] and vis[i+1]; it drives whichever of the
+    // two is NOT the flexible column, and is anchored from the side whose
+    // columns all have fixed widths
+    const RSZ = ['rszL', 'rszR', 'rszC'].map(function(id){ return document.getElementById(id); });
+    let gaps = [];
+    function layout(){
+      if(EMBED) return;
+      const vis = visible(), flex = flexKey(vis);
+      main.style.gridTemplateColumns = vis.map(function(k){
+        return k === flex ? 'minmax(0,1fr)' : 'var(' + COLS[k].v + ')';
+      }).join(' ');
+      ORDER.forEach(function(k){ const n = el(k); if(n) n.style.display = open[k] ? '' : 'none'; });
+      gaps = [];
+      const fi = vis.indexOf(flex);
+      for(let i = 0; i < vis.length - 1; i++){
+        if(fi > i){
+          let off = 0;
+          for(let j = 0; j <= i; j++) off += width(vis[j]);
+          gaps.push({k: vis[i], dir: 1, side: 'left', off: off - 4});
+        }else{
+          let off = 0;
+          for(let j = i + 1; j < vis.length; j++) off += width(vis[j]);
+          gaps.push({k: vis[i + 1], dir: -1, side: 'right', off: off - 3});
+        }
+      }
+      RSZ.forEach(function(node, i){
+        if(!node) return;
+        const g = gaps[i];
+        if(!g){ node.style.display = 'none'; return; }
+        node.style.display = '';
+        node.style.left = g.side === 'left' ? g.off + 'px' : 'auto';
+        node.style.right = g.side === 'right' ? g.off + 'px' : 'auto';
+        node.title = 'Drag to resize the ' + COLS[g.k].label.toLowerCase() + ' window';
+      });
+      buttons();
+    }
+
+    // the restore strip in the status bar - the only way back once a window is
+    // closed, so it always shows every window and its state
+    function buttons(){
+      const host = document.getElementById('winBtns');
+      if(!host) return;
+      host.innerHTML = '';
+      ORDER.forEach(function(k){
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = COLS[k].label;
+        b.className = open[k] ? 'on' : '';
+        b.title = (open[k] ? 'Close' : 'Open') + ' the ' + COLS[k].label.toLowerCase() + ' window';
+        b.onclick = function(){ toggle(k); };
+        host.appendChild(b);
+      });
+    }
+
+    function set(k, on){
+      if(!COLS[k] || open[k] === on) return;
+      // never close the last one: an empty terminal is not a layout
+      if(!on && visible().length <= 1) return;
+      open[k] = on;
+      layout();
+      applyAll();   // one fewer neighbour: the others can take their width back
+      layout();
+      save();
+      window.dispatchEvent(new Event('mt:layout'));
+    }
+    function toggle(k){ set(k, !open[k]); }
+
+    function begin(i, e){
+      const g = gaps[i];
+      if(!g) return;
+      e.preventDefault();
+      const startX = e.clientX, start = width(g.k), node = RSZ[i];
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:col-resize;';
+      document.body.appendChild(ov);
+      if(node) node.classList.add('dragging');
+      function move(ev){ setWidth(g.k, start + g.dir * (ev.clientX - startX)); layout(); }
+      function end(){
+        ov.remove();
+        if(node) node.classList.remove('dragging');
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', end);
+        save();
+      }
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+    }
+    RSZ.forEach(function(node, i){
+      if(!node) return;
+      node.addEventListener('mousedown', function(e){ begin(i, e); });
+      node.addEventListener('dblclick', function(){
+        const g = gaps[i];
+        if(g){ setWidth(g.k, COLS[g.k].def); layout(); save(); }
+      });
+    });
+    document.addEventListener('click', function(e){
+      const x = e.target.closest ? e.target.closest('.win-x') : null;
+      if(x) set(x.getAttribute('data-win'), false);
+    });
+    window.addEventListener('resize', function(){ applyAll(); layout(); });
+
+    // restore the saved widths, then draw
+    try{
+      const s = (localStorage.getItem('mt_sizes') || '').split(',');
+      if(s.length >= 2){
+        want.watch = parseInt(s[0], 10) || COLS.watch.def;
+        want.info = parseInt(s[1], 10) || COLS.info.def;
+        want.chat = parseInt(s[2], 10) || COLS.chat.def;
+      }
+    }catch(e){}
+    applyAll();
+    layout();
+
+    return {toggle: toggle, set: set, isOpen: function(k){ return !!open[k]; }, layout: layout};
+  })();
+  // tab reordering
+  let dragTab = null;
+  document.addEventListener('dragstart', e => {
+    if(e.target.classList.contains('ctab')) dragTab = Array.prototype.indexOf.call(e.target.parentNode.children, e.target);
+  });
+  document.addEventListener('dragover', e => {
+    if(dragTab !== null && e.target.classList.contains('ctab')){ e.preventDefault(); }
+  });
+  document.addEventListener('drop', e => {
+    if(dragTab === null || !e.target.classList.contains('ctab')) return;
+    e.preventDefault();
+    const to = Array.prototype.indexOf.call(e.target.parentNode.children, e.target);
+    const from = dragTab;
+    if(from !== to && from >= 0 && to >= 0){
+      const moved = PANELS.splice(from, 1)[0];
+      PANELS.splice(to, 0, moved);
+      try{ localStorage.setItem('mt_tabs', PANELS.map(p => p.id).join(',')); }catch(err){}
+      renderTabs();
+    }
+    dragTab = null;
+  });
+  document.addEventListener('dragend', () => { dragTab = null; });
+  bindColDrag();
+})();
+renderTabs();
+// load the default panel WITH the current exchange
+// (?panel= deep-link support for the landing showcase; unknown panels fall back to default)
 let __startIdx = 0;
 if(window.__INIT_PANEL){
   const __pi = PANELS.findIndex(p => p.id === window.__INIT_PANEL);
@@ -416,10 +1011,11 @@ async function loadListing(ex){
     const r = await fetch(url);
     const d = await r.json();
     listing[ex] = d.stocks || [];
-    // static mode: overlay the freshest market snapshot prices onto the listing
-    // so the watchlist shows the SAME prices as the info sheet (no stale listing)
-    if(!window.API_BASE){
-      try{
+    // Overlay the freshest market-snapshot prices onto the listing (EOD base)
+    // in BOTH modes: pure static AND API mode (backend /api/quotes returns a
+    // throttled subset, e.g. ~80 of 431 JSE names -> most rows would render
+    // "—"). Live quotes still win per row when present.
+    try{
         const mr = await fetch('static_data/market_' + ex + '.json');
         const md = await mr.json();
         const byTkr = {};
@@ -439,7 +1035,6 @@ async function loadListing(ex){
           return s;
         });
       }catch(e2){ console.error('market overlay fail', e2); }
-    }
     $('wlEx').textContent = ex + ' · ' + listing[ex].length;
     renderWatchlist($('q').value);
     buildTape(ex);            // tape now shows the new exchange immediately
@@ -468,22 +1063,24 @@ function renderWatchlist(filter){
     const sign = chg === null || chg === undefined ? '' : TickerFix.fmtPct(chg);
     const sym = stockTicker(s);
     const volTxt = vol != null ? (Number(String(vol).replace(/,/g,'')).toLocaleString() || String(vol)) : '';
-    // logo: official domain -> favicon service; monogram fallback (no broken images)
-    const dom = (LOGO_MAP[s.sym] || LOGO_MAP[s.ticker] || LOGO_MAP[sym] || '').replace(/^www\./, '');
-    const logoHtml = dom
-      ? `<img class="wl-logo" loading="lazy" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
-      : `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
-    // CEO (Wikipedia-verified) shown under the company name when known
-    const ceo = (window.__CEOS || {})[s.sym] || (window.__CEOS || {})[s.ticker] || (window.__CEOS || {})[sym] || '';
-    const ceoHtml = ceo
-      ? `<span class="wl-ceo">${esc('CEO ' + ceo)}</span>`
-      : '';
+    // logo: official domain -> favicon service (or direct image URL); monogram fallback (no broken images)
+    const rawLogo = LOGO_MAP[s.sym] || LOGO_MAP[s.ticker] || LOGO_MAP[sym] || '';
+    const isUrl = /^https?:\/\//i.test(rawLogo);
+    const dom = rawLogo.replace(/^www\./, '');
+    const logoSrc = isUrl ? rawLogo : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64`;
+    const monoFallback = `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
+    // Direct image URLs are real logos (even 16x16 favicons) -> only onerror fallback.
+    // s2 favicon-service URLs get the globe check (16x16 = no icon) too.
+    const logoHtml = rawLogo
+      ? (isUrl
+        ? `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
+        : `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'" onload="if(this.naturalWidth<=16&&this.naturalHeight<=16)this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`)
+      : monoFallback;
     return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
       <span class="wl-logo-cell">${logoHtml}</span>
       <span class="wl-main">
         <span class="sym">${esc(sym)}</span>
         <span class="nm">${esc(s.name||'')}</span>
-        ${ceoHtml}
       </span>
       <span class="wl-price">
         <span class="pr">${pr} <small style="color:var(--tx3)">${esc(cur)}</small></span>
@@ -528,7 +1125,7 @@ function buildTape(ex){
   buildTapeFromListing(ex);
 }
 
-// ===== Exchange tabs (only the selected exchange shows - clean UI) =====
+// ===== Exchange tabs (all four markets, current one lit) =====
 const EX_FULL = {
   JSE: {name: 'Johannesburg', flag: 'ZA'},
   EGX: {name: 'Cairo', flag: 'EG'},
@@ -538,17 +1135,33 @@ const EX_FULL = {
 function renderExchTabs(){
   const nav = $('exchTabs');
   if(!nav) return;
-  // single tab: just the current exchange (no other initials shown)
-  const info = EX_FULL[currentEx] || {name: currentEx, flag: ''};
-  nav.innerHTML = '<button class="exch-tab active" data-ex="' + esc(currentEx) + '" title="' + esc(info.name) + ' · ' + esc(currentEx) + '">' +
-    '<span class="exch-flag">' + esc(info.flag) + '</span> ' + esc(currentEx) +
-    '<span class="exch-full">' + esc(info.name) + '</span></button>';
+  // all four markets, so switching is one click inside the terminal instead of
+  // a decision forced on the visitor before they have seen anything
+  nav.innerHTML = EXCHANGES.map(function(ex){
+    const info = EX_FULL[ex] || {name: ex, flag: ''};
+    const on = ex === currentEx;
+    return '<button class="exch-tab' + (on ? ' active' : '') + '" data-ex="' + esc(ex) + '"' +
+      ' title="' + esc(info.name) + ' · ' + esc(ex) + '">' +
+      '<span class="exch-flag">' + esc(info.flag) + '</span> ' + esc(ex) +
+      (on ? '<span class="exch-full">' + esc(info.name) + '</span>' : '') +
+      '</button>';
+  }).join('');
+  nav.querySelectorAll('.exch-tab').forEach(function(b){
+    b.addEventListener('click', function(){
+      const ex = b.dataset.ex;
+      if(ex && ex !== currentEx) switchExchange(ex);
+    });
+  });
 }
 function switchExchange(ex){
   currentEx = ex;
+  // remember it: a returning user should never be asked again
+  try{ localStorage.setItem('mt_ex', currentEx); }catch(e){}
+  renderExchTabs();
+  $('wlEx').textContent = currentEx + ' · ' + ((listing[currentEx] || []).length || '…');
   // reload the open panel for the new exchange (every panel is ?ex= aware)
   const _cur = $('stageFrame').src;
-  $('stageFrame').src = _cur.replace(/[?&]ex=[A-Za-z]+/, '&ex=' + currentEx).replace(/^&/, '?');
+  $('stageFrame').src = _cur.replace(/([?&])ex=[A-Za-z]+/, '$1ex=' + currentEx);
   if(!listing[currentEx]) {
     // immediate tape from the new exchange's own data, then refresh
     buildTapeFromListing(currentEx);
@@ -604,26 +1217,119 @@ function buildTapeFromListing(ex){
 
 // ===== Search =====
 $('q').addEventListener('input', e => renderWatchlist(e.target.value));
+// the box says "Search ticker or command" - make Enter mean it. Reuse the
+// status-bar command path rather than duplicating its resolution rules.
+$('q').addEventListener('keydown', e => {
+  if(e.key !== 'Enter') return;
+  const v = String($('q').value || '').trim();
+  if(!v) return;
+  $('cmd').value = v;
+  $('cmd').dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+  $('q').value = '';
+  renderWatchlist('');
+});
 
 // ===== Command bar =====
+// ===== Command bar: Bloomberg-style "TICKER FUNCTION" =====
+const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'chart', CN:'news',
+                     HP:'chart', EQS:'screener', RV:'financials', SPLC:'info'};
+// Every market's tickers, fetched once at boot (39 KB gzipped for all four) so
+// a ticker resolves no matter which board is on screen. Before this, typing a
+// Nairobi ticker while on the JSE board just answered "unknown".
+const SEARCH_IDX = {};
+async function loadSearchIndex(){
+  await Promise.all(EXCHANGES.map(async function(ex){
+    if(listing[ex]) return;                       // already fully loaded
+    try{
+      const r = await fetch('static_data/listing_' + ex + '.json');
+      const d = await r.json();
+      SEARCH_IDX[ex] = d.stocks || [];
+    }catch(e){ /* a market we cannot index just stays unsearchable */ }
+  }));
+}
+function matchRow(s, tok){
+  const st = String(s.ticker || s.sym || '');
+  const b = st.split('.')[0];
+  return st.toUpperCase() === tok || b.toUpperCase() === tok ||
+         String(s.name || '').toUpperCase() === tok;
+}
+function resolveSec(tok){
+  // the exchange in view wins, so an ambiguous ticker resolves to what the
+  // user is actually looking at
+  const order = [currentEx].concat(EXCHANGES.filter(e => e !== currentEx));
+  for(const ex of order){
+    const rows = listing[ex] || SEARCH_IDX[ex];
+    if(!rows) continue;
+    const row = rows.find(s => matchRow(s, tok));
+    if(row) return {ex: ex, sym: (row.sym || row.ticker)};
+  }
+  return null;
+}
+function panelFor(tok){
+  if(!tok) return null;
+  const tl = tok.toLowerCase();
+  let p = PANELS.find(x => x.id === tl || x.label === tok);
+  if(p) return p;
+  const al = PANEL_ALIAS[tok];
+  if(!al) return null;
+  if(al === 'info') return {id: 'info', label: 'INFO'};
+  return PANELS.find(x => x.id === al) || null;
+}
+function openPanelTab(p){
+  const idx = PANELS.indexOf(p);
+  document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
+  const els = document.querySelectorAll('.ctab');
+  if(idx >= 0 && els[idx]){ els[idx].classList.add('active'); __activePanelIdx = idx; }
+  $('stageFrame').src = panelUrl(p);
+}
+function showUnknown(msg){
+  $('rightInfo').innerHTML = `<div style="padding:4px 0;color:var(--down)">${esc(msg)}</div>` +
+    '<div style="padding:4px 0;color:var(--tx3)">Try a ticker (MTN), a panel (FINANCIALS), or both (MTN FINANCIALS).</div>';
+}
 $('cmd').addEventListener('keydown', e => {
   if(e.key !== 'Enter') return;
   const v = $('cmd').value.trim().toUpperCase();
   $('cmd').value = '';
   if(!v) return;
-  const parts = v.split(' ');
-  const code = parts[parts.length - 1];
-  const idx = PANELS.findIndex(p => p.id === code.toLowerCase() || p.label === code);
-  if(idx >= 0){
-    document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.ctab')[idx].classList.add('active');
-    $('stageFrame').src = panelUrl(PANELS[idx]);
-  } else if(v === 'HELP'){
+  if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
-      '<div style="padding:8px 0;color:var(--tx3)">Type a panel code (HEATMAP, SCREEN, REG, GLCO, BND, FX, TAS, RATINGS) then Enter.</div>';
-  } else {
-    $('rightInfo').innerHTML = `<div style="color:var(--down)">unknown: ${esc(v)}</div>`;
+      '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both — e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>';
+    return;
   }
+  const parts = v.split(/\s+/);
+  const lastP = panelFor(parts[parts.length - 1]);
+  if(parts.length >= 2 && lastP){
+    // "MTN FIN" -> resolve the ticker part, open the panel scoped to it
+    const tick = parts.slice(0, -1).join(' ');
+    const sec = resolveSec(tick);
+    if(sec){
+      if(sec.ex !== currentEx && typeof switchExchange === 'function') switchExchange(sec.ex);
+      curSec = sec.sym;
+      openPanelTab(lastP);
+      return;
+    }
+    // ticker not resolvable: still open the panel, note it
+    openPanelTab(lastP);
+    showUnknown('no security matches "' + tick + '" — panel opened for ' + (curSec || 'no security'));
+    return;
+  }
+  const p = panelFor(v);
+  if(p && p.id === 'info'){
+    // DES / SPLC on the current security (quote sheet)
+    if(curSec){ const row = ((listing[currentEx]||[])).find(s => (s.sym||s.ticker) === curSec); openStock(row ? (row.sym||row.ticker) : curSec); }
+    else showUnknown('select a security first (click a row or type a ticker)');
+    return;
+  }
+  if(p){ openPanelTab(p); return; }
+  // single token that is a security? -> open its quote sheet (DES behaviour)
+  const sec = resolveSec(v);
+  if(sec){
+    if(sec.ex !== currentEx && typeof switchExchange === 'function') switchExchange(sec.ex);
+    curSec = sec.sym;
+    openStock(sec.sym);
+    return;
+  }
+  showUnknown('unknown: ' + v);
 });
 
 // ===== Static-market panel (snapshot mode): full investor info sheet =====
@@ -654,6 +1360,17 @@ function renderMarketStatic(rec, info){
     const last = d[d.length-1];
     divTxt = (typeof last === 'object' && last !== null) ? (last.year ? 'FY' + last.year : '') + ' ' + (last.amount != null ? last.amount : '') : String(d.length) + ' paid';
   }
+  // relations show the CODE only as PLAIN TEXT (no anchor markup — the row
+  // renderer esc()s the value, so any <a> tag would print as literal source)
+  const codesOnly = function(arr){
+    if(!Array.isArray(arr) || !arr.length) return dash;
+    return arr.map(function(x){
+      var s = String(x).trim();
+      if(!s) return '';
+      var m = s.match(/^([A-Z0-9][A-Z0-9.\-]{1,14})/);
+      return m ? m[1] : s;
+    }).filter(Boolean).join(', ');
+  };
   let html = `
     <div class="qhead">
       <div class="qsym">${esc(rec.ticker || sym0(rec))}</div>
@@ -666,13 +1383,12 @@ function renderMarketStatic(rec, info){
       ${row('CHANGE', chgTxt || dash)}
       ${row('VOLUME', vol)}
       ${row('SECTOR', rec.sector || i.sector || dash)}
-      ${row('INDUSTRY', i.industry || dash)}
       ${row('COUNTRY', i.country || dash)}
       ${row('CEO', window.__CEOS && window.__CEOS[rec.sym] ? window.__CEOS[rec.sym] : (window.__CEOS && window.__CEOS[rec.ticker] ? window.__CEOS[rec.ticker] : dash))}
-      ${row('COMPETITORS', Array.isArray(i.competitors) && i.competitors.length ? i.competitors.join(', ') : dash)}
-      ${row('CUSTOMERS', Array.isArray(i.customers) && i.customers.length ? i.customers.join('; ') : dash)}
-      ${row('PARTNERS', Array.isArray(i.partners) && i.partners.length ? i.partners.join('; ') : dash)}
-      ${row('SUPPLIERS', Array.isArray(i.suppliers) && i.suppliers.length ? i.suppliers.join('; ') : dash)}
+      ${row('COMPETITORS', codesOnly(i.competitors))}
+      ${row('CUSTOMERS', codesOnly(i.customers))}
+      ${row('PARTNERS', codesOnly(i.partners))}
+      ${row('SUPPLIERS', codesOnly(i.suppliers))}
       ${row('FOUNDED', i.founded || dash)}
       ${row('LISTED', i.listed || dash)}
       ${row('YEAR END', rec.yearEnd || i.year_end || dash)}
@@ -682,7 +1398,7 @@ function renderMarketStatic(rec, info){
       ${row('TURNOVER', rec.turnover || dash)}
       ${row('SHARES', fmtShares(rec.sharesIssued))}
       ${row('MKT CAP', rec.marketCap || dash)}
-      ${row('EXCHANGE', i.exchange || dash)}
+      ${row('EXCHANGE', rec.exchange || i.exchange || dash)}
       ${row('PHONE', i.phone || dash)}
       ${row('TRANSFER SEC', i.transfer_secretary || dash)}
       ${row('DIVIDENDS', divTxt)}
@@ -701,12 +1417,162 @@ function renderMarketStatic(rec, info){
   }
   html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend</div>`;
   $('rightInfo').innerHTML = html;
+  // financials summary from the collected statement files (static, honest)
+  try{
+    var _fsym = String(rec.sym || rec.ticker || '').replace(/\//g, '_');
+    if(_fsym){
+      var _finName = (rec.name || '').trim();
+      var _finEx = String(currentEx || '').toUpperCase();
+      var _renderFin = (d) => {
+        if(!d || d.available === false) return;
+        var rows = d.rows || [];
+        var periods = d.periods || [];
+        var cur = d.currency || '';
+        var fnum = (n) => {
+          if(n == null || !isFinite(Number(n))) return '—';
+          var x = Number(n), abs = Math.abs(x);
+          if(abs >= 1e9) return (x/1e9).toFixed(2).replace(/\.?0+$/, '') + 'B';
+          if(abs >= 1e6) return (x/1e6).toFixed(2).replace(/\.?0+$/, '') + 'M';
+          if(abs >= 1e3) return (x/1e3).toFixed(1).replace(/\.?0+$/, '') + 'K';
+          return x.toLocaleString(undefined, {maximumFractionDigits: 2});
+        };
+        var want = ['Revenue','Gross Profit','Operating Profit (EBIT)','Net Profit','EPS'];
+        var pick = {};
+        rows.forEach(rr => { if(want.indexOf(rr.label) >= 0) pick[rr.label] = rr.values; });
+        var year = periods[0] || '';
+        var h = `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--acc);font-size:10px;letter-spacing:.1em;font-weight:700">FINANCIALS · ${esc(year)}</div>`;
+        var keys = ['Revenue','Gross Profit','Operating Profit (EBIT)','Net Profit','EPS'];
+        var any = false;
+        keys.forEach(k => {
+          var v = pick[k] && pick[k][0];
+          if(v == null) return;
+          any = true;
+          h += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(k)}</span><span style="color:var(--tx);font-family:var(--mono)">${esc(fnum(v))}${cur ? ' ' + esc(cur) : ''}</span></div>`;
+        });
+        if(any){
+          var ri = $('rightInfo');
+          if(ri) ri.insertAdjacentHTML('beforeend', h + `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">From filed statements · full detail in FINANCIALS</div>`);
+        }
+      };
+      var _fetchInc = (k) => fetch('static_data/financials/' + encodeURIComponent(k) + '__income.json').then(r => r.ok ? r.json() : Promise.reject());
+      _fetchInc(_fsym)
+        .then(_renderFin)
+        .catch(function(){
+          // renamed securities (e.g. ABBEYBANK -> ABBEYBDS): match the index by name + exchange
+          return fetch('static_data/financials_index.json')
+            .then(r => r.ok ? r.json() : Promise.reject())
+            .then(function(idx){
+              if(!idx || typeof idx !== 'object') throw 0;
+              var key = null;
+              for(var k in idx){
+                var e = idx[k];
+                if(k === _fsym){ key = k; break; }
+                if(e && _finName && e.exchange === _finEx && String(e.name || '').toLowerCase() === _finName.toLowerCase()){ key = k; break; }
+              }
+              if(!key) throw 0;
+              return _fetchInc(key);
+            });
+        })
+        .then(_renderFin)
+        .catch(function(){});
+    }
+  }catch(e){}
 }
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
 
+
+document.addEventListener('click', function(e){
+  var a = e.target && e.target.closest ? e.target.closest('.qlink') : null;
+  if(!a) return;
+  var code = a.getAttribute('data-goto');
+  if(!code) return;
+  e.preventDefault();
+  var ex = (typeof currentEx !== 'undefined') ? currentEx : 'JSE';
+  var ls = (typeof listing !== 'undefined' && listing[ex]) ? listing[ex] : [];
+  var row = ls.find(function(s){ var st = String(s.ticker || s.sym || ''); var b = st.split('.')[0];
+    return st.toUpperCase() === code.toUpperCase() || b.toUpperCase() === code.toUpperCase() || String(s.name||'').toUpperCase() === code.toUpperCase(); });
+  if(row && typeof openStock === 'function'){ openStock(row.sym || row.ticker); }
+});
+document.addEventListener('click', function(e){
+  var a = e.target && e.target.closest ? e.target.closest('.qlink') : null;
+  if(!a) return;
+  var code = a.getAttribute('data-goto');
+  if(!code) return;
+  e.preventDefault();
+  var ex = (typeof currentEx !== 'undefined') ? currentEx : 'JSE';
+  var ls = (typeof listing !== 'undefined' && listing[ex]) ? listing[ex] : [];
+  var row = ls.find(function(s){ var st = String(s.ticker || s.sym || ''); var b = st.split('.')[0];
+    return st.toUpperCase() === code.toUpperCase() || b.toUpperCase() === code.toUpperCase() || String(s.name||'').toUpperCase() === code.toUpperCase(); });
+  if(row && typeof openStock === 'function'){ openStock(row.sym || row.ticker); }
+});
+// ===== in-window chart (view=watchlist previews only; normal terminal keeps info sheet) =====
+let __wcChart = null, __wcSeries = null, __wcBars = [], __wcType = 'candle';
+function wcRender(bars){
+  const body = $('wcBody');
+  if(!body) return;
+  if(!bars || !bars.length){ body.innerHTML = '<div class="wc-load">No chart data for this security yet.</div>'; return; }
+  __wcBars = bars;
+  body.innerHTML = '';
+  try{
+    __wcChart = LightweightCharts.createChart(body, {
+      layout:{background:{type:'solid',color:'#0a0a0a'},textColor:'#9a9a9a',fontFamily:'ui-monospace,Consolas,monospace'},
+      grid:{vertLines:{color:'#141414'},horzLines:{color:'#141414'}},
+      timeScale:{borderColor:'#262626'}, rightPriceScale:{borderColor:'#262626'}, crosshair:{mode:0},
+      width: body.clientWidth || 640, height: 380
+    });
+    __wcChart.timeScale().fitContent();
+  }catch(e){ body.innerHTML = '<div class="wc-load">Chart could not render.</div>'; return; }
+  wcSetType('candle');
+}
+function wcSetType(t){
+  __wcType = t;
+  document.querySelectorAll('.wc-ct').forEach(b => b.classList.toggle('on', b.getAttribute('data-t') === t));
+  if(!__wcChart) return;
+  try{ __wcChart.removeSeries(__wcSeries); }catch(e){}
+  const c = __wcBars;
+  try{
+    if(t === 'candle'){
+      __wcSeries = __wcChart.addCandlestickSeries({ upColor:'#33e29a', downColor:'#ff5f56', borderVisible:false, wickUpColor:'#33e29a', wickDownColor:'#ff5f56' });
+      __wcSeries.setData(c.map(b => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c })));
+    } else if(t === 'line'){
+      __wcSeries = __wcChart.addLineSeries({ color:'#33e29a', lineWidth: 2 });
+      __wcSeries.setData(c.map(b => ({ time: b.t, value: b.c })));
+    } else {
+      __wcSeries = __wcChart.addAreaSeries({ lineColor:'#33e29a', topColor:'rgba(51,226,154,.25)', bottomColor:'rgba(51,226,154,0)' });
+      __wcSeries.setData(c.map(b => ({ time: b.t, value: b.c })));
+    }
+    __wcChart.timeScale().fitContent();
+  }catch(e){}
+}
+function wcClose(){ const m = $('wlChart'); if(m) m.style.display = 'none'; }
+function openChartModal(sym){
+  const m = $('wlChart'); if(!m) return;
+  const ttl = $('wcTitle'); if(ttl) ttl.textContent = sym;
+  m.style.display = 'flex';
+  $('wcBody').innerHTML = '<div class="wc-load">Loading history…</div>';
+  var histBase = String(sym).replace(/\//g, '_');
+  try{
+    if(currentEx === 'NSE' || currentEx === 'NGX'){ histBase = currentEx + '_' + String(sym).split('.')[0]; }
+  }catch(e){}
+  fetch('static_data/history/' + encodeURIComponent(histBase) + '.json')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(d => wcRender((d && d.bars) || []))
+    .catch(() => fetch('static_data/history/' + encodeURIComponent(histBase) + '.max.json')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => wcRender((d && d.bars) || []))
+      .catch(() => wcRender(null)));
+}
+
+let __activePanelIdx = -1;
 function openStock(sym){
   if(!sym) return;
+  curSec = sym;
+  if(__activePanelIdx >= 0 && PANELS[__activePanelIdx] && PANELS[__activePanelIdx].id === 'financials'){
+    var _f = document.getElementById('stageFrame');
+    if(_f && _f.src.indexOf('afri_financials') >= 0){ _f.src = panelUrl(PANELS[__activePanelIdx]); }
+  }
+  try{ if(new URLSearchParams(location.search).get('view') === 'watchlist'){ openChartModal(sym); return; } }catch(e){}
   const ex = currentEx;
   const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
   $('rightInfo').innerHTML = `<div style="padding:6px 0;color:var(--acc);font-weight:700">${esc(sym)}</div>
@@ -715,7 +1581,9 @@ function openStock(sym){
     fetch('static_data/market_' + ex + '.json').then(r => { if(!r.ok) throw 0; return r.json(); })
       .then(d => {
         const rows = d.stocks || [];
+        const lr = (listing[ex]||[]).find(l => (l.sym||l.ticker||l.name) === sym);
         const rec = rows.find(x => x.sym === sym || x.ticker === sym || (x.name||'') === sym)
+                || (lr ? rows.find(x => (x.name||'') && lr.name && String(x.name).toLowerCase() === String(lr.name).toLowerCase()) : null)
                 || rows.find(x => (x.sym||'').split('.')[0] === sym.split('.')[0]);
         if(!rec){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no snapshot data for ${esc(sym)}</div>`; return; }
         // company info from company_info.json (cached, fetched once)
@@ -865,19 +1733,299 @@ function renderStockInfo(d, sym){
   $('rightInfo').innerHTML = html;
 }
 
+
+// ===== Chat window: the shared room + a local data assistant =====
+// ROOM is the desk talking to itself - every signed-in user reads and writes
+// the same thread on the backend. ASK is the offline half: it answers from the
+// terminal's own listings, so the window still does something useful when the
+// backend is unreachable or you are not signed in.
+(function(){
+  const roomLog = $('roomLog'), askLog = $('chatLog'), form = $('chatForm'),
+        input = $('chatInput'), note = $('chatNote'), sendBtn = $('chatSend');
+  if(!roomLog || !askLog || !form || !input) return;
+
+  // the room needs the live backend; the terminal itself can run on snapshots
+  const CHAT_API = (window.API_BASE || 'https://mutxri-terminal.onrender.com').replace(/\/$/, '');
+  const HIST_KEY = 'mt_chat', MAX_HIST = 40;
+  let mode = 'room';
+
+  function token(){ try{ return localStorage.getItem('mt_token') || ''; }catch(e){ return ''; } }
+  async function api(path, body){
+    const r = await fetch(CHAT_API + path, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(Object.assign({token: token()}, body || {}))
+    });
+    if(!r.ok) throw new Error('http ' + r.status);
+    return r.json();
+  }
+  function setNote(msg, bad){
+    if(!note) return;
+    note.hidden = !msg;
+    note.className = 'chat-note' + (bad ? ' bad' : '');
+    note.innerHTML = msg || '';
+  }
+
+  // ---------------- ROOM ----------------
+  const seen = {};
+  let lastTs = 0, me = '', poll = null, delay = 5000, drew = false;
+  function stamp(ts){
+    try{ return new Date(ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}); }
+    catch(e){ return ''; }
+  }
+  function drawMsg(m){
+    if(!m || !m.id || seen[m.id]) return;
+    seen[m.id] = 1;
+    const mine = m.name && m.name === me;
+    const el = document.createElement('div');
+    el.className = 'room-msg' + (mine ? ' mine' : '');
+    el.setAttribute('data-id', m.id);
+    el.innerHTML = '<div class="rm-h"><span class="rm-n">' + esc(m.name || 'trader') + '</span>' +
+      (m.ctx ? '<span class="rm-ctx">' + esc(m.ctx) + '</span>' : '') +
+      '<span>' + stamp(m.ts) + '</span>' +
+      (mine ? '<button class="rm-x" type="button" title="Delete">\u2715</button>' : '') +
+      '</div><div class="rm-t">' + esc(m.text || '') + '</div>';
+    const atBottom = roomLog.scrollHeight - roomLog.scrollTop - roomLog.clientHeight < 60;
+    roomLog.appendChild(el);
+    if(atBottom || mine) roomLog.scrollTop = roomLog.scrollHeight;
+    if(m.ts > lastTs) lastTs = m.ts;
+  }
+  function empty(html){
+    if(drew) return;
+    roomLog.innerHTML = '<div class="room-empty">' + html + '</div>';
+  }
+  async function refresh(){
+    if(!token()){
+      empty('Sign in to join the room and see what everyone else is watching.');
+      setNote('The room is for signed-in users. <b>Sign in</b> to post.', false);
+      gate();
+      return;
+    }
+    try{
+      const d = await api('/api/chat/history', {after: lastTs, limit: 60});
+      if(!d || !d.ok){
+        if(d && d.auth === false){
+          empty('Sign in to join the room.');
+          setNote(esc(d.error || 'sign in to post'), true);
+        }else{
+          setNote(esc((d && d.error) || 'room unavailable'), true);
+        }
+        gate();
+        return;
+      }
+      if(d.me) me = d.me;
+      if(d.messages && d.messages.length){
+        if(!drew){ roomLog.innerHTML = ''; drew = true; }
+        d.messages.forEach(drawMsg);
+      }else if(!drew && lastTs === 0){
+        empty('Nobody has said anything yet. Start the conversation.');
+      }
+      setNote('');
+      delay = 5000;
+      gate();
+    }catch(e){
+      setNote('Room offline - retrying.', true);
+      delay = Math.min(60000, delay * 2);   // back off rather than hammer
+      gate();
+    }
+  }
+  function active(){
+    return mode === 'room' && !document.hidden &&
+           (!window.MTWin || window.MTWin.isOpen('chat'));
+  }
+  function loop(){
+    clearTimeout(poll);
+    poll = setTimeout(function(){
+      (active() ? refresh() : Promise.resolve()).then(loop, loop);
+    }, delay);
+  }
+  document.addEventListener('visibilitychange', function(){ if(active()) refresh(); });
+  window.addEventListener('mt:layout', function(){ if(active()) refresh(); });
+
+  roomLog.addEventListener('click', async function(e){
+    const b = e.target.closest('.rm-x');
+    if(!b) return;
+    const row = b.closest('.room-msg');
+    const id = row && row.getAttribute('data-id');
+    if(!id) return;
+    try{
+      const d = await api('/api/chat/delete', {id: id});
+      if(d && d.ok) row.remove(); else setNote(esc((d && d.error) || 'could not delete'), true);
+    }catch(err){ setNote('Could not reach the room.', true); }
+  });
+
+  async function sendRoom(text){
+    if(!token()){ setNote('Sign in to post to the room.', true); return; }
+    sendBtn.disabled = true;
+    try{
+      const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
+      const d = await api('/api/chat/send', {text: text, ctx: ctx});
+      if(d && d.ok && d.message){
+        if(!drew){ roomLog.innerHTML = ''; drew = true; }
+        drawMsg(d.message);
+        input.value = '';
+        setNote('');
+      }else{
+        setNote(esc((d && d.error) || 'message not sent'), true);
+      }
+    }catch(e){ setNote('Could not reach the room - your message was not sent.', true); }
+    sendBtn.disabled = false;
+    gate();
+  }
+
+  // ---------------- ASK (local, offline) ----------------
+  let hist = [];
+  try{ hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]') || []; }catch(e){ hist = []; }
+  if(!Array.isArray(hist)) hist = [];
+  function saveHist(){ try{ localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(-MAX_HIST))); }catch(e){} }
+  function bubble(role, html, remember){
+    const el = document.createElement('div');
+    el.className = 'chat-msg ' + (role === 'me' ? 'me' : 'bot');
+    el.innerHTML = '<span class="who">' + (role === 'me' ? 'YOU' : 'MUTXRI') + '</span>' +
+                   '<div class="body">' + html + '</div>';
+    askLog.appendChild(el);
+    askLog.scrollTop = askLog.scrollHeight;
+    if(remember !== false){ hist.push({r: role, h: html}); saveHist(); }
+    return el;
+  }
+  function chips(list){
+    return '<div>' + list.map(function(t){
+      return '<span class="chat-chip" data-ask="' + esc(t) + '">' + esc(t) + '</span>';
+    }).join('') + '</div>';
+  }
+  const HELP = 'Ask about the markets on this terminal:' +
+    chips(['SCOM', 'top gainers', 'open financials', 'markets']) +
+    '<div style="color:var(--tx3);margin-top:6px">A ticker gives you its quote and opens it. ' +
+    '"open &lt;panel&gt;" switches the centre window. "top gainers" / "top losers" rank the market in view.</div>';
+  function rowsFor(ex){
+    return (typeof listing !== 'undefined' && listing[ex]) ||
+           (typeof SEARCH_IDX !== 'undefined' && SEARCH_IDX[ex]) || [];
+  }
+  function num(v, d){
+    return v == null || v === '' || isNaN(Number(v)) ? null :
+      Number(v).toLocaleString(undefined, {maximumFractionDigits: d == null ? 2 : d});
+  }
+  function tickerOf(row){
+    return (typeof stockTicker === 'function') ? stockTicker(row) : (row.ticker || row.sym || '');
+  }
+  function quoteCard(row, ex){
+    const chg = row.chgPct;
+    const cls = chg == null ? '' : (chg >= 0 ? 'up' : 'down');
+    const chgTxt = chg == null ? '\u2014' : (chg >= 0 ? '+' : '') + Number(chg).toFixed(2) + '%';
+    return '<b>' + esc(tickerOf(row)) + '</b> <span style="color:var(--tx3)">' + esc(ex) + '</span>' +
+      '<div style="color:var(--tx3);font-size:10px">' + esc(row.name || '') + '</div>' +
+      '<div class="krow">' +
+        '<span>PRICE</span><span>' + (num(row.price) || '\u2014') + ' ' + esc(row.currency || '') + '</span>' +
+        '<span>CHANGE</span><span class="' + cls + '">' + chgTxt + '</span>' +
+        '<span>VOLUME</span><span>' + (num(String(row.volume == null ? '' : row.volume).replace(/,/g, ''), 0) || '\u2014') + '</span>' +
+      '</div>';
+  }
+  function movers(ex, dir){
+    const rows = rowsFor(ex).filter(function(s){ return s.chgPct != null && !isNaN(Number(s.chgPct)); });
+    if(!rows.length) return null;
+    rows.sort(function(a, b){ return dir * (Number(b.chgPct) - Number(a.chgPct)); });
+    return '<b>' + (dir > 0 ? 'Top gainers' : 'Top losers') + ' \u2014 ' + esc(ex) + '</b>' +
+      '<div class="krow">' + rows.slice(0, 5).map(function(s){
+        const c = Number(s.chgPct);
+        return '<span>' + esc(tickerOf(s)) + '</span><span class="' + (c >= 0 ? 'up' : 'down') + '">' +
+               (c >= 0 ? '+' : '') + c.toFixed(2) + '%</span>';
+      }).join('') + '</div>';
+  }
+  function localAnswer(text){
+    const v = text.trim().toUpperCase();
+    if(!v) return null;
+    if(/^(HELP|\?|WHAT CAN YOU DO)/.test(v)) return HELP;
+    if(/^(MARKETS?|EXCHANGES?)\b/.test(v)){
+      return 'Four boards: <b>JSE</b>, <b>EGX</b>, <b>NGX</b>, <b>NSE</b>. You are on <b>' + esc(currentEx) + '</b>.' +
+        chips(['top gainers', 'top losers', 'open heatmap']);
+    }
+    if(/GAINER|RISER|UP TODAY/.test(v)) return movers(currentEx, 1) || 'No quotes loaded for ' + esc(currentEx) + ' yet.';
+    if(/LOSER|FALLER|DOWN TODAY/.test(v)) return movers(currentEx, -1) || 'No quotes loaded for ' + esc(currentEx) + ' yet.';
+    const words = v.replace(/[^A-Z0-9 .]/g, ' ').split(/\s+/).filter(Boolean);
+    const asked = words.filter(function(w){ return ['OPEN','SHOW','GO','TO','THE','PANEL'].indexOf(w) < 0; });
+    for(let i = 0; i < asked.length; i++){
+      const p = (typeof panelFor === 'function') ? panelFor(asked[i]) : null;
+      if(p && p.id !== 'info' && typeof openPanelTab === 'function'){
+        if(window.MTWin && !window.MTWin.isOpen('center')) window.MTWin.set('center', true);
+        openPanelTab(p);
+        return 'Opened the <b>' + esc(p.label) + '</b> panel in the centre window.';
+      }
+    }
+    for(let i = 0; i < asked.length; i++){
+      const w = asked[i];
+      const sec = (typeof resolveSec === 'function') ? resolveSec(w) : null;
+      if(!sec) continue;
+      const row = rowsFor(sec.ex).find(function(s){ return (s.sym || s.ticker) === sec.sym; }) || {sym: sec.sym};
+      if(sec.ex !== currentEx && typeof switchExchange === 'function') switchExchange(sec.ex);
+      try{ if(typeof openStock === 'function') openStock(sec.sym); }catch(e){}
+      return quoteCard(row, sec.ex) +
+        '<div style="color:var(--tx3);margin-top:4px">Opened in the market window.</div>' +
+        chips([w + ' FINANCIALS', w + ' NEWS']);
+    }
+    return null;
+  }
+  function sendAsk(text){
+    bubble('me', esc(text));
+    input.value = '';
+    bubble('bot', localAnswer(text) || ('I could not match that to a security or a panel. ' + HELP));
+  }
+  askLog.addEventListener('click', function(e){
+    const chip = e.target.closest('.chat-chip');
+    if(chip){ input.value = chip.getAttribute('data-ask') || ''; sendAsk(input.value); }
+  });
+  $('chatClear').addEventListener('click', function(){
+    if(mode === 'room'){ setNote('Only your own messages can be removed - hover one to delete it.'); return; }
+    hist = []; saveHist(); askLog.innerHTML = '';
+    bubble('bot', HELP, false);
+  });
+
+  // ---------------- shared plumbing ----------------
+  function gate(){
+    const signedIn = !!token();
+    const block = mode === 'room' && !signedIn;
+    input.disabled = block;
+    sendBtn.disabled = block;
+    input.placeholder = mode === 'room'
+      ? (signedIn ? 'Message the room...' : 'Sign in to post')
+      : 'Ask about a ticker or market...';
+  }
+  function setMode(m){
+    mode = m;
+    document.querySelectorAll('.chat-tab').forEach(function(t){
+      t.classList.toggle('on', t.getAttribute('data-mode') === m);
+    });
+    roomLog.style.display = m === 'room' ? '' : 'none';
+    askLog.style.display = m === 'ask' ? '' : 'none';
+    setNote('');
+    gate();
+    if(m === 'room'){ refresh(); roomLog.scrollTop = roomLog.scrollHeight; }
+    input.focus();
+  }
+  document.querySelectorAll('.chat-tab').forEach(function(t){
+    t.addEventListener('click', function(){ setMode(t.getAttribute('data-mode')); });
+  });
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    const t = input.value.trim();
+    if(!t) return;
+    if(mode === 'room') sendRoom(t); else sendAsk(t);
+  });
+
+  if(hist.length){
+    hist.slice(-MAX_HIST).forEach(function(m){ bubble(m.r === 'me' ? 'me' : 'bot', m.h, false); });
+  }else{
+    bubble('bot', HELP, false);
+  }
+  setMode('room');
+  refresh();
+  loop();
+})();
+
 // ===== Init =====
 
-// honest feed state: LIVE only when a backend is configured
-(function(){
-  const live = !!window.API_BASE;
-  const fs = document.getElementById('feedState');
-  if(fs){
-    fs.textContent = live ? '\u25cf LIVE' : '\u25cf SNAPSHOT';
-    fs.style.color = live ? 'var(--acc)' : 'var(--warn)';
-  }
-})();
-loadListing(currentEx);  // honor ?ex= deep-link (defaults JSE)
+loadListing(currentEx);  // honor ?ex= deep-link, else remembered/inferred market
+loadSearchIndex();       // every other market's tickers, so search spans all four
 
 </script>
+
 </body>
 </html>
