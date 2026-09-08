@@ -33,7 +33,12 @@ body{background:var(--bg);color:var(--tx);font-family:var(--sans);line-height:1.
       font-weight:700;font-size:12px}
 .bname{font-family:var(--mono);font-size:13px;letter-spacing:.1em;color:var(--tx)}
 .bname b{color:var(--acc);font-weight:400}
-.top nav{margin-left:auto;display:flex;gap:20px;align-items:center}
+/* nav sits dead centre of the bar. Absolute centring rather than flex space,
+   so the links stay centred on the page and do not drift when the brand or the
+   button changes width. */
+.top nav{position:absolute;left:50%;transform:translateX(-50%);
+         display:flex;gap:22px;align-items:center;white-space:nowrap}
+.top .cta{margin-left:auto}
 .top nav a{color:var(--tx2);text-decoration:none;font-size:13px}
 .top nav a:hover{color:var(--acc)}
 .cta{background:var(--acc);color:#000;padding:7px 16px;border-radius:5px;
@@ -108,6 +113,12 @@ tr:hover td{background:#080808}
 .foot{border-top:1px solid var(--line);margin-top:60px;padding:22px 0 0;
       color:var(--tx3);font-family:var(--mono);font-size:11px}
 .foot a{color:var(--tx2)}
+/* too narrow to centre between the brand and the button: drop the links onto
+   their own centred row instead of letting them overlap */
+@media(max-width:900px){
+  .top{flex-wrap:wrap;row-gap:10px}
+  .top nav{position:static;transform:none;order:3;width:100%;justify-content:center}
+}
 @media(max-width:720px){
   h1{font-size:29px}
   .diagram{grid-template-columns:1fr}
@@ -128,8 +139,8 @@ tr:hover td{background:#080808}
     <a href="#layout">Layout</a>
     <a href="#commands">Commands</a>
     <a href="#panels">Panels</a>
-    <a class="cta" href="/terminal/">Open the Terminal</a>
   </nav>
+  <a class="cta" href="/terminal/">Open the Terminal</a>
 </header>
 
 <div class="wrap">
