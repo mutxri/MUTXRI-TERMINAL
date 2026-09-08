@@ -286,7 +286,18 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   // landing previews (view= modes) and embedded iframes are not gated
   if(q.get("view") || window.self !== window.top){ if(gate) gate.remove(); return; }
   var mode = "login";
-  function show(){ if(gate) gate.style.display = "flex"; }
+  function show(){
+    if(!gate) return;
+    gate.style.display = "flex";
+    // prefill the address from last time so a returning user only types a password
+    try{
+      var last = localStorage.getItem("mt_email") || "";
+      var em = document.getElementById("gateEmail");
+      if(em && last && !em.value) em.value = last;
+      var pw = document.getElementById("gatePwd");
+      setTimeout(function(){ var t = (em && em.value && pw) ? pw : em; if(t) t.focus(); }, 60);
+    }catch(e){}
+  }
   function hide(){ if(gate) gate.remove(); }
   function msg(t, ok){ var m = document.getElementById("gateMsg"); if(!m) return; m.textContent = t || ""; m.className = "gate-msg" + (ok ? " ok" : ""); }
   // OAuth callback: ?oauth=<provider>&code=<one-time> -> trade for a session token
@@ -344,7 +355,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
       .then(function(d){
         if(d && d.ok){
-          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); }catch(e){}
+          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); }catch(e){}
           msg("Welcome. Loading the terminal…", true);
           setTimeout(hide, 600);
         } else {
