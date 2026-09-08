@@ -59,7 +59,11 @@ def _all():
     """All messages (newest first), both stores."""
     if _USE_MONGO:
         try:
-            return [dict(m) for m in _DB["chat_messages"].find({}).sort("ts", -1)]
+            # exclude _id: an ObjectId is not JSON-serialisable, and the server's
+            # json() would raise on it a second time inside its own fallback,
+            # turning every read of the room into a 500
+            return [dict(m) for m in _DB["chat_messages"]
+                    .find({}, {"_id": 0}).sort("ts", -1)]
         except Exception:
             return []
     return _load_json()
