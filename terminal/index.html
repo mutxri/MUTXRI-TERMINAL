@@ -96,14 +96,12 @@ body{
 .rsz:hover::after{width:2px;background:var(--acc)}
 .rsz.dragging{background:rgba(51,226,154,.16)}
 .rsz.dragging::after{width:2px;background:var(--acc)}
+/* dividers are placed by the workspace manager (any window can be closed, so
+   which gap a divider sits in is not a fixed thing) */
 #rszL{left:calc(var(--wW,232px) - 4px)}
 #rszR{right:calc(var(--wI,288px) + var(--wC,300px) - 3px)}
 #rszC{right:calc(var(--wC,300px) - 3px)}
 .view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
-/* chat collapsed: the fourth column folds away and its divider goes with it */
-.chat-off .main{grid-template-columns:var(--wW,232px) 1fr var(--wI,288px)}
-.chat-off #colChat,.chat-off #rszC{display:none}
-.chat-off #rszR{right:calc(var(--wI,288px) - 3px)}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
 .rail.right{border-right:0;border-left:1px solid var(--line2)}
@@ -221,15 +219,32 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 ::-webkit-scrollbar-track{background:transparent}
 
 
+/* ---------- window chrome: close buttons + the restore strip ---------- */
+.win-x{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:12px;line-height:1;
+  padding:0 3px;cursor:pointer;opacity:.65}
+.win-x:hover{color:#ff5f56;opacity:1}
+.panel-head{display:flex;align-items:center;border-bottom:1px solid var(--line2);padding-right:var(--s3)}
+.panel-head .tabs{flex:1;min-width:0;border-bottom:0}
+.eyebrow{display:flex;align-items:center;gap:var(--s2)}
+.wl-head .win-x,.eyebrow .win-x{margin-left:auto}
+.status .wins{display:flex;gap:4px}
+.status .wins button{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
+  font-size:9.5px;letter-spacing:.08em;padding:2px 7px;border-radius:2px;cursor:pointer}
+.status .wins button:hover{border-color:var(--acc);color:var(--acc)}
+.status .wins button.on{color:var(--acc);border-color:rgba(51,226,154,.45)}
+
 /* ---------- chat rail (4th window) ---------- */
 .rail.chat{border-left:1px solid var(--line2);border-right:0;background:var(--bg2)}
-.chat-head{display:flex;align-items:center;gap:var(--s2);padding:var(--s3) var(--s4) var(--s2);
-  border-bottom:1px solid var(--line);color:var(--tx3);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase}
-.chat-head .chat-title{color:var(--tx2)}
-.chat-head .chat-act{margin-left:auto;display:flex;gap:4px}
-.chat-head button{background:none;border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
-  font-size:9px;letter-spacing:.08em;padding:2px 6px;border-radius:2px;cursor:pointer}
-.chat-head button:hover{border-color:var(--acc);color:var(--acc)}
+.chat-head{display:flex;align-items:center;gap:2px;padding:var(--s2) var(--s3) var(--s2) var(--s4);
+  border-bottom:1px solid var(--line)}
+.chat-tab{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.16em;padding:3px 6px;cursor:pointer;border-radius:2px}
+.chat-tab:hover{color:var(--tx2)}
+.chat-tab.on{color:var(--acc);background:rgba(51,226,154,.08)}
+.chat-head .chat-act{margin-left:auto;display:flex;align-items:center;gap:4px}
+.chat-head .chat-act button:not(.win-x){background:none;border:1px solid var(--line2);color:var(--tx3);
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;padding:2px 6px;border-radius:2px;cursor:pointer}
+.chat-head .chat-act button:not(.win-x):hover{border-color:var(--acc);color:var(--acc)}
 .chat-log{flex:1;min-height:0;overflow-y:auto;padding:var(--s3) var(--s4);
   font-family:var(--mono);font-size:11px;color:var(--tx2);display:flex;flex-direction:column;gap:var(--s3)}
 .chat-msg{max-width:100%}
@@ -245,18 +260,35 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .chat-chip{display:inline-block;background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
   font-size:9.5px;letter-spacing:.06em;padding:2px 6px;border-radius:2px;cursor:pointer;margin:3px 3px 0 0}
 .chat-chip:hover{border-color:var(--acc)}
+/* room messages */
+.room-msg{display:flex;flex-direction:column;gap:2px}
+.room-msg .rm-h{display:flex;align-items:baseline;gap:6px;font-size:9px;color:var(--tx3);letter-spacing:.06em}
+.room-msg .rm-n{color:var(--acc)}
+.room-msg.mine .rm-n{color:var(--tx)}
+.room-msg .rm-ctx{border:1px solid var(--line2);border-radius:2px;padding:0 4px;font-size:8.5px;color:var(--tx3)}
+.room-msg .rm-x{margin-left:auto;background:none;border:0;color:var(--tx3);cursor:pointer;font-size:10px;
+  padding:0 2px;opacity:0}
+.room-msg:hover .rm-x{opacity:.7}
+.room-msg .rm-x:hover{color:#ff5f56;opacity:1}
+.room-msg .rm-t{background:var(--bg3);border:1px solid var(--line);border-radius:3px;
+  padding:var(--s2) var(--s3);line-height:1.5;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}
+.room-msg.mine .rm-t{border-color:var(--line2)}
+.room-empty{color:var(--tx3);font-size:10.5px;line-height:1.6}
+.chat-note{padding:var(--s2) var(--s4);border-top:1px solid var(--line);color:var(--tx3);font-size:10px}
+.chat-note.bad{color:var(--warn,#e6a700)}
+.chat-note b{color:var(--acc)}
 .chat-form{display:flex;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--line2)}
 .chat-form input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
   font-family:var(--mono);font-size:11px;padding:7px 9px;border-radius:2px;outline:0}
 .chat-form input:focus{border-color:var(--acc)}
+.chat-form input:disabled{opacity:.5}
 .chat-form button{background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;
   font-size:10px;letter-spacing:.08em;padding:0 12px;border-radius:2px;cursor:pointer}
-.status .chatbtn{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
-  font-size:10px;letter-spacing:.08em;padding:2px 8px;border-radius:2px;cursor:pointer}
-.status .chatbtn:hover{border-color:var(--acc);color:var(--acc)}
+.chat-form button:disabled{opacity:.45;cursor:default}
 .no-rails #colChat,.no-rails #rszC{display:none}
 .view-panel #colChat,.view-watchlist #colChat,.view-info #colChat,.hide-panel #colChat{display:none}
 .view-panel #rszC,.view-watchlist #rszC,.view-info #rszC,.hide-panel #rszC{display:none}
+.view-panel .wins,.view-watchlist .wins,.view-info .wins,.hide-chrome .wins{display:none}
 /* ---- embed mode (?rails=0 / ?view=): focused showcase, no app chrome ---- */
 .no-rails .rail.right{display:none;}
 .no-rails .main{grid-template-columns:1fr;}
@@ -437,34 +469,40 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 
     <!-- WATCHLIST -->
     <aside class="rail" id="colWatch">
-      <div class="wl-head"><span class="dgrip" draggable="true" data-col="watch" title="Drag to move panel">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span></div>
+      <div class="wl-head"><span class="dgrip" draggable="true" data-col="watch" title="Drag to move panel">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="win-x" type="button" data-win="watch" title="Close the watchlist">✕</button></div>
       <div class="wl" id="wlList"></div>
     </aside>
 
     <!-- CENTER PANEL -->
     <section class="panel" id="colCenter">
-      <nav class="tabs" id="centerTabs"></nav>
+      <div class="panel-head">
+        <nav class="tabs" id="centerTabs"></nav>
+        <button class="win-x" type="button" data-win="center" title="Close the panel window">✕</button>
+      </div>
       <div class="stage"><iframe id="stageFrame" src="features/panels/afri_heatmap.html"></iframe></div>
     </section>
 
     <!-- RIGHT RAIL -->
     <aside class="rail right" id="colInfo">
-      <div class="eyebrow"><span class="dgrip" draggable="true" data-col="info" title="Drag to move panel">⠿</span>Market</div>
+      <div class="eyebrow"><span class="dgrip" draggable="true" data-col="info" title="Drag to move panel">⠿</span>Market<button class="win-x" type="button" data-win="info" title="Close the market window">✕</button></div>
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
-    <!-- CHAT (4th window) -->
+    <!-- CHAT (4th window): the shared room, plus a local data assistant -->
     <aside class="rail chat" id="colChat">
       <div class="chat-head">
-        <span class="chat-title">Chat</span>
+        <button class="chat-tab on" type="button" data-mode="room">ROOM</button>
+        <button class="chat-tab" type="button" data-mode="ask">ASK</button>
         <span class="chat-act">
-          <button id="chatClear" type="button" title="Clear the conversation">CLEAR</button>
-          <button id="chatHide" type="button" title="Hide the chat window">HIDE</button>
+          <button id="chatClear" type="button" title="Clear the assistant thread">CLEAR</button>
+          <button class="win-x" type="button" data-win="chat" title="Close the chat window">✕</button>
         </span>
       </div>
-      <div class="chat-log" id="chatLog" aria-live="polite"></div>
+      <div class="chat-log" id="roomLog" aria-live="polite"></div>
+      <div class="chat-log" id="chatLog" aria-live="polite" style="display:none"></div>
+      <div class="chat-note" id="chatNote" hidden></div>
       <form class="chat-form" id="chatForm" autocomplete="off">
-        <input id="chatInput" placeholder="Ask about a ticker or market..." aria-label="Chat message" spellcheck="false">
+        <input id="chatInput" placeholder="Message the room..." aria-label="Chat message" spellcheck="false" maxlength="500">
         <button type="submit" id="chatSend">SEND</button>
       </form>
     </aside>
@@ -479,7 +517,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   <!-- STATUS -->
   <footer class="status">
     <span class="spacer"></span>
-    <button class="chatbtn" id="chatToggle" type="button" title="Show or hide the chat window">CHAT</button>
+    <span class="wins" id="winBtns" title="Show or hide a window"></span>
     <span class="cmd"><input id="cmd" placeholder="command" spellcheck="false"></span>
   </footer>
 
@@ -729,64 +767,155 @@ function renderTabs(){
     const cols = localStorage.getItem('mt_cols');
     if(cols) setColOrder(cols.indexOf('info') === 0 ? 'info' : 'watch');
   }catch(e){}
-  // ===== resize the rails: drag any divider between the four windows =====
-  // Three dividers, one rule: the dragged rail grows or shrinks and the centre
-  // panel absorbs the difference, never falling under MIN_CENTER.
-  (function(){
+  // ===== the workspace: four windows, any of them closable, all resizable =====
+  // One manager owns both jobs, because they are the same job: which columns
+  // exist decides where the dividers go and how wide anything is allowed to be.
+  window.MTWin = (function(){
     const main = document.querySelector('.main');
     const MIN_RAIL = 180, MIN_CENTER = 380;
-    const DEF = {'--wW': 232, '--wI': 288, '--wC': 300};
-    function cur(v){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? DEF[v] : x; }
-    function chatOn(){ return !document.documentElement.classList.contains('chat-off'); }
-    // width the OTHER rails already take, so the centre keeps its floor
-    function others(varName){
-      let sum = 0;
-      ['--wW', '--wI', '--wC'].forEach(function(v){
-        if(v === varName) return;
-        if(v === '--wC' && !chatOn()) return;
-        sum += cur(v);
-      });
-      return sum;
+    const COLS = {
+      watch:  {el: 'colWatch',  v: '--wW', def: 232, label: 'WATCH'},
+      center: {el: 'colCenter', v: null,   def: 0,   label: 'PANEL'},
+      info:   {el: 'colInfo',   v: '--wI', def: 288, label: 'MARKET'},
+      chat:   {el: 'colChat',   v: '--wC', def: 300, label: 'CHAT'}
+    };
+    const ORDER = ['watch', 'center', 'info', 'chat'];
+    // embed modes (?view=, ?rails=0) lay themselves out in CSS - stay out of it
+    const EMBED = /(^|\s)(view-\S+|no-rails|hide-panel)(\s|$)/.test(document.documentElement.className);
+    let open = {watch: true, center: true, info: true, chat: true};
+    try{
+      const saved = JSON.parse(localStorage.getItem('mt_wins') || 'null');
+      if(saved && typeof saved === 'object'){
+        ORDER.forEach(function(k){ if(saved[k] === false) open[k] = false; });
+      }
+    }catch(e){}
+    if(!ORDER.some(function(k){ return open[k]; })) open = {watch: true, center: true, info: true, chat: true};
+
+    function el(k){ return document.getElementById(COLS[k].el); }
+    function cur(v){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? 0 : x; }
+    function keyOf(node){
+      for(let i = 0; i < ORDER.length; i++){ if(node.id === COLS[ORDER[i]].el) return ORDER[i]; }
+      return null;
     }
-    function clamp(varName, px){
-      const max = Math.max(MIN_RAIL, window.innerWidth - others(varName) - MIN_CENTER);
+    // DOM order, not declaration order: the rails can be dragged around
+    function visible(){
+      return Array.prototype.map.call(main.children, keyOf)
+        .filter(function(k){ return k && open[k]; });
+    }
+    // the one column that takes the slack. The centre panel when it is open,
+    // otherwise the last rail standing - something has to fill the width.
+    function flexKey(vis){ return open.center ? 'center' : vis[vis.length - 1]; }
+    function width(k){ return COLS[k].v ? cur(COLS[k].v) : 0; }
+
+    function clamp(k, px){
+      const vis = visible(), flex = flexKey(vis);
+      let taken = 0;
+      vis.forEach(function(o){ if(o !== k && o !== flex) taken += width(o); });
+      const floor = flex === 'center' ? MIN_CENTER : MIN_RAIL;
+      const max = Math.max(MIN_RAIL, window.innerWidth - taken - floor);
       return Math.min(max, Math.max(MIN_RAIL, px));
     }
-    function apply(varName, px){ main.style.setProperty(varName, clamp(varName, px) + 'px'); }
+    // what the user ASKED for, kept apart from what currently fits. A narrow
+    // browser window squeezes the rails; widening it should give them back,
+    // which it cannot do if the squeeze overwrote the intent.
+    const want = {watch: COLS.watch.def, info: COLS.info.def, chat: COLS.chat.def};
+    function setWidth(k, px){
+      if(!COLS[k].v) return;
+      want[k] = Math.max(MIN_RAIL, Math.round(px));
+      main.style.setProperty(COLS[k].v, clamp(k, want[k]) + 'px');
+    }
+    function applyAll(){
+      ORDER.forEach(function(k){
+        if(COLS[k].v) main.style.setProperty(COLS[k].v, clamp(k, want[k]) + 'px');
+      });
+    }
     function save(){
       try{
-        localStorage.setItem('mt_sizes', [Math.round(cur('--wW')), Math.round(cur('--wI')),
-                                          Math.round(cur('--wC'))].join(','));
+        localStorage.setItem('mt_sizes', [want.watch, want.info, want.chat].join(','));
+        localStorage.setItem('mt_wins', JSON.stringify(open));
       }catch(e){}
     }
-    window.__mtSaveSizes = save;
-    (function restoreSizes(){
-      try{
-        const s = (localStorage.getItem('mt_sizes') || '').split(',');
-        if(s.length < 2) return;
-        apply('--wW', parseInt(s[0], 10) || DEF['--wW']);
-        apply('--wI', parseInt(s[1], 10) || DEF['--wI']);
-        apply('--wC', parseInt(s[2], 10) || DEF['--wC']);
-      }catch(e){}
-    })();
-    // a narrower browser window can leave the rails over-wide: re-clamp
-    window.addEventListener('resize', function(){
-      ['--wW', '--wI', '--wC'].forEach(function(v){ apply(v, cur(v)); });
-    });
-    // which CSS var each divider drives, and which way "wider" points
-    const SIDES = {L: {v: '--wW', dir: 1}, R: {v: '--wI', dir: -1}, C: {v: '--wC', dir: -1}};
-    function begin(side, e, grip){
+
+    // divider i sits between vis[i] and vis[i+1]; it drives whichever of the
+    // two is NOT the flexible column, and is anchored from the side whose
+    // columns all have fixed widths
+    const RSZ = ['rszL', 'rszR', 'rszC'].map(function(id){ return document.getElementById(id); });
+    let gaps = [];
+    function layout(){
+      if(EMBED) return;
+      const vis = visible(), flex = flexKey(vis);
+      main.style.gridTemplateColumns = vis.map(function(k){
+        return k === flex ? 'minmax(0,1fr)' : 'var(' + COLS[k].v + ')';
+      }).join(' ');
+      ORDER.forEach(function(k){ const n = el(k); if(n) n.style.display = open[k] ? '' : 'none'; });
+      gaps = [];
+      const fi = vis.indexOf(flex);
+      for(let i = 0; i < vis.length - 1; i++){
+        if(fi > i){
+          let off = 0;
+          for(let j = 0; j <= i; j++) off += width(vis[j]);
+          gaps.push({k: vis[i], dir: 1, side: 'left', off: off - 4});
+        }else{
+          let off = 0;
+          for(let j = i + 1; j < vis.length; j++) off += width(vis[j]);
+          gaps.push({k: vis[i + 1], dir: -1, side: 'right', off: off - 3});
+        }
+      }
+      RSZ.forEach(function(node, i){
+        if(!node) return;
+        const g = gaps[i];
+        if(!g){ node.style.display = 'none'; return; }
+        node.style.display = '';
+        node.style.left = g.side === 'left' ? g.off + 'px' : 'auto';
+        node.style.right = g.side === 'right' ? g.off + 'px' : 'auto';
+        node.title = 'Drag to resize the ' + COLS[g.k].label.toLowerCase() + ' window';
+      });
+      buttons();
+    }
+
+    // the restore strip in the status bar - the only way back once a window is
+    // closed, so it always shows every window and its state
+    function buttons(){
+      const host = document.getElementById('winBtns');
+      if(!host) return;
+      host.innerHTML = '';
+      ORDER.forEach(function(k){
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = COLS[k].label;
+        b.className = open[k] ? 'on' : '';
+        b.title = (open[k] ? 'Close' : 'Open') + ' the ' + COLS[k].label.toLowerCase() + ' window';
+        b.onclick = function(){ toggle(k); };
+        host.appendChild(b);
+      });
+    }
+
+    function set(k, on){
+      if(!COLS[k] || open[k] === on) return;
+      // never close the last one: an empty terminal is not a layout
+      if(!on && visible().length <= 1) return;
+      open[k] = on;
+      layout();
+      applyAll();   // one fewer neighbour: the others can take their width back
+      layout();
+      save();
+      window.dispatchEvent(new Event('mt:layout'));
+    }
+    function toggle(k){ set(k, !open[k]); }
+
+    function begin(i, e){
+      const g = gaps[i];
+      if(!g) return;
       e.preventDefault();
-      const cfg = SIDES[side];
-      const startX = e.clientX, start = cur(cfg.v);
+      const startX = e.clientX, start = width(g.k), node = RSZ[i];
       const ov = document.createElement('div');
       ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:col-resize;';
       document.body.appendChild(ov);
-      if(grip) grip.classList.add('dragging');
-      function move(ev){ apply(cfg.v, start + cfg.dir * (ev.clientX - startX)); }
+      if(node) node.classList.add('dragging');
+      function move(ev){ setWidth(g.k, start + g.dir * (ev.clientX - startX)); layout(); }
       function end(){
         ov.remove();
-        if(grip) grip.classList.remove('dragging');
+        if(node) node.classList.remove('dragging');
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', end);
         save();
@@ -794,13 +923,33 @@ function renderTabs(){
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', end);
     }
-    ['L', 'R', 'C'].forEach(function(side){
-      const el = document.getElementById('rsz' + side);
-      if(!el) return;
-      el.addEventListener('mousedown', function(e){ begin(side, e, el); });
-      // double-click a divider to snap that rail back to its default width
-      el.addEventListener('dblclick', function(){ apply(SIDES[side].v, DEF[SIDES[side].v]); save(); });
+    RSZ.forEach(function(node, i){
+      if(!node) return;
+      node.addEventListener('mousedown', function(e){ begin(i, e); });
+      node.addEventListener('dblclick', function(){
+        const g = gaps[i];
+        if(g){ setWidth(g.k, COLS[g.k].def); layout(); save(); }
+      });
     });
+    document.addEventListener('click', function(e){
+      const x = e.target.closest ? e.target.closest('.win-x') : null;
+      if(x) set(x.getAttribute('data-win'), false);
+    });
+    window.addEventListener('resize', function(){ applyAll(); layout(); });
+
+    // restore the saved widths, then draw
+    try{
+      const s = (localStorage.getItem('mt_sizes') || '').split(',');
+      if(s.length >= 2){
+        want.watch = parseInt(s[0], 10) || COLS.watch.def;
+        want.info = parseInt(s[1], 10) || COLS.info.def;
+        want.chat = parseInt(s[2], 10) || COLS.chat.def;
+      }
+    }catch(e){}
+    applyAll();
+    layout();
+
+    return {toggle: toggle, set: set, isOpen: function(k){ return !!open[k]; }, layout: layout};
   })();
   // tab reordering
   let dragTab = null;
@@ -1580,28 +1729,156 @@ function renderStockInfo(d, sym){
 }
 
 
-// ===== Chat window (4th panel) =====
-// Answers out of the terminal's own data - listings, quotes, panels. When a
-// backend is configured it gets first refusal via /api/chat; any failure there
-// falls straight back to the local answerer, so the window is never dead.
+// ===== Chat window: the shared room + a local data assistant =====
+// ROOM is the desk talking to itself - every signed-in user reads and writes
+// the same thread on the backend. ASK is the offline half: it answers from the
+// terminal's own listings, so the window still does something useful when the
+// backend is unreachable or you are not signed in.
 (function(){
-  const log = $('chatLog'), form = $('chatForm'), input = $('chatInput');
-  if(!log || !form || !input) return;
-  const HIST_KEY = 'mt_chat', HIDE_KEY = 'mt_chat_hidden', MAX_HIST = 40;
+  const roomLog = $('roomLog'), askLog = $('chatLog'), form = $('chatForm'),
+        input = $('chatInput'), note = $('chatNote'), sendBtn = $('chatSend');
+  if(!roomLog || !askLog || !form || !input) return;
+
+  // the room needs the live backend; the terminal itself can run on snapshots
+  const CHAT_API = (window.API_BASE || 'https://mutxri-terminal.onrender.com').replace(/\/$/, '');
+  const HIST_KEY = 'mt_chat', MAX_HIST = 40;
+  let mode = 'room';
+
+  function token(){ try{ return localStorage.getItem('mt_token') || ''; }catch(e){ return ''; } }
+  async function api(path, body){
+    const r = await fetch(CHAT_API + path, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(Object.assign({token: token()}, body || {}))
+    });
+    if(!r.ok) throw new Error('http ' + r.status);
+    return r.json();
+  }
+  function setNote(msg, bad){
+    if(!note) return;
+    note.hidden = !msg;
+    note.className = 'chat-note' + (bad ? ' bad' : '');
+    note.innerHTML = msg || '';
+  }
+
+  // ---------------- ROOM ----------------
+  const seen = {};
+  let lastTs = 0, me = '', poll = null, delay = 5000, drew = false;
+  function stamp(ts){
+    try{ return new Date(ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}); }
+    catch(e){ return ''; }
+  }
+  function drawMsg(m){
+    if(!m || !m.id || seen[m.id]) return;
+    seen[m.id] = 1;
+    const mine = m.name && m.name === me;
+    const el = document.createElement('div');
+    el.className = 'room-msg' + (mine ? ' mine' : '');
+    el.setAttribute('data-id', m.id);
+    el.innerHTML = '<div class="rm-h"><span class="rm-n">' + esc(m.name || 'trader') + '</span>' +
+      (m.ctx ? '<span class="rm-ctx">' + esc(m.ctx) + '</span>' : '') +
+      '<span>' + stamp(m.ts) + '</span>' +
+      (mine ? '<button class="rm-x" type="button" title="Delete">\u2715</button>' : '') +
+      '</div><div class="rm-t">' + esc(m.text || '') + '</div>';
+    const atBottom = roomLog.scrollHeight - roomLog.scrollTop - roomLog.clientHeight < 60;
+    roomLog.appendChild(el);
+    if(atBottom || mine) roomLog.scrollTop = roomLog.scrollHeight;
+    if(m.ts > lastTs) lastTs = m.ts;
+  }
+  function empty(html){
+    if(drew) return;
+    roomLog.innerHTML = '<div class="room-empty">' + html + '</div>';
+  }
+  async function refresh(){
+    if(!token()){
+      empty('Sign in to join the room and see what everyone else is watching.');
+      setNote('The room is for signed-in users. <b>Sign in</b> to post.', false);
+      gate();
+      return;
+    }
+    try{
+      const d = await api('/api/chat/history', {after: lastTs, limit: 60});
+      if(!d || !d.ok){
+        if(d && d.auth === false){
+          empty('Sign in to join the room.');
+          setNote(esc(d.error || 'sign in to post'), true);
+        }else{
+          setNote(esc((d && d.error) || 'room unavailable'), true);
+        }
+        gate();
+        return;
+      }
+      if(d.me) me = d.me;
+      if(d.messages && d.messages.length){
+        if(!drew){ roomLog.innerHTML = ''; drew = true; }
+        d.messages.forEach(drawMsg);
+      }else if(!drew && lastTs === 0){
+        empty('Nobody has said anything yet. Start the conversation.');
+      }
+      setNote('');
+      delay = 5000;
+      gate();
+    }catch(e){
+      setNote('Room offline - retrying.', true);
+      delay = Math.min(60000, delay * 2);   // back off rather than hammer
+      gate();
+    }
+  }
+  function active(){
+    return mode === 'room' && !document.hidden &&
+           (!window.MTWin || window.MTWin.isOpen('chat'));
+  }
+  function loop(){
+    clearTimeout(poll);
+    poll = setTimeout(function(){
+      (active() ? refresh() : Promise.resolve()).then(loop, loop);
+    }, delay);
+  }
+  document.addEventListener('visibilitychange', function(){ if(active()) refresh(); });
+  window.addEventListener('mt:layout', function(){ if(active()) refresh(); });
+
+  roomLog.addEventListener('click', async function(e){
+    const b = e.target.closest('.rm-x');
+    if(!b) return;
+    const row = b.closest('.room-msg');
+    const id = row && row.getAttribute('data-id');
+    if(!id) return;
+    try{
+      const d = await api('/api/chat/delete', {id: id});
+      if(d && d.ok) row.remove(); else setNote(esc((d && d.error) || 'could not delete'), true);
+    }catch(err){ setNote('Could not reach the room.', true); }
+  });
+
+  async function sendRoom(text){
+    if(!token()){ setNote('Sign in to post to the room.', true); return; }
+    sendBtn.disabled = true;
+    try{
+      const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
+      const d = await api('/api/chat/send', {text: text, ctx: ctx});
+      if(d && d.ok && d.message){
+        if(!drew){ roomLog.innerHTML = ''; drew = true; }
+        drawMsg(d.message);
+        input.value = '';
+        setNote('');
+      }else{
+        setNote(esc((d && d.error) || 'message not sent'), true);
+      }
+    }catch(e){ setNote('Could not reach the room - your message was not sent.', true); }
+    sendBtn.disabled = false;
+    gate();
+  }
+
+  // ---------------- ASK (local, offline) ----------------
   let hist = [];
   try{ hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]') || []; }catch(e){ hist = []; }
   if(!Array.isArray(hist)) hist = [];
-
-  function saveHist(){
-    try{ localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(-MAX_HIST))); }catch(e){}
-  }
+  function saveHist(){ try{ localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(-MAX_HIST))); }catch(e){} }
   function bubble(role, html, remember){
     const el = document.createElement('div');
     el.className = 'chat-msg ' + (role === 'me' ? 'me' : 'bot');
     el.innerHTML = '<span class="who">' + (role === 'me' ? 'YOU' : 'MUTXRI') + '</span>' +
                    '<div class="body">' + html + '</div>';
-    log.appendChild(el);
-    log.scrollTop = log.scrollHeight;
+    askLog.appendChild(el);
+    askLog.scrollTop = askLog.scrollHeight;
     if(remember !== false){ hist.push({r: role, h: html}); saveHist(); }
     return el;
   }
@@ -1614,8 +1891,6 @@ function renderStockInfo(d, sym){
     chips(['SCOM', 'top gainers', 'open financials', 'markets']) +
     '<div style="color:var(--tx3);margin-top:6px">A ticker gives you its quote and opens it. ' +
     '"open &lt;panel&gt;" switches the centre window. "top gainers" / "top losers" rank the market in view.</div>';
-
-  // --- local answers ------------------------------------------------------
   function rowsFor(ex){
     return (typeof listing !== 'undefined' && listing[ex]) ||
            (typeof SEARCH_IDX !== 'undefined' && SEARCH_IDX[ex]) || [];
@@ -1662,15 +1937,14 @@ function renderStockInfo(d, sym){
     if(/LOSER|FALLER|DOWN TODAY/.test(v)) return movers(currentEx, -1) || 'No quotes loaded for ' + esc(currentEx) + ' yet.';
     const words = v.replace(/[^A-Z0-9 .]/g, ' ').split(/\s+/).filter(Boolean);
     const asked = words.filter(function(w){ return ['OPEN','SHOW','GO','TO','THE','PANEL'].indexOf(w) < 0; });
-    // "open <panel>" / a bare panel code
     for(let i = 0; i < asked.length; i++){
       const p = (typeof panelFor === 'function') ? panelFor(asked[i]) : null;
       if(p && p.id !== 'info' && typeof openPanelTab === 'function'){
+        if(window.MTWin && !window.MTWin.isOpen('center')) window.MTWin.set('center', true);
         openPanelTab(p);
         return 'Opened the <b>' + esc(p.label) + '</b> panel in the centre window.';
       }
     }
-    // a ticker anywhere in the sentence
     for(let i = 0; i < asked.length; i++){
       const w = asked[i];
       const sec = (typeof resolveSec === 'function') ? resolveSec(w) : null;
@@ -1684,70 +1958,61 @@ function renderStockInfo(d, sym){
     }
     return null;
   }
-
-  // --- optional backend ---------------------------------------------------
-  async function askBackend(text){
-    if(!window.API_BASE) return null;
-    try{
-      const r = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({message: text, exchange: currentEx,
-                              symbol: (typeof curSec !== 'undefined' ? curSec : null)})
-      });
-      if(!r.ok) return null;
-      const d = await r.json();
-      const reply = d && (d.reply || d.answer || d.text);
-      return reply ? esc(String(reply)).replace(/\n/g, '<br>') : null;
-    }catch(e){ return null; }
-  }
-
-  async function send(text){
+  function sendAsk(text){
     bubble('me', esc(text));
     input.value = '';
-    const thinking = bubble('bot', '<span style="color:var(--tx3)">\u2026</span>', false);
-    let html = null;
-    try{ html = await askBackend(text); }catch(e){}
-    if(!html) html = localAnswer(text);
-    if(!html) html = 'I could not match that to a security or a panel. ' + HELP;
-    thinking.remove();
-    bubble('bot', html);
+    bubble('bot', localAnswer(text) || ('I could not match that to a security or a panel. ' + HELP));
   }
-
-  form.addEventListener('submit', function(e){
-    e.preventDefault();
-    const t = input.value.trim();
-    if(t) send(t);
-  });
-  log.addEventListener('click', function(e){
+  askLog.addEventListener('click', function(e){
     const chip = e.target.closest('.chat-chip');
-    if(chip) send(chip.getAttribute('data-ask') || '');
+    if(chip){ input.value = chip.getAttribute('data-ask') || ''; sendAsk(input.value); }
   });
   $('chatClear').addEventListener('click', function(){
-    hist = []; saveHist(); log.innerHTML = '';
+    if(mode === 'room'){ setNote('Only your own messages can be removed - hover one to delete it.'); return; }
+    hist = []; saveHist(); askLog.innerHTML = '';
     bubble('bot', HELP, false);
   });
 
-  // show/hide the fourth window (remembered between sessions)
-  function setChat(on){
-    document.documentElement.classList.toggle('chat-off', !on);
-    try{ localStorage.setItem(HIDE_KEY, on ? '0' : '1'); }catch(e){}
-    if(typeof window.__mtSaveSizes === 'function') window.__mtSaveSizes();
-    if(on) input.focus();
+  // ---------------- shared plumbing ----------------
+  function gate(){
+    const signedIn = !!token();
+    const block = mode === 'room' && !signedIn;
+    input.disabled = block;
+    sendBtn.disabled = block;
+    input.placeholder = mode === 'room'
+      ? (signedIn ? 'Message the room...' : 'Sign in to post')
+      : 'Ask about a ticker or market...';
   }
-  $('chatHide').addEventListener('click', function(){ setChat(false); });
-  const toggle = $('chatToggle');
-  if(toggle) toggle.addEventListener('click', function(){
-    setChat(document.documentElement.classList.contains('chat-off'));
+  function setMode(m){
+    mode = m;
+    document.querySelectorAll('.chat-tab').forEach(function(t){
+      t.classList.toggle('on', t.getAttribute('data-mode') === m);
+    });
+    roomLog.style.display = m === 'room' ? '' : 'none';
+    askLog.style.display = m === 'ask' ? '' : 'none';
+    setNote('');
+    gate();
+    if(m === 'room'){ refresh(); roomLog.scrollTop = roomLog.scrollHeight; }
+    input.focus();
+  }
+  document.querySelectorAll('.chat-tab').forEach(function(t){
+    t.addEventListener('click', function(){ setMode(t.getAttribute('data-mode')); });
   });
-  try{ if(localStorage.getItem(HIDE_KEY) === '1') document.documentElement.classList.add('chat-off'); }catch(e){}
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    const t = input.value.trim();
+    if(!t) return;
+    if(mode === 'room') sendRoom(t); else sendAsk(t);
+  });
 
-  // replay the stored conversation, or greet
   if(hist.length){
     hist.slice(-MAX_HIST).forEach(function(m){ bubble(m.r === 'me' ? 'me' : 'bot', m.h, false); });
   }else{
     bubble('bot', HELP, false);
   }
+  setMode('room');
+  refresh();
+  loop();
 })();
 
 // ===== Init =====
