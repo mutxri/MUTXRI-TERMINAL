@@ -455,11 +455,29 @@ window.API_BASE = API_BASE;
 // ===== App state =====
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-let currentEx = 'JSE';
-// support ?ex=NGX deep-link (landing dropdown passes the exchange)
+const EXCHANGES = ['JSE', 'EGX', 'NGX', 'NSE'];
+// Nobody should have to pick a market before seeing anything. Order of
+// preference: an explicit ?ex= deep link, then whatever they used last, then
+// their own timezone, and only then a default.
+function pickInitialExchange(){
+  try{
+    const p = (new URLSearchParams(location.search).get('ex') || '').toUpperCase();
+    if(EXCHANGES.includes(p)) return p;
+  }catch(e){}
+  try{
+    const saved = localStorage.getItem('mt_ex');
+    if(EXCHANGES.includes(saved)) return saved;
+  }catch(e){}
+  try{
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    const byTz = {'Africa/Nairobi':'NSE', 'Africa/Lagos':'NGX',
+                  'Africa/Johannesburg':'JSE', 'Africa/Cairo':'EGX'};
+    if(byTz[tz]) return byTz[tz];
+  }catch(e){}
+  return 'JSE';   // deepest statement coverage, so the best first impression
+}
+let currentEx = pickInitialExchange();
 try{
-  const _pex = new URLSearchParams(location.search).get('ex');
-  if(_pex && ['JSE','EGX','NGX','NSE'].includes(_pex.toUpperCase())) currentEx = _pex.toUpperCase();
   const _pp = new URLSearchParams(location.search).get('panel');
   if(_pp) window.__INIT_PANEL = _pp.toLowerCase();
   const _rails = new URLSearchParams(location.search).get('rails');
@@ -870,14 +888,30 @@ const EX_FULL = {
 function renderExchTabs(){
   const nav = $('exchTabs');
   if(!nav) return;
-  // single tab: just the current exchange (no other initials shown)
-  const info = EX_FULL[currentEx] || {name: currentEx, flag: ''};
-  nav.innerHTML = '<button class="exch-tab active" data-ex="' + esc(currentEx) + '" title="' + esc(info.name) + ' · ' + esc(currentEx) + '">' +
-    '<span class="exch-flag">' + esc(info.flag) + '</span> ' + esc(currentEx) +
-    '<span class="exch-full">' + esc(info.name) + '</span></button>';
+  // all four markets, so switching is one click inside the terminal instead of
+  // a decision forced on the visitor before they have seen anything
+  nav.innerHTML = EXCHANGES.map(function(ex){
+    const info = EX_FULL[ex] || {name: ex, flag: ''};
+    const on = ex === currentEx;
+    return '<button class="exch-tab' + (on ? ' active' : '') + '" data-ex="' + esc(ex) + '"' +
+      ' title="' + esc(info.name) + ' · ' + esc(ex) + '">' +
+      '<span class="exch-flag">' + esc(info.flag) + '</span> ' + esc(ex) +
+      (on ? '<span class="exch-full">' + esc(info.name) + '</span>' : '') +
+      '</button>';
+  }).join('');
+  nav.querySelectorAll('.exch-tab').forEach(function(b){
+    b.addEventListener('click', function(){
+      const ex = b.dataset.ex;
+      if(ex && ex !== currentEx) switchExchange(ex);
+    });
+  });
 }
 function switchExchange(ex){
   currentEx = ex;
+  // remember it: a returning user should never be asked again
+  try{ localStorage.setItem('mt_ex', currentEx); }catch(e){}
+  renderExchTabs();
+  $('wlEx').textContent = currentEx + ' · ' + ((listing[currentEx] || []).length || '…');
   // reload the open panel for the new exchange (every panel is ?ex= aware)
   const _cur = $('stageFrame').src;
   $('stageFrame').src = _cur.replace(/([?&])ex=[A-Za-z]+/, '$1ex=' + currentEx);
@@ -936,19 +970,50 @@ function buildTapeFromListing(ex){
 
 // ===== Search =====
 $('q').addEventListener('input', e => renderWatchlist(e.target.value));
+// the box says "Search ticker or command" - make Enter mean it. Reuse the
+// status-bar command path rather than duplicating its resolution rules.
+$('q').addEventListener('keydown', e => {
+  if(e.key !== 'Enter') return;
+  const v = String($('q').value || '').trim();
+  if(!v) return;
+  $('cmd').value = v;
+  $('cmd').dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+  $('q').value = '';
+  renderWatchlist('');
+});
 
 // ===== Command bar =====
 // ===== Command bar: Bloomberg-style "TICKER FUNCTION" =====
 const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'chart', CN:'news',
                      HP:'chart', EQS:'screener', RV:'financials', SPLC:'info'};
+// Every market's tickers, fetched once at boot (39 KB gzipped for all four) so
+// a ticker resolves no matter which board is on screen. Before this, typing a
+// Nairobi ticker while on the JSE board just answered "unknown".
+const SEARCH_IDX = {};
+async function loadSearchIndex(){
+  await Promise.all(EXCHANGES.map(async function(ex){
+    if(listing[ex]) return;                       // already fully loaded
+    try{
+      const r = await fetch('static_data/listing_' + ex + '.json');
+      const d = await r.json();
+      SEARCH_IDX[ex] = d.stocks || [];
+    }catch(e){ /* a market we cannot index just stays unsearchable */ }
+  }));
+}
+function matchRow(s, tok){
+  const st = String(s.ticker || s.sym || '');
+  const b = st.split('.')[0];
+  return st.toUpperCase() === tok || b.toUpperCase() === tok ||
+         String(s.name || '').toUpperCase() === tok;
+}
 function resolveSec(tok){
-  const exs = Object.keys(listing || {});
-  for(const ex of exs){
-    const row = ((listing[ex] || [])).find(function(s){
-      const st = String(s.ticker || s.sym || '');
-      const b = st.split('.')[0];
-      return st.toUpperCase() === tok || b.toUpperCase() === tok || String(s.name || '').toUpperCase() === tok;
-    });
+  // the exchange in view wins, so an ambiguous ticker resolves to what the
+  // user is actually looking at
+  const order = [currentEx].concat(EXCHANGES.filter(e => e !== currentEx));
+  for(const ex of order){
+    const rows = listing[ex] || SEARCH_IDX[ex];
+    if(!rows) continue;
+    const row = rows.find(s => matchRow(s, tok));
     if(row) return {ex: ex, sym: (row.sym || row.ticker)};
   }
   return null;
@@ -1423,7 +1488,8 @@ function renderStockInfo(d, sym){
 
 // ===== Init =====
 
-loadListing(currentEx);  // honor ?ex= deep-link (defaults JSE)
+loadListing(currentEx);  // honor ?ex= deep-link, else remembered/inferred market
+loadSearchIndex();       // every other market's tickers, so search spans all four
 
 </script>
 
