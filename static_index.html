@@ -1557,8 +1557,21 @@ function runCommand(raw){
   if(!v) return;
   const lastP = panelFor(parts[parts.length - 1]);
   if(parts.length >= 2 && lastP){
-    // "MTN FIN" -> resolve the ticker part, open the panel scoped to it
+    // "EGX NEWS" / "NGX FINANCIALS" — the FIRST token is a market, not a
+    // ticker: switch to it and open the panel there. ("MTN JSE" — ticker then
+    // market — is handled by the parts loop above; this is market then panel.)
     const tick = parts.slice(0, -1).join(' ');
+    let exHead = null;
+    EXCHANGES.forEach(function(ex){
+      if(tick === ex || (exFlag(ex) && tick === exFlag(ex))) exHead = ex;
+    });
+    if(exHead && exOn(exHead)){
+      if(exHead !== currentEx && typeof switchExchange === 'function') switchExchange(exHead);
+      curSec = null;               // market-level view, not a specific security
+      openPanelTab(lastP);
+      return;
+    }
+    // "MTN FIN" -> resolve the ticker part, open the panel scoped to it
     const sec = resolveSec(tick);
     if(sec){
       if(sec.ex !== currentEx && typeof switchExchange === 'function') switchExchange(sec.ex);
