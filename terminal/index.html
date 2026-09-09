@@ -45,39 +45,11 @@ body{
 .brandname{font-family:var(--brand);font-weight:700;font-size:17px;letter-spacing:.14em}
 .brandname small{display:block;font-size:8px;letter-spacing:.34em;color:var(--tx3);
   font-weight:600;margin-top:-2px}
-.exch{display:flex;gap:var(--s1);margin-left:var(--s2)}
-/* All four markets have to look switchable. The three you are not on were
-   --tx3 text on black with no border, sitting next to a glowing green pill:
-   people read that as a label for the market they were already on and never
-   found the other exchanges. */
-.exch-tab{background:var(--bg3);border:1px solid var(--line2);color:var(--tx2);font-family:var(--mono);
-  font-size:12px;letter-spacing:.06em;padding:5px 10px;border-radius:2px;
-  cursor:pointer;transition:color .15s,background .15s,border-color .15s}
-.exch-tab:hover{color:var(--tx);background:var(--bg4);border-color:var(--mint-line)}
-.exch-tab.active{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700;
-  font-size:13px;padding:5px 12px;letter-spacing:.08em;box-shadow:0 0 12px rgba(51,226,154,.35)}
-.exch-flag{font-size:11px;margin-right:3px;opacity:.8}
-/* the overflow picker: only rendered once the chips stop fitting */
-.exch-more{position:relative}
-.exch-drop{position:absolute;top:100%;left:0;margin-top:6px;z-index:9000;min-width:230px;
-  background:var(--bg2);border:1px solid var(--line2);border-radius:4px;padding:6px;
-  box-shadow:0 16px 40px rgba(0,0,0,.7)}
-.exch-drop input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--line2);
-  color:var(--tx);font-family:var(--mono);font-size:11px;padding:6px 8px;border-radius:2px;outline:0;margin-bottom:6px}
-.exch-drop input:focus{border-color:var(--acc)}
-.exch-drop .exl{max-height:320px;overflow-y:auto}
-.exch-drop .exi{display:flex;align-items:baseline;gap:8px;padding:5px 8px;border-radius:2px;cursor:pointer;
-  font-family:var(--mono);font-size:11px;color:var(--tx2)}
-.exch-drop .exi:hover{background:var(--bg3);color:var(--tx)}
-.exch-drop .exi.on{color:var(--acc)}
-.exch-drop .exi.off{opacity:.4;cursor:default}
-.exch-drop .exi .c{min-width:36px;color:var(--tx)}
-.exch-drop .exi .n{font-family:var(--ui);font-size:10px;color:var(--tx3)}
-.exch-tab:hover .exch-flag,.exch-tab.active .exch-flag{opacity:1}
-.exch-full{font-size:9px;font-weight:400;opacity:.8;margin-left:5px;letter-spacing:.04em;text-transform:uppercase}
-.search{margin-left:auto;display:flex;align-items:center;gap:var(--s2);
+/* The market is part of what you type, not a row of tabs: one finder covers
+   every listing on every board, so a new market costs nothing up here. */
+.search{position:relative;margin-left:auto;display:flex;align-items:center;gap:var(--s2);
   background:var(--bg3);border:1px solid var(--line2);border-radius:3px;
-  padding:var(--s2) var(--s3);width:260px;transition:border-color .15s}
+  padding:var(--s2) var(--s3);flex:1 1 420px;max-width:560px;transition:border-color .15s}
 .search:focus-within{border-color:var(--mint-line)}
 .search span{color:var(--tx3);font-size:11px}
 .search input{background:none;border:0;outline:0;color:var(--tx);font-family:var(--mono);
@@ -91,6 +63,21 @@ body{
 .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);
   box-shadow:0 0 0 0 rgba(51,226,154,.5);animation:pulse 2.4s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(51,226,154,.45)}70%{box-shadow:0 0 0 5px rgba(51,226,154,0)}100%{box-shadow:0 0 0 0 rgba(51,226,154,0)}}
+.mkt-code{display:inline-block;border:1px solid var(--line2);border-radius:2px;padding:0 4px;
+  font-size:9px;letter-spacing:.06em;color:var(--tx3)}
+.finder{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:9000;
+  background:var(--bg2);border:1px solid var(--line2);border-radius:4px;padding:4px;
+  box-shadow:0 18px 44px rgba(0,0,0,.75);max-height:420px;overflow-y:auto}
+.finder .fi{display:flex;align-items:baseline;gap:8px;padding:6px 8px;border-radius:2px;cursor:pointer;
+  font-family:var(--mono);font-size:11px;color:var(--tx2)}
+.finder .fi:hover,.finder .fi.sel{background:var(--bg3);color:var(--tx)}
+.finder .fi .t{min-width:74px;color:var(--tx);font-weight:500}
+.finder .fi .n{font-family:var(--ui);font-size:10.5px;color:var(--tx3);flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.finder .fi .px{font-size:10.5px;color:var(--tx2)}
+.finder .fi.mkt .t{color:var(--acc)}
+.finder .hint{padding:6px 8px;color:var(--tx3);font-size:10px;font-family:var(--mono);
+  border-top:1px solid var(--line);margin-top:2px}
 
 /* ---------- tape ---------- */
 .tape{display:flex;align-items:center;height:34px;border-bottom:1px solid var(--line2);
@@ -487,12 +474,9 @@ html{scrollbar-width:none;}
       <div class="mark">MX</div>
       <div class="brandname">MUTXRI<small>TERMINAL</small></div>
     </div>
-    <nav class="exch" id="exchTabs">
-      <!-- all four markets, rendered dynamically; the current one is the lit pill -->
-    </nav>
     <label class="search">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
-      <input id="q" placeholder="Search ticker or command…" autocomplete="off" aria-label="Search">
+      <input id="q" placeholder="Ticker, company or market — SCOM, MTN JSE, FA…" autocomplete="off" aria-label="Search">
     </label>
     <span class="wstabs" id="wsTabs" title="Workspaces"></span>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
@@ -1173,105 +1157,13 @@ let EX_FULL = {
   NGX: {name: 'Lagos', flag: 'NG', tz: 'Africa/Lagos', enabled: true},
   NSE: {name: 'Nairobi', flag: 'KE', tz: 'Africa/Nairobi', enabled: true},
 };
-const MAX_CHIPS = 6;      // beyond this the top bar stops being readable
 function exFlag(ex){ return (EX_FULL[ex] || {}).flag || ''; }
 function exName(ex){ return (EX_FULL[ex] || {}).name || ex; }
 function exOn(ex){ return !EX_FULL[ex] || EX_FULL[ex].enabled !== false; }
 
-function chip(ex){
-  const on = ex === currentEx;
-  return '<button class="exch-tab' + (on ? ' active' : '') + '" data-ex="' + esc(ex) + '"' +
-    ' title="' + esc(exName(ex)) + ' · ' + esc(ex) + '">' +
-    '<span class="exch-flag">' + esc(exFlag(ex)) + '</span> ' + esc(ex) +
-    (on ? '<span class="exch-full">' + esc(exName(ex)) + '</span>' : '') +
-    '</button>';
-}
-function renderExchTabs(){
-  const nav = $('exchTabs');
-  if(!nav) return;
-  const all = EXCHANGES.filter(exOn);
-  // the current market always shows; the rest fill the space that is left
-  let shown = all.slice(0, MAX_CHIPS);
-  if(shown.indexOf(currentEx) < 0 && all.indexOf(currentEx) >= 0){
-    shown = [currentEx].concat(all.filter(function(e){ return e !== currentEx; })).slice(0, MAX_CHIPS);
-  }
-  const rest = all.filter(function(e){ return shown.indexOf(e) < 0; });
-  nav.innerHTML = shown.map(chip).join('') +
-    (rest.length || EXCHANGES.length > MAX_CHIPS
-      ? '<span class="exch-more"><button class="exch-tab" id="exchMore" title="All markets">' +
-        (rest.length ? '+' + rest.length + ' ' : '') + '\u25be</button></span>'
-      : '');
-  nav.querySelectorAll('.exch-tab[data-ex]').forEach(function(b){
-    b.addEventListener('click', function(){
-      const ex = b.dataset.ex;
-      if(ex && ex !== currentEx) switchExchange(ex);
-    });
-  });
-  const more = $('exchMore');
-  if(more) more.addEventListener('click', function(e){ e.stopPropagation(); openExchDrop(more.parentNode); });
-}
-function openExchDrop(host){
-  closeExchDrop();
-  const d = document.createElement('div');
-  d.className = 'exch-drop';
-  d.innerHTML = '<input id="exchFind" placeholder="Find a market..." spellcheck="false"><div class="exl"></div>';
-  host.appendChild(d);
-  const list = d.querySelector('.exl');
-  function draw(filter){
-    const f = (filter || '').trim().toUpperCase();
-    list.innerHTML = EXCHANGES.filter(function(ex){
-      if(!f) return true;
-      return ex.indexOf(f) >= 0 || exName(ex).toUpperCase().indexOf(f) >= 0 ||
-             exFlag(ex).indexOf(f) >= 0;
-    }).map(function(ex){
-      const cls = 'exi' + (ex === currentEx ? ' on' : '') + (exOn(ex) ? '' : ' off');
-      return '<div class="' + cls + '" data-ex="' + esc(ex) + '"><span class="c">' + esc(ex) +
-             '</span><span class="n">' + esc(exFlag(ex)) + ' ' + esc(exName(ex)) +
-             (exOn(ex) ? '' : ' - no data yet') + '</span></div>';
-    }).join('') || '<div class="exi off">nothing matches</div>';
-    list.querySelectorAll('.exi[data-ex]').forEach(function(row){
-      row.addEventListener('click', function(){
-        const ex = row.dataset.ex;
-        if(!exOn(ex)) return;
-        closeExchDrop();
-        if(ex !== currentEx) switchExchange(ex);
-      });
-    });
-  }
-  draw('');
-  const find = d.querySelector('#exchFind');
-  find.addEventListener('input', function(){ draw(find.value); });
-  find.focus();
-  setTimeout(function(){ document.addEventListener('click', closeExchDrop, {once: true}); }, 0);
-}
-function closeExchDrop(){
-  const d = document.querySelector('.exch-drop');
-  if(d) d.remove();
-}
-// pull the real list; the built-ins above keep the terminal working if it fails
-(function loadExchanges(){
-  fetch('static_data/exchanges.json')
-    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
-    .then(function(d){
-      const rows = (d && d.exchanges) || [];
-      if(!rows.length) return;
-      const codes = [], map = {};
-      rows.forEach(function(x){
-        if(!x || !x.code) return;
-        codes.push(x.code);
-        map[x.code] = {name: x.name || x.code, flag: x.flag || '', tz: x.tz || '',
-                       full: x.full || '', currency: x.currency || '', enabled: x.enabled !== false};
-      });
-      EXCHANGES = codes;
-      EX_FULL = map;
-      if(d.default && map[d.default]) EX_DEFAULT = d.default;
-      // a market remembered from a previous visit may no longer be listed
-      if(codes.indexOf(currentEx) < 0 || !exOn(currentEx)) switchExchange(EX_DEFAULT);
-      else renderExchTabs();
-      loadSearchIndex();          // index the markets that were added
-    })
-    .catch(function(){ /* built-in list stands */ });
-})();
+// No exchange tabs: the finder below is how a market gets chosen, so the top
+// bar does not grow when a listing is added.
+function renderExchTabs(){ /* the chips are gone; kept so old call sites are safe */ }
 function switchExchange(ex){
   currentEx = ex;
   // remember it: a returning user should never be asked again
@@ -1293,9 +1185,6 @@ function switchExchange(ex){
   }
 }
 renderExchTabs();
-
-// sync the active tab to the (possibly URL-set) currentEx
-document.querySelectorAll('.exch-tab').forEach(x => x.classList.toggle('active', x.dataset.ex === currentEx));
 
 // ===== Tape helpers =====
 function tapeItem(s){
@@ -1335,17 +1224,120 @@ function buildTapeFromListing(ex){
 }
 
 // ===== Search =====
-$('q').addEventListener('input', e => renderWatchlist(e.target.value));
-// the box says "Search ticker or command" - make Enter mean it. Reuse the
-// status-bar command path rather than duplicating its resolution rules.
-$('q').addEventListener('keydown', e => {
-  if(e.key !== 'Enter') return;
-  const v = String($('q').value || '').trim();
-  if(!v) return;
-  runCommand(v);
-  $('q').value = '';
-  renderWatchlist('');
-});
+// ===== the finder: every security on every market, plus the markets =====
+// This replaces the exchange tabs. Securities are matched across all boards at
+// once, so which market you are "on" stops being a mode you have to set first.
+(function(){
+  const box = $('q');
+  if(!box) return;
+  let rows = [], sel = -1;
+
+  function allRows(){
+    const out = [];
+    EXCHANGES.forEach(function(ex){
+      const src = (typeof listing !== 'undefined' && listing[ex]) ||
+                  (typeof SEARCH_IDX !== 'undefined' && SEARCH_IDX[ex]) || [];
+      src.forEach(function(s){ out.push({ex: ex, s: s}); });
+    });
+    return out;
+  }
+  function score(tkr, name, q){
+    if(tkr === q) return 0;                       // exact ticker wins
+    if(tkr.indexOf(q) === 0) return 1;            // ticker starts with
+    if(name.indexOf(q) === 0) return 2;           // name starts with
+    if(tkr.indexOf(q) >= 0) return 3;
+    if(name.indexOf(q) >= 0) return 4;
+    return -1;
+  }
+  function find(q){
+    q = q.trim().toUpperCase();
+    if(!q) return [];
+    const hits = [];
+    // markets first when the query looks like one
+    EXCHANGES.forEach(function(ex){
+      const nm = (exName(ex) || '').toUpperCase();
+      const sc = score(ex, nm, q);
+      if(sc >= 0 && exOn(ex)) hits.push({kind: 'mkt', ex: ex, sc: sc - 0.5});
+    });
+    allRows().forEach(function(r){
+      const tkr = String(stockTicker(r.s) || '').toUpperCase();
+      const nm = String(r.s.name || '').toUpperCase();
+      const sc = score(tkr, nm, q);
+      if(sc >= 0) hits.push({kind: 'sec', ex: r.ex, row: r.s, tkr: tkr, sc: sc});
+    });
+    hits.sort(function(a, b){ return a.sc - b.sc; });
+    return hits.slice(0, 12);
+  }
+  function close(){
+    const f = document.querySelector('.finder');
+    if(f) f.remove();
+    rows = []; sel = -1;
+  }
+  function draw(q){
+    close();
+    rows = find(q);
+    if(!rows.length) return;
+    const f = document.createElement('div');
+    f.className = 'finder';
+    f.innerHTML = rows.map(function(r, i){
+      if(r.kind === 'mkt'){
+        return '<div class="fi mkt" data-i="' + i + '"><span class="t">' + esc(r.ex) +
+               '</span><span class="n">' + esc(exFlag(r.ex)) + ' ' + esc(exName(r.ex)) +
+               '</span><span class="px">market</span></div>';
+      }
+      const px = r.row.price != null ? Number(r.row.price).toLocaleString(undefined, {maximumFractionDigits: 2}) : '';
+      const chg = r.row.chgPct;
+      return '<div class="fi" data-i="' + i + '"><span class="t">' + esc(r.tkr) +
+             ' <span class="mkt-code">' + esc(exFlag(r.ex) || r.ex) + '</span></span>' +
+             '<span class="n">' + esc(r.row.name || '') + '</span>' +
+             '<span class="px ' + (chg == null ? '' : (chg >= 0 ? 'up' : 'down')) + '">' + esc(px) + '</span></div>';
+    }).join('') + '<div class="hint">enter opens · type a function after it (FA, DES, CN) · or name a market (SCOM KE)</div>';
+    box.parentNode.appendChild(f);
+    f.querySelectorAll('.fi').forEach(function(el){
+      el.addEventListener('mousedown', function(e){ e.preventDefault(); pick(+el.dataset.i); });
+    });
+  }
+  function mark(){
+    document.querySelectorAll('.finder .fi').forEach(function(el, i){
+      el.classList.toggle('sel', i === sel);
+    });
+  }
+  function pick(i){
+    const r = rows[i];
+    if(!r) return;
+    box.value = '';
+    close();
+    renderWatchlist('');
+    if(r.kind === 'mkt'){ if(r.ex !== currentEx) switchExchange(r.ex); return; }
+    if(r.ex !== currentEx) switchExchange(r.ex);
+    curSec = r.row.sym || r.tkr;
+    if(typeof openStock === 'function') openStock(curSec);
+  }
+
+  box.addEventListener('input', function(e){
+    renderWatchlist(e.target.value);      // the watchlist still filters as you type
+    draw(e.target.value);
+  });
+  box.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      if(!rows.length) return;
+      e.preventDefault();
+      sel = (sel + (e.key === 'ArrowDown' ? 1 : rows.length - 1)) % rows.length;
+      mark();
+      return;
+    }
+    if(e.key === 'Escape'){ close(); return; }
+    if(e.key !== 'Enter') return;
+    if(sel >= 0 && rows[sel]){ pick(sel); return; }
+    const v = String(box.value || '').trim();
+    if(!v) return;
+    close();
+    runCommand(v);                        // "MTN JSE", "SCOM FA", "HEATMAP" ...
+    box.value = '';
+    renderWatchlist('');
+  });
+  box.addEventListener('blur', function(){ setTimeout(close, 120); });
+})();
 
 // ===== Command bar =====
 // ===== Command bar: Bloomberg-style "TICKER FUNCTION" =====
