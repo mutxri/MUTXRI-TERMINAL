@@ -243,6 +243,13 @@ body{
 .rightinfo .qgrid span:nth-child(odd){color:var(--tx3)}
 .rightinfo .qgrid span:nth-child(even){text-align:right;color:var(--tx)}
 
+.mrow{display:grid;grid-template-columns:58px 1fr auto auto;gap:2px 8px;padding:2px 0;font-size:10px;align-items:baseline}
+.mrow .mt{color:var(--tx);font-weight:700}
+.mrow .mn{color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow .mp{text-align:right;color:var(--tx2);font-size:9.5px}
+.mrow .mchg{text-align:right;color:var(--tx2);font-size:9.5px}
+.msec{color:var(--tx3);font-size:9px;letter-spacing:.12em;font-weight:700;padding:2px 0 3px;border-bottom:1px solid var(--line2)}
+
 kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   border-radius:2px;padding:1px 5px;color:var(--tx2);font-size:10px}
 
@@ -1107,6 +1114,7 @@ async function loadListing(ex){
     renderWatchlist($('q').value);
     buildTape(ex);            // tape now shows the new exchange immediately
     primeQuotes(ex);          // then refresh with live quotes
+    if(ex === currentEx) renderMarketOverview(ex);
   }catch(e){ console.error('listing fail', e); }
 }
 
@@ -1225,9 +1233,72 @@ function switchExchange(ex){
     buildTapeFromListing(currentEx);
     renderWatchlist($('q').value);
     primeQuotes(currentEx);
+    renderMarketOverview(currentEx);
   }
 }
 renderExchTabs();
+
+// ===== MARKET overview: the right rail shows the board, not a company =====
+// Replaces the empty/company-only info rail with a per-exchange market summary:
+// breadth (advancers/decliners/unchanged + tone), top gainers, top losers and
+// most active. Clicking a specific security still fills this rail with its
+// quote sheet (openStock), so the overview is only the *default* state.
+function renderMarketOverview(ex){
+  const rows = (listing[ex] || []).filter(function(s){ return s && (s.sym || s.ticker); });
+  const el = $('rightInfo');
+  if(!el) return;
+  if(!rows.length){ el.innerHTML = '<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no market data for ' + esc(ex) + ' yet</div>'; return; }
+  const priced = rows.filter(function(s){ return s.price != null && !isNaN(Number(s.price)); });
+  let adv = 0, dec = 0, unc = 0;
+  priced.forEach(function(s){
+    const c = Number(s.chgPct);
+    if(c == null || isNaN(c)){ unc++; return; }
+    if(c > 0) adv++; else if(c < 0) dec++; else unc++;
+  });
+  const ratio = dec ? (adv / dec) : (adv ? 9 : 1);
+  const tone = ratio >= 1.5 ? 'risk-on' : (ratio <= 0.67 ? 'risk-off' : 'mixed');
+  const tCls = tone === 'risk-on' ? 'up' : (tone === 'risk-off' ? 'down' : '');
+  const mFull = EX_FULL[ex] || {};
+  const moverList = function(arr){
+    return arr.slice(0, 5).map(function(s){
+      const c = Number(s.chgPct);
+      const cls = (c == null || isNaN(c)) ? '' : (c >= 0 ? 'up' : 'down');
+      return '<div class="mrow"><span class="mt">' + esc(stockTicker(s)) + '</span>' +
+             '<span class="mn">' + esc(String(s.name || '').slice(0, 22)) + '</span>' +
+             '<span class="mp">' + (s.price != null ? Number(s.price).toLocaleString(undefined, {maximumFractionDigits: 2}) : '—') + '</span>' +
+             '<span class="' + cls + '">' + (c == null || isNaN(c) ? '—' : ((c >= 0 ? '+' : '') + c.toFixed(2) + '%')) + '</span></div>';
+    }).join('');
+  };
+  const srt = priced.filter(function(s){ return s.chgPct != null && !isNaN(Number(s.chgPct)); });
+  const gainers = srt.slice().sort(function(a, b){ return Number(b.chgPct) - Number(a.chgPct); });
+  const losers  = srt.slice().sort(function(a, b){ return Number(a.chgPct) - Number(b.chgPct); });
+  const active  = priced.slice().sort(function(a, b){ return (Number(b.volume) || 0) - (Number(a.volume) || 0); });
+  const cur = (priced[0] && priced[0].currency) || '';
+  const sec = function(title, body){
+    return '<div class="msec">' + title + '</div>' + body;
+  };
+  el.innerHTML =
+    '<div style="padding:10px 12px;border-bottom:1px solid var(--line)">' +
+      '<div style="color:var(--acc);font-weight:700;font-size:13px;letter-spacing:.02em">' + esc(ex) + ' <span style="color:var(--tx3);font-weight:400">· ' + esc(mFull.name || '') + '</span></div>' +
+      '<div style="color:var(--tx3);font-size:10px;padding:2px 0">' + esc(mFull.country || '') + ' · ' + priced.length + ' priced' + (cur ? ' · ' + esc(cur) : '') + '</div>' +
+      '<div style="display:flex;gap:12px;padding:6px 0 2px;font-family:var(--mono);font-size:11px">' +
+        '<span style="color:var(--up)">▲ ' + adv + '</span>' +
+        '<span style="color:var(--down)">▼ ' + dec + '</span>' +
+        '<span style="color:var(--tx3)">— ' + unc + '</span>' +
+        '<span class="' + tCls + '" style="margin-left:auto;letter-spacing:.08em;font-size:9px;align-self:center">' + tone.toUpperCase() + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<div style="padding:8px 12px">' +
+      sec('TOP GAINERS', moverList(gainers)) +
+      '<div style="height:10px"></div>' + sec('TOP LOSERS', moverList(losers)) +
+      '<div style="height:10px"></div>' + sec('MOST ACTIVE', active.slice(0, 5).map(function(s){
+        return '<div class="mrow"><span class="mt">' + esc(stockTicker(s)) + '</span>' +
+               '<span class="mn">' + esc(String(s.name || '').slice(0, 22)) + '</span>' +
+               '<span class="mp">' + (s.price != null ? Number(s.price).toLocaleString(undefined, {maximumFractionDigits: 2}) : '—') + '</span>' +
+               '<span class="mchg">' + (s.volume != null ? Number(String(s.volume).replace(/,/g, '')).toLocaleString() : '—') + '</span></div>';
+      }).join('')) +
+    '</div>';
+}
 
 // ===== Tape helpers =====
 function tapeItem(s){
