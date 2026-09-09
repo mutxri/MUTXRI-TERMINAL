@@ -146,7 +146,8 @@ def main():
     ap.add_argument("--top", type=int, default=15, help="signals to print")
     ap.add_argument("--min-impact", type=float, default=10.0, help="signal cutoff")
     ap.add_argument("--no-social", action="store_true", help="skip the X/Twitter tier")
-    ap.add_argument("--tiers", default="local,global,social", help="comma list of tiers")
+    ap.add_argument("--tiers", default="local,global,bonds,research,corp,social",
+                    help="comma list of tiers")
     ap.add_argument("--json", action="store_true", help="dump signals as JSON to stdout")
     ap.add_argument("--quiet", action="store_true", help="suppress the brief")
     ap.add_argument("--no-colour", action="store_true", help="plain output")

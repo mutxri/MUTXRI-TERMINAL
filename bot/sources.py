@@ -41,6 +41,10 @@ LOCAL_FEEDS = {
         ("nairametrics", "https://nairametrics.com/feed/", 0.95),
         ("businessday-ng", "https://businessday.ng/feed/", 0.9),
         ("gnews-ngx", _gnews('"Nigerian Exchange" OR "NGX All-Share" OR naira'), 0.85),
+        ("punch-ng", "https://punchng.com/topics/business/feed/", 0.75),
+        ("thisday-ng", "https://www.thisdaylive.com/index.php/feed/", 0.75),
+        ("vanguard-ng", "https://www.vanguardngr.com/category/business/feed/", 0.75),
+        ("premiumtimes-ng", "https://www.premiumtimesng.com/category/business/feed", 0.75),
     ],
     "JSE": [
         ("moneyweb", "https://www.moneyweb.co.za/feed/", 0.95),
@@ -66,6 +70,73 @@ GLOBAL_FEEDS = [
     ("investing-com", "https://www.investing.com/rss/news_25.rss", 0.75),
     ("oilprice", "https://oilprice.com/rss/main", 0.8),
     ("theafricareport", "https://www.theafricareport.com/feed/", 0.75),
+]
+
+# Fixed income. The terminal has a BND panel of sovereign yield curves and no
+# words around them; these are the stories that move a curve. Country-specific
+# queries carry an exchange tag so a T-bill auction in Nairobi is filed under
+# NSE, while the cross-border ones stay unattributed.
+BOND_FEEDS = [
+    ("gnews-eurobond", _gnews('Eurobond Kenya OR Nigeria OR Egypt OR "South Africa" '
+                              'sovereign bond'), 0.9, None),
+    ("gnews-tbill", _gnews('"Treasury bill" auction Kenya OR Nigeria OR Egypt yield'),
+     0.85, None),
+    # Bare agency names return their whole global book, so the query demands
+    # sovereign framing alongside the country.
+    ("gnews-sovereign-rating",
+     _gnews("(Moody's OR Fitch OR S&P) (sovereign OR credit rating OR outlook) Kenya OR Nigeria OR Egypt OR South Africa"), 0.85, None),
+    ("gnews-bond-yields", _gnews('bond yields Kenya OR Nigeria OR Egypt OR '
+                                 '"South Africa" debt market'), 0.8, None),
+    ("gnews-imf", _gnews("IMF programme OR disbursement Kenya OR Nigeria OR Egypt OR Ghana"),
+     0.8, None),
+    ("gnews-corp-bond", _gnews('corporate bond issue Kenya OR Nigeria OR '
+                               '"South Africa" listed'), 0.8, None),
+    ("gnews-sukuk", _gnews("sukuk OR \"green bond\" Africa issuance"), 0.75, None),
+    ("gnews-cbk-auction", _gnews('"Central Bank of Kenya" bond OR bill auction results'),
+     0.9, "NSE"),
+    ("gnews-dmo-ngn", _gnews('"Debt Management Office" Nigeria FGN bond'), 0.9, "NGX"),
+]
+
+# Research, analysis and securities-focused publications, plus the regulator and
+# exchange notices that are securities news by definition. africanfinancials is
+# the standout: AGM results and filing summaries across the continent.
+RESEARCH_FEEDS = [
+    ("africanfinancials", "https://africanfinancials.com/feed/", 0.9, None),
+    ("africanbusiness", "https://african.business/feed", 0.75, None),
+    ("biznews", "https://www.biznews.com/feed", 0.8, "JSE"),
+    ("justonelap", "https://justonelap.com/feed/", 0.7, "JSE"),
+    ("bizcommunity", "https://www.bizcommunity.com/rss/196/512.html", 0.65, "JSE"),
+    ("gnews-cma-ke", _gnews('"Capital Markets Authority" Kenya approval OR licence '
+                            'OR listing'), 0.85, "NSE"),
+    ("gnews-sec-ng", _gnews('"Securities and Exchange Commission" Nigeria rules '
+                            'OR approval'), 0.85, "NGX"),
+    ("gnews-jse-sens", _gnews('JSE SENS announcement OR "cautionary announcement"'),
+     0.85, "JSE"),
+    ("gnews-fra-eg", _gnews('"Financial Regulatory Authority" Egypt OR EGX listing rules'),
+     0.85, "EGX"),
+]
+
+# Corporate actions: dividend payouts, book closures, ex-dividend and record
+# dates as announced on websites and blogs, not just as press coverage. Each
+# feed was probed before shipping and ships only where the query actually
+# returns this market's announcements:
+#   JSE  strong - simplywall.st-style dividend reminders and SENS dividend
+#        stories index well and are not in the local press feeds.
+#   NGX  covered by the official disclosure list (ngx_news.json, doclib PDFs
+#        incl. dividend/book-closure notices) - a gnews query adds noise.
+#   NSE  covered by the mystocks announcements collector (nse_news.json).
+#        Note: gnews "NSE" queries are unusable here - the token resolves to
+#        India's National Stock Exchange, which drowns Kenya in 50+ Indian
+#        ex-dividend posts per week.
+#   EGX  no reachable English corporate-action feed (clean queries return 0
+#        items; the bourse publishes in Arabic). Left out on purpose rather
+#        than shipping a feed that silently returns nothing.
+CORPORATE_ACTION_FEEDS = [
+    ("gnews-jse-divclosure",
+     _gnews('(dividend OR "book closure" OR "record date" OR "last day to trade") '
+            '(JSE OR SENS OR "Johannesburg Stock Exchange")'), 0.9, "JSE"),
+    ("gnews-jse-dividend-blogs",
+     _gnews('simplywall.st (JSE OR "Johannesburg") dividend'), 0.8, "JSE"),
 ]
 
 # Macro themes that transmit into frontier/African markets.
@@ -199,7 +270,8 @@ def fetch_x(max_results=60):
 
 
 # ------------------------------------------------------------------ collector
-def collect(tiers=("local", "global", "social"), workers=10, verbose=True):
+def collect(tiers=("local", "global", "bonds", "research", "corp", "social"),
+            workers=10, verbose=True):
     """Fetch every configured source in parallel.
 
     Returns (items, report). The report records per-source outcomes so a failing
@@ -213,6 +285,15 @@ def collect(tiers=("local", "global", "social"), workers=10, verbose=True):
     if "global" in tiers:
         for sid, url, w in GLOBAL_FEEDS + GLOBAL_QUERIES:
             jobs.append((sid, url, w, "global", None))
+    if "bonds" in tiers:
+        for sid, url, w, ex in BOND_FEEDS:
+            jobs.append((sid, url, w, "bonds", ex))
+    if "research" in tiers:
+        for sid, url, w, ex in RESEARCH_FEEDS:
+            jobs.append((sid, url, w, "research", ex))
+    if "corp" in tiers:
+        for sid, url, w, ex in CORPORATE_ACTION_FEEDS:
+            jobs.append((sid, url, w, "corp", ex))
 
     def _run(j):
         # One retry: these feeds time out intermittently under load, and losing

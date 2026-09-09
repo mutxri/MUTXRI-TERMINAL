@@ -28,9 +28,15 @@ ordering: a story the scan rated highly appears further up. No score is shown.
 """
 import datetime as dt, json, os, re, time
 
+from . import impact
+from . import sources as SRC
 from . import universe as U
 
 SD = U.SD
+# Which exchange each local-press feed covers, so a themed local story stays on
+# its home market's page instead of spilling onto all four (see build()).
+LOCAL_HOME = {sid: ex for ex, feeds in SRC.LOCAL_FEEDS.items()
+              for sid, _url, _w in feeds}
 # The panel shows a scrolling list; beyond this nobody reads and the file grows.
 MAX_PER_EXCHANGE = 60
 # A ticker is printed publicly only well above the matcher's internal threshold.
@@ -93,6 +99,25 @@ def build(items, signals):
     """
     per_ex = {ex: [] for ex in U.EXCHANGES}
 
+    # Corporate actions - dividend payouts, book closures, ex-dividend and
+    # record dates - arrive exchange-tagged from the corp tier and go straight
+    # onto that exchange's list, like the bond tier does for the BND panel.
+    # The queries are about nothing but those announcements, so no impact gate
+    # is needed; they are factual notices, not opinions about a company.
+    # One gate is required: a simplywall.st "3 dividend stocks" round-up can
+    # match the JSE query while naming nothing South African, so the story has
+    # to actually name a company listed on the exchange it is filed under.
+    idx = U.build_index(U.load())
+    for it in items or []:
+        if it.get("tier") not in CORP_TIERS or it.get("exchange") not in per_ex:
+            continue
+        ents, _cues = impact.match_entities(it, idx)
+        if not any(e["sec"]["exchange"] == it["exchange"] for e in ents):
+            continue
+        per_ex[it["exchange"]].append(_row(
+            it["title"], it.get("url"), it.get("publisher"), it.get("ts"),
+            rank=it.get("weight", 0.9) * 10))
+
     # Only stories the scan actually linked to a market get in. The local feeds
     # are general outlets - Moneyweb, Daily News Egypt, Tuko - that run lifestyle
     # and politics alongside markets, so taking everything they publish put
@@ -119,7 +144,15 @@ def build(items, signals):
         row = _row(s["title"], s.get("url"), s.get("publisher"), s.get("ts"),
                    tickers=ticks, rank=s.get("impact", 0))
         names_a_local_company = bool(ticks)
-        if s.get("tier") == "local" or names_a_local_company:
+        # A local-press item is admitted on its home exchange's page, or on
+        # any page where it actually names a listed company. It must not ride
+        # a macro theme onto the other three exchanges: Business Day's
+        # "WORLD IN BRIEF: UK sanctions..." is a NGX-source story, and the
+        # risk_off theme it triggers would otherwise paste it onto NSE, JSE
+        # and EGX pages too.
+        home = LOCAL_HOME.get(s.get("source_id"))
+        on_home_market = (home is None or home == ex)
+        if (s.get("tier") == "local" and on_home_market) or names_a_local_company:
             per_ex[ex].append(row)
         elif s.get("impact", 0) >= GLOBAL_MIN_IMPACT:
             global_pool[ex].append(row)
@@ -155,6 +188,75 @@ def build(items, signals):
     return out
 
 
+BOND_TIERS = ("bonds",)
+CORP_TIERS = ("corp",)
+# Countries, markets and currencies that make a debt story one of ours.
+_MARKET_WORDS = tuple(sorted({
+    "kenya", "kenyan", "nairobi", "shilling", "cbk",
+    "nigeria", "nigerian", "lagos", "abuja", "naira", "cbn", "fgn",
+    "south africa", "south african", "johannesburg", "rand", "sarb",
+    "egypt", "egyptian", "cairo", "egp",
+    "africa", "african", "ghana", "eurobond",
+}))
+
+
+def _mentions_market(text):
+    low = (text or "").lower()
+    return any(w in low for w in _MARKET_WORDS)
+
+
+MAX_BOND_HEADLINES = 40
+
+
+def build_bonds(items, signals):
+    """Fixed-income headlines for the BND panel.
+
+    The panel shows sovereign yield curves and not one word about why they moved.
+    Everything from the bonds tier qualifies by construction - those queries are
+    about debt and nothing else - and any other story the impact engine tagged
+    with the bond_market theme joins it, which catches a corporate issue reported
+    by the local press rather than by a debt-specific search.
+    """
+    rows = []
+    for it in items or []:
+        if it.get("tier") not in BOND_TIERS:
+            continue
+        # A ratings-agency query returns the agency's whole global book, so
+        # "Fitch Forecasts Soft 2026 Earnings for Resorts World Genting" arrived
+        # on an African bond page. Unless the feed itself is country-specific,
+        # the story has to name one of these markets.
+        if not it.get("exchange") and not _mentions_market(
+                it["title"] + " " + (it.get("summary") or "")):
+            continue
+        rows.append(_row(it["title"], it.get("url"), it.get("publisher"),
+                         it.get("ts"), rank=it.get("weight", 0.5) * 10))
+        rows[-1]["exchange"] = it.get("exchange")
+    for s in signals or []:
+        if not any(t.get("id") == "bond_market" for t in s.get("themes", [])):
+            continue
+        r = _row(s["title"], s.get("url"), s.get("publisher"), s.get("ts"),
+                 rank=s.get("impact", 0))
+        r["exchange"] = s.get("exchange")
+        rows.append(r)
+
+    rows.sort(key=lambda r: -r["_rank"])
+    seen_t, seen_u, keep = set(), set(), []
+    for r in rows:
+        t = _norm_title(r["title"])
+        u = (r["url"] or "").split("?")[0]
+        if (t and t in seen_t) or (u and u in seen_u):
+            continue
+        seen_t.add(t)
+        if u:
+            seen_u.add(u)
+        keep.append(r)
+    keep = keep[:MAX_BOND_HEADLINES]
+    keep.sort(key=lambda r: -r["ts"])
+    for r in keep:
+        r.pop("_rank", None)
+    return keep
+
+
 def write(items, signals, sd=None):
     """Write bot_news_<EX>.json for every exchange with headlines."""
     sd = sd or SD
@@ -165,6 +267,10 @@ def write(items, signals, sd=None):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(rows, f, ensure_ascii=False, indent=1)
         written[ex] = len(rows)
+    bonds = build_bonds(items, signals)
+    with open(os.path.join(sd, "bot_news_bonds.json"), "w", encoding="utf-8") as f:
+        json.dump(bonds, f, ensure_ascii=False, indent=1)
+    written["BONDS"] = len(bonds)
     return written
 
 
