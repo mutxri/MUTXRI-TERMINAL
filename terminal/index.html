@@ -1485,7 +1485,13 @@ function renderMarketStatic(rec, info){
   const vol = rec.volume != null ? Number(String(rec.volume).replace(/,/g,'')).toLocaleString() : '—';
   const i = info || {};
   const dash = '—';
-  const row = (k, v) => `<span>${esc(k)}</span><span>${esc(v != null && v !== '' ? v : dash)}</span>`;
+  // A wall of em-dashes is not company information: a field with nothing behind
+  // it is left out entirely rather than rendered empty.
+  const row = (k, v) => {
+    const s = (v == null ? '' : String(v)).trim();
+    if(!s || s === dash) return '';
+    return `<span>${esc(k)}</span><span>${esc(s)}</span>`;
+  };
   const fmtShares = (n) => {
     if(n == null || n === '') return dash;
     const x = Number(n);
@@ -1522,8 +1528,6 @@ function renderMarketStatic(rec, info){
       <div class="qchg ${cls}">${chgTxt}</div>
     </div>
     <div class="qgrid">
-      ${row('PRICE', px)}
-      ${row('CHANGE', chgTxt || dash)}
       ${row('VOLUME', vol)}
       ${row('SECTOR', rec.sector || i.sector || dash)}
       ${row('COUNTRY', i.country || dash)}
@@ -1547,8 +1551,11 @@ function renderMarketStatic(rec, info){
       ${row('DIVIDENDS', divTxt)}
       ${row('STATEMENTS', i.statements ? 'filed' : dash)}
     </div>`;
-  if(i.description){
-    html += `<div style="padding:10px 16px;border-top:1px solid var(--line);font-family:var(--ui);font-size:11px;color:var(--tx2);line-height:1.55">${esc(i.description)}</div>`;
+  // some sources hand back punctuation as a description ("%" for one NSE name):
+  // print it only when it is actually prose
+  const _desc = String(i.description || '').trim();
+  if(_desc.length > 24 && /[a-z]{3}/i.test(_desc)){
+    html += `<div style="padding:10px 16px;border-top:1px solid var(--line);font-family:var(--ui);font-size:11px;color:var(--tx2);line-height:1.55">${esc(_desc)}</div>`;
   }
   if(Array.isArray(i.shareholders) && i.shareholders.length){
     html += `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--tx3);font-size:10px;letter-spacing:.1em;font-weight:700">MAJOR SHAREHOLDERS</div>`;
@@ -1558,7 +1565,6 @@ function renderMarketStatic(rec, info){
       html += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(String(h))}</span><span style="color:var(--acc);font-family:var(--mono)">${esc(String(s))}</span></div>`;
     });
   }
-  html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend</div>`;
   $('rightInfo').innerHTML = html;
   // financials summary from the collected statement files (static, honest)
   try{
