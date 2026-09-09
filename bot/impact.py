@@ -152,6 +152,24 @@ THEMES = [
         "note": "Rising inflation pulls forward rate hikes and squeezes real returns.",
     },
     {
+        "id": "bond_market", "label": "Bond market / yields",
+        "pat": r"\b(eurobonds?|treasury bills?|t-?bills?|treasury bonds?|bond auction|"
+               r"bond yields?|yields? (?:rose|fell|rise|rising|climb\w*|slip\w*)|"
+               r"coupon|sukuk|green bond|corporate bond|debt issuance|bond sale|"
+               r"fgn bond|savings bond|debt (?:management )?office|bond issue|"
+               r"primary auction|reopened bonds?)\b",
+        # Yields up is bad for equities twice over: the discount rate rises, and
+        # a government bill paying more competes directly for the same money -
+        # which bites harder on these boards than in deep markets, because the
+        # local investor base is small and can move wholesale into paper.
+        "exposures": [{"ex": e, "sector": None, "sign": -1, "strength": 0.45}
+                      for e in U.EXCHANGES]
+                     + [{"ex": e, "sector": "Banks", "sign": +1, "strength": 0.35}
+                        for e in U.EXCHANGES],
+        "note": "Higher local yields pull money out of equities and into paper, "
+                "while widening the margin banks earn on their bond books.",
+    },
+    {
         "id": "imf_debt", "label": "IMF / sovereign debt",
         "pat": r"\b(imf|international monetary fund|eurobond|sovereign (?:debt|rating)|"
                r"debt restructur\w+|world bank loan|moody'?s|s&p global ratings|fitch)\b",

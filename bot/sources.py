@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """bot/sources.py - where the bot reads the world.
 
-Three tiers, each a list of adapters returning a common item shape:
+Tiers, each a list of adapters returning a common item shape:
     {title, summary, url, publisher, source_id, tier, ts, lang}
 
-  local   home-market press for each exchange (what actually moves the local tape)
-  global  macro/markets wires whose stories transmit into frontier markets
-  social  X/Twitter, only when an API token is configured
+  local     home-market press for each exchange (what actually moves the local tape)
+  global    macro/markets wires whose stories transmit into frontier markets
+  bonds     fixed income: eurobonds, T-bill and bond auctions, sovereign ratings,
+            sukuk and corporate issues. The terminal has a BND panel of yield
+            curves and carried no words about why any of them moved.
+  research  analysis and securities-focused publications, plus the regulator and
+            exchange notices that are securities news by definition
+  corp      corporate actions - dividends, book closures
+  social    X/Twitter, only when an API token is configured
 
 Every feed here was reachability-checked before being added. Feeds that block,
 404 or WAF-gate are left out rather than shipped broken - and a tier that
