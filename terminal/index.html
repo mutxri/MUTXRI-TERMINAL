@@ -216,17 +216,6 @@ body{
 .rightinfo .qgrid span:nth-child(odd){color:var(--tx3)}
 .rightinfo .qgrid span:nth-child(even){text-align:right;color:var(--tx)}
 
-/* ---------- status ---------- */
-.status{display:flex;align-items:center;gap:var(--s4);height:30px;padding:0 var(--s4);
-  border-top:1px solid var(--line2);background:var(--bg2);color:var(--tx3);font-size:10px}
-.status .live{color:var(--acc)}
-.status .warn{color:var(--warn)}
-.status .spacer{margin-left:auto}
-.status .cmd{display:flex;align-items:center;gap:4px}
-.status .cmd b{color:var(--acc)}
-.status .cmd input{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
-  font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:2px;outline:0;width:160px}
-.status .cmd input::placeholder{color:var(--tx3)}
 kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   border-radius:2px;padding:1px 5px;color:var(--tx2);font-size:10px}
 
@@ -246,11 +235,6 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .panel-head .tabs{flex:1;min-width:0;border-bottom:0}
 .eyebrow{display:flex;align-items:center;gap:var(--s2)}
 .wl-head .win-x,.eyebrow .win-x{margin-left:auto}
-.status .wins{display:flex;gap:4px}
-.status .wins button{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
-  font-size:9.5px;letter-spacing:.08em;padding:2px 7px;border-radius:2px;cursor:pointer}
-.status .wins button:hover{border-color:var(--acc);color:var(--acc)}
-.status .wins button.on{color:var(--acc);border-color:rgba(51,226,154,.45)}
 
 /* ---------- chat rail (4th window) ---------- */
 .rail.chat{border-left:1px solid var(--line2);border-right:0;background:var(--bg2)}
@@ -307,14 +291,11 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .no-rails #colChat,.no-rails #rszC{display:none}
 .view-panel #colChat,.view-watchlist #colChat,.view-info #colChat,.hide-panel #colChat{display:none}
 .view-panel #rszC,.view-watchlist #rszC,.view-info #rszC,.hide-panel #rszC{display:none}
-.view-panel .wins,.view-watchlist .wins,.view-info .wins,.hide-chrome .wins{display:none}
 /* ---- embed mode (?rails=0 / ?view=): focused showcase, no app chrome ---- */
 .no-rails .rail.right{display:none;}
 .no-rails .wrow{grid-template-columns:1fr;}
-.no-rails .status .cmd{display:none;}
 .no-rails .tape{display:none;}
 .hide-chrome .topbar{display:none;}
-.hide-chrome .status{display:none;}
 .hide-chrome .tape{display:none;}
 .hide-panel .panel{display:none;}
 .hide-panel .wrow{grid-template-columns:1fr;}
@@ -535,13 +516,6 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
     <div class="wrow" id="rowBot"></div>
 
   </div>
-
-  <!-- STATUS -->
-  <footer class="status">
-    <span class="spacer"></span>
-    <span class="wins" id="winBtns" title="Show or hide a window"></span>
-    <span class="cmd"><input id="cmd" placeholder="command" spellcheck="false"></span>
-  </footer>
 
 </div>
 
@@ -1327,8 +1301,7 @@ $('q').addEventListener('keydown', e => {
   if(e.key !== 'Enter') return;
   const v = String($('q').value || '').trim();
   if(!v) return;
-  $('cmd').value = v;
-  $('cmd').dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+  runCommand(v);
   $('q').value = '';
   renderWatchlist('');
 });
@@ -1390,14 +1363,28 @@ function showUnknown(msg){
   $('rightInfo').innerHTML = `<div style="padding:4px 0;color:var(--down)">${esc(msg)}</div>` +
     '<div style="padding:4px 0;color:var(--tx3)">Try a ticker (MTN), a panel (FINANCIALS), or both (MTN FINANCIALS).</div>';
 }
-$('cmd').addEventListener('keydown', e => {
-  if(e.key !== 'Enter') return;
-  const v = $('cmd').value.trim().toUpperCase();
-  $('cmd').value = '';
+// Window commands. With the status bar gone these are the way back to a window
+// you closed - the closed state is remembered between sessions, so without them
+// an X would be permanent.
+const WINDOW_CMDS = {WATCH: 'watch', WATCHLIST: 'watch', PANEL: 'center', CENTER: 'center',
+                     MARKET: 'info', INFO: 'info', CHAT: 'chat', ROOM: 'chat'};
+function runCommand(raw){
+  const v = String(raw || '').trim().toUpperCase();
   if(!v) return;
   if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
-      '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both — e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>';
+      '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both — e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>' +
+      '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>';
+    return;
+  }
+  if(v === 'WINDOWS' || v === 'ALL'){
+    if(window.MTWin) ['watch', 'center', 'info', 'chat'].forEach(function(k){ window.MTWin.set(k, true); });
+    return;
+  }
+  if(WINDOW_CMDS[v] && window.MTWin){
+    const k = WINDOW_CMDS[v];
+    // a command for a window you are already looking at means "close it"
+    window.MTWin.set(k, !window.MTWin.isOpen(k));
     return;
   }
   const parts = v.split(/\s+/);
@@ -1434,7 +1421,7 @@ $('cmd').addEventListener('keydown', e => {
     return;
   }
   showUnknown('unknown: ' + v);
-});
+}
 
 // ===== Static-market panel (snapshot mode): full investor info sheet =====
 function renderMarketStatic(rec, info){
