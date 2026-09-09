@@ -1519,6 +1519,20 @@ function runCommand(raw){
     openStock(sec.sym);
     return;
   }
+  // bare exchange name or country flag -> switch market (EGX, NGX, JSE, KE...).
+  // "NSE" is also a listed ticker (Nairobi Securities Exchange Ltd), so that
+  // one stays a stock lookup above; everything else lands here.
+  {
+    let exHit = null;
+    EXCHANGES.forEach(function(ex){
+      if(v === ex || (exFlag(ex) && v === exFlag(ex))) exHit = ex;
+    });
+    if(exHit){
+      if(!exOn(exHit)){ showUnknown(exHit + ' is disabled'); return; }
+      if(exHit !== currentEx) switchExchange(exHit);
+      return;
+    }
+  }
   showUnknown('unknown: ' + v);
 }
 
