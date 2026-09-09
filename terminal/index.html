@@ -129,6 +129,9 @@ body{
 .wstabs button:hover{border-color:var(--acc);color:var(--acc)}
 .wstabs button.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700}
 .wstabs .ws-add{padding:3px 7px}
+.wstabs .ws-x{margin-left:6px;padding:0 3px;color:var(--tx3);font-weight:700;border-radius:2px;font-size:11px}
+.wstabs .ws-x:hover{color:#ff5f56;background:rgba(255,95,86,.12)}
+.wstabs .ws-name{pointer-events:none}
 
 .view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
@@ -872,17 +875,25 @@ function renderTabs(){
       spaces.forEach(function(sp, i){
         const b = document.createElement('button');
         b.type = 'button';
-        b.textContent = sp.name;
         b.className = i === active ? 'on' : '';
-        b.title = 'Switch to ' + sp.name + ' (double-click to rename, shift-click to delete)';
-        b.onclick = function(e){
-          if(e.shiftKey){ removeSpace(i); return; }
-          switchTo(i);
-        };
+        b.title = sp.name + ' \u2014 click to switch, double-click to rename';
+        b.onclick = function(){ switchTo(i); };
         b.ondblclick = function(){
           const name = window.prompt('Workspace name', sp.name);
           if(name){ sp.name = name.slice(0, 18); save(); tabs(); }
         };
+        const nm = document.createElement('span');
+        nm.className = 'ws-name';
+        nm.textContent = sp.name;
+        b.appendChild(nm);
+        if(spaces.length > 1){
+          const x = document.createElement('span');
+          x.className = 'ws-x';
+          x.textContent = '\u00d7';
+          x.title = 'Delete workspace';
+          x.onclick = function(ev){ ev.stopPropagation(); removeSpace(i); };
+          b.appendChild(x);
+        }
         host.appendChild(b);
       });
       const add = document.createElement('button');
