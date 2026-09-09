@@ -80,7 +80,6 @@
     background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.05) 45%,transparent 60%);
     background-size:250% 100%;animation:shimmer 5.5s linear infinite;}
   @keyframes shimmer{0%{background-position:120% 0;}100%{background-position:-120% 0;}}
-  .foot{padding:6px 14px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
   /* sector drill-down panel */
   #chartPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
   #chartPanel.open{display:flex;animation:bdIn .25s ease;}
@@ -138,7 +137,6 @@
     </div>
   </div>
   <div id="canvas"></div>
-  <div class="foot"><span id="src">-</span><span id="refreshTxt">-</span></div>
 </div>
 <div id="chartPanel">
   <div class="cp-box">
@@ -483,13 +481,9 @@
         if(d.sectors){rows=[];d.sectors.forEach(function(s){(s.cells||[]).forEach(function(c){c.sector=s.sector;rows.push(c);});});}
         else rows=d.stocks||[];
         snapAsOf=(d.asOf||"").slice(0,10);draw(normalize(rows));setStatus(true);
-        $("src").textContent="";
-        $("refreshTxt").textContent=snapAsOf?("data as of "+snapAsOf):"";
       })
       .catch(function(){
         draw(normalize(SAMPLE[activeEx]||[]));setStatus(false);
-        $("src").textContent="";
-        $("refreshTxt").textContent="sample rendered "+new Date().toLocaleTimeString();
       });
   }
   function startPolling(){/* static build: the snapshot changes only on deploy, but the first draw can land before the panel has its final width - redraw once layout settles */ setTimeout(load,300); setTimeout(load,1200);}
