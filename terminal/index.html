@@ -92,22 +92,21 @@ body{
 .tape-item .pr{color:var(--tx)}
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--tx3)}
 
-/* ---------- workspace: rows of windows ---------- */
-/* .main stacks rows; each row is its own grid of windows. Windows dock to the
-   top or bottom row, so dividers run both ways: vertical ones size the windows
-   within a row, the horizontal one sizes the rows themselves. */
-.main{display:flex;flex-direction:column;min-height:0;min-width:0;position:relative}
+/* ---------- workspace: columns of stacked windows ---------- */
+/* .main lays columns left to right; each column stacks its windows top to
+   bottom. Every gap between two windows is a divider, so the same workspace
+   resizes on both axes: vertical seams between columns, horizontal ones inside
+   a column. Dividers are flex items, not absolutely placed - the layout does
+   the arithmetic instead of the script. */
+.main{display:flex;flex-direction:row;min-height:0;min-width:0;position:relative}
+.wcol{display:flex;flex-direction:column;min-width:0;min-height:0;}
+/* embed modes (?view=, ?rails=0) keep the old single-grid markup */
 .wrow{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);
-  min-height:0;min-width:0;position:relative;flex:1 1 0}
-#rowBot{flex:0 0 var(--hB,260px)}
-#rowBot:empty{display:none}                      /* embed modes never fill it */
-.main:has(#rowBot:empty) .rsz-h{display:none}
-/* dividers: vertical ones are absolutely placed inside a row by the workspace
-   manager (any window can be closed or moved, so which gap a divider sits in is
-   not a fixed thing); the horizontal one sits between the rows */
+  min-height:0;min-width:0;position:relative;flex:1 1 auto}
+#rowBot:empty{display:none}
 /* A seam nobody can see is a seam nobody drags: each divider carries a visible
    grip at rest, and the hit area is wider than the line it draws. */
-.rsz{position:absolute;top:0;bottom:0;width:9px;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
+.rsz{flex:0 0 9px;position:relative;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
 .rsz:hover{background:rgba(51,226,154,.10)}
 .rsz::after{content:"";position:absolute;top:0;bottom:0;left:4px;width:1px;background:var(--line2);transition:width .12s,background .12s}
 .rsz:hover::after{width:2px;background:var(--acc)}
@@ -116,7 +115,7 @@ body{
 .rsz:hover::before{background:var(--acc);height:44px;margin-top:-22px}
 .rsz.dragging{background:rgba(51,226,154,.16)}
 .rsz.dragging::after,.rsz.dragging::before{background:var(--acc)}
-.rsz-h{flex:0 0 9px;height:9px;cursor:row-resize;position:relative;z-index:18;background:transparent;transition:background .12s}
+.rsz-h{flex:0 0 9px;position:relative;cursor:row-resize;z-index:18;background:transparent;transition:background .12s}
 .rsz-h:hover{background:rgba(51,226,154,.10)}
 .rsz-h::after{content:"";position:absolute;left:0;right:0;top:4px;height:1px;background:var(--line2);transition:height .12s,background .12s}
 .rsz-h:hover::after{height:2px;background:var(--acc)}
@@ -125,6 +124,7 @@ body{
 .rsz-h:hover::before{background:var(--acc);width:44px;margin-left:-22px}
 .rsz-h.dragging{background:rgba(51,226,154,.16)}
 .rsz-h.dragging::after,.rsz-h.dragging::before{background:var(--acc)}
+
 .view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
@@ -488,7 +488,7 @@ html{scrollbar-width:none;}
 
     <!-- WATCHLIST -->
     <aside class="rail" id="colWatch">
-      <div class="wl-head" data-drag="watch" title="Drag to move this window"><span class="dgrip">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="win-dock" type="button" data-dock="watch" title="Move to the bottom row">▼</button></div>
+      <div class="wl-head" data-drag="watch" title="Drag to move this window"><span class="dgrip">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span></div>
       <div class="wl" id="wlList"></div>
     </aside>
 
@@ -497,14 +497,14 @@ html{scrollbar-width:none;}
       <div class="panel-head" data-drag="center" title="Drag to move this window">
         <span class="dgrip">⠿</span>
         <nav class="tabs" id="centerTabs"></nav>
-        <button class="win-dock" type="button" data-dock="center" title="Move to the bottom row">▼</button>
+        
       </div>
       <div class="stage"><iframe id="stageFrame" src="features/panels/afri_heatmap.html"></iframe></div>
     </section>
 
     <!-- RIGHT RAIL -->
     <aside class="rail right" id="colInfo">
-      <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market<button class="win-dock" type="button" data-dock="info" title="Move to the bottom row">▼</button></div>
+      <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market</div>
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
@@ -516,7 +516,7 @@ html{scrollbar-width:none;}
         <button class="chat-tab" type="button" data-mode="ask">ASK</button>
         <span class="chat-act">
           <button id="chatClear" type="button" title="Clear the assistant thread">CLEAR</button>
-          <button class="win-dock" type="button" data-dock="chat" title="Move to the bottom row">▼</button>
+          
         </span>
       </div>
       <div class="chat-log" id="roomLog" aria-live="polite"></div>
@@ -529,10 +529,6 @@ html{scrollbar-width:none;}
     </aside>
 
    </div><!-- /rowTop -->
-
-    <!-- ROW DIVIDER (drag to size the two rows) + the bottom row itself.
-         Vertical dividers are created per row by the workspace manager. -->
-    <div class="rsz-h" id="rszH" title="Drag to resize the rows"></div>
     <div class="wrow" id="rowBot"></div>
 
   </div>
@@ -728,127 +724,214 @@ function renderTabs(){
     nav.appendChild(t);
   });
 }
-// ===== workspace: drag windows to arrange them, drag the seams to size them =====
+// ===== workspace: a 2D grid of windows, dragged and resized in both axes =====
 (function(){
   // One manager owns arrangement and sizing, because they are the same job:
-  // which windows are open, which row they sit in and in what order decides
-  // where every divider goes and how much room anything may take.
+  // which column a window sits in, and where in that column's stack, decides
+  // where every seam goes and how much room anything may take.
   window.MTWin = (function(){
     const main = document.querySelector('.main');
-    const ROWS = {top: document.getElementById('rowTop'), bottom: document.getElementById('rowBot')};
-    const hDiv = document.getElementById('rszH');
-    const MIN_RAIL = 180, MIN_CENTER = 380, MIN_ROW = 140, DEF_BOT = 260;
+    const LEGACY = {top: document.getElementById('rowTop'), bottom: document.getElementById('rowBot')};
+    const MIN_W = 180, MIN_CENTER = 380, MIN_H = 120;
     const COLS = {
-      watch:  {el: 'colWatch',  v: '--wW', def: 232, label: 'WATCH'},
-      center: {el: 'colCenter', v: null,   def: 0,   label: 'PANEL'},
-      info:   {el: 'colInfo',   v: '--wI', def: 288, label: 'MARKET'},
-      chat:   {el: 'colChat',   v: '--wC', def: 300, label: 'CHAT'}
+      watch:  {el: 'colWatch',  def: 232, label: 'WATCH'},
+      center: {el: 'colCenter', def: 620, label: 'PANEL'},
+      info:   {el: 'colInfo',   def: 288, label: 'MARKET'},
+      chat:   {el: 'colChat',   def: 300, label: 'CHAT'}
     };
     const KEYS = ['watch', 'center', 'info', 'chat'];
     // embed modes (?view=, ?rails=0) lay themselves out in CSS - stay out of it
     const EMBED = /(^|\s)(view-\S+|no-rails|hide-panel)(\s|$)/.test(document.documentElement.className);
 
     let open = {watch: true, center: true, info: true, chat: true};
-    // order IS the arrangement: which row a window is in, and where in that row
-    let order = {top: KEYS.slice(), bottom: []};
-    // what the user ASKED for, kept apart from what currently fits: a small
-    // browser window squeezes panes, and widening it should give them back
-    const want = {watch: 232, info: 288, chat: 300};
-    let wantBot = DEF_BOT;
-    try{
-      const saved = JSON.parse(localStorage.getItem('mt_wins') || 'null');
-      if(saved && typeof saved === 'object'){
-        const o = saved.open || saved;
-        KEYS.forEach(function(k){ if(o[k] === false) open[k] = false; });
-        if(saved.order && saved.order.top && saved.order.bottom){
-          const seen = {};
-          ['top', 'bottom'].forEach(function(r){
-            order[r] = (saved.order[r] || []).filter(function(k){
-              const ok = COLS[k] && !seen[k];
-              seen[k] = 1;
-              return ok;
-            });
-          });
-          KEYS.forEach(function(k){ if(!seen[k]) order.top.push(k); });   // new window
-        }else if(saved.row){
-          // older shape: {open, row:{k:'top'|'bottom'}}
-          order = {top: [], bottom: []};
-          KEYS.forEach(function(k){ order[saved.row[k] === 'bottom' ? 'bottom' : 'top'].push(k); });
-        }
-      }
-    }catch(e){}
-    if(!KEYS.some(function(k){ return open[k]; })) open = {watch: true, center: true, info: true, chat: true};
-    try{
-      const s = (localStorage.getItem('mt_sizes') || '').split(',');
-      if(s.length >= 2){
-        want.watch = parseInt(s[0], 10) || COLS.watch.def;
-        want.info = parseInt(s[1], 10) || COLS.info.def;
-        want.chat = parseInt(s[2], 10) || COLS.chat.def;
-      }
-      wantBot = parseInt(localStorage.getItem('mt_rowh'), 10) || DEF_BOT;
-    }catch(e){}
+    // cols is the arrangement: an array of columns, each a top-to-bottom stack.
+    // w is the column's width; h is a window's height when something sits under
+    // it. The flexible column and the last window in every stack take the rest.
+    let cols = KEYS.map(function(k){ return {w: COLS[k].def, items: [k]}; });
+    let h = {};
 
-    function el(k){ return document.getElementById(COLS[k].el); }
-    function cur(v){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? 0 : x; }
-    function rowOf(k){ return order.bottom.indexOf(k) >= 0 ? 'bottom' : 'top'; }
-    function visIn(r){ return order[r].filter(function(k){ return open[k]; }); }
-    function anyOpen(){ return visIn('top').length + visIn('bottom').length; }
-    // the column that takes the slack in a row: the centre panel when it is
-    // there, otherwise the last window in that row - something must fill it
-    function flexOf(r){
-      const v = visIn(r);
-      return (open.center && rowOf('center') === r && v.indexOf('center') >= 0) ? 'center' : v[v.length - 1];
-    }
-    function width(k){ return COLS[k].v ? cur(COLS[k].v) : 0; }
-
-    function clamp(k, px){
-      const r = rowOf(k), v = visIn(r), flex = flexOf(r);
-      let taken = 0;
-      v.forEach(function(o){ if(o !== k && o !== flex) taken += width(o); });
-      const floor = flex === 'center' ? MIN_CENTER : MIN_RAIL;
-      const max = Math.max(MIN_RAIL, (main.clientWidth || window.innerWidth) - taken - floor);
-      return Math.min(max, Math.max(MIN_RAIL, px));
-    }
-    function clampBot(px){
-      const avail = (main.clientHeight || window.innerHeight) - 9;
-      return Math.min(Math.max(MIN_ROW, avail - MIN_ROW), Math.max(MIN_ROW, px));
-    }
-    function setWidth(k, px){
-      if(!COLS[k].v) return;
-      want[k] = Math.max(MIN_RAIL, Math.round(px));
-      main.style.setProperty(COLS[k].v, clamp(k, want[k]) + 'px');
-    }
-    function applyAll(){
-      KEYS.forEach(function(k){
-        if(COLS[k].v) main.style.setProperty(COLS[k].v, clamp(k, want[k]) + 'px');
-      });
-    }
     function save(){
       try{
-        localStorage.setItem('mt_sizes', [want.watch, want.info, want.chat].join(','));
-        localStorage.setItem('mt_rowh', String(Math.round(wantBot)));
-        localStorage.setItem('mt_wins', JSON.stringify({open: open, order: order}));
+        localStorage.setItem('mt_layout', JSON.stringify({open: open, cols: cols, h: h}));
       }catch(e){}
     }
+    (function restore(){
+      let s = null;
+      try{ s = JSON.parse(localStorage.getItem('mt_layout') || 'null'); }catch(e){}
+      if(s && s.cols && s.cols.length){
+        const seen = {};
+        const clean = [];
+        s.cols.forEach(function(c){
+          const items = (c.items || []).filter(function(k){
+            const ok = COLS[k] && !seen[k];
+            seen[k] = 1;
+            return ok;
+          });
+          if(items.length) clean.push({w: parseInt(c.w, 10) || COLS[items[0]].def, items: items});
+        });
+        KEYS.forEach(function(k){
+          if(!seen[k]) clean.push({w: COLS[k].def, items: [k]});   // a window added since
+        });
+        if(clean.length) cols = clean;
+        if(s.open) KEYS.forEach(function(k){ if(s.open[k] === false) open[k] = false; });
+        if(s.h) h = s.h;
+      }else{
+        // carry over what the two-row build knew: which windows were open, and
+        // the widths the user had dragged
+        try{
+          const old = JSON.parse(localStorage.getItem('mt_wins') || 'null');
+          if(old && old.open) KEYS.forEach(function(k){ if(old.open[k] === false) open[k] = false; });
+          const sz = (localStorage.getItem('mt_sizes') || '').split(',');
+          if(sz.length >= 3){
+            const w = {watch: parseInt(sz[0], 10), info: parseInt(sz[1], 10), chat: parseInt(sz[2], 10)};
+            cols.forEach(function(c){ if(w[c.items[0]]) c.w = w[c.items[0]]; });
+          }
+        }catch(e){}
+      }
+      if(!KEYS.some(function(k){ return open[k]; })) open = {watch: true, center: true, info: true, chat: true};
+    })();
 
-    // ---- vertical dividers, created per row as the layout needs them ----
-    const pool = {top: [], bottom: []}, gapMap = {top: [], bottom: []};
+    // hold the window elements, never look them up again: emptying a column
+    // detaches its node with the window still inside, and getElementById returns
+    // null for a detached element - which killed the very next render
+    const NODE = {};
+    KEYS.forEach(function(k){ NODE[k] = document.getElementById(COLS[k].el); });
+    function el(k){ return NODE[k]; }
+    function visible(c){ return c.items.filter(function(k){ return open[k]; }); }
+    function liveCols(){ return cols.filter(function(c){ return visible(c).length; }); }
+    function anyOpen(){ return liveCols().reduce(function(n, c){ return n + visible(c).length; }, 0); }
+    function colOf(k){
+      for(let i = 0; i < cols.length; i++){ if(cols[i].items.indexOf(k) >= 0) return cols[i]; }
+      return null;
+    }
+    // the column that absorbs spare width: the one holding the centre panel,
+    // else the last one. Something has to fill the row.
+    function flexCol(){
+      const live = liveCols();
+      for(let i = 0; i < live.length; i++){
+        if(open.center && live[i].items.indexOf('center') >= 0) return live[i];
+      }
+      return live[live.length - 1];
+    }
+    function minOf(c){ return c.items.indexOf('center') >= 0 ? MIN_CENTER : MIN_W; }
+
+    function clampW(c, px){
+      const live = liveCols(), flex = flexCol();
+      let taken = 0;
+      live.forEach(function(o){ if(o !== c && o !== flex) taken += o.w; });
+      const max = Math.max(minOf(c), (main.clientWidth || window.innerWidth) - taken - (flex === c ? 0 : minOf(flex)));
+      return Math.min(max, Math.max(minOf(c), Math.round(px)));
+    }
+    function clampH(c, k, px){
+      const v = visible(c), colH = colHeight(c);
+      let taken = 0;
+      v.forEach(function(o, i){ if(o !== k && i < v.length - 1) taken += (h[o] || 0); });
+      const max = Math.max(MIN_H, colH - taken - MIN_H);
+      return Math.min(max, Math.max(MIN_H, Math.round(px)));
+    }
+    function colHeight(c){
+      const node = c.node;
+      return (node && node.clientHeight) || main.clientHeight || window.innerHeight;
+    }
+
+    // ---- rendering ----
+    function ensureNodes(){
+      const live = liveCols();
+      // one .wcol per live column, with dividers between them, in order
+      const want = [];
+      live.forEach(function(c, i){
+        if(i) want.push({type: 'vdiv', left: live[i - 1], right: c});
+        if(!c.node){
+          c.node = document.createElement('div');
+          c.node.className = 'wcol';
+        }
+        want.push({type: 'col', col: c});
+      });
+      const kids = [];
+      want.forEach(function(w){
+        if(w.type === 'col'){ kids.push(w.col.node); return; }
+        const d = document.createElement('div');
+        d.className = 'rsz';
+        d.title = 'Drag to resize';
+        d.addEventListener('mousedown', function(e){ beginW(w.left, w.right, e, d); });
+        d.addEventListener('dblclick', function(){
+          const c = w.left === flexCol() ? w.right : w.left;
+          c.w = clampW(c, COLS[c.items[0]].def);
+          render(); save();
+        });
+        kids.push(d);
+      });
+      // replace .main's children in one pass, but keep existing column nodes so
+      // their iframes are not torn down
+      const cur = Array.prototype.slice.call(main.children).filter(function(n){
+        return n.classList.contains('wcol') || n.classList.contains('rsz');
+      });
+      let same = cur.length === kids.length;
+      if(same) for(let i = 0; i < kids.length; i++) if(cur[i] !== kids[i]){ same = false; break; }
+      if(!same){
+        cur.forEach(function(n){ if(kids.indexOf(n) < 0) n.remove(); });
+        kids.forEach(function(n, i){
+          if(main.children[i] !== n) main.insertBefore(n, main.children[i] || null);
+        });
+      }
+    }
+    function render(){
+      if(EMBED) return;
+      ['top', 'bottom'].forEach(function(r){ if(LEGACY[r]) LEGACY[r].style.display = 'none'; });
+      ensureNodes();
+      const flex = flexCol();
+      liveCols().forEach(function(c){
+        c.node.style.flex = (c === flex) ? '1 1 0' : ('0 0 ' + clampW(c, c.w) + 'px');
+        const v = visible(c);
+        // windows and their horizontal seams, top to bottom
+        const kids = [];
+        v.forEach(function(k, i){
+          const n = el(k);
+          n.style.display = '';
+          if(i < v.length - 1){
+            n.style.flex = '0 0 ' + clampH(c, k, h[k] || Math.round(colHeight(c) / v.length)) + 'px';
+          }else{
+            n.style.flex = '1 1 0';
+          }
+          kids.push(n);
+          if(i < v.length - 1){
+            const d = document.createElement('div');
+            d.className = 'rsz-h';
+            d.title = 'Drag to resize';
+            d.addEventListener('mousedown', function(e){ beginH(c, k, e, d); });
+            d.addEventListener('dblclick', function(){ delete h[k]; render(); save(); });
+            kids.push(d);
+          }
+        });
+        const cur = Array.prototype.slice.call(c.node.children);
+        let same = cur.length === kids.length;
+        if(same) for(let i = 0; i < kids.length; i++) if(cur[i] !== kids[i]){ same = false; break; }
+        if(!same){
+          cur.forEach(function(n){ if(kids.indexOf(n) < 0 && !n.classList.contains('rsz-h')) n.remove(); });
+          cur.forEach(function(n){ if(n.classList.contains('rsz-h')) n.remove(); });
+          kids.forEach(function(n){ c.node.appendChild(n); });
+        }
+      });
+      KEYS.forEach(function(k){ if(!open[k]){ const n = el(k); if(n) n.style.display = 'none'; } });
+    }
+
+    // ---- resizing ----
     function overlay(cursor){
       const ov = document.createElement('div');
       ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:' + cursor + ';';
       document.body.appendChild(ov);
       return ov;   // also swallows mouse events over the panel iframes
     }
-    function beginW(r, i, e, node){
-      const g = gapMap[r][i];
-      if(!g) return;
+    function beginW(left, right, e, node){
       e.preventDefault();
-      const startX = e.clientX, start = width(g.k), ov = overlay('col-resize');
+      const flex = flexCol();
+      // drag whichever side is not the flexible column
+      const c = (left !== flex) ? left : right, dir = (left !== flex) ? 1 : -1;
+      const startX = e.clientX, start = c.w, ov = overlay('col-resize');
       node.classList.add('dragging');
-      function move(ev){ setWidth(g.k, start + g.dir * (ev.clientX - startX)); layout(); }
+      function move(ev){ c.w = clampW(c, start + dir * (ev.clientX - startX)); render(); }
       function end(){
-        ov.remove();
-        node.classList.remove('dragging');
+        ov.remove(); node.classList.remove('dragging');
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', end);
         save();
@@ -856,255 +939,154 @@ function renderTabs(){
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', end);
     }
-    function dividers(r, v, flex){
-      const gaps = [], fi = v.indexOf(flex);
-      for(let i = 0; i < v.length - 1; i++){
-        // anchor each divider from the side whose windows all have fixed
-        // widths - the flexible one has no width to measure from
-        if(fi > i){
-          let off = 0;
-          for(let j = 0; j <= i; j++) off += width(v[j]);
-          gaps.push({k: v[i], dir: 1, side: 'left', off: off - 5});
-        }else{
-          let off = 0;
-          for(let j = i + 1; j < v.length; j++) off += width(v[j]);
-          gaps.push({k: v[i + 1], dir: -1, side: 'right', off: off - 4});
-        }
-      }
-      gapMap[r] = gaps;
-      while(pool[r].length < gaps.length){
-        const d = document.createElement('div');
-        d.className = 'rsz';
-        d.addEventListener('mousedown', function(e){ beginW(r, pool[r].indexOf(d), e, d); });
-        d.addEventListener('dblclick', function(){
-          const g = gapMap[r][pool[r].indexOf(d)];
-          if(g){ setWidth(g.k, COLS[g.k].def); layout(); save(); }
-        });
-        ROWS[r].appendChild(d);
-        pool[r].push(d);
-      }
-      pool[r].forEach(function(d, i){
-        const g = gaps[i];
-        if(!g){ d.style.display = 'none'; return; }
-        d.style.display = '';
-        d.style.left = g.side === 'left' ? g.off + 'px' : 'auto';
-        d.style.right = g.side === 'right' ? g.off + 'px' : 'auto';
-        d.title = 'Drag to resize ' + COLS[g.k].label.toLowerCase();
-      });
-    }
-
-    // ---- the horizontal divider between the rows ----
-    function beginH(e){
+    function beginH(c, k, e, node){
       e.preventDefault();
-      const startY = e.clientY, start = clampBot(wantBot), ov = overlay('row-resize');
-      hDiv.classList.add('dragging');
-      function move(ev){
-        wantBot = Math.round(start - (ev.clientY - startY));   // drag up = taller bottom
-        main.style.setProperty('--hB', clampBot(wantBot) + 'px');
-      }
+      const startY = e.clientY, start = el(k).getBoundingClientRect().height, ov = overlay('row-resize');
+      node.classList.add('dragging');
+      function move(ev){ h[k] = clampH(c, k, start + (ev.clientY - startY)); render(); }
       function end(){
-        ov.remove();
-        hDiv.classList.remove('dragging');
+        ov.remove(); node.classList.remove('dragging');
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', end);
-        wantBot = clampBot(wantBot);
         save();
         window.dispatchEvent(new Event('mt:layout'));
       }
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', end);
     }
-    if(hDiv){
-      hDiv.addEventListener('mousedown', beginH);
-      hDiv.addEventListener('dblclick', function(){
-        wantBot = DEF_BOT;
-        main.style.setProperty('--hB', clampBot(wantBot) + 'px');
-        save();
-      });
-    }
 
-    function layout(){
-      if(EMBED) return;
-      ['top', 'bottom'].forEach(function(r){
-        const v = visIn(r), flex = flexOf(r);
-        order[r].forEach(function(k, i){
-          const n = el(k);
-          if(!n) return;
-          n.style.display = open[k] ? '' : 'none';
-          // CSS order, not DOM moves: re-inserting #colCenter would reload the
-          // panel iframe on every rearrange
-          n.style.order = String(i);
-          if(n.parentNode !== ROWS[r]) ROWS[r].appendChild(n);
-        });
-        ROWS[r].style.display = v.length ? '' : 'none';
-        ROWS[r].style.gridTemplateColumns = v.map(function(k){
-          return k === flex ? 'minmax(0,1fr)' : 'var(' + COLS[k].v + ')';
-        }).join(' ');
-        dividers(r, v, flex);
-      });
-      const top = visIn('top').length, bot = visIn('bottom').length;
-      ROWS.bottom.style.flex = top ? '0 0 var(--hB,' + DEF_BOT + 'px)' : '1 1 0';
-      if(hDiv) hDiv.style.display = (top && bot) ? '' : 'none';
-      main.style.setProperty('--hB', clampBot(wantBot) + 'px');
-      docks();
+    // ---- arranging ----
+    function take(k){
+      for(let i = 0; i < cols.length; i++){
+        const j = cols[i].items.indexOf(k);
+        if(j >= 0){
+          cols[i].items.splice(j, 1);
+          if(!cols[i].items.length){ if(cols[i].node) cols[i].node.remove(); cols.splice(i, 1); }
+          return;
+        }
+      }
     }
+    function dropInColumn(k, c, index){
+      take(k);
+      const at = Math.max(0, Math.min(c.items.length, index));
+      c.items.splice(at, 0, k);
+      delete h[k];
+    }
+    function dropAsColumn(k, index){
+      const width = (colOf(k) && colOf(k).items.length === 1) ? colOf(k).w : COLS[k].def;
+      take(k);
+      cols.splice(Math.max(0, Math.min(cols.length, index)), 0, {w: width, items: [k]});
+    }
+    function commit(){ render(); save(); window.dispatchEvent(new Event('mt:layout')); }
 
-    function docks(){
-      document.querySelectorAll('.win-dock').forEach(function(d){
-        const k = d.getAttribute('data-dock');
-        if(!COLS[k]) return;
-        const down = rowOf(k) === 'top';
-        d.textContent = down ? '▼' : '▲';
-        d.title = down ? 'Move to the bottom row' : 'Move to the top row';
-      });
-    }
-
-    function place(k, r, idx){
-      ['top', 'bottom'].forEach(function(x){
-        const i = order[x].indexOf(k);
-        if(i >= 0) order[x].splice(i, 1);
-      });
-      const arr = order[r];
-      idx = (idx == null) ? arr.length : Math.max(0, Math.min(arr.length, idx));
-      arr.splice(idx, 0, k);
-    }
-    function commit(){
-      layout(); applyAll(); layout();
-      save();
-      window.dispatchEvent(new Event('mt:layout'));
-    }
     function set(k, on){
       if(!COLS[k] || open[k] === on) return;
       if(!on && anyOpen() <= 1) return;   // never close the last one
       open[k] = on;
+      if(on && !colOf(k)) cols.push({w: COLS[k].def, items: [k]});
       commit();
     }
     function toggle(k){ set(k, !open[k]); }
-    function move(k, r, idx){
-      if(!COLS[k] || (r !== 'top' && r !== 'bottom')) return;
-      place(k, r, idx);
-      if(!open[k]) open[k] = true;        // docking a closed window brings it back
-      commit();
-    }
 
-    // ---- drag a window by its header to anywhere in the workspace ----
+    // ---- drag a window by its header ----
     // Pointer events, not HTML5 drag-and-drop: dragover never fires over the
     // panel iframes, which is why the old rail drag could not cross the middle.
-    function band(){ return Math.max(MIN_ROW, main.getBoundingClientRect().height * 0.22); }
-    function dropTarget(x, y){
-      const used = ['top', 'bottom'].filter(function(r){ return visIn(r).length; });
-      const mb = main.getBoundingClientRect();
-      let r = null;
-      if(used.length > 1){
-        for(let i = 0; i < used.length; i++){
-          const box = ROWS[used[i]].getBoundingClientRect();
-          if(y >= box.top && y <= box.bottom){ r = used[i]; break; }
+    function target(x, y){
+      const live = liveCols();
+      for(let i = 0; i < live.length; i++){
+        const c = live[i], box = c.node.getBoundingClientRect();
+        if(x < box.left || x > box.right) continue;
+        const edge = Math.min(60, box.width * 0.22);
+        if(x < box.left + edge) return {kind: 'col', index: cols.indexOf(c)};
+        if(x > box.right - edge) return {kind: 'col', index: cols.indexOf(c) + 1};
+        const v = visible(c);
+        for(let j = 0; j < v.length; j++){
+          const b = el(v[j]).getBoundingClientRect();
+          if(y >= b.top && y <= b.bottom){
+            return {kind: 'stack', col: c, index: (y < b.top + b.height / 2) ? j : j + 1};
+          }
         }
-        if(!r) r = y < ROWS.top.getBoundingClientRect().bottom ? 'top' : 'bottom';
-      }else{
-        // only one row in use: it fills the height, so an empty row has no rect
-        // to aim at. The far edge of the workspace stands in for it - that is
-        // how a second row gets created by dragging at all.
-        const only = used[0] || 'top';
-        if(only === 'top' && y > mb.bottom - band()) r = 'bottom';
-        else if(only === 'bottom' && y < mb.top + band()) r = 'top';
-        else r = only;
+        return {kind: 'stack', col: c, index: v.length};
       }
-      const v = visIn(r);
-      let idx = v.length;
-      for(let i = 0; i < v.length; i++){
-        const b = el(v[i]).getBoundingClientRect();
-        if(x < b.left + b.width / 2){ idx = i; break; }
-      }
-      return {row: r, index: idx, visible: v, isNew: !v.length};
+      const box = main.getBoundingClientRect();
+      return {kind: 'col', index: x < box.left + box.width / 2 ? 0 : cols.length};
     }
-    function indicatorFor(t){
-      const v = t.visible, mb = main.getBoundingClientRect();
-      if(t.isNew){
-        // a whole new row: show the slab it will occupy, not a hairline
-        const h = band();
-        return {left: mb.left, width: mb.width, height: h, band: true,
-                top: t.row === 'bottom' ? mb.bottom - h : mb.top};
+    function indicator(t){
+      const mb = main.getBoundingClientRect();
+      if(t.kind === 'col'){
+        const live = liveCols();
+        const before = cols.slice(0, t.index).filter(function(c){ return visible(c).length; });
+        const at = before.length ? before[before.length - 1].node.getBoundingClientRect().right
+                                 : (live[0] ? live[0].node.getBoundingClientRect().left : mb.left);
+        return {left: at - 2, top: mb.top, width: 4, height: mb.height};
       }
-      const box = ROWS[t.row].getBoundingClientRect();
-      const at = t.index < v.length ? el(v[t.index]).getBoundingClientRect().left
-                                    : el(v[v.length - 1]).getBoundingClientRect().right;
-      return {left: at - 2, width: 4, top: box.top, height: box.height};
+      const box = t.col.node.getBoundingClientRect(), v = visible(t.col);
+      const at = t.index < v.length ? el(v[t.index]).getBoundingClientRect().top
+                                    : el(v[v.length - 1]).getBoundingClientRect().bottom;
+      return {left: box.left, top: at - 2, width: box.width, height: 4};
     }
     function beginMove(k, e){
       if(e.button !== 0) return;
       if(e.target.closest('button, input, select, textarea, a, .ctab')) return;
       const startX = e.clientX, startY = e.clientY;
-      let dragging = false, ov = null, ind = null, ghost = null, target = null;
+      let on = false, ov = null, ind = null, ghost = null, t = null;
       function move(ev){
-        if(!dragging){
+        if(!on){
           if(Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 5) return;
-          dragging = true;
+          on = true;
           ov = overlay('grabbing');
           el(k).classList.add('win-dragging');
-          ind = document.createElement('div');
-          ind.className = 'drop-ind';
-          ghost = document.createElement('div');
-          ghost.className = 'drop-ghost';
+          ind = document.createElement('div'); ind.className = 'drop-ind';
+          ghost = document.createElement('div'); ghost.className = 'drop-ghost';
           ghost.textContent = COLS[k].label;
-          document.body.appendChild(ind);
-          document.body.appendChild(ghost);
+          document.body.appendChild(ind); document.body.appendChild(ghost);
         }
-        target = dropTarget(ev.clientX, ev.clientY);
-        const box = indicatorFor(target);
-        ind.style.left = box.left + 'px';
-        ind.style.top = box.top + 'px';
-        ind.style.width = box.width + 'px';
-        ind.style.height = box.height + 'px';
-        ind.classList.toggle('band', !!box.band);
-        ghost.style.left = ev.clientX + 'px';
-        ghost.style.top = ev.clientY + 'px';
-        ['top', 'bottom'].forEach(function(r){ ROWS[r].classList.toggle('drop-row', r === target.row); });
+        t = target(ev.clientX, ev.clientY);
+        const b = indicator(t);
+        ind.style.left = b.left + 'px'; ind.style.top = b.top + 'px';
+        ind.style.width = b.width + 'px'; ind.style.height = b.height + 'px';
+        ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px';
       }
       function end(){
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', end);
-        if(dragging){
-          if(ov) ov.remove();
-          if(ind) ind.remove();
-          if(ghost) ghost.remove();
-          el(k).classList.remove('win-dragging');
-          ['top', 'bottom'].forEach(function(r){ ROWS[r].classList.remove('drop-row'); });
-          if(target){
-            // dropping to the right of itself in its own row counts one slot high
-            const from = order[target.row].indexOf(k);
-            let idx = target.index;
+        if(!on) return;
+        if(ov) ov.remove();
+        if(ind) ind.remove();
+        if(ghost) ghost.remove();
+        el(k).classList.remove('win-dragging');
+        if(t){
+          if(t.kind === 'stack'){
+            const from = t.col.items.indexOf(k);
+            let idx = t.index;
             if(from >= 0 && from < idx) idx -= 1;
-            place(k, target.row, idx);
-            commit();
+            dropInColumn(k, t.col, idx);
+          }else{
+            const own = colOf(k);
+            let idx = t.index;
+            if(own && own.items.length === 1){
+              const from = cols.indexOf(own);
+              if(from >= 0 && from < idx) idx -= 1;
+            }
+            dropAsColumn(k, idx);
           }
+          commit();
         }
       }
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', end);
     }
     if(!EMBED){
-      document.querySelectorAll('[data-drag]').forEach(function(h){
-        h.addEventListener('mousedown', function(e){ beginMove(h.getAttribute('data-drag'), e); });
+      document.querySelectorAll('[data-drag]').forEach(function(hd){
+        hd.addEventListener('mousedown', function(e){ beginMove(hd.getAttribute('data-drag'), e); });
       });
     }
+    window.addEventListener('resize', function(){ render(); });
+    render();
 
-    document.addEventListener('click', function(e){
-      if(!e.target.closest) return;
-      const d = e.target.closest('.win-dock');
-      if(d){
-        const k = d.getAttribute('data-dock');
-        move(k, rowOf(k) === 'top' ? 'bottom' : 'top');
-      }
-    });
-    window.addEventListener('resize', function(){ applyAll(); layout(); });
-
-    applyAll();
-    layout();
-
-    return {toggle: toggle, set: set, move: move, layout: layout,
-            isOpen: function(k){ return !!open[k]; }, rowOf: rowOf,
-            orderOf: function(){ return JSON.parse(JSON.stringify(order)); }};
+    return {toggle: toggle, set: set, layout: render,
+            isOpen: function(k){ return !!open[k]; },
+            layoutOf: function(){ return cols.map(function(c){ return {w: c.w, items: c.items.slice()}; }); }};
   })();
   // tab reordering
   let dragTab = null;
