@@ -15,6 +15,12 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://mutxriterminal.com/">
 <style>
+  /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
+     each panel is its own document, so the app's scrollbar CSS cannot reach in
+     here and every panel has to say this for itself. */
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
   :root{
     --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
     --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;--up:#33e29a;--acc:#33e29a;--down:#f87171;--acc2:#1ecfb0;
@@ -436,13 +442,18 @@
           if(pk === pref || pk.split('.')[0] === pref){ pick = pk; break; }
         }
       }
+      var found = false;
       if(want && SECS.length){
         for(var si = 0; si < SECS.length; si++){
           var k = SECS[si].t;
           var kb = k.split('.')[0];
-          if(k === want || kb === want || (want.indexOf('.') < 0 && k === want + '.' + state.ex)){ pick = k; break; }
+          if(k === want || kb === want || (want.indexOf('.') < 0 && k === want + '.' + state.ex)){ pick = k; found = true; break; }
         }
       }
+      // a sticky ?sym= ticker wins even when it has no statement file yet:
+      // show the requested name with an honest "no statements" state rather
+      // than silently swapping in the exchange default
+      if(want && !found) pick = want;
       // if the current ticker isn't in this exchange's list (or none set), pick
       if((!state.ticker || !Object.prototype.hasOwnProperty.call(seen, state.ticker)) && SECS.length){
         state.ticker = pick || SECS[0].t;
