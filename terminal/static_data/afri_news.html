@@ -38,6 +38,7 @@
   .meta{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:7px;display:flex;gap:10px;align-items:center}
   .pub{color:var(--acc)}
   .tick{color:var(--acc2);border:1px solid var(--line2);border-radius:2px;padding:1px 5px}
+  .item .nl{color:var(--tx2)}
   .empty{padding:30px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:11px}
 </style>
 </head>
@@ -46,9 +47,9 @@
 <div class="wrap">
   <div class="head">
     <span class="code">NEWS</span>
-    <span class="title"><span id="exTitle">NSE</span> NEWS <b>· HEADLINES</b></span>
+    <span class="title"><span id="exTitle">NSE</span> NEWS <b>· HEADLINES · REGULATORY · ACTIONS</b></span>
     <span class="spacer"></span>
-    <span class="src" id="src">Headlines</span>
+    <span class="src" id="src">Headlines · Reg · Actions</span>
   </div>
   <div id="items"><div class="empty">loading…</div></div>
 </div>
@@ -68,6 +69,15 @@
   };
   var EX_NAME = { "NSE": "NSE", "NGX": "NGX", "JSE": "JSE", "EGX": "EGX" };
   var MONTHS = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  // The REG panel's content folds into this one: the regulator wire, filtered
+  // to the country of the exchange currently shown.
+  var REG_ISO = { "NSE": "KE", "NGX": "NG", "JSE": "ZA", "EGX": "EG" };
+  // Structured corporate actions (dividends / book closures) for exchanges
+  // that publish them as their own feed. NGX dividends and closures already
+  // ride ngx_news.json (official disclosures), JSE corporate actions arrive
+  // via the bot scan, and EGX has no reachable English feed - so only NSE
+  // needs its separate corporate-action file folded in.
+  var CORP_FILE = { "NSE": "nse_corporate_actions.json" };
 
   function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
@@ -111,25 +121,85 @@
       .catch(function(){ return []; });
   }
 
-  Promise.all(files.map(load)).then(function(lists){
+  // Regulator-wire rows (reg.json) -> news rows, kept to this exchange's
+  // country. The headline tail is the regulator's own masthead ("... -
+  // Securities and Exchange Commission, Nigeria"), redundant with the
+  // publisher line, so it is dropped.
+  function regRows(list){
+    var iso = REG_ISO[CUR]; if(!iso) return [];
+    return ((list && list.items) || []).filter(function(i){
+      return i && i.iso === iso && i.headline; })
+      .map(function(i){
+        var h = String(i.headline).replace(/\s+-\s+[^-\n]*$/, "").trim();
+        return { title: h,
+          publisher: String(i.regulator || "") + " \u00b7 " + String(i.outlet || ""),
+          date: String(i.date || "").slice(0, 10),
+          url: i.link || "", tickers: [] };
+      });
+  }
+
+  // Corporate-action rows: {"date":"Sep 04 2026","ticker":"SCOM",
+  // "name":"Safaricom Plc","text":"Payment of KES 1.15 final dividend",
+  // "kind":"DIVIDEND PAYMENT"} -> a headline with a ticker chip. These are
+  // exchange announcements with no article URL, so they render unlinked.
+  function corpRows(list){
+    var out = [];
+    (list || []).forEach(function(r){
+      if(!r || !r.name || !r.text) return;
+      var m = String(r.date || "").trim().match(/^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4})$/);
+      var ts = 0, disp = r.date || "";
+      if(m && MONTHS[m[1]] != null){
+        ts = Date.UTC(+m[3], MONTHS[m[1]], +m[2]) / 1000;
+        disp = m[1] + " " + (+m[2]);
+      }
+      out.push({ title: r.name + ": " + r.text,
+        publisher: String(r.kind || "Corporate Action").toLowerCase().replace(/\b\w/g, function(c){ return c.toUpperCase(); }),
+        date: disp, url: r.url || "", ts: ts,
+        tickers: r.ticker ? [r.ticker] : [] });
+    });
+    out.sort(function(a, b){ return (b.ts || 0) - (a.ts || 0); });
+    return out.slice(0, 25);
+  }
+
+  function shortDate(ts){
+    try{
+      var d = new Date(ts * 1000);
+      return d.toUTCString().slice(5, 16).replace(/^0/, "");
+    }catch(e){ return ""; }
+  }
+
+  var jobs = (files || []).map(function(nm){
+    return load(nm).then(function(d){ return { kind: "plain", rows: d }; });
+  });
+  if(REG_ISO[CUR])
+    jobs.push(load("reg.json").then(function(d){ return { kind: "reg", rows: d }; }));
+  if(CORP_FILE[CUR])
+    jobs.push(load(CORP_FILE[CUR]).then(function(d){ return { kind: "corp", rows: d }; }));
+
+  Promise.all(jobs).then(function(srcs){
     var seen = {}, all = [];
-    lists.forEach(function(list){
-      (list || []).forEach(function(n){
+    srcs.forEach(function(s){
+      var rows = s.kind === "plain" ? (s.rows || [])
+               : (s.kind === "reg" ? regRows(s.rows) : corpRows(s.rows));
+      rows.forEach(function(n){
         if(!n || !n.title) return;
         var k = key(n);
         if(seen[k]) return;
         seen[k] = 1;
         n._t = stamp(n);
+        if(!n.date && n._t) n.date = shortDate(n._t);
         all.push(n);
       });
     });
     if(!all.length){ el.innerHTML = '<div class="empty">no news</div>'; return; }
     all.sort(function(a, b){ return b._t - a._t; });
-    el.innerHTML = all.slice(0, 80).map(function(n){
+    el.innerHTML = all.slice(0, 120).map(function(n){
       var ticks = (n.tickers || []).slice(0, 3).map(function(t){
         return '<span class="tick">' + esc(t) + '</span>'; }).join(" ");
-      return '<div class="item">' +
-        '<a href="' + esc(n.url || "#") + '" target="_blank" rel="nofollow noopener">' + esc(n.title) + '</a>' +
+      var head = n.url
+        ? '<a href="' + esc(n.url) + '" target="_blank" rel="nofollow noopener">' + esc(n.title) + '</a>'
+        : '<span class="nl">' + esc(n.title) + '</span>';
+      return '<div class="item">' + head +
         '<div class="meta"><span class="pub">' + esc(n.publisher || "") + '</span>' +
           '<span>' + esc(n.date || "") + '</span>' + ticks + '</div>' +
         '</div>';
