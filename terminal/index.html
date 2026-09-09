@@ -238,22 +238,21 @@ body{
 kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   border-radius:2px;padding:1px 5px;color:var(--tx2);font-size:10px}
 
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
-::-webkit-scrollbar-track{background:transparent}
+/* no scrollbars anywhere: the content still scrolls by wheel, trackpad,
+   keyboard and drag - only the bar that drew it is gone */
+html{scrollbar-width:none;}
+*{scrollbar-width:none;}
+::-webkit-scrollbar{width:0;height:0;}
 
 
 /* ---------- window chrome: close buttons + the restore strip ---------- */
-.win-x{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:12px;line-height:1;
-  padding:0 3px;cursor:pointer;opacity:.65}
-.win-x:hover{color:#ff5f56;opacity:1}
 .win-dock{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:10px;line-height:1;
   padding:0 2px;cursor:pointer;opacity:.65}
 .win-dock:hover{color:var(--acc);opacity:1}
 .panel-head{display:flex;align-items:center;border-bottom:1px solid var(--line2);padding-right:var(--s3)}
 .panel-head .tabs{flex:1;min-width:0;border-bottom:0}
 .eyebrow{display:flex;align-items:center;gap:var(--s2)}
-.wl-head .win-x,.eyebrow .win-x{margin-left:auto}
+.wl-head .win-dock,.eyebrow .win-dock{margin-left:auto}
 
 /* ---------- chat rail (4th window) ---------- */
 .rail.chat{border-left:1px solid var(--line2);border-right:0;background:var(--bg2)}
@@ -264,9 +263,9 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 .chat-tab:hover{color:var(--tx2)}
 .chat-tab.on{color:var(--acc);background:rgba(51,226,154,.08)}
 .chat-head .chat-act{margin-left:auto;display:flex;align-items:center;gap:4px}
-.chat-head .chat-act button:not(.win-x){background:none;border:1px solid var(--line2);color:var(--tx3);
+.chat-head .chat-act button{background:none;border:1px solid var(--line2);color:var(--tx3);
   font-family:var(--mono);font-size:9px;letter-spacing:.08em;padding:2px 6px;border-radius:2px;cursor:pointer}
-.chat-head .chat-act button:not(.win-x):hover{border-color:var(--acc);color:var(--acc)}
+.chat-head .chat-act button:hover{border-color:var(--acc);color:var(--acc)}
 .chat-log{flex:1;min-height:0;overflow-y:auto;padding:var(--s3) var(--s4);
   font-family:var(--mono);font-size:11px;color:var(--tx2);display:flex;flex-direction:column;gap:var(--s3)}
 .chat-msg{max-width:100%}
@@ -489,7 +488,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 
     <!-- WATCHLIST -->
     <aside class="rail" id="colWatch">
-      <div class="wl-head" data-drag="watch" title="Drag to move this window"><span class="dgrip">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="win-dock" type="button" data-dock="watch" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="watch" title="Close the watchlist">✕</button></div>
+      <div class="wl-head" data-drag="watch" title="Drag to move this window"><span class="dgrip">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="win-dock" type="button" data-dock="watch" title="Move to the bottom row">▼</button></div>
       <div class="wl" id="wlList"></div>
     </aside>
 
@@ -498,14 +497,14 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <div class="panel-head" data-drag="center" title="Drag to move this window">
         <span class="dgrip">⠿</span>
         <nav class="tabs" id="centerTabs"></nav>
-        <button class="win-dock" type="button" data-dock="center" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="center" title="Close the panel window">✕</button>
+        <button class="win-dock" type="button" data-dock="center" title="Move to the bottom row">▼</button>
       </div>
       <div class="stage"><iframe id="stageFrame" src="features/panels/afri_heatmap.html"></iframe></div>
     </section>
 
     <!-- RIGHT RAIL -->
     <aside class="rail right" id="colInfo">
-      <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market<button class="win-dock" type="button" data-dock="info" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="info" title="Close the market window">✕</button></div>
+      <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market<button class="win-dock" type="button" data-dock="info" title="Move to the bottom row">▼</button></div>
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
@@ -517,7 +516,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
         <button class="chat-tab" type="button" data-mode="ask">ASK</button>
         <span class="chat-act">
           <button id="chatClear" type="button" title="Clear the assistant thread">CLEAR</button>
-          <button class="win-dock" type="button" data-dock="chat" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="chat" title="Close the chat window">✕</button>
+          <button class="win-dock" type="button" data-dock="chat" title="Move to the bottom row">▼</button>
         </span>
       </div>
       <div class="chat-log" id="roomLog" aria-live="polite"></div>
@@ -1092,8 +1091,6 @@ function renderTabs(){
 
     document.addEventListener('click', function(e){
       if(!e.target.closest) return;
-      const x = e.target.closest('.win-x');
-      if(x){ set(x.getAttribute('data-win'), false); return; }
       const d = e.target.closest('.win-dock');
       if(d){
         const k = d.getAttribute('data-dock');
