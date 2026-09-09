@@ -45,18 +45,11 @@ body{
 .brandname{font-family:var(--brand);font-weight:700;font-size:17px;letter-spacing:.14em}
 .brandname small{display:block;font-size:8px;letter-spacing:.34em;color:var(--tx3);
   font-weight:600;margin-top:-2px}
-.exch{display:flex;gap:var(--s1);margin-left:var(--s2)}
-.exch-tab{background:none;border:0;color:var(--tx3);font-family:var(--mono);
-  font-size:11px;letter-spacing:.06em;padding:var(--s1) var(--s3);border-radius:2px;
-  cursor:pointer;transition:color .15s,background .15s}
-.exch-tab:hover{color:var(--tx2)}
-.exch-tab.active{color:#00160e;background:var(--acc);font-weight:700;
-  font-size:13px;padding:5px 12px;letter-spacing:.08em;box-shadow:0 0 12px rgba(51,226,154,.35)}
-.exch-flag{font-size:11px;margin-right:3px}
-.exch-full{font-size:9px;font-weight:400;opacity:.8;margin-left:5px;letter-spacing:.04em;text-transform:uppercase}
-.search{margin-left:auto;display:flex;align-items:center;gap:var(--s2);
+/* The market is part of what you type, not a row of tabs: one finder covers
+   every listing on every board, so a new market costs nothing up here. */
+.search{position:relative;margin-left:auto;display:flex;align-items:center;gap:var(--s2);
   background:var(--bg3);border:1px solid var(--line2);border-radius:3px;
-  padding:var(--s2) var(--s3);width:260px;transition:border-color .15s}
+  padding:var(--s2) var(--s3);flex:1 1 420px;max-width:560px;transition:border-color .15s}
 .search:focus-within{border-color:var(--mint-line)}
 .search span{color:var(--tx3);font-size:11px}
 .search input{background:none;border:0;outline:0;color:var(--tx);font-family:var(--mono);
@@ -70,6 +63,21 @@ body{
 .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);
   box-shadow:0 0 0 0 rgba(51,226,154,.5);animation:pulse 2.4s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(51,226,154,.45)}70%{box-shadow:0 0 0 5px rgba(51,226,154,0)}100%{box-shadow:0 0 0 0 rgba(51,226,154,0)}}
+.mkt-code{display:inline-block;border:1px solid var(--line2);border-radius:2px;padding:0 4px;
+  font-size:9px;letter-spacing:.06em;color:var(--tx3)}
+.finder{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:9000;
+  background:var(--bg2);border:1px solid var(--line2);border-radius:4px;padding:4px;
+  box-shadow:0 18px 44px rgba(0,0,0,.75);max-height:420px;overflow-y:auto}
+.finder .fi{display:flex;align-items:baseline;gap:8px;padding:6px 8px;border-radius:2px;cursor:pointer;
+  font-family:var(--mono);font-size:11px;color:var(--tx2)}
+.finder .fi:hover,.finder .fi.sel{background:var(--bg3);color:var(--tx)}
+.finder .fi .t{min-width:74px;color:var(--tx);font-weight:500}
+.finder .fi .n{font-family:var(--ui);font-size:10.5px;color:var(--tx3);flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.finder .fi .px{font-size:10.5px;color:var(--tx2)}
+.finder .fi.mkt .t{color:var(--acc)}
+.finder .hint{padding:6px 8px;color:var(--tx3);font-size:10px;font-family:var(--mono);
+  border-top:1px solid var(--line);margin-top:2px}
 
 /* ---------- tape ---------- */
 .tape{display:flex;align-items:center;height:34px;border-bottom:1px solid var(--line2);
@@ -87,15 +95,41 @@ body{
 .tape-item .pr{color:var(--tx)}
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--tx3)}
 
-/* ---------- main grid ---------- */
-.main{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px);min-height:0;position:relative}
-/* rail resizers (drag the divider to size panels) */
-.rsz{position:absolute;top:34px;bottom:0;width:7px;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
-.rsz:hover{background:rgba(51,226,154,.10)}
-.rsz::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:1px;background:var(--line2);transition:width .12s,background .12s}
-.rsz:hover::after{width:2px;background:var(--acc)}
-#rszL{left:calc(var(--wW,232px) - 4px)}
-#rszR{right:calc(var(--wI,288px) - 3px)}
+/* ---------- workspace: floating windows ---------- */
+/* Windows are absolutely placed inside .main and never change parent, so
+   rearranging cannot reload the panel iframes. Embed modes (?view=, ?rails=0)
+   keep the old grid markup and the manager stays out of them. */
+.main{display:flex;flex-direction:row;min-height:0;min-width:0;position:relative;overflow:hidden}
+.wrow{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);
+  min-height:0;min-width:0;position:relative;flex:1 1 auto}
+#rowBot:empty{display:none}
+.floating .rail,.floating .panel{position:absolute;border:1px solid var(--line2);border-radius:3px;
+  box-shadow:0 10px 30px rgba(0,0,0,.55);overflow:hidden;min-width:0;min-height:0}
+.floating .rail{border-right:1px solid var(--line2)}
+.floating .rail.right{border-left:1px solid var(--line2)}
+.win-front{border-color:rgba(51,226,154,.45)!important;box-shadow:0 12px 34px rgba(0,0,0,.7)}
+/* eight grab zones per window: four edges, four corners */
+.wrs{position:absolute;z-index:5}
+.wrs-n{top:-3px;left:8px;right:8px;height:7px;cursor:ns-resize}
+.wrs-s{bottom:-3px;left:8px;right:8px;height:7px;cursor:ns-resize}
+.wrs-w{left:-3px;top:8px;bottom:8px;width:7px;cursor:ew-resize}
+.wrs-e{right:-3px;top:8px;bottom:8px;width:7px;cursor:ew-resize}
+.wrs-nw{top:-3px;left:-3px;width:12px;height:12px;cursor:nwse-resize}
+.wrs-ne{top:-3px;right:-3px;width:12px;height:12px;cursor:nesw-resize}
+.wrs-sw{bottom:-3px;left:-3px;width:12px;height:12px;cursor:nesw-resize}
+.wrs-se{bottom:-3px;right:-3px;width:14px;height:14px;cursor:nwse-resize}
+.wrs-se::after{content:"";position:absolute;right:3px;bottom:3px;width:6px;height:6px;
+  border-right:2px solid var(--line2);border-bottom:2px solid var(--line2)}
+.rail:hover .wrs-se::after,.panel:hover .wrs-se::after{border-color:var(--acc)}
+/* workspace tabs live in the top bar, not in a bottom strip */
+.wstabs{display:flex;align-items:center;gap:3px;margin-left:var(--s3)}
+.wstabs button{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
+  font-size:9.5px;letter-spacing:.08em;padding:3px 8px;border-radius:2px;cursor:pointer;max-width:120px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wstabs button:hover{border-color:var(--acc);color:var(--acc)}
+.wstabs button.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700}
+.wstabs .ws-add{padding:3px 7px}
+
 .view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
@@ -166,10 +200,21 @@ body{
 #authGate .gate-back{margin-top:14px;text-align:center;color:var(--tx3);font-size:11px;cursor:pointer;}
 #authGate .gate-back:hover{color:var(--acc);}
 /* workspace drag handles (Godel-style panel arrangement) */
-.dgrip{color:var(--tx3);cursor:grab;font-size:11px;padding:0 4px;user-select:none;opacity:.6;}
-.dgrip:hover{opacity:1;color:var(--acc);}
-.dgrip.dragging{opacity:.35;}
-#colWatch.drop-ok, #colInfo.drop-ok{outline:2px dashed var(--acc);outline-offset:-2px;background:rgba(51,226,154,.06);}
+/* every window header is a drag handle; the braille grip says so */
+.dgrip{color:var(--tx3);font-size:11px;padding:0 4px;user-select:none;opacity:.55;}
+[data-drag]{cursor:grab;user-select:none;}
+[data-drag]:active{cursor:grabbing;}
+[data-drag]:hover .dgrip{opacity:1;color:var(--acc);}
+[data-drag] button,[data-drag] input,[data-drag] .ctab{cursor:pointer;}
+.win-dragging{opacity:.45;}
+.wrow.drop-row{outline:1px solid rgba(51,226,154,.35);outline-offset:-1px;}
+/* where the window will land */
+.drop-ind{position:fixed;z-index:99998;background:var(--acc);pointer-events:none;
+  box-shadow:0 0 10px rgba(51,226,154,.7);border-radius:2px;}
+.drop-ind.band{background:rgba(51,226,154,.14);border:1px solid var(--acc);box-shadow:none;}
+.drop-ghost{position:fixed;z-index:99999;pointer-events:none;background:var(--bg3);
+  border:1px solid var(--acc);color:var(--acc);font-family:var(--mono);font-size:10px;
+  letter-spacing:.12em;padding:4px 10px;border-radius:3px;transform:translate(12px,12px);}
 .ctab[draggable="true"]{cursor:grab;}
 .ctab{background:none;border:0;color:var(--tx3);font-family:var(--mono);
   font-size:11px;letter-spacing:.05em;padding:var(--s3) var(--s3);cursor:pointer;
@@ -195,45 +240,99 @@ body{
 .rightinfo .qgrid span:nth-child(odd){color:var(--tx3)}
 .rightinfo .qgrid span:nth-child(even){text-align:right;color:var(--tx)}
 
-/* ---------- status ---------- */
-.status{display:flex;align-items:center;gap:var(--s4);height:30px;padding:0 var(--s4);
-  border-top:1px solid var(--line2);background:var(--bg2);color:var(--tx3);font-size:10px}
-.status .live{color:var(--acc)}
-.status .warn{color:var(--warn)}
-.status .spacer{margin-left:auto}
-.status .cmd{display:flex;align-items:center;gap:4px}
-.status .cmd b{color:var(--acc)}
-.status .cmd input{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
-  font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:2px;outline:0;width:160px}
-.status .cmd input::placeholder{color:var(--tx3)}
 kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   border-radius:2px;padding:1px 5px;color:var(--tx2);font-size:10px}
 
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
-::-webkit-scrollbar-track{background:transparent}
+/* no scrollbars anywhere: the content still scrolls by wheel, trackpad,
+   keyboard and drag - only the bar that drew it is gone */
+html{scrollbar-width:none;}
+*{scrollbar-width:none;}
+::-webkit-scrollbar{width:0;height:0;}
 
+
+/* ---------- window chrome: close buttons + the restore strip ---------- */
+.win-dock{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:10px;line-height:1;
+  padding:0 2px;cursor:pointer;opacity:.65}
+.win-dock:hover{color:var(--acc);opacity:1}
+.panel-head{display:flex;align-items:center;border-bottom:1px solid var(--line2);padding-right:var(--s3)}
+.panel-head .tabs{flex:1;min-width:0;border-bottom:0}
+.eyebrow{display:flex;align-items:center;gap:var(--s2)}
+.wl-head .win-dock,.eyebrow .win-dock{margin-left:auto}
+
+/* ---------- chat rail (4th window) ---------- */
+.rail.chat{border-left:1px solid var(--line2);border-right:0;background:var(--bg2)}
+.chat-head{display:flex;align-items:center;gap:2px;padding:var(--s2) var(--s3) var(--s2) var(--s4);
+  border-bottom:1px solid var(--line)}
+.chat-tab{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.16em;padding:3px 6px;cursor:pointer;border-radius:2px}
+.chat-tab:hover{color:var(--tx2)}
+.chat-tab.on{color:var(--acc);background:rgba(51,226,154,.08)}
+.chat-head .chat-act{margin-left:auto;display:flex;align-items:center;gap:4px}
+.chat-head .chat-act button{background:none;border:1px solid var(--line2);color:var(--tx3);
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;padding:2px 6px;border-radius:2px;cursor:pointer}
+.chat-head .chat-act button:hover{border-color:var(--acc);color:var(--acc)}
+.chat-log{flex:1;min-height:0;overflow-y:auto;padding:var(--s3) var(--s4);
+  font-family:var(--mono);font-size:11px;color:var(--tx2);display:flex;flex-direction:column;gap:var(--s3)}
+.chat-msg{max-width:100%}
+.chat-msg .who{display:block;font-size:9px;letter-spacing:.14em;color:var(--tx3);margin-bottom:3px}
+.chat-msg.me .who{color:var(--tx2)}
+.chat-msg.bot .who{color:var(--acc)}
+.chat-msg .body{background:var(--bg3);border:1px solid var(--line);border-radius:3px;
+  padding:var(--s2) var(--s3);line-height:1.5;word-wrap:break-word;overflow-wrap:anywhere}
+.chat-msg .body b{color:var(--tx)}
+.chat-msg .krow{display:grid;grid-template-columns:1fr auto;gap:1px 10px;font-size:10.5px;margin-top:3px}
+.chat-msg .krow span:nth-child(odd){color:var(--tx3)}
+.chat-msg .krow span:nth-child(even){text-align:right;color:var(--tx)}
+.chat-chip{display:inline-block;background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
+  font-size:9.5px;letter-spacing:.06em;padding:2px 6px;border-radius:2px;cursor:pointer;margin:3px 3px 0 0}
+.chat-chip:hover{border-color:var(--acc)}
+/* room messages */
+.room-msg{display:flex;flex-direction:column;gap:2px}
+.room-msg .rm-h{display:flex;align-items:baseline;gap:6px;font-size:9px;color:var(--tx3);letter-spacing:.06em}
+.room-msg .rm-n{color:var(--acc)}
+.room-msg.mine .rm-n{color:var(--tx)}
+.room-msg .rm-ctx{border:1px solid var(--line2);border-radius:2px;padding:0 4px;font-size:8.5px;color:var(--tx3)}
+.room-msg .rm-x{margin-left:auto;background:none;border:0;color:var(--tx3);cursor:pointer;font-size:10px;
+  padding:0 2px;opacity:0}
+.room-msg:hover .rm-x{opacity:.7}
+.room-msg .rm-x:hover{color:#ff5f56;opacity:1}
+.room-msg .rm-t{background:var(--bg3);border:1px solid var(--line);border-radius:3px;
+  padding:var(--s2) var(--s3);line-height:1.5;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}
+.room-msg.mine .rm-t{border-color:var(--line2)}
+.room-empty{color:var(--tx3);font-size:10.5px;line-height:1.6}
+.chat-note{padding:var(--s2) var(--s4);border-top:1px solid var(--line);color:var(--tx3);font-size:10px}
+.chat-note.bad{color:var(--warn,#e6a700)}
+.chat-note b{color:var(--acc)}
+.chat-form{display:flex;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--line2)}
+.chat-form input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
+  font-family:var(--mono);font-size:11px;padding:7px 9px;border-radius:2px;outline:0}
+.chat-form input:focus{border-color:var(--acc)}
+.chat-form input:disabled{opacity:.5}
+.chat-form button{background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;
+  font-size:10px;letter-spacing:.08em;padding:0 12px;border-radius:2px;cursor:pointer}
+.chat-form button:disabled{opacity:.45;cursor:default}
+.no-rails #colChat,.no-rails #rszC{display:none}
+.view-panel #colChat,.view-watchlist #colChat,.view-info #colChat,.hide-panel #colChat{display:none}
+.view-panel #rszC,.view-watchlist #rszC,.view-info #rszC,.hide-panel #rszC{display:none}
 /* ---- embed mode (?rails=0 / ?view=): focused showcase, no app chrome ---- */
 .no-rails .rail.right{display:none;}
-.no-rails .main{grid-template-columns:1fr;}
-.no-rails .status .cmd{display:none;}
+.no-rails .wrow{grid-template-columns:1fr;}
 .no-rails .tape{display:none;}
 .hide-chrome .topbar{display:none;}
-.hide-chrome .status{display:none;}
 .hide-chrome .tape{display:none;}
 .hide-panel .panel{display:none;}
-.hide-panel .main{grid-template-columns:1fr;}
+.hide-panel .wrow{grid-template-columns:1fr;}
 .hide-tape .tape{display:none;}
 /* panel view: the center panel fills the whole embed */
-.view-panel .main{grid-template-columns:1fr;}
+.view-panel .wrow{grid-template-columns:1fr;}
 .view-panel .panel{border-right:0;}
 /* watchlist view: keep ONLY the watchlist rail, full width */
-.view-watchlist .main{grid-template-columns:1fr;}
+.view-watchlist .wrow{grid-template-columns:1fr;}
 .view-watchlist .rail{border-right:0;background:transparent;}
 .view-watchlist .wl-head{display:none;}
 .view-watchlist #wlList{max-height:none;}
 /* info view: keep only the right rail (investor sheet) */
-.view-info .main{grid-template-columns:1fr;}
+.view-info .wrow{grid-template-columns:1fr;}
 .view-info .rail{display:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
 
@@ -286,7 +385,18 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
   // landing previews (view= modes) and embedded iframes are not gated
   if(q.get("view") || window.self !== window.top){ if(gate) gate.remove(); return; }
   var mode = "login";
-  function show(){ if(gate) gate.style.display = "flex"; }
+  function show(){
+    if(!gate) return;
+    gate.style.display = "flex";
+    // prefill the address from last time so a returning user only types a password
+    try{
+      var last = localStorage.getItem("mt_email") || "";
+      var em = document.getElementById("gateEmail");
+      if(em && last && !em.value) em.value = last;
+      var pw = document.getElementById("gatePwd");
+      setTimeout(function(){ var t = (em && em.value && pw) ? pw : em; if(t) t.focus(); }, 60);
+    }catch(e){}
+  }
   function hide(){ if(gate) gate.remove(); }
   function msg(t, ok){ var m = document.getElementById("gateMsg"); if(!m) return; m.textContent = t || ""; m.className = "gate-msg" + (ok ? " ok" : ""); }
   // OAuth callback: ?oauth=<provider>&code=<one-time> -> trade for a session token
@@ -344,7 +454,7 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
       .then(function(d){
         if(d && d.ok){
-          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); }catch(e){}
+          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); }catch(e){}
           msg("Welcome. Loading the terminal…", true);
           setTimeout(hide, 600);
         } else {
@@ -364,13 +474,11 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
       <div class="mark">MX</div>
       <div class="brandname">MUTXRI<small>TERMINAL</small></div>
     </div>
-    <nav class="exch" id="exchTabs">
-      <!-- exchange tabs are rendered dynamically - only the selected exchange shows -->
-    </nav>
     <label class="search">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
-      <input id="q" placeholder="Search ticker or command…" autocomplete="off" aria-label="Search">
+      <input id="q" placeholder="Ticker, company or market — SCOM, MTN JSE, FA…" autocomplete="off" aria-label="Search">
     </label>
+    <span class="wstabs" id="wsTabs" title="Workspaces"></span>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
   </header>
 
@@ -379,36 +487,54 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 
   <!-- MAIN -->
   <div class="main">
+   <div class="wrow" id="rowTop">
 
     <!-- WATCHLIST -->
     <aside class="rail" id="colWatch">
-      <div class="wl-head"><span class="dgrip" draggable="true" data-col="watch" title="Drag to move panel">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span></div>
+      <div class="wl-head" data-drag="watch" title="Drag to move this window"><span class="dgrip">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span></div>
       <div class="wl" id="wlList"></div>
     </aside>
 
     <!-- CENTER PANEL -->
     <section class="panel" id="colCenter">
-      <nav class="tabs" id="centerTabs"></nav>
+      <div class="panel-head" data-drag="center" title="Drag to move this window">
+        <span class="dgrip">⠿</span>
+        <nav class="tabs" id="centerTabs"></nav>
+        
+      </div>
       <div class="stage"><iframe id="stageFrame" src="/features/panels/afri_heatmap.html"></iframe></div>
     </section>
 
     <!-- RIGHT RAIL -->
     <aside class="rail right" id="colInfo">
-      <div class="eyebrow"><span class="dgrip" draggable="true" data-col="info" title="Drag to move panel">⠿</span>Market</div>
+      <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market</div>
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
-    <!-- RESIZERS (drag the divider lines to size the rails) -->
-    <div class="rsz" id="rszL" title="Drag to resize watchlist"></div>
-    <div class="rsz" id="rszR" title="Drag to resize info panel"></div>
+    <!-- CHAT (4th window): the shared room, plus a local data assistant -->
+    <aside class="rail chat" id="colChat">
+      <div class="chat-head" data-drag="chat" title="Drag to move this window">
+        <span class="dgrip">⠿</span>
+        <button class="chat-tab on" type="button" data-mode="room">ROOM</button>
+        <button class="chat-tab" type="button" data-mode="ask">ASK</button>
+        <span class="chat-act">
+          <button id="chatClear" type="button" title="Clear the assistant thread">CLEAR</button>
+          
+        </span>
+      </div>
+      <div class="chat-log" id="roomLog" aria-live="polite"></div>
+      <div class="chat-log" id="chatLog" aria-live="polite" style="display:none"></div>
+      <div class="chat-note" id="chatNote" hidden></div>
+      <form class="chat-form" id="chatForm" autocomplete="off">
+        <input id="chatInput" placeholder="Message the room..." aria-label="Chat message" spellcheck="false" maxlength="500">
+        <button type="submit" id="chatSend">SEND</button>
+      </form>
+    </aside>
+
+   </div><!-- /rowTop -->
+    <div class="wrow" id="rowBot"></div>
 
   </div>
-
-  <!-- STATUS -->
-  <footer class="status">
-    <span class="spacer">Type <kbd>`</kbd> + command · <kbd>HELP</kbd></span>
-    <span class="cmd"><b>`</b><input id="cmd" placeholder="HELP" spellcheck="false"></span>
-  </footer>
 
 </div>
 
@@ -444,11 +570,33 @@ window.API_BASE = API_BASE;
 // ===== App state =====
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-let currentEx = 'JSE';
-// support ?ex=NGX deep-link (landing dropdown passes the exchange)
+// The markets are data: static_data/exchanges.json drives the picker, the
+// timezone guess and the search index. These four are only the fallback for a
+// failed fetch, so the terminal still works offline.
+let EXCHANGES = ['JSE', 'EGX', 'NGX', 'NSE'];
+let EX_DEFAULT = 'JSE';
+// Nobody should have to pick a market before seeing anything. Order of
+// preference: an explicit ?ex= deep link, then whatever they used last, then
+// their own timezone, and only then a default.
+function pickInitialExchange(){
+  try{
+    const p = (new URLSearchParams(location.search).get('ex') || '').toUpperCase();
+    if(EXCHANGES.includes(p)) return p;
+  }catch(e){}
+  try{
+    const saved = localStorage.getItem('mt_ex');
+    if(EXCHANGES.includes(saved)) return saved;
+  }catch(e){}
+  try{
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    for(const code in EX_FULL){
+      if(EX_FULL[code] && EX_FULL[code].tz === tz) return code;
+    }
+  }catch(e){}
+  return EX_DEFAULT;
+}
+let currentEx = pickInitialExchange();
 try{
-  const _pex = new URLSearchParams(location.search).get('ex');
-  if(_pex && ['JSE','EGX','NGX','NSE'].includes(_pex.toUpperCase())) currentEx = _pex.toUpperCase();
   const _pp = new URLSearchParams(location.search).get('panel');
   if(_pp) window.__INIT_PANEL = _pp.toLowerCase();
   const _rails = new URLSearchParams(location.search).get('rails');
@@ -537,9 +685,10 @@ let PANELS = [
   {id:'heatmap', label:'HEATMAP', url:'features/panels/afri_heatmap.html'},
   {id:'screener',label:'SCREENER', url:'features/panels/afri_screener.html'},
   {id:'financials',label:'FINANCIALS', url:'features/panels/afri_financials.html'},
-  {id:'reg',     label:'REG',      url:'features/panels/afri_reg.html'},
-  {id:'corp',    label:'CORP',     url:'features/panels/afri_corp.html'},
+  // REG and CORP are folded into NEWS: the news panel merges press headlines,
+  // the regulatory wire (reg.json) and corporate actions (dividends / closures).
   {id:'news',    label:'NEWS',     url:'features/panels/afri_news.html'},
+  {id:'press',   label:'PRESS',    url:'features/panels/afri_news.html?feeds=press'},
   {id:'glco',    label:'GLCO',     url:'features/panels/afri_glco.html'},
   {id:'bnd',     label:'BND',      url:'features/panels/afri_bnd.html'},
   {id:'fx',      label:'FX',       url:'features/panels/afri_fx.html'},
@@ -583,102 +732,284 @@ function renderTabs(){
     nav.appendChild(t);
   });
 }
-// ===== drag-and-drop: arrange the workspace like Godel =====
-// columns: drag the watchlist / info grip to swap which side each sits on
+// ===== workspace: floating windows, saved per workspace =====
 (function(){
-  // keep the center panel in the 1fr middle slot; the two rails swap around it
-  function setColOrder(first){
+  window.MTWin = (function(){
     const main = document.querySelector('.main');
-    const watch = document.getElementById('colWatch');
-    const info = document.getElementById('colInfo');
-    const center = document.getElementById('colCenter');
-    main.appendChild(center);
-    main.appendChild(first === 'info' ? watch : info);
-    main.insertBefore(first === 'info' ? info : watch, main.firstChild);
-  }
-  function bindColDrag(){
-    let dragCol = null;
-    document.querySelectorAll('.dgrip').forEach(g => {
-      g.addEventListener('dragstart', e => {
-        dragCol = g.getAttribute('data-col');
-        e.dataTransfer.effectAllowed = 'move';
-        try{ e.dataTransfer.setData('text/plain', dragCol); }catch(err){}
-        g.classList.add('dragging');
-      });
-      g.addEventListener('dragend', () => {
-        dragCol = null;
-        document.querySelectorAll('.dgrip').forEach(x => x.classList.remove('dragging'));
-        document.querySelectorAll('#colWatch, #colInfo').forEach(x => x.classList.remove('drop-ok'));
-      });
-    });
-    ['colWatch', 'colInfo'].forEach(id => {
-      const el = document.getElementById(id);
-      el.addEventListener('dragover', e => {
-        if(dragCol && dragCol !== id.replace('col','').toLowerCase()){ e.preventDefault(); el.classList.add('drop-ok'); }
-      });
-      el.addEventListener('dragleave', () => el.classList.remove('drop-ok'));
-      el.addEventListener('drop', e => {
-        e.preventDefault();
-        el.classList.remove('drop-ok');
-        if(!dragCol) return;
-        const target = id.replace('col','').toLowerCase();
-        if(dragCol !== target){
-          setColOrder(dragCol);  // the dragged rail moves to the left side
-          try{ localStorage.setItem('mt_cols', dragCol); }catch(err){}
-        }
-        dragCol = null;
-      });
-    });
-  }
-  // restore the saved rail order
-  try{
-    const cols = localStorage.getItem('mt_cols');
-    if(cols) setColOrder(cols.indexOf('info') === 0 ? 'info' : 'watch');
-  }catch(e){}
-  // ===== resize the rails: drag the divider between panels =====
-  (function(){
-    const main = document.querySelector('.main');
-    function cur(v, dflt){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? dflt : x; }
-    function restoreSizes(){
+    const KEYS = ['watch', 'center', 'info', 'chat'];
+    const META = {
+      watch:  {el: 'colWatch',  label: 'WATCH',  w: 260, h: 520},
+      center: {el: 'colCenter', label: 'PANEL',  w: 740, h: 560},
+      info:   {el: 'colInfo',   label: 'MARKET', w: 320, h: 520},
+      chat:   {el: 'colChat',   label: 'CHAT',   w: 340, h: 440}
+    };
+    const MIN_W = 220, MIN_H = 120, BAR = 26;
+    // embed modes (?view=, ?rails=0) lay themselves out in CSS - stay out of it
+    const EMBED = /(^|\s)(view-\S+|no-rails|hide-panel)(\s|$)/.test(document.documentElement.className);
+    // hold the elements rather than looking them up: a detached node returns
+    // null from getElementById and takes the next render down with it
+    const NODE = {};
+    KEYS.forEach(function(k){ NODE[k] = document.getElementById(META[k].el); });
+
+    let spaces = [], active = 0, zTop = 10;
+
+    function box(){ return main.getBoundingClientRect(); }
+    function tiled(){
+      // the first workspace mirrors the tiled layout people already know
+      const b = box(), W = b.width || 1280, H = b.height || 700;
+      const railW = Math.min(280, Math.max(MIN_W, Math.round(W * 0.2)));
+      const chatW = Math.min(320, Math.max(MIN_W, Math.round(W * 0.24)));
+      const midW = Math.max(MIN_W, W - railW - chatW - 24);
+      return {
+        watch:  {x: 4, y: 4, w: railW, h: H - 8, open: true, z: 11},
+        center: {x: railW + 12, y: 4, w: midW, h: H - 8, open: true, z: 12},
+        info:   {x: railW + midW + 20, y: 4, w: chatW, h: Math.round(H / 2) - 8, open: true, z: 13},
+        chat:   {x: railW + midW + 20, y: Math.round(H / 2) + 6, w: chatW, h: Math.round(H / 2) - 12, open: true, z: 14}
+      };
+    }
+    // A workspace stays "auto" until you move something in it: while it is,
+    // it re-tiles to the window you actually have. That is why a workspace made
+    // later looked right and MAIN did not - MAIN was laid out once, against
+    // whatever viewport existed the first time it was created, and kept.
+    function fresh(name){ return {name: name, wins: tiled(), auto: true}; }
+    function touched(){
+      const sp = cur();
+      if(sp && sp.auto){ sp.auto = false; }
+    }
+    function retile(){
+      const sp = cur();
+      if(!sp || !sp.auto) return;
+      const open = {};
+      KEYS.forEach(function(k){ open[k] = !sp.wins[k] || sp.wins[k].open !== false; });
+      sp.wins = tiled();
+      KEYS.forEach(function(k){ sp.wins[k].open = open[k]; });   // a closed window stays closed
+    }
+
+    function save(){
       try{
-        const s = (localStorage.getItem('mt_sizes') || '').split(',');
-        if(s.length < 2) return;
-        const vw = window.innerWidth;
-        const wl = Math.min(parseInt(s[0], 10) || 232, Math.max(180, vw - 420));
-        const ir = Math.min(parseInt(s[1], 10) || 288, Math.max(180, vw - wl - 380));
-        main.style.setProperty('--wW', Math.max(180, wl) + 'px');
-        main.style.setProperty('--wI', Math.max(180, ir) + 'px');
+        localStorage.setItem('mt_ws', JSON.stringify({active: active,
+          spaces: spaces.map(function(sp){ return {name: sp.name, wins: sp.wins, auto: !!sp.auto}; })}));
       }catch(e){}
     }
-    restoreSizes();
-    function begin(side, e){
-      e.preventDefault();
-      const startX = e.clientX, wL = cur('--wW', 232), wI = cur('--wI', 288);
+    (function restore(){
+      let s = null;
+      try{ s = JSON.parse(localStorage.getItem('mt_ws') || 'null'); }catch(e){}
+      if(s && s.spaces && s.spaces.length){
+        spaces = s.spaces.map(function(sp, i){
+          const wins = {};
+          KEYS.forEach(function(k){
+            const w = (sp.wins || {})[k] || {};
+            wins[k] = {x: +w.x || 4, y: +w.y || 4,
+                       w: Math.max(MIN_W, +w.w || META[k].w), h: Math.max(MIN_H, +w.h || META[k].h),
+                       open: w.open !== false, z: +w.z || 10 + i};
+          });
+          return {name: String(sp.name || ('WS ' + (i + 1))).slice(0, 18), wins: wins,
+                  auto: sp.auto !== false};
+        });
+        active = Math.min(Math.max(0, s.active | 0), spaces.length - 1);
+      }else{
+        spaces = [fresh('MAIN')];
+        active = 0;
+      }
+      KEYS.forEach(function(k){
+        const w = spaces[active].wins[k];
+        if(w && w.z > zTop) zTop = w.z;
+      });
+    })();
+
+    function cur(){ return spaces[active]; }
+    function win(k){ return cur().wins[k]; }
+
+    function clampWin(k){
+      const b = box(), w = win(k);
+      w.w = Math.max(MIN_W, Math.min(w.w, Math.max(MIN_W, b.width - 8)));
+      w.h = Math.max(MIN_H, Math.min(w.h, Math.max(MIN_H, b.height - 8)));
+      // never let a window's title bar leave the workspace, or it cannot be grabbed back
+      w.x = Math.max(-(w.w - 80), Math.min(w.x, b.width - 80));
+      w.y = Math.max(0, Math.min(w.y, Math.max(0, b.height - BAR)));
+    }
+    function place(k){
+      const n = NODE[k], w = win(k);
+      if(!n) return;
+      if(!w.open){ n.style.display = 'none'; return; }
+      clampWin(k);
+      n.style.display = '';
+      n.style.left = Math.round(w.x) + 'px';
+      n.style.top = Math.round(w.y) + 'px';
+      n.style.width = Math.round(w.w) + 'px';
+      n.style.height = Math.round(w.h) + 'px';
+      n.style.zIndex = String(w.z);
+    }
+    function render(){
+      if(EMBED) return;
+      document.documentElement.classList.add('floating');
+      retile();
+      KEYS.forEach(place);
+      tabs();
+      front();
+    }
+    function front(){
+      let top = null;
+      KEYS.forEach(function(k){ if(win(k).open && (!top || win(k).z > win(top).z)) top = k; });
+      KEYS.forEach(function(k){ NODE[k].classList.toggle('win-front', k === top); });
+    }
+    function raise(k){
+      const w = win(k);
+      if(w.z === zTop) return;
+      w.z = ++zTop;
+      NODE[k].style.zIndex = String(w.z);
+      front();
+    }
+
+    // ---- workspaces ----
+    function tabs(){
+      const host = document.getElementById('wsTabs');
+      if(!host) return;
+      host.innerHTML = '';
+      spaces.forEach(function(sp, i){
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = sp.name;
+        b.className = i === active ? 'on' : '';
+        b.title = 'Switch to ' + sp.name + ' (double-click to rename, shift-click to delete)';
+        b.onclick = function(e){
+          if(e.shiftKey){ removeSpace(i); return; }
+          switchTo(i);
+        };
+        b.ondblclick = function(){
+          const name = window.prompt('Workspace name', sp.name);
+          if(name){ sp.name = name.slice(0, 18); save(); tabs(); }
+        };
+        host.appendChild(b);
+      });
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'ws-add';
+      add.textContent = '+';
+      add.title = 'New workspace';
+      add.onclick = function(){
+        spaces.push(fresh('WS ' + (spaces.length + 1)));
+        switchTo(spaces.length - 1);
+      };
+      host.appendChild(add);
+    }
+    function switchTo(i){
+      if(i < 0 || i >= spaces.length || i === active) return;
+      active = i;
+      KEYS.forEach(function(k){ const w = win(k); if(w.z > zTop) zTop = w.z; });
+      render();
+      save();
+      window.dispatchEvent(new Event('mt:layout'));
+    }
+    function removeSpace(i){
+      if(spaces.length <= 1) return;      // always one workspace
+      spaces.splice(i, 1);
+      active = Math.min(active, spaces.length - 1);
+      render();
+      save();
+    }
+
+    // ---- moving and resizing ----
+    function overlay(cursor){
       const ov = document.createElement('div');
-      ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:col-resize;';
+      ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:' + cursor + ';';
       document.body.appendChild(ov);
+      return ov;   // also swallows mouse events over the panel iframes
+    }
+    function drag(k, e, mode, dir){
+      if(e.button !== 0) return;
+      e.preventDefault();
+      raise(k);
+      touched();
+      const w = win(k), sx = e.clientX, sy = e.clientY;
+      const o = {x: w.x, y: w.y, w: w.w, h: w.h};
+      const ov = overlay(mode === 'move' ? 'grabbing' : getComputedStyle(e.target).cursor);
       function move(ev){
-        const dx = ev.clientX - startX;
-        if(side === 'L'){
-          const maxW = Math.max(180, window.innerWidth - wI - 380);
-          main.style.setProperty('--wW', Math.min(maxW, Math.max(180, wL + dx)) + 'px');
-        }else{
-          const maxW = Math.max(180, window.innerWidth - wL - 380);
-          main.style.setProperty('--wI', Math.min(maxW, Math.max(180, wI - dx)) + 'px');
+        const dx = ev.clientX - sx, dy = ev.clientY - sy;
+        if(mode === 'move'){ w.x = o.x + dx; w.y = o.y + dy; }
+        else{
+          if(dir.indexOf('e') >= 0) w.w = Math.max(MIN_W, o.w + dx);
+          if(dir.indexOf('s') >= 0) w.h = Math.max(MIN_H, o.h + dy);
+          if(dir.indexOf('w') >= 0){
+            const nw = Math.max(MIN_W, o.w - dx);
+            w.x = o.x + (o.w - nw); w.w = nw;
+          }
+          if(dir.indexOf('n') >= 0){
+            const nh = Math.max(MIN_H, o.h - dy);
+            w.y = o.y + (o.h - nh); w.h = nh;
+          }
         }
+        place(k);
       }
       function end(){
         ov.remove();
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', end);
-        try{ localStorage.setItem('mt_sizes', Math.round(cur('--wW', 232)) + ',' + Math.round(cur('--wI', 288))); }catch(e2){}
+        save();
+        window.dispatchEvent(new Event('mt:layout'));
       }
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', end);
     }
-    const l = document.getElementById('rszL'), r = document.getElementById('rszR');
-    if(l) l.addEventListener('mousedown', function(e){ begin('L', e); });
-    if(r) r.addEventListener('mousedown', function(e){ begin('R', e); });
+    function handles(k){
+      const n = NODE[k];
+      ['n', 's', 'w', 'e', 'nw', 'ne', 'sw', 'se'].forEach(function(dir){
+        const h = document.createElement('div');
+        h.className = 'wrs wrs-' + dir;
+        h.addEventListener('mousedown', function(e){ drag(k, e, 'resize', dir); });
+        n.appendChild(h);
+      });
+    }
+
+    function set(k, on){
+      const w = win(k);
+      if(!w || w.open === on) return;
+      if(!on && KEYS.filter(function(x){ return win(x).open; }).length <= 1) return;
+      w.open = on;
+      if(on){ w.z = ++zTop; }
+      render();
+      save();
+      window.dispatchEvent(new Event('mt:layout'));
+    }
+
+    if(!EMBED){
+      KEYS.forEach(function(k){
+        handles(k);
+        NODE[k].addEventListener('mousedown', function(){ raise(k); }, true);
+      });
+      document.querySelectorAll('[data-drag]').forEach(function(hd){
+        const k = hd.getAttribute('data-drag');
+        hd.addEventListener('mousedown', function(e){
+          if(e.target.closest('button, input, select, textarea, a, .ctab')) return;
+          drag(k, e, 'move');
+        });
+        // double-click the title bar to fill the workspace, again to restore
+        hd.addEventListener('dblclick', function(){
+          touched();
+          const w = win(k), b = box();
+          if(w._max){ Object.assign(w, w._max); delete w._max; }
+          else{
+            w._max = {x: w.x, y: w.y, w: w.w, h: w.h};
+            w.x = 2; w.y = 2; w.w = b.width - 4; w.h = b.height - 4;
+          }
+          raise(k); place(k); save();
+        });
+      });
+      window.addEventListener('resize', function(){ KEYS.forEach(place); });
+    }
+    render();
+
+    function reset(){
+      const sp = cur();
+      if(!sp) return;
+      sp.auto = true;
+      render();
+      save();
+    }
+    return {toggle: function(k){ set(k, !win(k).open); }, set: set, layout: render, reset: reset,
+            isOpen: function(k){ const w = win(k); return !!(w && w.open); },
+            spacesOf: function(){ return {active: active, names: spaces.map(function(s){ return s.name; }),
+                                          wins: JSON.parse(JSON.stringify(cur().wins))}; }};
   })();
   // tab reordering
   let dragTab = null;
@@ -702,14 +1033,15 @@ function renderTabs(){
     dragTab = null;
   });
   document.addEventListener('dragend', () => { dragTab = null; });
-  bindColDrag();
 })();
 renderTabs();
 // load the default panel WITH the current exchange
 // (?panel= deep-link support for the landing showcase; unknown panels fall back to default)
 let __startIdx = 0;
 if(window.__INIT_PANEL){
-  const __pi = PANELS.findIndex(p => p.id === window.__INIT_PANEL);
+  // NEWS and REG merged into WIRE; old deep links still land on the right tab
+  const __pid = {news:'wire', reg:'wire'}[window.__INIT_PANEL] || window.__INIT_PANEL;
+  const __pi = PANELS.findIndex(p => p.id === __pid);
   if(__pi >= 0) __startIdx = __pi;
 }
 $('stageFrame').src = panelUrl(PANELS[__startIdx]);
@@ -849,24 +1181,26 @@ function buildTape(ex){
   buildTapeFromListing(ex);
 }
 
-// ===== Exchange tabs (only the selected exchange shows - clean UI) =====
-const EX_FULL = {
-  JSE: {name: 'Johannesburg', flag: 'ZA'},
-  EGX: {name: 'Cairo', flag: 'EG'},
-  NGX: {name: 'Lagos', flag: 'NG'},
-  NSE: {name: 'Nairobi', flag: 'KE'},
+// ===== Exchange picker (data-driven; chips while they fit, then a dropdown) =====
+let EX_FULL = {
+  JSE: {name: 'Johannesburg', flag: 'ZA', tz: 'Africa/Johannesburg', enabled: true},
+  EGX: {name: 'Cairo', flag: 'EG', tz: 'Africa/Cairo', enabled: true},
+  NGX: {name: 'Lagos', flag: 'NG', tz: 'Africa/Lagos', enabled: true},
+  NSE: {name: 'Nairobi', flag: 'KE', tz: 'Africa/Nairobi', enabled: true},
 };
-function renderExchTabs(){
-  const nav = $('exchTabs');
-  if(!nav) return;
-  // single tab: just the current exchange (no other initials shown)
-  const info = EX_FULL[currentEx] || {name: currentEx, flag: ''};
-  nav.innerHTML = '<button class="exch-tab active" data-ex="' + esc(currentEx) + '" title="' + esc(info.name) + ' · ' + esc(currentEx) + '">' +
-    '<span class="exch-flag">' + esc(info.flag) + '</span> ' + esc(currentEx) +
-    '<span class="exch-full">' + esc(info.name) + '</span></button>';
-}
+function exFlag(ex){ return (EX_FULL[ex] || {}).flag || ''; }
+function exName(ex){ return (EX_FULL[ex] || {}).name || ex; }
+function exOn(ex){ return !EX_FULL[ex] || EX_FULL[ex].enabled !== false; }
+
+// No exchange tabs: the finder below is how a market gets chosen, so the top
+// bar does not grow when a listing is added.
+function renderExchTabs(){ /* the chips are gone; kept so old call sites are safe */ }
 function switchExchange(ex){
   currentEx = ex;
+  // remember it: a returning user should never be asked again
+  try{ localStorage.setItem('mt_ex', currentEx); }catch(e){}
+  renderExchTabs();
+  $('wlEx').textContent = currentEx + ' · ' + ((listing[currentEx] || []).length || '…');
   // reload the open panel for the new exchange (every panel is ?ex= aware)
   const _cur = $('stageFrame').src;
   $('stageFrame').src = _cur.replace(/([?&])ex=[A-Za-z]+/, '$1ex=' + currentEx);
@@ -882,9 +1216,6 @@ function switchExchange(ex){
   }
 }
 renderExchTabs();
-
-// sync the active tab to the (possibly URL-set) currentEx
-document.querySelectorAll('.exch-tab').forEach(x => x.classList.toggle('active', x.dataset.ex === currentEx));
 
 // ===== Tape helpers =====
 function tapeItem(s){
@@ -924,20 +1255,153 @@ function buildTapeFromListing(ex){
 }
 
 // ===== Search =====
-$('q').addEventListener('input', e => renderWatchlist(e.target.value));
+// ===== the finder: every security on every market, plus the markets =====
+// This replaces the exchange tabs. Securities are matched across all boards at
+// once, so which market you are "on" stops being a mode you have to set first.
+(function(){
+  const box = $('q');
+  if(!box) return;
+  let rows = [], sel = -1;
+
+  function allRows(){
+    const out = [];
+    EXCHANGES.forEach(function(ex){
+      const src = (typeof listing !== 'undefined' && listing[ex]) ||
+                  (typeof SEARCH_IDX !== 'undefined' && SEARCH_IDX[ex]) || [];
+      src.forEach(function(s){ out.push({ex: ex, s: s}); });
+    });
+    return out;
+  }
+  function score(tkr, name, q){
+    if(tkr === q) return 0;                       // exact ticker wins
+    if(tkr.indexOf(q) === 0) return 1;            // ticker starts with
+    if(name.indexOf(q) === 0) return 2;           // name starts with
+    if(tkr.indexOf(q) >= 0) return 3;
+    if(name.indexOf(q) >= 0) return 4;
+    return -1;
+  }
+  function find(q){
+    q = q.trim().toUpperCase();
+    if(!q) return [];
+    const hits = [];
+    // markets first when the query looks like one
+    EXCHANGES.forEach(function(ex){
+      const nm = (exName(ex) || '').toUpperCase();
+      const sc = score(ex, nm, q);
+      if(sc >= 0 && exOn(ex)) hits.push({kind: 'mkt', ex: ex, sc: sc - 0.5});
+    });
+    allRows().forEach(function(r){
+      const tkr = String(stockTicker(r.s) || '').toUpperCase();
+      const nm = String(r.s.name || '').toUpperCase();
+      const sc = score(tkr, nm, q);
+      if(sc >= 0) hits.push({kind: 'sec', ex: r.ex, row: r.s, tkr: tkr, sc: sc});
+    });
+    hits.sort(function(a, b){ return a.sc - b.sc; });
+    return hits.slice(0, 12);
+  }
+  function close(){
+    const f = document.querySelector('.finder');
+    if(f) f.remove();
+    rows = []; sel = -1;
+  }
+  function draw(q){
+    close();
+    rows = find(q);
+    if(!rows.length) return;
+    const f = document.createElement('div');
+    f.className = 'finder';
+    f.innerHTML = rows.map(function(r, i){
+      if(r.kind === 'mkt'){
+        return '<div class="fi mkt" data-i="' + i + '"><span class="t">' + esc(r.ex) +
+               '</span><span class="n">' + esc(exFlag(r.ex)) + ' ' + esc(exName(r.ex)) +
+               '</span><span class="px">market</span></div>';
+      }
+      const px = r.row.price != null ? Number(r.row.price).toLocaleString(undefined, {maximumFractionDigits: 2}) : '';
+      const chg = r.row.chgPct;
+      return '<div class="fi" data-i="' + i + '"><span class="t">' + esc(r.tkr) +
+             ' <span class="mkt-code">' + esc(exFlag(r.ex) || r.ex) + '</span></span>' +
+             '<span class="n">' + esc(r.row.name || '') + '</span>' +
+             '<span class="px ' + (chg == null ? '' : (chg >= 0 ? 'up' : 'down')) + '">' + esc(px) + '</span></div>';
+    }).join('') + '<div class="hint">enter opens · type a function after it (FA, DES, CN) · or name a market (SCOM KE)</div>';
+    box.parentNode.appendChild(f);
+    f.querySelectorAll('.fi').forEach(function(el){
+      el.addEventListener('mousedown', function(e){ e.preventDefault(); pick(+el.dataset.i); });
+    });
+  }
+  function mark(){
+    document.querySelectorAll('.finder .fi').forEach(function(el, i){
+      el.classList.toggle('sel', i === sel);
+    });
+  }
+  function pick(i){
+    const r = rows[i];
+    if(!r) return;
+    box.value = '';
+    close();
+    renderWatchlist('');
+    if(r.kind === 'mkt'){ if(r.ex !== currentEx) switchExchange(r.ex); return; }
+    if(r.ex !== currentEx) switchExchange(r.ex);
+    curSec = r.row.sym || r.tkr;
+    if(typeof openStock === 'function') openStock(curSec);
+  }
+
+  box.addEventListener('input', function(e){
+    renderWatchlist(e.target.value);      // the watchlist still filters as you type
+    draw(e.target.value);
+  });
+  box.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      if(!rows.length) return;
+      e.preventDefault();
+      sel = (sel + (e.key === 'ArrowDown' ? 1 : rows.length - 1)) % rows.length;
+      mark();
+      return;
+    }
+    if(e.key === 'Escape'){ close(); return; }
+    if(e.key !== 'Enter') return;
+    if(sel >= 0 && rows[sel]){ pick(sel); return; }
+    const v = String(box.value || '').trim();
+    if(!v) return;
+    close();
+    runCommand(v);                        // "MTN JSE", "SCOM FA", "HEATMAP" ...
+    box.value = '';
+    renderWatchlist('');
+  });
+  box.addEventListener('blur', function(){ setTimeout(close, 120); });
+})();
 
 // ===== Command bar =====
 // ===== Command bar: Bloomberg-style "TICKER FUNCTION" =====
-const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'chart', CN:'news',
+const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'chart', CN:'wire', NEWS:'wire', REG:'wire',
                      HP:'chart', EQS:'screener', RV:'financials', SPLC:'info'};
+// Every market's tickers, fetched once at boot (39 KB gzipped for all four) so
+// a ticker resolves no matter which board is on screen. Before this, typing a
+// Nairobi ticker while on the JSE board just answered "unknown".
+const SEARCH_IDX = {};
+async function loadSearchIndex(){
+  await Promise.all(EXCHANGES.map(async function(ex){
+    if(listing[ex]) return;                       // already fully loaded
+    try{
+      const r = await fetch('static_data/listing_' + ex + '.json');
+      const d = await r.json();
+      SEARCH_IDX[ex] = d.stocks || [];
+    }catch(e){ /* a market we cannot index just stays unsearchable */ }
+  }));
+}
+function matchRow(s, tok){
+  const st = String(s.ticker || s.sym || '');
+  const b = st.split('.')[0];
+  return st.toUpperCase() === tok || b.toUpperCase() === tok ||
+         String(s.name || '').toUpperCase() === tok;
+}
 function resolveSec(tok){
-  const exs = Object.keys(listing || {});
-  for(const ex of exs){
-    const row = ((listing[ex] || [])).find(function(s){
-      const st = String(s.ticker || s.sym || '');
-      const b = st.split('.')[0];
-      return st.toUpperCase() === tok || b.toUpperCase() === tok || String(s.name || '').toUpperCase() === tok;
-    });
+  // the exchange in view wins, so an ambiguous ticker resolves to what the
+  // user is actually looking at
+  const order = [currentEx].concat(EXCHANGES.filter(e => e !== currentEx));
+  for(const ex of order){
+    const rows = listing[ex] || SEARCH_IDX[ex];
+    if(!rows) continue;
+    const row = rows.find(s => matchRow(s, tok));
     if(row) return {ex: ex, sym: (row.sym || row.ticker)};
   }
   return null;
@@ -963,17 +1427,54 @@ function showUnknown(msg){
   $('rightInfo').innerHTML = `<div style="padding:4px 0;color:var(--down)">${esc(msg)}</div>` +
     '<div style="padding:4px 0;color:var(--tx3)">Try a ticker (MTN), a panel (FINANCIALS), or both (MTN FINANCIALS).</div>';
 }
-$('cmd').addEventListener('keydown', e => {
-  if(e.key !== 'Enter') return;
-  const v = $('cmd').value.trim().toUpperCase();
-  $('cmd').value = '';
+// Window commands. With the status bar gone these are the way back to a window
+// you closed - the closed state is remembered between sessions, so without them
+// an X would be permanent.
+const WINDOW_CMDS = {WATCH: 'watch', WATCHLIST: 'watch', PANEL: 'center', CENTER: 'center',
+                     MARKET: 'info', INFO: 'info', CHAT: 'chat', ROOM: 'chat'};
+function runCommand(raw){
+  let v = String(raw || '').trim().toUpperCase();
   if(!v) return;
   if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
-      '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both — e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>';
+      '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both — e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>' +
+      '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>';
     return;
   }
-  const parts = v.split(/\s+/);
+  if(v === 'RESET' || v === 'TILE'){
+    if(window.MTWin && window.MTWin.reset) window.MTWin.reset();
+    return;
+  }
+  if(v === 'WINDOWS' || v === 'ALL'){
+    if(window.MTWin) ['watch', 'center', 'info', 'chat'].forEach(function(k){ window.MTWin.set(k, true); });
+    return;
+  }
+  if(WINDOW_CMDS[v] && window.MTWin){
+    const k = WINDOW_CMDS[v];
+    // a command for a window you are already looking at means "close it"
+    window.MTWin.set(k, !window.MTWin.isOpen(k));
+    return;
+  }
+  let parts = v.split(/\s+/);
+  // "SCOM KE", "MTN JSE", "DANGCEM NG FA" - the market is named in the command
+  // rather than switched to first, which is what stops the picker having to
+  // grow every time a listing is added.
+  //
+  // Never the FIRST token: NSE is both the Nairobi exchange and a company
+  // listed on it, so "NSE" opens the stock while "SCOM NSE" names the market.
+  for(let i = 1; i < parts.length; i++){
+    let named = null;
+    EXCHANGES.forEach(function(ex){
+      if(parts[i] === ex || (exFlag(ex) && parts[i] === exFlag(ex))) named = ex;
+    });
+    if(named && exOn(named)){
+      parts.splice(i, 1);
+      if(named !== currentEx) switchExchange(named);
+      break;
+    }
+  }
+  v = parts.join(' ');            // the rest of the parser reads v, not parts
+  if(!v) return;
   const lastP = panelFor(parts[parts.length - 1]);
   if(parts.length >= 2 && lastP){
     // "MTN FIN" -> resolve the ticker part, open the panel scoped to it
@@ -1007,7 +1508,7 @@ $('cmd').addEventListener('keydown', e => {
     return;
   }
   showUnknown('unknown: ' + v);
-});
+}
 
 // ===== Static-market panel (snapshot mode): full investor info sheet =====
 function renderMarketStatic(rec, info){
@@ -1019,7 +1520,13 @@ function renderMarketStatic(rec, info){
   const vol = rec.volume != null ? Number(String(rec.volume).replace(/,/g,'')).toLocaleString() : '—';
   const i = info || {};
   const dash = '—';
-  const row = (k, v) => `<span>${esc(k)}</span><span>${esc(v != null && v !== '' ? v : dash)}</span>`;
+  // A wall of em-dashes is not company information: a field with nothing behind
+  // it is left out entirely rather than rendered empty.
+  const row = (k, v) => {
+    const s = (v == null ? '' : String(v)).trim();
+    if(!s || s === dash) return '';
+    return `<span>${esc(k)}</span><span>${esc(s)}</span>`;
+  };
   const fmtShares = (n) => {
     if(n == null || n === '') return dash;
     const x = Number(n);
@@ -1056,8 +1563,6 @@ function renderMarketStatic(rec, info){
       <div class="qchg ${cls}">${chgTxt}</div>
     </div>
     <div class="qgrid">
-      ${row('PRICE', px)}
-      ${row('CHANGE', chgTxt || dash)}
       ${row('VOLUME', vol)}
       ${row('SECTOR', rec.sector || i.sector || dash)}
       ${row('COUNTRY', i.country || dash)}
@@ -1081,8 +1586,11 @@ function renderMarketStatic(rec, info){
       ${row('DIVIDENDS', divTxt)}
       ${row('STATEMENTS', i.statements ? 'filed' : dash)}
     </div>`;
-  if(i.description){
-    html += `<div style="padding:10px 16px;border-top:1px solid var(--line);font-family:var(--ui);font-size:11px;color:var(--tx2);line-height:1.55">${esc(i.description)}</div>`;
+  // some sources hand back punctuation as a description ("%" for one NSE name):
+  // print it only when it is actually prose
+  const _desc = String(i.description || '').trim();
+  if(_desc.length > 24 && /[a-z]{3}/i.test(_desc)){
+    html += `<div style="padding:10px 16px;border-top:1px solid var(--line);font-family:var(--ui);font-size:11px;color:var(--tx2);line-height:1.55">${esc(_desc)}</div>`;
   }
   if(Array.isArray(i.shareholders) && i.shareholders.length){
     html += `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--tx3);font-size:10px;letter-spacing:.1em;font-weight:700">MAJOR SHAREHOLDERS</div>`;
@@ -1092,7 +1600,6 @@ function renderMarketStatic(rec, info){
       html += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(String(h))}</span><span style="color:var(--acc);font-family:var(--mono)">${esc(String(s))}</span></div>`;
     });
   }
-  html += `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">Snapshot data · live quotes need the backend</div>`;
   $('rightInfo').innerHTML = html;
   // financials summary from the collected statement files (static, honest)
   try{
@@ -1410,9 +1917,298 @@ function renderStockInfo(d, sym){
   $('rightInfo').innerHTML = html;
 }
 
+
+// ===== Chat window: the shared room + a local data assistant =====
+// ROOM is the desk talking to itself - every signed-in user reads and writes
+// the same thread on the backend. ASK is the offline half: it answers from the
+// terminal's own listings, so the window still does something useful when the
+// backend is unreachable or you are not signed in.
+(function(){
+  const roomLog = $('roomLog'), askLog = $('chatLog'), form = $('chatForm'),
+        input = $('chatInput'), note = $('chatNote'), sendBtn = $('chatSend');
+  if(!roomLog || !askLog || !form || !input) return;
+
+  // the room needs the live backend; the terminal itself can run on snapshots
+  const CHAT_API = (window.API_BASE || 'https://mutxri-terminal.onrender.com').replace(/\/$/, '');
+  const HIST_KEY = 'mt_chat', MAX_HIST = 40;
+  let mode = 'room';
+
+  function token(){ try{ return localStorage.getItem('mt_token') || ''; }catch(e){ return ''; } }
+  async function api(path, body){
+    const r = await fetch(CHAT_API + path, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(Object.assign({token: token()}, body || {}))
+    });
+    if(!r.ok) throw new Error('http ' + r.status);
+    return r.json();
+  }
+  function setNote(msg, bad){
+    if(!note) return;
+    note.hidden = !msg;
+    note.className = 'chat-note' + (bad ? ' bad' : '');
+    note.innerHTML = msg || '';
+  }
+
+  // ---------------- ROOM ----------------
+  const seen = {};
+  let lastTs = 0, me = '', poll = null, delay = 5000, drew = false;
+  function stamp(ts){
+    try{ return new Date(ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}); }
+    catch(e){ return ''; }
+  }
+  function drawMsg(m){
+    if(!m || !m.id || seen[m.id]) return;
+    seen[m.id] = 1;
+    const mine = m.name && m.name === me;
+    const el = document.createElement('div');
+    el.className = 'room-msg' + (mine ? ' mine' : '');
+    el.setAttribute('data-id', m.id);
+    el.innerHTML = '<div class="rm-h"><span class="rm-n">' + esc(m.name || 'trader') + '</span>' +
+      (m.ctx ? '<span class="rm-ctx">' + esc(m.ctx) + '</span>' : '') +
+      '<span>' + stamp(m.ts) + '</span>' +
+      (mine ? '<button class="rm-x" type="button" title="Delete">\u2715</button>' : '') +
+      '</div><div class="rm-t">' + esc(m.text || '') + '</div>';
+    const atBottom = roomLog.scrollHeight - roomLog.scrollTop - roomLog.clientHeight < 60;
+    roomLog.appendChild(el);
+    if(atBottom || mine) roomLog.scrollTop = roomLog.scrollHeight;
+    if(m.ts > lastTs) lastTs = m.ts;
+  }
+  function empty(html){
+    if(drew) return;
+    roomLog.innerHTML = '<div class="room-empty">' + html + '</div>';
+  }
+  async function refresh(){
+    if(!token()){
+      empty('Sign in to join the room and see what everyone else is watching.');
+      setNote('The room is for signed-in users. <b>Sign in</b> to post.', false);
+      gate();
+      return;
+    }
+    try{
+      const d = await api('/api/chat/history', {after: lastTs, limit: 60});
+      if(!d || !d.ok){
+        if(d && d.auth === false){
+          empty('Sign in to join the room.');
+          setNote(esc(d.error || 'sign in to post'), true);
+        }else{
+          setNote(esc((d && d.error) || 'room unavailable'), true);
+        }
+        gate();
+        return;
+      }
+      if(d.me) me = d.me;
+      if(d.messages && d.messages.length){
+        if(!drew){ roomLog.innerHTML = ''; drew = true; }
+        d.messages.forEach(drawMsg);
+      }else if(!drew && lastTs === 0){
+        empty('Nobody has said anything yet. Start the conversation.');
+      }
+      setNote('');
+      delay = 5000;
+      gate();
+    }catch(e){
+      setNote('Room offline - retrying.', true);
+      delay = Math.min(60000, delay * 2);   // back off rather than hammer
+      gate();
+    }
+  }
+  function active(){
+    return mode === 'room' && !document.hidden &&
+           (!window.MTWin || window.MTWin.isOpen('chat'));
+  }
+  function loop(){
+    clearTimeout(poll);
+    poll = setTimeout(function(){
+      (active() ? refresh() : Promise.resolve()).then(loop, loop);
+    }, delay);
+  }
+  document.addEventListener('visibilitychange', function(){ if(active()) refresh(); });
+  window.addEventListener('mt:layout', function(){ if(active()) refresh(); });
+
+  roomLog.addEventListener('click', async function(e){
+    const b = e.target.closest('.rm-x');
+    if(!b) return;
+    const row = b.closest('.room-msg');
+    const id = row && row.getAttribute('data-id');
+    if(!id) return;
+    try{
+      const d = await api('/api/chat/delete', {id: id});
+      if(d && d.ok) row.remove(); else setNote(esc((d && d.error) || 'could not delete'), true);
+    }catch(err){ setNote('Could not reach the room.', true); }
+  });
+
+  async function sendRoom(text){
+    if(!token()){ setNote('Sign in to post to the room.', true); return; }
+    sendBtn.disabled = true;
+    try{
+      const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
+      const d = await api('/api/chat/send', {text: text, ctx: ctx});
+      if(d && d.ok && d.message){
+        if(!drew){ roomLog.innerHTML = ''; drew = true; }
+        drawMsg(d.message);
+        input.value = '';
+        setNote('');
+      }else{
+        setNote(esc((d && d.error) || 'message not sent'), true);
+      }
+    }catch(e){ setNote('Could not reach the room - your message was not sent.', true); }
+    sendBtn.disabled = false;
+    gate();
+  }
+
+  // ---------------- ASK (local, offline) ----------------
+  let hist = [];
+  try{ hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]') || []; }catch(e){ hist = []; }
+  if(!Array.isArray(hist)) hist = [];
+  function saveHist(){ try{ localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(-MAX_HIST))); }catch(e){} }
+  function bubble(role, html, remember){
+    const el = document.createElement('div');
+    el.className = 'chat-msg ' + (role === 'me' ? 'me' : 'bot');
+    el.innerHTML = '<span class="who">' + (role === 'me' ? 'YOU' : 'MUTXRI') + '</span>' +
+                   '<div class="body">' + html + '</div>';
+    askLog.appendChild(el);
+    askLog.scrollTop = askLog.scrollHeight;
+    if(remember !== false){ hist.push({r: role, h: html}); saveHist(); }
+    return el;
+  }
+  function chips(list){
+    return '<div>' + list.map(function(t){
+      return '<span class="chat-chip" data-ask="' + esc(t) + '">' + esc(t) + '</span>';
+    }).join('') + '</div>';
+  }
+  const HELP = 'Ask about the markets on this terminal:' +
+    chips(['SCOM', 'top gainers', 'open financials', 'markets']) +
+    '<div style="color:var(--tx3);margin-top:6px">A ticker gives you its quote and opens it. ' +
+    '"open &lt;panel&gt;" switches the centre window. "top gainers" / "top losers" rank the market in view.</div>';
+  function rowsFor(ex){
+    return (typeof listing !== 'undefined' && listing[ex]) ||
+           (typeof SEARCH_IDX !== 'undefined' && SEARCH_IDX[ex]) || [];
+  }
+  function num(v, d){
+    return v == null || v === '' || isNaN(Number(v)) ? null :
+      Number(v).toLocaleString(undefined, {maximumFractionDigits: d == null ? 2 : d});
+  }
+  function tickerOf(row){
+    return (typeof stockTicker === 'function') ? stockTicker(row) : (row.ticker || row.sym || '');
+  }
+  function quoteCard(row, ex){
+    const chg = row.chgPct;
+    const cls = chg == null ? '' : (chg >= 0 ? 'up' : 'down');
+    const chgTxt = chg == null ? '\u2014' : (chg >= 0 ? '+' : '') + Number(chg).toFixed(2) + '%';
+    return '<b>' + esc(tickerOf(row)) + '</b> <span style="color:var(--tx3)">' + esc(ex) + '</span>' +
+      '<div style="color:var(--tx3);font-size:10px">' + esc(row.name || '') + '</div>' +
+      '<div class="krow">' +
+        '<span>PRICE</span><span>' + (num(row.price) || '\u2014') + ' ' + esc(row.currency || '') + '</span>' +
+        '<span>CHANGE</span><span class="' + cls + '">' + chgTxt + '</span>' +
+        '<span>VOLUME</span><span>' + (num(String(row.volume == null ? '' : row.volume).replace(/,/g, ''), 0) || '\u2014') + '</span>' +
+      '</div>';
+  }
+  function movers(ex, dir){
+    const rows = rowsFor(ex).filter(function(s){ return s.chgPct != null && !isNaN(Number(s.chgPct)); });
+    if(!rows.length) return null;
+    rows.sort(function(a, b){ return dir * (Number(b.chgPct) - Number(a.chgPct)); });
+    return '<b>' + (dir > 0 ? 'Top gainers' : 'Top losers') + ' \u2014 ' + esc(ex) + '</b>' +
+      '<div class="krow">' + rows.slice(0, 5).map(function(s){
+        const c = Number(s.chgPct);
+        return '<span>' + esc(tickerOf(s)) + '</span><span class="' + (c >= 0 ? 'up' : 'down') + '">' +
+               (c >= 0 ? '+' : '') + c.toFixed(2) + '%</span>';
+      }).join('') + '</div>';
+  }
+  function localAnswer(text){
+    const v = text.trim().toUpperCase();
+    if(!v) return null;
+    if(/^(HELP|\?|WHAT CAN YOU DO)/.test(v)) return HELP;
+    if(/^(MARKETS?|EXCHANGES?)\b/.test(v)){
+      return EXCHANGES.length + ' boards: ' + EXCHANGES.map(function(e){ return '<b>' + esc(e) + '</b>'; }).join(', ') +
+        '. You are on <b>' + esc(currentEx) + '</b>.' +
+        chips(['top gainers', 'top losers', 'open heatmap']);
+    }
+    if(/GAINER|RISER|UP TODAY/.test(v)) return movers(currentEx, 1) || 'No quotes loaded for ' + esc(currentEx) + ' yet.';
+    if(/LOSER|FALLER|DOWN TODAY/.test(v)) return movers(currentEx, -1) || 'No quotes loaded for ' + esc(currentEx) + ' yet.';
+    const words = v.replace(/[^A-Z0-9 .]/g, ' ').split(/\s+/).filter(Boolean);
+    const asked = words.filter(function(w){ return ['OPEN','SHOW','GO','TO','THE','PANEL'].indexOf(w) < 0; });
+    for(let i = 0; i < asked.length; i++){
+      const p = (typeof panelFor === 'function') ? panelFor(asked[i]) : null;
+      if(p && p.id !== 'info' && typeof openPanelTab === 'function'){
+        if(window.MTWin && !window.MTWin.isOpen('center')) window.MTWin.set('center', true);
+        openPanelTab(p);
+        return 'Opened the <b>' + esc(p.label) + '</b> panel in the centre window.';
+      }
+    }
+    for(let i = 0; i < asked.length; i++){
+      const w = asked[i];
+      const sec = (typeof resolveSec === 'function') ? resolveSec(w) : null;
+      if(!sec) continue;
+      const row = rowsFor(sec.ex).find(function(s){ return (s.sym || s.ticker) === sec.sym; }) || {sym: sec.sym};
+      if(sec.ex !== currentEx && typeof switchExchange === 'function') switchExchange(sec.ex);
+      try{ if(typeof openStock === 'function') openStock(sec.sym); }catch(e){}
+      return quoteCard(row, sec.ex) +
+        '<div style="color:var(--tx3);margin-top:4px">Opened in the market window.</div>' +
+        chips([w + ' FINANCIALS', w + ' NEWS']);
+    }
+    return null;
+  }
+  function sendAsk(text){
+    bubble('me', esc(text));
+    input.value = '';
+    bubble('bot', localAnswer(text) || ('I could not match that to a security or a panel. ' + HELP));
+  }
+  askLog.addEventListener('click', function(e){
+    const chip = e.target.closest('.chat-chip');
+    if(chip){ input.value = chip.getAttribute('data-ask') || ''; sendAsk(input.value); }
+  });
+  $('chatClear').addEventListener('click', function(){
+    if(mode === 'room'){ setNote('Only your own messages can be removed - hover one to delete it.'); return; }
+    hist = []; saveHist(); askLog.innerHTML = '';
+    bubble('bot', HELP, false);
+  });
+
+  // ---------------- shared plumbing ----------------
+  function gate(){
+    const signedIn = !!token();
+    const block = mode === 'room' && !signedIn;
+    input.disabled = block;
+    sendBtn.disabled = block;
+    input.placeholder = mode === 'room'
+      ? (signedIn ? 'Message the room...' : 'Sign in to post')
+      : 'Ask about a ticker or market...';
+  }
+  function setMode(m){
+    mode = m;
+    document.querySelectorAll('.chat-tab').forEach(function(t){
+      t.classList.toggle('on', t.getAttribute('data-mode') === m);
+    });
+    roomLog.style.display = m === 'room' ? '' : 'none';
+    askLog.style.display = m === 'ask' ? '' : 'none';
+    setNote('');
+    gate();
+    if(m === 'room'){ refresh(); roomLog.scrollTop = roomLog.scrollHeight; }
+    input.focus();
+  }
+  document.querySelectorAll('.chat-tab').forEach(function(t){
+    t.addEventListener('click', function(){ setMode(t.getAttribute('data-mode')); });
+  });
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    const t = input.value.trim();
+    if(!t) return;
+    if(mode === 'room') sendRoom(t); else sendAsk(t);
+  });
+
+  if(hist.length){
+    hist.slice(-MAX_HIST).forEach(function(m){ bubble(m.r === 'me' ? 'me' : 'bot', m.h, false); });
+  }else{
+    bubble('bot', HELP, false);
+  }
+  setMode('room');
+  refresh();
+  loop();
+})();
+
 // ===== Init =====
 
-loadListing(currentEx);  // honor ?ex= deep-link (defaults JSE)
+loadListing(currentEx);  // honor ?ex= deep-link, else remembered/inferred market
+loadSearchIndex();       // every other market's tickers, so search spans all four
 
 </script>
 
