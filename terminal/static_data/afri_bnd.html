@@ -46,6 +46,17 @@
   .bnd-refresh:hover { border-color:var(--acc); color:var(--acc); }
   .bnd-note { padding:8px 14px; border-bottom:1px solid var(--line); color:var(--tx3); font-size:10px; font-family:var(--mono); line-height:1.4; }
   .bnd-country { border-bottom:1px solid var(--line2); }
+  /* Fixed-income headlines from the bot scan: why a curve moved. */
+  .bnd-news { border-top:1px solid var(--line2); padding:10px 14px 12px; }
+  .bnd-news h5 { margin:0 0 7px; font-family:var(--mono); font-size:9.5px; letter-spacing:.09em;
+                 text-transform:uppercase; color:var(--tx3); font-weight:600; }
+  .bnd-nrow { padding:6px 0; border-top:1px solid var(--line); }
+  .bnd-nrow:first-of-type { border-top:0; }
+  .bnd-nrow a { color:var(--tx); text-decoration:none; font-size:12px; line-height:1.45; display:block; }
+  .bnd-nrow a:hover { color:var(--acc); }
+  .bnd-nmeta { font-family:var(--mono); font-size:9px; color:var(--tx3); margin-top:4px;
+               display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .bnd-ntag { border:1px solid var(--line2); border-radius:2px; padding:1px 5px; color:var(--acc2,var(--acc)); }
   .bnd-cty-head { display:flex; align-items:baseline; gap:8px; padding:9px 14px 5px; }
   .bnd-cty-name { font-family:var(--ui); font-size:12px; font-weight:600; color:var(--tx); }
   .bnd-cty-src { font-family:var(--mono); font-size:9px; color:var(--tx3); }
@@ -72,6 +83,7 @@
   <div class="bnd-note" id="bndNote">—</div>
   <div id="bndBody"></div>
   <div class="bnd-foot" id="bndFoot">—</div>
+  <div class="bnd-news" id="bndNews" hidden></div>
 </div>
 
 <script>
@@ -125,20 +137,52 @@
     }).join("");
   }
 
+  function showCurve(data, label) {
+    render(data);
+    var warn = data.oldest_days != null && data.oldest_days >= 14
+      ? " · some figures may be stale" : "";
+    $("bndFoot").textContent = (data.count || (data.countries || []).length) +
+      " instruments · " + label + warn;
+  }
+
   function load() {
     $("bndFoot").textContent = "loading…";
+    // The live site is static, so /api/bonds is never reachable there and this
+    // panel was rendering SAMPLE_DATA against real published yields sitting in
+    // static_data/bonds.json. Try the endpoint, fall back to the real snapshot,
+    // and only show the sample if neither exists - it carries its own label.
     fetch(BND_ENDPOINT)
-      .then(function (r) { if (!r.ok) throw new Error("no endpoint"); return r.json(); })
-      .then(function (data) {
-        render(data);
-        var warn = data.oldest_days != null && data.oldest_days >= 14
-          ? " · some figures may be stale" : "";
-        $("bndFoot").textContent = data.count + " instruments · curated" + warn;
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (data) { showCurve(data, "curated"); })
+      .catch(function () {
+        return fetch("../../static_data/bonds.json")
+          .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+          .then(function (data) { showCurve(data, "official auction results"); });
       })
       .catch(function () {
         render(SAMPLE_DATA);
-        $("bndFoot").textContent = "SAMPLE DATA (server /api/bonds not reachable)";
+        $("bndFoot").textContent = "SAMPLE DATA (no bond source reachable)";
       });
+    loadBondNews();
+  }
+
+  function loadBondNews() {
+    fetch("../../static_data/bot_news_bonds.json")
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (rows) {
+        if (!rows || !rows.length) return;
+        var el = $("bndNews");
+        el.innerHTML = "<h5>Fixed income &middot; latest</h5>" +
+          rows.slice(0, 12).map(function (n) {
+            var tag = n.exchange ? '<span class="bnd-ntag">' + esc(n.exchange) + "</span>" : "";
+            return '<div class="bnd-nrow"><a href="' + esc(n.url || "#") +
+              '" target="_blank" rel="nofollow noopener">' + esc(n.title) + "</a>" +
+              '<div class="bnd-nmeta"><span>' + esc(n.publisher || "") + "</span><span>" +
+              esc(n.date || "") + "</span>" + tag + "</div></div>";
+          }).join("");
+        el.hidden = false;
+      })
+      .catch(function () { /* no scan yet - the curve still renders */ });
   }
 
   window.showBnd = function () { var el = $("bnd"); if (el) el.scrollIntoView({ behavior:"smooth" }); };
