@@ -46,8 +46,8 @@
 
 <div class="wrap">
   <div class="head">
-    <span class="code">NEWS</span>
-    <span class="title"><span id="exTitle">NSE</span> NEWS <b>· HEADLINES · REGULATORY · ACTIONS</b></span>
+    <span class="code" id="panelCode">NEWS</span>
+    <span class="title"><span id="exTitle">NSE</span> <span id="panelKind">NEWS</span> <b id="panelFeeds">· HEADLINES · REGULATORY · ACTIONS</b></span>
     <span class="spacer"></span>
     <span class="src" id="src">Headlines · Reg · Actions</span>
   </div>
@@ -57,7 +57,17 @@
 (function(){
   "use strict";
   var CUR = "NSE";
-  try{ var _q = new URLSearchParams(window.location.search); if(_q.get("ex")) CUR = _q.get("ex").toUpperCase(); }catch(e){}
+  // PRESS_ONLY drops the regulator wire and the corporate actions, leaving the
+  // press headlines on their own. Same file, two tabs: NEWS is the merged wire,
+  // PRESS is the reading list. Kept as a mode rather than a second panel file
+  // because this panel already exists twice on disk (features/panels and the
+  // static_data snapshot) and a third copy would be a third thing to drift.
+  var PRESS_ONLY = false;
+  try{
+    var _q = new URLSearchParams(window.location.search);
+    if(_q.get("ex")) CUR = _q.get("ex").toUpperCase();
+    PRESS_ONLY = (_q.get("feeds") || "").toLowerCase() === "press";
+  }catch(e){}
   // Each exchange draws on its official/collector feed plus the market-bot scan.
   // JSE had headlines in jse_news.json all along that this panel never loaded,
   // and EGX had no feed at all - the scan reaches it through three sources.
@@ -118,6 +128,14 @@
   }
 
   document.getElementById("exTitle").textContent = EX_NAME[CUR] || CUR;
+  // the header must describe what is actually in the list below it
+  if(PRESS_ONLY){
+    document.getElementById("panelCode").textContent = "PRESS";
+    document.getElementById("panelKind").textContent = "PRESS";
+    document.getElementById("panelFeeds").textContent = "· HEADLINES";
+    document.getElementById("src").textContent = "Headlines only";
+    document.title = "MUTXRI TERMINAL - PRESS";
+  }
   var files = EX_FILE[CUR];
   var el = document.getElementById("items");
   if(!files || !files.length){
@@ -214,9 +232,9 @@
   var jobs = (files || []).map(function(nm){
     return load(nm).then(function(d){ return { kind: "plain", rows: d }; });
   });
-  if(REG_ISO[CUR])
+  if(!PRESS_ONLY && REG_ISO[CUR])
     jobs.push(load("reg.json").then(function(d){ return { kind: "reg", rows: d }; }));
-  if(CORP_FILE[CUR])
+  if(!PRESS_ONLY && CORP_FILE[CUR])
     jobs.push(load(CORP_FILE[CUR]).then(function(d){ return { kind: "corp", rows: d }; }));
 
   Promise.all(jobs).then(function(srcs){
