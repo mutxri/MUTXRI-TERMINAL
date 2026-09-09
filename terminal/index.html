@@ -105,18 +105,26 @@ body{
 /* dividers: vertical ones are absolutely placed inside a row by the workspace
    manager (any window can be closed or moved, so which gap a divider sits in is
    not a fixed thing); the horizontal one sits between the rows */
-.rsz{position:absolute;top:0;bottom:0;width:7px;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
+/* A seam nobody can see is a seam nobody drags: each divider carries a visible
+   grip at rest, and the hit area is wider than the line it draws. */
+.rsz{position:absolute;top:0;bottom:0;width:9px;cursor:col-resize;z-index:18;background:transparent;transition:background .12s}
 .rsz:hover{background:rgba(51,226,154,.10)}
-.rsz::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:1px;background:var(--line2);transition:width .12s,background .12s}
+.rsz::after{content:"";position:absolute;top:0;bottom:0;left:4px;width:1px;background:var(--line2);transition:width .12s,background .12s}
 .rsz:hover::after{width:2px;background:var(--acc)}
+.rsz::before{content:"";position:absolute;left:3px;top:50%;width:3px;height:28px;margin-top:-14px;
+  border-radius:2px;background:var(--line2);transition:background .12s,height .12s}
+.rsz:hover::before{background:var(--acc);height:44px;margin-top:-22px}
 .rsz.dragging{background:rgba(51,226,154,.16)}
-.rsz.dragging::after{width:2px;background:var(--acc)}
-.rsz-h{flex:0 0 7px;height:7px;cursor:row-resize;position:relative;z-index:18;background:transparent;transition:background .12s}
+.rsz.dragging::after,.rsz.dragging::before{background:var(--acc)}
+.rsz-h{flex:0 0 9px;height:9px;cursor:row-resize;position:relative;z-index:18;background:transparent;transition:background .12s}
 .rsz-h:hover{background:rgba(51,226,154,.10)}
-.rsz-h::after{content:"";position:absolute;left:0;right:0;top:3px;height:1px;background:var(--line2);transition:height .12s,background .12s}
+.rsz-h::after{content:"";position:absolute;left:0;right:0;top:4px;height:1px;background:var(--line2);transition:height .12s,background .12s}
 .rsz-h:hover::after{height:2px;background:var(--acc)}
+.rsz-h::before{content:"";position:absolute;top:3px;left:50%;height:3px;width:28px;margin-left:-14px;
+  border-radius:2px;background:var(--line2);transition:background .12s,width .12s;z-index:1}
+.rsz-h:hover::before{background:var(--acc);width:44px;margin-left:-22px}
 .rsz-h.dragging{background:rgba(51,226,154,.16)}
-.rsz-h.dragging::after{height:2px;background:var(--acc)}
+.rsz-h.dragging::after,.rsz-h.dragging::before{background:var(--acc)}
 .view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
@@ -187,10 +195,21 @@ body{
 #authGate .gate-back{margin-top:14px;text-align:center;color:var(--tx3);font-size:11px;cursor:pointer;}
 #authGate .gate-back:hover{color:var(--acc);}
 /* workspace drag handles (Godel-style panel arrangement) */
-.dgrip{color:var(--tx3);cursor:grab;font-size:11px;padding:0 4px;user-select:none;opacity:.6;}
-.dgrip:hover{opacity:1;color:var(--acc);}
-.dgrip.dragging{opacity:.35;}
-#colWatch.drop-ok, #colInfo.drop-ok{outline:2px dashed var(--acc);outline-offset:-2px;background:rgba(51,226,154,.06);}
+/* every window header is a drag handle; the braille grip says so */
+.dgrip{color:var(--tx3);font-size:11px;padding:0 4px;user-select:none;opacity:.55;}
+[data-drag]{cursor:grab;user-select:none;}
+[data-drag]:active{cursor:grabbing;}
+[data-drag]:hover .dgrip{opacity:1;color:var(--acc);}
+[data-drag] button,[data-drag] input,[data-drag] .ctab{cursor:pointer;}
+.win-dragging{opacity:.45;}
+.wrow.drop-row{outline:1px solid rgba(51,226,154,.35);outline-offset:-1px;}
+/* where the window will land */
+.drop-ind{position:fixed;z-index:99998;background:var(--acc);pointer-events:none;
+  box-shadow:0 0 10px rgba(51,226,154,.7);border-radius:2px;}
+.drop-ind.band{background:rgba(51,226,154,.14);border:1px solid var(--acc);box-shadow:none;}
+.drop-ghost{position:fixed;z-index:99999;pointer-events:none;background:var(--bg3);
+  border:1px solid var(--acc);color:var(--acc);font-family:var(--mono);font-size:10px;
+  letter-spacing:.12em;padding:4px 10px;border-radius:3px;transform:translate(12px,12px);}
 .ctab[draggable="true"]{cursor:grab;}
 .ctab{background:none;border:0;color:var(--tx3);font-family:var(--mono);
   font-size:11px;letter-spacing:.05em;padding:var(--s3) var(--s3);cursor:pointer;
@@ -470,13 +489,14 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 
     <!-- WATCHLIST -->
     <aside class="rail" id="colWatch">
-      <div class="wl-head"><span class="dgrip" draggable="true" data-col="watch" title="Drag to move panel">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="win-dock" type="button" data-dock="watch" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="watch" title="Close the watchlist">✕</button></div>
+      <div class="wl-head" data-drag="watch" title="Drag to move this window"><span class="dgrip">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="win-dock" type="button" data-dock="watch" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="watch" title="Close the watchlist">✕</button></div>
       <div class="wl" id="wlList"></div>
     </aside>
 
     <!-- CENTER PANEL -->
     <section class="panel" id="colCenter">
-      <div class="panel-head">
+      <div class="panel-head" data-drag="center" title="Drag to move this window">
+        <span class="dgrip">⠿</span>
         <nav class="tabs" id="centerTabs"></nav>
         <button class="win-dock" type="button" data-dock="center" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="center" title="Close the panel window">✕</button>
       </div>
@@ -485,13 +505,14 @@ kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
 
     <!-- RIGHT RAIL -->
     <aside class="rail right" id="colInfo">
-      <div class="eyebrow"><span class="dgrip" draggable="true" data-col="info" title="Drag to move panel">⠿</span>Market<button class="win-dock" type="button" data-dock="info" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="info" title="Close the market window">✕</button></div>
+      <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market<button class="win-dock" type="button" data-dock="info" title="Move to the bottom row">▼</button><button class="win-x" type="button" data-win="info" title="Close the market window">✕</button></div>
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
     <!-- CHAT (4th window): the shared room, plus a local data assistant -->
     <aside class="rail chat" id="colChat">
-      <div class="chat-head">
+      <div class="chat-head" data-drag="chat" title="Drag to move this window">
+        <span class="dgrip">⠿</span>
         <button class="chat-tab on" type="button" data-mode="room">ROOM</button>
         <button class="chat-tab" type="button" data-mode="ask">ASK</button>
         <span class="chat-act">
@@ -708,79 +729,29 @@ function renderTabs(){
     nav.appendChild(t);
   });
 }
-// ===== drag-and-drop: arrange the workspace like Godel =====
-// columns: drag the watchlist / info grip to swap which side each sits on
+// ===== workspace: drag windows to arrange them, drag the seams to size them =====
 (function(){
-  // keep the center panel in the 1fr middle slot; the two rails swap around it
-  function setColOrder(first){
-    // the dragged rail moves to the front of whichever row it is docked in;
-    // everything else keeps its relative order
-    const dragged = document.getElementById(first === 'info' ? 'colInfo' : 'colWatch');
-    const row = dragged && dragged.parentNode;
-    if(row) row.insertBefore(dragged, row.firstChild);
-    if(window.MTWin) window.MTWin.layout();
-  }
-  function bindColDrag(){
-    let dragCol = null;
-    document.querySelectorAll('.dgrip').forEach(g => {
-      g.addEventListener('dragstart', e => {
-        dragCol = g.getAttribute('data-col');
-        e.dataTransfer.effectAllowed = 'move';
-        try{ e.dataTransfer.setData('text/plain', dragCol); }catch(err){}
-        g.classList.add('dragging');
-      });
-      g.addEventListener('dragend', () => {
-        dragCol = null;
-        document.querySelectorAll('.dgrip').forEach(x => x.classList.remove('dragging'));
-        document.querySelectorAll('#colWatch, #colInfo').forEach(x => x.classList.remove('drop-ok'));
-      });
-    });
-    ['colWatch', 'colInfo'].forEach(id => {
-      const el = document.getElementById(id);
-      el.addEventListener('dragover', e => {
-        if(dragCol && dragCol !== id.replace('col','').toLowerCase()){ e.preventDefault(); el.classList.add('drop-ok'); }
-      });
-      el.addEventListener('dragleave', () => el.classList.remove('drop-ok'));
-      el.addEventListener('drop', e => {
-        e.preventDefault();
-        el.classList.remove('drop-ok');
-        if(!dragCol) return;
-        const target = id.replace('col','').toLowerCase();
-        if(dragCol !== target){
-          setColOrder(dragCol);  // the dragged rail moves to the left side
-          try{ localStorage.setItem('mt_cols', dragCol); }catch(err){}
-        }
-        dragCol = null;
-      });
-    });
-  }
-  // restore the saved rail order
-  try{
-    const cols = localStorage.getItem('mt_cols');
-    if(cols) setColOrder(cols.indexOf('info') === 0 ? 'info' : 'watch');
-  }catch(e){}
-  // ===== the workspace: windows in two rows, resizable on both axes =====
-  // One manager owns closing, docking and sizing, because they are the same
-  // job: which windows are open and which row they are in decides where every
-  // divider goes and how much room anything is allowed to take.
+  // One manager owns arrangement and sizing, because they are the same job:
+  // which windows are open, which row they sit in and in what order decides
+  // where every divider goes and how much room anything may take.
   window.MTWin = (function(){
     const main = document.querySelector('.main');
     const ROWS = {top: document.getElementById('rowTop'), bottom: document.getElementById('rowBot')};
     const hDiv = document.getElementById('rszH');
-    const MIN_RAIL = 180, MIN_CENTER = 380, MIN_ROW = 140;
+    const MIN_RAIL = 180, MIN_CENTER = 380, MIN_ROW = 140, DEF_BOT = 260;
     const COLS = {
       watch:  {el: 'colWatch',  v: '--wW', def: 232, label: 'WATCH'},
       center: {el: 'colCenter', v: null,   def: 0,   label: 'PANEL'},
       info:   {el: 'colInfo',   v: '--wI', def: 288, label: 'MARKET'},
       chat:   {el: 'colChat',   v: '--wC', def: 300, label: 'CHAT'}
     };
-    const ORDER = ['watch', 'center', 'info', 'chat'];
-    const DEF_BOT = 260;
+    const KEYS = ['watch', 'center', 'info', 'chat'];
     // embed modes (?view=, ?rails=0) lay themselves out in CSS - stay out of it
     const EMBED = /(^|\s)(view-\S+|no-rails|hide-panel)(\s|$)/.test(document.documentElement.className);
 
     let open = {watch: true, center: true, info: true, chat: true};
-    let row = {watch: 'top', center: 'top', info: 'top', chat: 'top'};
+    // order IS the arrangement: which row a window is in, and where in that row
+    let order = {top: KEYS.slice(), bottom: []};
     // what the user ASKED for, kept apart from what currently fits: a small
     // browser window squeezes panes, and widening it should give them back
     const want = {watch: 232, info: 288, chat: 300};
@@ -788,14 +759,26 @@ function renderTabs(){
     try{
       const saved = JSON.parse(localStorage.getItem('mt_wins') || 'null');
       if(saved && typeof saved === 'object'){
-        const o = saved.open || saved;                  // older builds saved a flat map
-        ORDER.forEach(function(k){
-          if(o[k] === false) open[k] = false;
-          if(saved.row && saved.row[k] === 'bottom') row[k] = 'bottom';
-        });
+        const o = saved.open || saved;
+        KEYS.forEach(function(k){ if(o[k] === false) open[k] = false; });
+        if(saved.order && saved.order.top && saved.order.bottom){
+          const seen = {};
+          ['top', 'bottom'].forEach(function(r){
+            order[r] = (saved.order[r] || []).filter(function(k){
+              const ok = COLS[k] && !seen[k];
+              seen[k] = 1;
+              return ok;
+            });
+          });
+          KEYS.forEach(function(k){ if(!seen[k]) order.top.push(k); });   // new window
+        }else if(saved.row){
+          // older shape: {open, row:{k:'top'|'bottom'}}
+          order = {top: [], bottom: []};
+          KEYS.forEach(function(k){ order[saved.row[k] === 'bottom' ? 'bottom' : 'top'].push(k); });
+        }
       }
     }catch(e){}
-    if(!ORDER.some(function(k){ return open[k]; })) open = {watch: true, center: true, info: true, chat: true};
+    if(!KEYS.some(function(k){ return open[k]; })) open = {watch: true, center: true, info: true, chat: true};
     try{
       const s = (localStorage.getItem('mt_sizes') || '').split(',');
       if(s.length >= 2){
@@ -808,26 +791,19 @@ function renderTabs(){
 
     function el(k){ return document.getElementById(COLS[k].el); }
     function cur(v){ const x = parseFloat(getComputedStyle(main).getPropertyValue(v)); return isNaN(x) ? 0 : x; }
-    function keyOf(node){
-      for(let i = 0; i < ORDER.length; i++){ if(node.id === COLS[ORDER[i]].el) return ORDER[i]; }
-      return null;   // dividers and anything else are not windows
-    }
-    // DOM order inside the row, not declaration order: rails can be dragged around
-    function visIn(r){
-      return Array.prototype.map.call(ROWS[r].children, keyOf)
-        .filter(function(k){ return k && open[k] && row[k] === r; });
-    }
+    function rowOf(k){ return order.bottom.indexOf(k) >= 0 ? 'bottom' : 'top'; }
+    function visIn(r){ return order[r].filter(function(k){ return open[k]; }); }
     function anyOpen(){ return visIn('top').length + visIn('bottom').length; }
     // the column that takes the slack in a row: the centre panel when it is
     // there, otherwise the last window in that row - something must fill it
     function flexOf(r){
       const v = visIn(r);
-      return (open.center && row.center === r) ? 'center' : v[v.length - 1];
+      return (open.center && rowOf('center') === r && v.indexOf('center') >= 0) ? 'center' : v[v.length - 1];
     }
     function width(k){ return COLS[k].v ? cur(COLS[k].v) : 0; }
 
     function clamp(k, px){
-      const r = row[k], v = visIn(r), flex = flexOf(r);
+      const r = rowOf(k), v = visIn(r), flex = flexOf(r);
       let taken = 0;
       v.forEach(function(o){ if(o !== k && o !== flex) taken += width(o); });
       const floor = flex === 'center' ? MIN_CENTER : MIN_RAIL;
@@ -835,7 +811,7 @@ function renderTabs(){
       return Math.min(max, Math.max(MIN_RAIL, px));
     }
     function clampBot(px){
-      const avail = (main.clientHeight || window.innerHeight) - 7;
+      const avail = (main.clientHeight || window.innerHeight) - 9;
       return Math.min(Math.max(MIN_ROW, avail - MIN_ROW), Math.max(MIN_ROW, px));
     }
     function setWidth(k, px){
@@ -844,7 +820,7 @@ function renderTabs(){
       main.style.setProperty(COLS[k].v, clamp(k, want[k]) + 'px');
     }
     function applyAll(){
-      ORDER.forEach(function(k){
+      KEYS.forEach(function(k){
         if(COLS[k].v) main.style.setProperty(COLS[k].v, clamp(k, want[k]) + 'px');
       });
     }
@@ -852,20 +828,23 @@ function renderTabs(){
       try{
         localStorage.setItem('mt_sizes', [want.watch, want.info, want.chat].join(','));
         localStorage.setItem('mt_rowh', String(Math.round(wantBot)));
-        localStorage.setItem('mt_wins', JSON.stringify({open: open, row: row}));
+        localStorage.setItem('mt_wins', JSON.stringify({open: open, order: order}));
       }catch(e){}
     }
 
     // ---- vertical dividers, created per row as the layout needs them ----
     const pool = {top: [], bottom: []}, gapMap = {top: [], bottom: []};
+    function overlay(cursor){
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:' + cursor + ';';
+      document.body.appendChild(ov);
+      return ov;   // also swallows mouse events over the panel iframes
+    }
     function beginW(r, i, e, node){
       const g = gapMap[r][i];
       if(!g) return;
       e.preventDefault();
-      const startX = e.clientX, start = width(g.k);
-      const ov = document.createElement('div');
-      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;cursor:col-resize;';
-      document.body.appendChild(ov);
+      const startX = e.clientX, start = width(g.k), ov = overlay('col-resize');
       node.classList.add('dragging');
       function move(ev){ setWidth(g.k, start + g.dir * (ev.clientX - startX)); layout(); }
       function end(){
@@ -886,11 +865,11 @@ function renderTabs(){
         if(fi > i){
           let off = 0;
           for(let j = 0; j <= i; j++) off += width(v[j]);
-          gaps.push({k: v[i], dir: 1, side: 'left', off: off - 4});
+          gaps.push({k: v[i], dir: 1, side: 'left', off: off - 5});
         }else{
           let off = 0;
           for(let j = i + 1; j < v.length; j++) off += width(v[j]);
-          gaps.push({k: v[i + 1], dir: -1, side: 'right', off: off - 3});
+          gaps.push({k: v[i + 1], dir: -1, side: 'right', off: off - 4});
         }
       }
       gapMap[r] = gaps;
@@ -911,17 +890,14 @@ function renderTabs(){
         d.style.display = '';
         d.style.left = g.side === 'left' ? g.off + 'px' : 'auto';
         d.style.right = g.side === 'right' ? g.off + 'px' : 'auto';
-        d.title = 'Drag to resize the ' + COLS[g.k].label.toLowerCase() + ' window';
+        d.title = 'Drag to resize ' + COLS[g.k].label.toLowerCase();
       });
     }
 
     // ---- the horizontal divider between the rows ----
     function beginH(e){
       e.preventDefault();
-      const startY = e.clientY, start = clampBot(wantBot);
-      const ov = document.createElement('div');
-      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;cursor:row-resize;';
-      document.body.appendChild(ov);
+      const startY = e.clientY, start = clampBot(wantBot), ov = overlay('row-resize');
       hDiv.classList.add('dragging');
       function move(ev){
         wantBot = Math.round(start - (ev.clientY - startY));   // drag up = taller bottom
@@ -950,15 +926,17 @@ function renderTabs(){
 
     function layout(){
       if(EMBED) return;
-      ORDER.forEach(function(k){
-        const n = el(k);
-        if(!n) return;
-        n.style.display = open[k] ? '' : 'none';
-        const target = ROWS[row[k]] || ROWS.top;
-        if(n.parentNode !== target) target.appendChild(n);   // moving keeps the rest in order
-      });
       ['top', 'bottom'].forEach(function(r){
         const v = visIn(r), flex = flexOf(r);
+        order[r].forEach(function(k, i){
+          const n = el(k);
+          if(!n) return;
+          n.style.display = open[k] ? '' : 'none';
+          // CSS order, not DOM moves: re-inserting #colCenter would reload the
+          // panel iframe on every rearrange
+          n.style.order = String(i);
+          if(n.parentNode !== ROWS[r]) ROWS[r].appendChild(n);
+        });
         ROWS[r].style.display = v.length ? '' : 'none';
         ROWS[r].style.gridTemplateColumns = v.map(function(k){
           return k === flex ? 'minmax(0,1fr)' : 'var(' + COLS[k].v + ')';
@@ -966,54 +944,150 @@ function renderTabs(){
         dividers(r, v, flex);
       });
       const top = visIn('top').length, bot = visIn('bottom').length;
-      // with only one row in use it takes the whole height, divider and all
       ROWS.bottom.style.flex = top ? '0 0 var(--hB,' + DEF_BOT + 'px)' : '1 1 0';
       if(hDiv) hDiv.style.display = (top && bot) ? '' : 'none';
       main.style.setProperty('--hB', clampBot(wantBot) + 'px');
-      buttons();
+      docks();
     }
 
-    // the restore strip in the status bar - the only way back once a window is
-    // closed, so it always shows every window and its state
-    function buttons(){
-      const host = document.getElementById('winBtns');
-      if(host){
-        host.innerHTML = '';
-        ORDER.forEach(function(k){
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.textContent = COLS[k].label;
-          b.className = open[k] ? 'on' : '';
-          b.title = (open[k] ? 'Close' : 'Open') + ' the ' + COLS[k].label.toLowerCase() + ' window';
-          b.onclick = function(){ toggle(k); };
-          host.appendChild(b);
-        });
-      }
+    function docks(){
       document.querySelectorAll('.win-dock').forEach(function(d){
         const k = d.getAttribute('data-dock');
         if(!COLS[k]) return;
-        const down = row[k] === 'top';
-        d.textContent = down ? '\u25bc' : '\u25b2';
+        const down = rowOf(k) === 'top';
+        d.textContent = down ? '▼' : '▲';
         d.title = down ? 'Move to the bottom row' : 'Move to the top row';
       });
     }
 
-    function set(k, on){
-      if(!COLS[k] || open[k] === on) return;
-      if(!on && anyOpen() <= 1) return;   // never close the last one
-      open[k] = on;
+    function place(k, r, idx){
+      ['top', 'bottom'].forEach(function(x){
+        const i = order[x].indexOf(k);
+        if(i >= 0) order[x].splice(i, 1);
+      });
+      const arr = order[r];
+      idx = (idx == null) ? arr.length : Math.max(0, Math.min(arr.length, idx));
+      arr.splice(idx, 0, k);
+    }
+    function commit(){
       layout(); applyAll(); layout();
       save();
       window.dispatchEvent(new Event('mt:layout'));
     }
+    function set(k, on){
+      if(!COLS[k] || open[k] === on) return;
+      if(!on && anyOpen() <= 1) return;   // never close the last one
+      open[k] = on;
+      commit();
+    }
     function toggle(k){ set(k, !open[k]); }
-    function move(k, r){
-      if(!COLS[k] || (r !== 'top' && r !== 'bottom') || row[k] === r) return;
-      row[k] = r;
+    function move(k, r, idx){
+      if(!COLS[k] || (r !== 'top' && r !== 'bottom')) return;
+      place(k, r, idx);
       if(!open[k]) open[k] = true;        // docking a closed window brings it back
-      layout(); applyAll(); layout();
-      save();
-      window.dispatchEvent(new Event('mt:layout'));
+      commit();
+    }
+
+    // ---- drag a window by its header to anywhere in the workspace ----
+    // Pointer events, not HTML5 drag-and-drop: dragover never fires over the
+    // panel iframes, which is why the old rail drag could not cross the middle.
+    function band(){ return Math.max(MIN_ROW, main.getBoundingClientRect().height * 0.22); }
+    function dropTarget(x, y){
+      const used = ['top', 'bottom'].filter(function(r){ return visIn(r).length; });
+      const mb = main.getBoundingClientRect();
+      let r = null;
+      if(used.length > 1){
+        for(let i = 0; i < used.length; i++){
+          const box = ROWS[used[i]].getBoundingClientRect();
+          if(y >= box.top && y <= box.bottom){ r = used[i]; break; }
+        }
+        if(!r) r = y < ROWS.top.getBoundingClientRect().bottom ? 'top' : 'bottom';
+      }else{
+        // only one row in use: it fills the height, so an empty row has no rect
+        // to aim at. The far edge of the workspace stands in for it - that is
+        // how a second row gets created by dragging at all.
+        const only = used[0] || 'top';
+        if(only === 'top' && y > mb.bottom - band()) r = 'bottom';
+        else if(only === 'bottom' && y < mb.top + band()) r = 'top';
+        else r = only;
+      }
+      const v = visIn(r);
+      let idx = v.length;
+      for(let i = 0; i < v.length; i++){
+        const b = el(v[i]).getBoundingClientRect();
+        if(x < b.left + b.width / 2){ idx = i; break; }
+      }
+      return {row: r, index: idx, visible: v, isNew: !v.length};
+    }
+    function indicatorFor(t){
+      const v = t.visible, mb = main.getBoundingClientRect();
+      if(t.isNew){
+        // a whole new row: show the slab it will occupy, not a hairline
+        const h = band();
+        return {left: mb.left, width: mb.width, height: h, band: true,
+                top: t.row === 'bottom' ? mb.bottom - h : mb.top};
+      }
+      const box = ROWS[t.row].getBoundingClientRect();
+      const at = t.index < v.length ? el(v[t.index]).getBoundingClientRect().left
+                                    : el(v[v.length - 1]).getBoundingClientRect().right;
+      return {left: at - 2, width: 4, top: box.top, height: box.height};
+    }
+    function beginMove(k, e){
+      if(e.button !== 0) return;
+      if(e.target.closest('button, input, select, textarea, a, .ctab')) return;
+      const startX = e.clientX, startY = e.clientY;
+      let dragging = false, ov = null, ind = null, ghost = null, target = null;
+      function move(ev){
+        if(!dragging){
+          if(Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 5) return;
+          dragging = true;
+          ov = overlay('grabbing');
+          el(k).classList.add('win-dragging');
+          ind = document.createElement('div');
+          ind.className = 'drop-ind';
+          ghost = document.createElement('div');
+          ghost.className = 'drop-ghost';
+          ghost.textContent = COLS[k].label;
+          document.body.appendChild(ind);
+          document.body.appendChild(ghost);
+        }
+        target = dropTarget(ev.clientX, ev.clientY);
+        const box = indicatorFor(target);
+        ind.style.left = box.left + 'px';
+        ind.style.top = box.top + 'px';
+        ind.style.width = box.width + 'px';
+        ind.style.height = box.height + 'px';
+        ind.classList.toggle('band', !!box.band);
+        ghost.style.left = ev.clientX + 'px';
+        ghost.style.top = ev.clientY + 'px';
+        ['top', 'bottom'].forEach(function(r){ ROWS[r].classList.toggle('drop-row', r === target.row); });
+      }
+      function end(){
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', end);
+        if(dragging){
+          if(ov) ov.remove();
+          if(ind) ind.remove();
+          if(ghost) ghost.remove();
+          el(k).classList.remove('win-dragging');
+          ['top', 'bottom'].forEach(function(r){ ROWS[r].classList.remove('drop-row'); });
+          if(target){
+            // dropping to the right of itself in its own row counts one slot high
+            const from = order[target.row].indexOf(k);
+            let idx = target.index;
+            if(from >= 0 && from < idx) idx -= 1;
+            place(k, target.row, idx);
+            commit();
+          }
+        }
+      }
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+    }
+    if(!EMBED){
+      document.querySelectorAll('[data-drag]').forEach(function(h){
+        h.addEventListener('mousedown', function(e){ beginMove(h.getAttribute('data-drag'), e); });
+      });
     }
 
     document.addEventListener('click', function(e){
@@ -1023,7 +1097,7 @@ function renderTabs(){
       const d = e.target.closest('.win-dock');
       if(d){
         const k = d.getAttribute('data-dock');
-        move(k, row[k] === 'top' ? 'bottom' : 'top');
+        move(k, rowOf(k) === 'top' ? 'bottom' : 'top');
       }
     });
     window.addEventListener('resize', function(){ applyAll(); layout(); });
@@ -1032,7 +1106,8 @@ function renderTabs(){
     layout();
 
     return {toggle: toggle, set: set, move: move, layout: layout,
-            isOpen: function(k){ return !!open[k]; }, rowOf: function(k){ return row[k]; }};
+            isOpen: function(k){ return !!open[k]; }, rowOf: rowOf,
+            orderOf: function(){ return JSON.parse(JSON.stringify(order)); }};
   })();
   // tab reordering
   let dragTab = null;
@@ -1056,7 +1131,6 @@ function renderTabs(){
     dragTab = null;
   });
   document.addEventListener('dragend', () => { dragTab = null; });
-  bindColDrag();
 })();
 renderTabs();
 // load the default panel WITH the current exchange
