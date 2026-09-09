@@ -766,11 +766,28 @@ function renderTabs(){
         chat:   {x: railW + midW + 20, y: Math.round(H / 2) + 6, w: chatW, h: Math.round(H / 2) - 12, open: true, z: 14}
       };
     }
-    function fresh(name){ return {name: name, wins: tiled()}; }
+    // A workspace stays "auto" until you move something in it: while it is,
+    // it re-tiles to the window you actually have. That is why a workspace made
+    // later looked right and MAIN did not - MAIN was laid out once, against
+    // whatever viewport existed the first time it was created, and kept.
+    function fresh(name){ return {name: name, wins: tiled(), auto: true}; }
+    function touched(){
+      const sp = cur();
+      if(sp && sp.auto){ sp.auto = false; }
+    }
+    function retile(){
+      const sp = cur();
+      if(!sp || !sp.auto) return;
+      const open = {};
+      KEYS.forEach(function(k){ open[k] = !sp.wins[k] || sp.wins[k].open !== false; });
+      sp.wins = tiled();
+      KEYS.forEach(function(k){ sp.wins[k].open = open[k]; });   // a closed window stays closed
+    }
 
     function save(){
       try{
-        localStorage.setItem('mt_ws', JSON.stringify({active: active, spaces: spaces}));
+        localStorage.setItem('mt_ws', JSON.stringify({active: active,
+          spaces: spaces.map(function(sp){ return {name: sp.name, wins: sp.wins, auto: !!sp.auto}; })}));
       }catch(e){}
     }
     (function restore(){
@@ -785,7 +802,8 @@ function renderTabs(){
                        w: Math.max(MIN_W, +w.w || META[k].w), h: Math.max(MIN_H, +w.h || META[k].h),
                        open: w.open !== false, z: +w.z || 10 + i};
           });
-          return {name: String(sp.name || ('WS ' + (i + 1))).slice(0, 18), wins: wins};
+          return {name: String(sp.name || ('WS ' + (i + 1))).slice(0, 18), wins: wins,
+                  auto: sp.auto !== false};
         });
         active = Math.min(Math.max(0, s.active | 0), spaces.length - 1);
       }else{
@@ -824,6 +842,7 @@ function renderTabs(){
     function render(){
       if(EMBED) return;
       document.documentElement.classList.add('floating');
+      retile();
       KEYS.forEach(place);
       tabs();
       front();
@@ -900,6 +919,7 @@ function renderTabs(){
       if(e.button !== 0) return;
       e.preventDefault();
       raise(k);
+      touched();
       const w = win(k), sx = e.clientX, sy = e.clientY;
       const o = {x: w.x, y: w.y, w: w.w, h: w.h};
       const ov = overlay(mode === 'move' ? 'grabbing' : getComputedStyle(e.target).cursor);
@@ -964,6 +984,7 @@ function renderTabs(){
         });
         // double-click the title bar to fill the workspace, again to restore
         hd.addEventListener('dblclick', function(){
+          touched();
           const w = win(k), b = box();
           if(w._max){ Object.assign(w, w._max); delete w._max; }
           else{
@@ -977,7 +998,14 @@ function renderTabs(){
     }
     render();
 
-    return {toggle: function(k){ set(k, !win(k).open); }, set: set, layout: render,
+    function reset(){
+      const sp = cur();
+      if(!sp) return;
+      sp.auto = true;
+      render();
+      save();
+    }
+    return {toggle: function(k){ set(k, !win(k).open); }, set: set, layout: render, reset: reset,
             isOpen: function(k){ const w = win(k); return !!(w && w.open); },
             spacesOf: function(){ return {active: active, names: spaces.map(function(s){ return s.name; }),
                                           wins: JSON.parse(JSON.stringify(cur().wins))}; }};
@@ -1408,6 +1436,10 @@ function runCommand(raw){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
       '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both — e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>';
+    return;
+  }
+  if(v === 'RESET' || v === 'TILE'){
+    if(window.MTWin && window.MTWin.reset) window.MTWin.reset();
     return;
   }
   if(v === 'WINDOWS' || v === 'ALL'){
