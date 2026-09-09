@@ -124,11 +124,17 @@
   // Regulator-wire rows (reg.json) -> news rows, kept to this exchange's
   // country. The headline tail is the regulator's own masthead ("... -
   // Securities and Exchange Commission, Nigeria"), redundant with the
-  // publisher line, so it is dropped.
+  // publisher line, so it is dropped. The wire also carries regulator
+  // notices up to a decade old (the backend query has no date window), and a
+  // news panel is not an archive: only items inside the recency window stay.
+  var REG_DAYS = 180;
   function regRows(list){
     var iso = REG_ISO[CUR]; if(!iso) return [];
+    var cutoff = Date.now() / 1000 - REG_DAYS * 86400;
     return ((list && list.items) || []).filter(function(i){
-      return i && i.iso === iso && i.headline; })
+      if(!i || i.iso !== iso || !i.headline) return false;
+      return stamp({ date: String(i.date || "").slice(0, 10) }) >= cutoff;
+    })
       .map(function(i){
         var h = String(i.headline).replace(/\s+-\s+[^-\n]*$/, "").trim();
         return { title: h,
