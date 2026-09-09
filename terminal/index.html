@@ -57,6 +57,22 @@ body{
 .exch-tab.active{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700;
   font-size:13px;padding:5px 12px;letter-spacing:.08em;box-shadow:0 0 12px rgba(51,226,154,.35)}
 .exch-flag{font-size:11px;margin-right:3px;opacity:.8}
+/* the overflow picker: only rendered once the chips stop fitting */
+.exch-more{position:relative}
+.exch-drop{position:absolute;top:100%;left:0;margin-top:6px;z-index:9000;min-width:230px;
+  background:var(--bg2);border:1px solid var(--line2);border-radius:4px;padding:6px;
+  box-shadow:0 16px 40px rgba(0,0,0,.7)}
+.exch-drop input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--line2);
+  color:var(--tx);font-family:var(--mono);font-size:11px;padding:6px 8px;border-radius:2px;outline:0;margin-bottom:6px}
+.exch-drop input:focus{border-color:var(--acc)}
+.exch-drop .exl{max-height:320px;overflow-y:auto}
+.exch-drop .exi{display:flex;align-items:baseline;gap:8px;padding:5px 8px;border-radius:2px;cursor:pointer;
+  font-family:var(--mono);font-size:11px;color:var(--tx2)}
+.exch-drop .exi:hover{background:var(--bg3);color:var(--tx)}
+.exch-drop .exi.on{color:var(--acc)}
+.exch-drop .exi.off{opacity:.4;cursor:default}
+.exch-drop .exi .c{min-width:36px;color:var(--tx)}
+.exch-drop .exi .n{font-family:var(--ui);font-size:10px;color:var(--tx3)}
 .exch-tab:hover .exch-flag,.exch-tab.active .exch-flag{opacity:1}
 .exch-full{font-size:9px;font-weight:400;opacity:.8;margin-left:5px;letter-spacing:.04em;text-transform:uppercase}
 .search{margin-left:auto;display:flex;align-items:center;gap:var(--s2);
@@ -570,7 +586,11 @@ window.API_BASE = API_BASE;
 // ===== App state =====
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const EXCHANGES = ['JSE', 'EGX', 'NGX', 'NSE'];
+// The markets are data: static_data/exchanges.json drives the picker, the
+// timezone guess and the search index. These four are only the fallback for a
+// failed fetch, so the terminal still works offline.
+let EXCHANGES = ['JSE', 'EGX', 'NGX', 'NSE'];
+let EX_DEFAULT = 'JSE';
 // Nobody should have to pick a market before seeing anything. Order of
 // preference: an explicit ?ex= deep link, then whatever they used last, then
 // their own timezone, and only then a default.
@@ -585,11 +605,11 @@ function pickInitialExchange(){
   }catch(e){}
   try{
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-    const byTz = {'Africa/Nairobi':'NSE', 'Africa/Lagos':'NGX',
-                  'Africa/Johannesburg':'JSE', 'Africa/Cairo':'EGX'};
-    if(byTz[tz]) return byTz[tz];
+    for(const code in EX_FULL){
+      if(EX_FULL[code] && EX_FULL[code].tz === tz) return code;
+    }
   }catch(e){}
-  return 'JSE';   // deepest statement coverage, so the best first impression
+  return EX_DEFAULT;
 }
 let currentEx = pickInitialExchange();
 try{
@@ -1146,34 +1166,112 @@ function buildTape(ex){
   buildTapeFromListing(ex);
 }
 
-// ===== Exchange tabs (all four markets, current one lit) =====
-const EX_FULL = {
-  JSE: {name: 'Johannesburg', flag: 'ZA'},
-  EGX: {name: 'Cairo', flag: 'EG'},
-  NGX: {name: 'Lagos', flag: 'NG'},
-  NSE: {name: 'Nairobi', flag: 'KE'},
+// ===== Exchange picker (data-driven; chips while they fit, then a dropdown) =====
+let EX_FULL = {
+  JSE: {name: 'Johannesburg', flag: 'ZA', tz: 'Africa/Johannesburg', enabled: true},
+  EGX: {name: 'Cairo', flag: 'EG', tz: 'Africa/Cairo', enabled: true},
+  NGX: {name: 'Lagos', flag: 'NG', tz: 'Africa/Lagos', enabled: true},
+  NSE: {name: 'Nairobi', flag: 'KE', tz: 'Africa/Nairobi', enabled: true},
 };
+const MAX_CHIPS = 6;      // beyond this the top bar stops being readable
+function exFlag(ex){ return (EX_FULL[ex] || {}).flag || ''; }
+function exName(ex){ return (EX_FULL[ex] || {}).name || ex; }
+function exOn(ex){ return !EX_FULL[ex] || EX_FULL[ex].enabled !== false; }
+
+function chip(ex){
+  const on = ex === currentEx;
+  return '<button class="exch-tab' + (on ? ' active' : '') + '" data-ex="' + esc(ex) + '"' +
+    ' title="' + esc(exName(ex)) + ' · ' + esc(ex) + '">' +
+    '<span class="exch-flag">' + esc(exFlag(ex)) + '</span> ' + esc(ex) +
+    (on ? '<span class="exch-full">' + esc(exName(ex)) + '</span>' : '') +
+    '</button>';
+}
 function renderExchTabs(){
   const nav = $('exchTabs');
   if(!nav) return;
-  // all four markets, so switching is one click inside the terminal instead of
-  // a decision forced on the visitor before they have seen anything
-  nav.innerHTML = EXCHANGES.map(function(ex){
-    const info = EX_FULL[ex] || {name: ex, flag: ''};
-    const on = ex === currentEx;
-    return '<button class="exch-tab' + (on ? ' active' : '') + '" data-ex="' + esc(ex) + '"' +
-      ' title="' + esc(info.name) + ' · ' + esc(ex) + '">' +
-      '<span class="exch-flag">' + esc(info.flag) + '</span> ' + esc(ex) +
-      (on ? '<span class="exch-full">' + esc(info.name) + '</span>' : '') +
-      '</button>';
-  }).join('');
-  nav.querySelectorAll('.exch-tab').forEach(function(b){
+  const all = EXCHANGES.filter(exOn);
+  // the current market always shows; the rest fill the space that is left
+  let shown = all.slice(0, MAX_CHIPS);
+  if(shown.indexOf(currentEx) < 0 && all.indexOf(currentEx) >= 0){
+    shown = [currentEx].concat(all.filter(function(e){ return e !== currentEx; })).slice(0, MAX_CHIPS);
+  }
+  const rest = all.filter(function(e){ return shown.indexOf(e) < 0; });
+  nav.innerHTML = shown.map(chip).join('') +
+    (rest.length || EXCHANGES.length > MAX_CHIPS
+      ? '<span class="exch-more"><button class="exch-tab" id="exchMore" title="All markets">' +
+        (rest.length ? '+' + rest.length + ' ' : '') + '\u25be</button></span>'
+      : '');
+  nav.querySelectorAll('.exch-tab[data-ex]').forEach(function(b){
     b.addEventListener('click', function(){
       const ex = b.dataset.ex;
       if(ex && ex !== currentEx) switchExchange(ex);
     });
   });
+  const more = $('exchMore');
+  if(more) more.addEventListener('click', function(e){ e.stopPropagation(); openExchDrop(more.parentNode); });
 }
+function openExchDrop(host){
+  closeExchDrop();
+  const d = document.createElement('div');
+  d.className = 'exch-drop';
+  d.innerHTML = '<input id="exchFind" placeholder="Find a market..." spellcheck="false"><div class="exl"></div>';
+  host.appendChild(d);
+  const list = d.querySelector('.exl');
+  function draw(filter){
+    const f = (filter || '').trim().toUpperCase();
+    list.innerHTML = EXCHANGES.filter(function(ex){
+      if(!f) return true;
+      return ex.indexOf(f) >= 0 || exName(ex).toUpperCase().indexOf(f) >= 0 ||
+             exFlag(ex).indexOf(f) >= 0;
+    }).map(function(ex){
+      const cls = 'exi' + (ex === currentEx ? ' on' : '') + (exOn(ex) ? '' : ' off');
+      return '<div class="' + cls + '" data-ex="' + esc(ex) + '"><span class="c">' + esc(ex) +
+             '</span><span class="n">' + esc(exFlag(ex)) + ' ' + esc(exName(ex)) +
+             (exOn(ex) ? '' : ' - no data yet') + '</span></div>';
+    }).join('') || '<div class="exi off">nothing matches</div>';
+    list.querySelectorAll('.exi[data-ex]').forEach(function(row){
+      row.addEventListener('click', function(){
+        const ex = row.dataset.ex;
+        if(!exOn(ex)) return;
+        closeExchDrop();
+        if(ex !== currentEx) switchExchange(ex);
+      });
+    });
+  }
+  draw('');
+  const find = d.querySelector('#exchFind');
+  find.addEventListener('input', function(){ draw(find.value); });
+  find.focus();
+  setTimeout(function(){ document.addEventListener('click', closeExchDrop, {once: true}); }, 0);
+}
+function closeExchDrop(){
+  const d = document.querySelector('.exch-drop');
+  if(d) d.remove();
+}
+// pull the real list; the built-ins above keep the terminal working if it fails
+(function loadExchanges(){
+  fetch('static_data/exchanges.json')
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      const rows = (d && d.exchanges) || [];
+      if(!rows.length) return;
+      const codes = [], map = {};
+      rows.forEach(function(x){
+        if(!x || !x.code) return;
+        codes.push(x.code);
+        map[x.code] = {name: x.name || x.code, flag: x.flag || '', tz: x.tz || '',
+                       full: x.full || '', currency: x.currency || '', enabled: x.enabled !== false};
+      });
+      EXCHANGES = codes;
+      EX_FULL = map;
+      if(d.default && map[d.default]) EX_DEFAULT = d.default;
+      // a market remembered from a previous visit may no longer be listed
+      if(codes.indexOf(currentEx) < 0 || !exOn(currentEx)) switchExchange(EX_DEFAULT);
+      else renderExchTabs();
+      loadSearchIndex();          // index the markets that were added
+    })
+    .catch(function(){ /* built-in list stands */ });
+})();
 function switchExchange(ex){
   currentEx = ex;
   // remember it: a returning user should never be asked again
@@ -1312,7 +1410,7 @@ function showUnknown(msg){
 const WINDOW_CMDS = {WATCH: 'watch', WATCHLIST: 'watch', PANEL: 'center', CENTER: 'center',
                      MARKET: 'info', INFO: 'info', CHAT: 'chat', ROOM: 'chat'};
 function runCommand(raw){
-  const v = String(raw || '').trim().toUpperCase();
+  let v = String(raw || '').trim().toUpperCase();
   if(!v) return;
   if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
@@ -1330,7 +1428,26 @@ function runCommand(raw){
     window.MTWin.set(k, !window.MTWin.isOpen(k));
     return;
   }
-  const parts = v.split(/\s+/);
+  let parts = v.split(/\s+/);
+  // "SCOM KE", "MTN JSE", "DANGCEM NG FA" - the market is named in the command
+  // rather than switched to first, which is what stops the picker having to
+  // grow every time a listing is added.
+  //
+  // Never the FIRST token: NSE is both the Nairobi exchange and a company
+  // listed on it, so "NSE" opens the stock while "SCOM NSE" names the market.
+  for(let i = 1; i < parts.length; i++){
+    let named = null;
+    EXCHANGES.forEach(function(ex){
+      if(parts[i] === ex || (exFlag(ex) && parts[i] === exFlag(ex))) named = ex;
+    });
+    if(named && exOn(named)){
+      parts.splice(i, 1);
+      if(named !== currentEx) switchExchange(named);
+      break;
+    }
+  }
+  v = parts.join(' ');            // the rest of the parser reads v, not parts
+  if(!v) return;
   const lastP = panelFor(parts[parts.length - 1]);
   if(parts.length >= 2 && lastP){
     // "MTN FIN" -> resolve the ticker part, open the panel scoped to it
@@ -1969,7 +2086,8 @@ function renderStockInfo(d, sym){
     if(!v) return null;
     if(/^(HELP|\?|WHAT CAN YOU DO)/.test(v)) return HELP;
     if(/^(MARKETS?|EXCHANGES?)\b/.test(v)){
-      return 'Four boards: <b>JSE</b>, <b>EGX</b>, <b>NGX</b>, <b>NSE</b>. You are on <b>' + esc(currentEx) + '</b>.' +
+      return EXCHANGES.length + ' boards: ' + EXCHANGES.map(function(e){ return '<b>' + esc(e) + '</b>'; }).join(', ') +
+        '. You are on <b>' + esc(currentEx) + '</b>.' +
         chips(['top gainers', 'top losers', 'open heatmap']);
     }
     if(/GAINER|RISER|UP TODAY/.test(v)) return movers(currentEx, 1) || 'No quotes loaded for ' + esc(currentEx) + ' yet.';
