@@ -442,13 +442,18 @@
           if(pk === pref || pk.split('.')[0] === pref){ pick = pk; break; }
         }
       }
+      var found = false;
       if(want && SECS.length){
         for(var si = 0; si < SECS.length; si++){
           var k = SECS[si].t;
           var kb = k.split('.')[0];
-          if(k === want || kb === want || (want.indexOf('.') < 0 && k === want + '.' + state.ex)){ pick = k; break; }
+          if(k === want || kb === want || (want.indexOf('.') < 0 && k === want + '.' + state.ex)){ pick = k; found = true; break; }
         }
       }
+      // a sticky ?sym= ticker wins even when it has no statement file yet:
+      // show the requested name with an honest "no statements" state rather
+      // than silently swapping in the exchange default
+      if(want && !found) pick = want;
       // if the current ticker isn't in this exchange's list (or none set), pick
       if((!state.ticker || !Object.prototype.hasOwnProperty.call(seen, state.ticker)) && SECS.length){
         state.ticker = pick || SECS[0].t;
