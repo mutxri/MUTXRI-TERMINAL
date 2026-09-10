@@ -9,12 +9,11 @@ its OWN encoded segment with an explicit -t, then the finished segments are
 joined - a pipeline that has no way to invent an empty frame.
 
 What each pass does:
-  * one segment per scene, still + its narration, -t exactly the audio length
-  * a cursor glides across the frame toward whatever the line is describing, so
-    the viewer is led rather than left to hunt
-  * loudnorm on the narration - raw SAPI output is quiet and flat, and the tour
-    it replaces sat around -19.8 dB
-  * brand cards open and close it: a welcome, and the logo at the end
+  * one PICTURE segment per scene, -t exactly the narration length plus a beat
+  * the narration assembled separately as PCM and laid over the finished
+    picture in one piece, so no scene boundary ever falls inside the audio
+  * loudnorm once over the whole track rather than per scene
+  * the logo card closes it
 
 usage: python build_tour.py
 """
@@ -46,8 +45,7 @@ TAIL = 0.35                       # beat after each line so scenes do not collid
 AUDIO_CHAIN = (
     "highpass=f=80,"
     "equalizer=f=3000:t=q:w=1.4:g=1.5,"
-    "loudnorm=I=-18:TP=-1.5:LRA=11,"
-    "apad"
+    "loudnorm=I=-18:TP=-1.5:LRA=11"
 )
 
 
@@ -118,7 +116,7 @@ def main():
     seg_dir = os.path.join(SP, "segments")
     os.makedirs(seg_dir, exist_ok=True)
 
-    seg_files, total, cues = [], 0.0, []
+    seg_files, aud_files, total, cues = [], [], 0.0, []
     for i, sc in enumerate(scenes):
         # record_tour.py writes <id>.mp4 - real video of the live page, cursor
         # and all. The still path is the fallback for a scene not yet recorded.
@@ -132,9 +130,6 @@ def main():
                 return 1
 
         seg_len = duration(wav) + TAIL + float(sc.get("hold", 0))
-        # the cue runs over the narration only, not the beat that follows it
-        cues.append((total, total + duration(wav), sc["say"]))
-        total += seg_len
         seg = os.path.join(seg_dir, "seg_%02d.mp4" % i)
 
         if src == clip:
@@ -158,30 +153,66 @@ def main():
                 fc = "[0:v]%s[v]" % base
                 inputs = ["-loop", "1", "-i", still, "-i", wav]
 
+        # video only. The narration is assembled separately and laid over the
+        # finished picture in one piece - see the note on the join below.
         cmd = (["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"] + inputs +
-               ["-filter_complex", fc, "-map", "[v]", "-map", "1:a",
+               ["-filter_complex", fc, "-map", "[v]", "-an",
                 "-t", "%.3f" % seg_len,
                 "-c:v", "libx264", "-preset", "medium", "-crf", "20",
                 "-pix_fmt", "yuv420p", "-r", "25",
-                "-af", AUDIO_CHAIN,
-                "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
                 seg])
         run(cmd)
         seg_files.append(seg)
+
+        # The encoder rounds a segment up to a whole frame at 25 fps, so the
+        # picture is up to 20 ms longer than the length asked for. Pad the audio
+        # to what the segment ACTUALLY runs, not the nominal figure - matching
+        # the nominal one left the sound ~19 ms short per scene, and thirteen
+        # scenes of that put the voice a quarter of a second ahead of the
+        # picture by the outro.
+        seg_dur = duration(seg)
+        # the cue runs over the narration only, not the beat that follows it
+        cues.append((total, total + duration(wav), sc["say"]))
+        total += seg_dur
+
+        wseg = os.path.join(seg_dir, "aud_%02d.wav" % i)
+        run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", wav,
+             "-af", "apad", "-t", "%.6f" % seg_dur,
+             "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", wseg])
+        aud_files.append(wseg)
         print("  %-14s %5.1fs  %s" % (sc["id"], seg_len,
                                       "recorded" if src == clip else "still"))
 
     lst = os.path.join(seg_dir, "segments.txt")
     io.open(lst, "w", encoding="utf-8").write(
         "\n".join("file '%s'" % s.replace("\\", "/") for s in seg_files) + "\n")
+    alst = os.path.join(seg_dir, "audio.txt")
+    io.open(alst, "w", encoding="utf-8").write(
+        "\n".join("file '%s'" % s.replace("\\", "/") for s in aud_files) + "\n")
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    # Every segment was written with identical codec settings, so the join is a
-    # stream copy: no second encode, and no chance of a re-encode inventing a
-    # frame at a boundary - which is how the black gaps got in the first cut.
+    # Picture joins by stream copy - every segment carries identical encoder
+    # settings, so there is nothing to re-encode and no way to invent a frame.
+    #
+    # Audio does NOT join that way, and an earlier cut shipped because of it.
+    # Every AAC segment carries encoder priming, and a stream-copy concat drops
+    # it at each of the thirteen boundaries: the track ran ~450 ms ahead of the
+    # picture by the outro, and syllables went missing at the joins. So the
+    # narration is concatenated as PCM - sample-exact, no priming, no seams -
+    # normalised once over the whole track, and encoded a single time.
+    silent = os.path.join(seg_dir, "picture.mp4")
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-         "-f", "concat", "-safe", "0", "-i", lst,
-         "-c", "copy", "-movflags", "+faststart", OUT])
+         "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", silent])
+
+    run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+         "-i", silent,
+         "-f", "concat", "-safe", "0", "-i", alst,
+         "-map", "0:v", "-map", "1:a",
+         "-af", AUDIO_CHAIN,
+         "-c:v", "copy",
+         "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
+         "-shortest",                     # never outrun the picture
+         "-movflags", "+faststart", OUT])
 
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
          "-ss", "6", "-i", os.path.join(SP, "00_landing.mp4"),
