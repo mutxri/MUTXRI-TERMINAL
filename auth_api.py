@@ -57,17 +57,27 @@ def _check_password(password, stored):
         return False
 
 def _send_confirmation_email(email, name):
-    """Send a confirmation email on signup via SES SMTP (env-configured).
+    """Send a confirmation email on signup via Zoho SMTP (env-configured).
+
+    Zoho, not SES: the SES account is sandboxed, so it silently rejects any
+    recipient that is not a verified identity - which is every real signup.
+    Zoho sends to arbitrary recipients and its DKIM (selector 'zmail') aligns
+    with mutxri.com, so these messages pass DMARC.
+
     Non-blocking: failures are logged, never fail the signup."""
     try:
         import smtplib, ssl, os, html as _html
         from email.mime.text import MIMEText
-        server = os.environ.get("SES_SERVER", "")
-        user = os.environ.get("SES_USER", "")
-        pwd = os.environ.get("SES_PASS", "")
-        sender = os.environ.get("BRIEF_FROM", "jimmy@mutxri.com")
+        # smtppro.zoho.com is the host for custom-domain (paid) Zoho accounts;
+        # free/personal accounts use smtp.zoho.com. Override via MAIL_SERVER.
+        server = os.environ.get("MAIL_SERVER", "smtppro.zoho.com")
+        user = os.environ.get("MAIL_USER", "jimmy@mutxri.com")
+        pwd = os.environ.get("MAIL_PASS", "")
+        sender = os.environ.get("MAIL_FROM", user or "jimmy@mutxri.com")
         if not server or not user or not pwd:
-            return  # email not configured - skip silently
+            print("[auth] MAIL_USER/MAIL_PASS not set - confirmation email "
+                  f"NOT sent to {email}", flush=True)
+            return
         first = (name or email).split()[0] if (name or "").strip() else email
         first = _html.escape(first)  # never let a user-supplied name inject HTML into the email
         html = f"""<div style="background:#000;color:#f0f0f0;font-family:monospace;padding:32px">
@@ -82,12 +92,14 @@ def _send_confirmation_email(email, name):
         msg["From"] = sender
         msg["To"] = email
         ctx = ssl.create_default_context()
-        with smtplib.SMTP(server, int(os.environ.get("SES_PORT", "587")), timeout=30) as s:
+        with smtplib.SMTP(server, int(os.environ.get("MAIL_PORT", "587")), timeout=30) as s:
             s.starttls(context=ctx)
             s.login(user, pwd)
             s.sendmail(sender, [email], msg.as_string())
+        print(f"[auth] confirmation email sent to {email}", flush=True)
     except Exception as e:
-        print(f"[auth] confirmation email failed for {email}: {str(e)[:80]}", flush=True)
+        print(f"[auth] CONFIRMATION EMAIL FAILED for {email}: "
+              f"{type(e).__name__}: {str(e)[:200]}", flush=True)
 
 
 def signup(email, password, name=""):
