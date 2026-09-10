@@ -25,16 +25,30 @@ import subprocess
 import sys
 
 SP = (r"C:\Users\mutxr\AppData\Local\Temp\claude\D--mutxri-terminal"
-      r"\1c144fad-89e4-4b04-baf0-4f3e45e10bc6\scratchpad\tour")
+      r"\1c144fad-89e4-4b04-baf0-4f3e45e10bc6\scratchpad\tour4k")
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "media", "mutxri_tour_1080p.mp4")
-POSTER = os.path.join(HERE, "media", "mutxri_tour_poster.jpg")
+OUT = os.path.join(HERE, "media", "mx_terminal_tour_4k.mp4")
+POSTER = os.path.join(HERE, "media", "mx_terminal_tour_poster.jpg")
+VTT = os.path.join(HERE, "media", "mx_terminal_tour.vtt")
 CURSOR = os.path.join(HERE, "media", "cursor.png")
 
-W, H = 1920, 1080
-SRC_W, SRC_H = 1600, 900
-K = W / SRC_W                     # capture space -> output space
-TAIL = 0.55                       # beat after each line so scenes do not collide
+W, H = 3840, 2160                 # true 4K: a 1920x1080 layout captured at 2x
+SRC_W, SRC_H = 1920, 1080         # script coordinates are in logical CSS space
+K = W / SRC_W                     # script space -> output space (2.0)
+TAIL = 0.35                       # beat after each line so scenes do not collide
+
+
+# The narration is now a neural voice, which arrives even and full-bodied, so
+# this is a light touch rather than the repair job the SAPI track needed:
+#   highpass   - clears anything below the voice
+#   equalizer  - a small presence lift at 3 kHz for phone speakers
+#   loudnorm   - lands on a consistent -18 LUFS with headroom to spare
+AUDIO_CHAIN = (
+    "highpass=f=80,"
+    "equalizer=f=3000:t=q:w=1.4:g=1.5,"
+    "loudnorm=I=-18:TP=-1.5:LRA=11,"
+    "apad"
+)
 
 
 def run(cmd, **kw):
@@ -53,17 +67,40 @@ def duration(path):
     return float(out)
 
 
-def cursor_filter(path, seg_len):
+def ts(sec):
+    """seconds -> WEBVTT timestamp."""
+    h, rem = divmod(sec, 3600)
+    m, s = divmod(rem, 60)
+    return "%02d:%02d:%06.3f" % (h, m, s)
+
+
+def frame_map(crop):
+    """Return (fn, prefix): script coords -> output coords, and any crop filter.
+
+    A scene may frame part of the page instead of the whole of it - the sign-in
+    box is a small card on a mostly empty screen, and shown full width it reads
+    as the black frame the first cut was rejected for. The crop is given in the
+    same 1920x1080 logical space as everything else in the script.
+    """
+    if not crop:
+        return (lambda x, y: (x * K, y * K)), ""
+    cx, cy, cw, ch = crop
+    s = float(W) / (cw * K)                      # cropped pixels -> output
+    pre = "crop=%d:%d:%d:%d," % (cw * K, ch * K, cx * K, cy * K)
+    return (lambda x, y: ((x - cx) * K * s, (y - cy) * K * s)), pre
+
+
+def cursor_filter(path, seg_len, xf):
     """A cursor that travels from the first point to the second and settles.
 
     It moves over the middle 55% of the scene: a beat to register where it
     started, the glide, then a still moment on the target while the line
-    finishes. Coordinates come from the script in capture space.
+    finishes. Coordinates come from the script in logical space.
     """
     if not path:
         return None
-    (x0, y0), (x1, y1) = path[0], path[1]
-    x0, y0, x1, y1 = x0 * K, y0 * K, x1 * K, y1 * K
+    x0, y0 = xf(*path[0])
+    x1, y1 = xf(*path[1])
     t0 = seg_len * 0.22
     t1 = seg_len * 0.72
     # eased progress in [0,1]: clip((t-t0)/(t1-t0)) smoothed
@@ -81,57 +118,90 @@ def main():
     seg_dir = os.path.join(SP, "segments")
     os.makedirs(seg_dir, exist_ok=True)
 
-    seg_files, total = [], 0.0
+    seg_files, total, cues = [], 0.0, []
     for i, sc in enumerate(scenes):
+        # record_tour.py writes <id>.mp4 - real video of the live page, cursor
+        # and all. The still path is the fallback for a scene not yet recorded.
+        clip = os.path.join(SP, sc["id"] + ".mp4")
         still = os.path.join(SP, (sc.get("card") or sc["id"]) + ".png")
         wav = os.path.join(SP, sc["id"] + ".wav")
-        for f in (still, wav):
+        src = clip if os.path.exists(clip) else still
+        for f in (src, wav):
             if not os.path.exists(f):
                 print("missing input:", f)
                 return 1
 
         seg_len = duration(wav) + TAIL + float(sc.get("hold", 0))
+        # the cue runs over the narration only, not the beat that follows it
+        cues.append((total, total + duration(wav), sc["say"]))
         total += seg_len
         seg = os.path.join(seg_dir, "seg_%02d.mp4" % i)
 
-        base = ("scale=%d:%d:flags=lanczos,setsar=1,format=yuv420p" % (W, H))
-        cur = cursor_filter(sc.get("cursor"), seg_len)
-        if cur:
-            fc = ("[0:v]%s[bg];[2:v]scale=%d:-1[cur];"
-                  "[bg][cur]overlay=x='%s':y='%s':eval=frame[v]"
-                  % (base, int(30 * K), cur[0], cur[1]))
-            inputs = ["-loop", "1", "-i", still, "-i", wav, "-i", CURSOR]
+        if src == clip:
+            # a recorded clip is already 4K, so the only geometry left is an
+            # optional crop - the sign-in card is small on a dark page
+            _, pre = frame_map(sc.get("crop"))
+            fc = ("[0:v]%sscale=%d:%d:flags=lanczos,setsar=1,format=yuv420p[v]"
+                  % (pre, W, H))
+            inputs = ["-i", clip, "-i", wav]
         else:
-            fc = "[0:v]%s[v]" % base
-            inputs = ["-loop", "1", "-i", still, "-i", wav]
+            xf, pre = frame_map(sc.get("crop"))
+            base = (pre + "scale=%d:%d:flags=lanczos,setsar=1,format=yuv420p"
+                    % (W, H))
+            cur = cursor_filter(sc.get("cursor"), seg_len, xf)
+            if cur:
+                fc = ("[0:v]%s[bg];[2:v]scale=%d:-1[cur];"
+                      "[bg][cur]overlay=x='%s':y='%s':eval=frame[v]"
+                      % (base, int(30 * K), cur[0], cur[1]))
+                inputs = ["-loop", "1", "-i", still, "-i", wav, "-i", CURSOR]
+            else:
+                fc = "[0:v]%s[v]" % base
+                inputs = ["-loop", "1", "-i", still, "-i", wav]
 
         cmd = (["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"] + inputs +
                ["-filter_complex", fc, "-map", "[v]", "-map", "1:a",
                 "-t", "%.3f" % seg_len,
                 "-c:v", "libx264", "-preset", "medium", "-crf", "20",
                 "-pix_fmt", "yuv420p", "-r", "25",
-                "-af", "loudnorm=I=-18:TP=-1.5:LRA=11,apad",
+                "-af", AUDIO_CHAIN,
                 "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
                 seg])
         run(cmd)
         seg_files.append(seg)
-        print("  %-14s %5.1fs%s" % (sc["id"], seg_len, "  + cursor" if cur else ""))
+        print("  %-14s %5.1fs  %s" % (sc["id"], seg_len,
+                                      "recorded" if src == clip else "still"))
 
     lst = os.path.join(seg_dir, "segments.txt")
     io.open(lst, "w", encoding="utf-8").write(
         "\n".join("file '%s'" % s.replace("\\", "/") for s in seg_files) + "\n")
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    # Every segment was written with identical codec settings, so the join is a
+    # stream copy: no second encode, and no chance of a re-encode inventing a
+    # frame at a boundary - which is how the black gaps got in the first cut.
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
          "-f", "concat", "-safe", "0", "-i", lst,
-         "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-         "-pix_fmt", "yuv420p", "-r", "25",
-         "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
-         "-movflags", "+faststart", OUT])
+         "-c", "copy", "-movflags", "+faststart", OUT])
 
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-         "-i", os.path.join(SP, "card_intro.png"),
-         "-vf", "scale=%d:%d:flags=lanczos" % (W, H), "-q:v", "3", POSTER])
+         "-ss", "6", "-i", os.path.join(SP, "00_landing.mp4"),
+         "-frames:v", "1",
+         "-vf", "scale=1920:1080:flags=lanczos", "-q:v", "3", POSTER])
+
+    # Captions from the same script the voice read, so they cannot drift out of
+    # step with it. Long lines are split at sentence ends - a twenty-second cue
+    # is unreadable.
+    with io.open(VTT, "w", encoding="utf-8") as fh:
+        fh.write("WEBVTT\n\n")
+        for a, b, text in cues:
+            parts = [p.strip() + "." for p in text.split(". ") if p.strip()]
+            parts[-1] = parts[-1].rstrip(".") + "."
+            step = (b - a) / len(parts)
+            for j, part in enumerate(parts):
+                fh.write("%s --> %s\n%s\n\n"
+                         % (ts(a + j * step), ts(a + (j + 1) * step), part))
+    print("  %s  %d cues" % (VTT, sum(1 for _ in io.open(VTT, encoding="utf-8")
+                                      if "-->" in _)))
 
     print("\n  %s  %.1f MB  %.0fs" % (OUT, os.path.getsize(OUT) / 1e6, total))
     print("  %s  %.0f KB" % (POSTER, os.path.getsize(POSTER) / 1e3))

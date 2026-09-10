@@ -90,6 +90,18 @@ def with_latest_session(bars, meta):
     t = meta.get("regularMarketTime")
     if px is None or not t:
         return bars
+    # A Yahoo mirror can serve a FROZEN meta: regularMarketTime stuck in 2024
+    # while regularMarketPrice still holds that era's quote (EGX COMI reported
+    # regularMarketPrice 81.2 next to prevClose 141). Writing that as the current
+    # session is how a two-year-old price became a live quote on the panel, so a
+    # timestamp that cannot describe a session in the archive's own era is refused.
+    if t < 1750000000:            # before mid-2025 = stale mirror, not a session
+        return bars
+    if bars and bars[-1].get("c"):
+        # a "latest close" that moves the price by more than a third is a bad
+        # tick or a price from another scale, never a real session print
+        if abs(px - bars[-1]["c"]) / bars[-1]["c"] > 0.35:
+            return bars
     day = datetime.datetime.utcfromtimestamp(t).date()
     if bars:
         last_day = datetime.datetime.utcfromtimestamp(bars[-1]["t"]).date()
@@ -115,6 +127,21 @@ def with_latest_session(bars, meta):
     return bars + [bar]
 
 
+def strip_synthetic(bars):
+    """Drop trailing bars with no volume.
+
+    A session with a close but zero volume is the signature of a bar built from
+    Yahoo's meta block rather than from the daily array. In this mirror the meta
+    is unreliable (EGX COMI reported regularMarketPrice 81.2 with a 2024
+    timestamp while its bar series traded at 139), and appending it produced
+    session bars dated today carrying a two-year-old price and once-moved 60%
+    prints. A real session in the array always carries its volume, so a
+    volume-less tail is a quote, not a session."""
+    while len(bars) > 1 and not bars[-1].get("v"):
+        bars.pop()
+    return bars
+
+
 def existing_bars(path):
     try:
         with open(path, encoding="utf-8") as f:
@@ -124,8 +151,12 @@ def existing_bars(path):
 
 def write_if_better(path, sym, name, currency, bars):
     """Only replace a file when the new fetch is at least as good as what we
-    already have - a short/empty response never destroys a deeper archive."""
-    old = existing_bars(path)
+    already have - a short/empty response never destroys a deeper archive.
+
+    The stored archive is compared AFTER dropping its synthetic tail, otherwise a
+    quote-only bar written by an older build makes every clean re-fetch look
+    shorter than what is on disk and the junk can never be displaced."""
+    old = strip_synthetic(existing_bars(path))
     if len(bars) < max(2, len(old)) and len(old) >= 2:
         with lock:
             stats["kept"] += 1
@@ -146,12 +177,14 @@ def do_symbol(args):
     mpath = os.path.join(OUT, safe + ".max.json")
     if only_empty and len(existing_bars(dpath)) >= 2:
         return
-    d = chart(sym, "1mo" if TOPUP else "2y", "1d")
+    d = chart(sym, "3mo" if TOPUP else "2y", "1d")
     bars, meta = to_bars(d)
+    bars = strip_synthetic(bars)
     bars = with_latest_session(bars, meta)
     ccy = meta.get("currency")
     if TOPUP:
-        bars = merge_bars(existing_bars(dpath), bars)
+        # also clear a synthetic tail an earlier run already wrote to disk
+        bars = strip_synthetic(merge_bars(existing_bars(dpath), bars))
     if write_if_better(dpath, sym, name, ccy or cur, bars):
         with lock:
             stats["daily"] += 1
@@ -177,8 +210,30 @@ def do_symbol(args):
             print(f"  {stats['sym']} symbols | daily {stats['daily']} max {stats['max']} "
                   f"nodata {stats['nodata']} kept {stats['kept']}", flush=True)
 
+def positional_exchanges(argv):
+    """Exchanges from the command line, accepting BOTH forms the callers use:
+    `refresh_history.py JSE EGX` and `refresh_history.py JSE,EGX`. Reading only
+    sys.argv[1] is what silently dropped EGX from the scheduled daily run (the
+    log line said "history topup JSE/EGX" while the fetch ran JSE only), so the
+    whole board sat frozen on stale EGX prices. Flag VALUES (the 8 after
+    --workers) must never be mistaken for an exchange."""
+    out = []
+    skip_next = False
+    for a in argv:
+        if skip_next:
+            skip_next = False
+            continue
+        if a == "--workers":
+            skip_next = True
+            continue
+        if a.startswith("-"):
+            continue
+        out += [x.strip().upper() for x in a.split(",") if x.strip()]
+    return out
+
+
 def main():
-    exs = (sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else "JSE,EGX").split(",")
+    exs = positional_exchanges(sys.argv[1:]) or ["JSE", "EGX"]
     workers = 6
     only_empty = "--only-empty" in sys.argv
     if "--workers" in sys.argv:

@@ -42,7 +42,12 @@ def run(name, args, env=None, timeout=1800):
 steps = 0
 if "--history" in sys.argv:
     run("history topup JSE/EGX", ["refresh_history.py", "JSE", "EGX", "--topup", "--workers", "8"], timeout=3600)
-    steps += 1
+    # NGX (and NSE) publish their own EOD price lists and no scheduled step ever
+    # fetched them, so the NGX board sat frozen on 28 Aug prices while the rest
+    # of the terminal moved on. Cheap: one zip + PDF per session, skips any
+    # session already in the archive.
+    run("ngx price history", ["fetch_ngx_history.py", "10"], timeout=1800)
+    steps += 2
 run("market snapshots", ["build_market_snapshots.py"])
 run("screener", ["build_screener.py"])
 # heatmap_<EX>.json is derived from market_<EX>.json - without this the

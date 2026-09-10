@@ -28,11 +28,13 @@ with open(os.path.join(DEPLOY, "CNAME"), "w", encoding="utf-8") as _c:
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 
 # user guide (root-level, linked from the landing nav) + the tour video it embeds.
-# Only the web-sized assets ship; the 4K master stays in the repo.
+# The 4K master ships as-is: it is stills and narration, so it compresses to
+# about 13 MB - small enough to serve, and it stays sharp on a large display.
 shutil.copy(os.path.join(BASE, "guide.html"), os.path.join(DEPLOY, "guide.html"))
 _MEDIA = os.path.join(DEPLOY, "media")
 os.makedirs(_MEDIA, exist_ok=True)
-for _m in ("mutxri_tour_1080p.mp4", "mutxri_tour_poster.jpg"):
+for _m in ("mx_terminal_tour_4k.mp4", "mx_terminal_tour_poster.jpg",
+           "mx_terminal_tour.vtt"):
     _ms = os.path.join(BASE, "media", _m)
     if os.path.exists(_ms):
         shutil.copy(_ms, os.path.join(_MEDIA, _m))

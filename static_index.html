@@ -695,9 +695,8 @@ let PANELS = [
   {id:'heatmap', label:'HEATMAP', url:'features/panels/afri_heatmap.html'},
   {id:'screener',label:'SCREENER', url:'features/panels/afri_screener.html'},
   {id:'financials',label:'FINANCIALS', url:'features/panels/afri_financials.html'},
-  // REG and CORP were folded into NEWS: the news panel now merges press
-  // headlines, the regulatory wire (reg.json per country) and corporate
-  // actions (dividends / book closures) into one per-exchange list.
+  // REG and CORP are folded into NEWS: the news panel merges press headlines,
+  // the regulatory wire (reg.json) and corporate actions (dividends / closures).
   {id:'news',    label:'NEWS',     url:'features/panels/afri_news.html'},
   {id:'glco',    label:'GLCO',     url:'features/panels/afri_glco.html'},
   {id:'bnd',     label:'BND',      url:'features/panels/afri_bnd.html'},
@@ -890,6 +889,8 @@ function renderTabs(){
         nm.className = 'ws-name';
         nm.textContent = sp.name;
         b.appendChild(nm);
+        // visible delete control: a \u00d7 on every workspace (kept off the last
+        // one so there is always at least one workspace to fall back to)
         if(spaces.length > 1){
           const x = document.createElement('span');
           x.className = 'ws-x';
@@ -1057,7 +1058,9 @@ renderTabs();
 // (?panel= deep-link support for the landing showcase; unknown panels fall back to default)
 let __startIdx = 0;
 if(window.__INIT_PANEL){
-  const __pi = PANELS.findIndex(p => p.id === window.__INIT_PANEL);
+  // NEWS and REG merged into WIRE; old deep links still land on the right tab
+  const __pid = {news:'wire', reg:'wire'}[window.__INIT_PANEL] || window.__INIT_PANEL;
+  const __pi = PANELS.findIndex(p => p.id === __pid);
   if(__pi >= 0) __startIdx = __pi;
 }
 $('stageFrame').src = panelUrl(PANELS[__startIdx]);
@@ -1090,6 +1093,8 @@ async function loadListing(ex){
     try{
         const mr = await fetch('static_data/market_' + ex + '.json');
         const md = await mr.json();
+        window.__MKASOF = window.__MKASOF || {};
+        window.__MKASOF[ex] = md.asOf || md.generated || '';
         const byTkr = {};
         (md.stocks || []).forEach(s => { byTkr[s.ticker || s.sym] = s; });
         listing[ex] = listing[ex].map(s => {
@@ -1174,6 +1179,8 @@ async function primeQuotes(ex){
     try{
       const r = await fetch('static_data/market_' + ex + '.json');
       const d = await r.json();
+      window.__MKASOF = window.__MKASOF || {};
+      window.__MKASOF[ex] = d.asOf || d.generated || '';
       (d.stocks || []).forEach(s => {
         quotes[s.sym] = { price: s.price, changePct: s.chgPct, volume: s.volume, currency: s.currency };
         if(s.ticker) quotes[s.ticker] = quotes[s.sym];
@@ -1277,7 +1284,7 @@ function renderMarketOverview(ex){
   el.innerHTML =
     '<div style="padding:10px 12px;border-bottom:1px solid var(--line)">' +
       '<div style="color:var(--acc);font-weight:700;font-size:13px;letter-spacing:.02em">' + esc(ex) + ' <span style="color:var(--tx3);font-weight:400">· ' + esc(mFull.name || '') + '</span></div>' +
-      '<div style="color:var(--tx3);font-size:10px;padding:2px 0">' + esc(mFull.country || '') + ' · ' + priced.length + ' priced' + (cur ? ' · ' + esc(cur) : '') + '</div>' +
+      '<div style="color:var(--tx3);font-size:10px;padding:2px 0">' + esc(mFull.country || '') + ' · ' + priced.length + ' priced' + (cur ? ' · ' + esc(cur) : '') + (function(){ var a = (window.__MKASOF && window.__MKASOF[ex]) || ''; return a ? ' · EOD ' + esc(a) : ''; })() + '</div>' +
       '<div style="display:flex;gap:12px;padding:6px 0 2px;font-family:var(--mono);font-size:11px">' +
         '<span style="color:var(--up)">▲ ' + adv + '</span>' +
         '<span style="color:var(--down)">▼ ' + dec + '</span>' +
@@ -1452,7 +1459,7 @@ function buildTapeFromListing(ex){
 
 // ===== Command bar =====
 // ===== Command bar: Bloomberg-style "TICKER FUNCTION" =====
-const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'chart', CN:'news',
+const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'chart', CN:'wire', NEWS:'wire', REG:'wire',
                      HP:'chart', EQS:'screener', RV:'financials', SPLC:'info'};
 // Every market's tickers, fetched once at boot (39 KB gzipped for all four) so
 // a ticker resolves no matter which board is on screen. Before this, typing a
@@ -1670,6 +1677,7 @@ function renderMarketStatic(rec, info){
       <div class="qchg ${cls}">${chgTxt}</div>
     </div>
     <div class="qgrid">
+      ${row('DATA AS OF', rec.asOf || (window.__MKASOF && window.__MKASOF[currentEx]) || dash)}
       ${row('VOLUME', vol)}
       ${row('SECTOR', rec.sector || i.sector || dash)}
       ${row('COUNTRY', i.country || dash)}

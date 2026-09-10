@@ -84,7 +84,7 @@ def parse_prices(zf, prefix):
                             # "11,200.6012,320.6012,320.60"), which shifts every
                             # left-hand index and used to drop the row into the
                             # LIST2 branch, where it parsed %CHANGE as the price.
-                            if len(parts) >= 10 and re.match(r"^[A-Z][A-Z0-9&]{2,}$", parts[1]):
+                            if len(parts) >= 10 and re.match(r"^[A-Z][A-Z0-9&]{1,}$", parts[1]):
                                 sym = parts[1]
                                 pclose = _f(parts[2])
                                 close = _f(parts[-6])
@@ -104,7 +104,21 @@ def parse_prices(zf, prefix):
                                     o = high = low = close
                                 vol = parts[-2].replace(",", "")
                                 volume = int(vol) if vol.isdigit() else 0
-                                rows[sym] = {"o": o, "h": high, "l": low, "c": close, "v": volume}
+                                # Carry the columns the market panel prints so the
+                                # panel never has to mix a close from one day with a
+                                # previous close or value traded from another:
+                                #   pc  = PCLOSE (official previous close)
+                                #   chg = %CHANGE (official session change)
+                                #   tv  = VALUE traded (official turnover)
+                                #   oo  = OPEN only when the exchange printed one
+                                #         ('-' means no opening print, not a price)
+                                rows[sym] = {
+                                    "o": o, "h": high, "l": low, "c": close, "v": volume,
+                                    "pc": pclose,
+                                    "chg": _f(parts[-4]),
+                                    "tv": _f(parts[-1]),
+                                    "oo": _f(parts[4]) if len(parts) >= 15 else None,
+                                }
                             # PRICES_LIST2 is deliberately NOT used for history.
                             # It lists companies by full name with only MARKET CAP
                             # and PRICE, so its symbols have to be guessed from the
@@ -197,7 +211,14 @@ def flush(all_bars):
             except Exception:
                 pass
         for iso, b in bars_map.items():
-            merged[iso] = {"t": iso, "o": b["o"], "h": b["h"], "l": b["l"], "c": b["c"], "v": b["v"]}
+            bar = {"t": iso, "o": b["o"], "h": b["h"], "l": b["l"], "c": b["c"], "v": b["v"]}
+            # the official PCLOSE / %CHANGE / VALUE / OPEN columns the market
+            # panel prints must survive the merge, or the panel has to guess a
+            # previous close and shows a change the exchange never printed
+            for k in ("pc", "chg", "tv", "oo"):
+                if b.get(k) is not None:
+                    bar[k] = b[k]
+            merged[iso] = bar
         bars = [merged[k] for k in sorted(merged.keys())]
         if len(bars) >= 2:
             json.dump({"bars": bars[-1500:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
