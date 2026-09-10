@@ -37,7 +37,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--sans);line-height:1.
    so the links stay centred on the page and do not drift when the brand or the
    button changes width. */
 .top nav{position:absolute;left:50%;transform:translateX(-50%);
-         display:flex;gap:22px;align-items:center;white-space:nowrap}
+         display:flex;gap:16px;align-items:center;white-space:nowrap}
 .top .cta{margin-left:auto}
 .top nav a{color:var(--tx2);text-decoration:none;font-size:13px}
 .top nav a:hover{color:var(--acc)}
@@ -138,6 +138,8 @@ tr:hover td{background:#080808}
     <a href="#watch">Watch</a>
     <a href="#layout">Layout</a>
     <a href="#commands">Commands</a>
+    <a href="#markets">Markets</a>
+    <a href="#windows">Windows</a>
     <a href="#panels">Panels</a>
   </nav>
   <a class="cta" href="/terminal/">Open the Terminal</a>
@@ -188,24 +190,25 @@ tr:hover td{background:#080808}
   </div>
 
   <h2 id="layout">The layout</h2>
-  <p>Five regions. Everything you type lands in one of them.</p>
+  <p>Six regions. Everything you type lands in one of them.</p>
 
   <div class="diagram">
-    <div class="box span3"><b>TOP BAR</b>Exchange badge, search box, clock</div>
+    <div class="box span3"><b>TOP BAR</b>Brand, the command line, workspace tabs, clock</div>
     <div class="box span3"><b>TAPE</b>Scrolling prices for the exchange you are on</div>
     <div class="box"><b>WATCHLIST</b>Every security on this exchange. Code, price, change. Click a row to load it.</div>
     <div class="box stagebox"><b>STAGE</b><br>The panel you opened. Heatmap by default. Switch with the tabs above it or a command.</div>
-    <div class="box"><b>INFO RAIL</b>The quote sheet for the selected security, and where command errors appear.</div>
-    <div class="box span3"><b>STATUS BAR</b>The command line lives here, bottom right</div>
+    <div class="box"><b>MARKET</b>Session summary by default; the quote sheet for whatever security you select, and where command errors appear.</div>
+    <div class="box span3"><b>ROOM</b>The chat rail on the far right, for signed-in users</div>
   </div>
 
   <div class="note">
-    <p><strong>The command line is the input box at the bottom right</strong>, the one
-    marked "command". Click it, type, press Enter. Your text is not case sensitive.</p>
+    <p><strong>The command line is the search box at the top of the screen</strong>, the
+    wide one reading "Ticker, company or market". Click it, type, press Enter. Your text
+    is not case sensitive.</p>
   </div>
 
   <h2 id="commands">What to type</h2>
-  <p>Four patterns cover everything.</p>
+  <p>Four patterns cover the everyday work.</p>
 
   <table>
     <tr><th>Pattern</th><th>Example</th><th>What happens</th></tr>
@@ -238,6 +241,45 @@ tr:hover td{background:#080808}
   terminal cannot resolve comes back as a short error in the info rail rather than a
   blank screen.</p>
 
+  <h2 id="markets">Switching market</h2>
+  <p>You never have to leave the command line to change exchange.</p>
+
+  <table>
+    <tr><th>Pattern</th><th>Example</th><th>What happens</th></tr>
+    <tr><td>An exchange</td><td><code>NGX</code></td><td>Switches the whole board to that market. <code>JSE</code>, <code>NGX</code>, <code>EGX</code>.</td></tr>
+    <tr><td>A country code</td><td><code>KE</code></td><td>Same thing by country: <code>ZA</code>, <code>NG</code>, <code>KE</code>, <code>EG</code>.</td></tr>
+    <tr><td>Ticker then market</td><td><code>MTN JSE</code></td><td>Switches market and opens that company, in one go.</td></tr>
+    <tr><td>Market then panel</td><td><code>EGX NEWS</code></td><td>Switches market and opens the panel there, at market level.</td></tr>
+  </table>
+
+  <div class="note warn">
+    <p><strong>One exception worth knowing.</strong> <code>NSE</code> is both the Nairobi
+    exchange and a company listed on it, so typing it on its own opens the <em>stock</em>,
+    not the market. Use <code>KE</code> to switch to Nairobi.</p>
+  </div>
+
+  <h2 id="shorthand">Shorthand</h2>
+  <p>If you have used a Bloomberg keyboard, these will be familiar. They work anywhere a
+  panel code does, including after a ticker.</p>
+
+  <table>
+    <tr><th>Type</th><th>Same as</th></tr>
+    <tr><td><code>FA</code>, <code>FIN</code>, <code>RV</code></td><td><code>FINANCIALS</code> &mdash; so <code>SCOM FA</code> is Safaricom's statements</td></tr>
+    <tr><td><code>EQS</code></td><td><code>SCREENER</code></td></tr>
+    <tr><td><code>DES</code>, <code>SPLC</code></td><td>The quote sheet for the security you have selected</td></tr>
+  </table>
+
+  <h2 id="windows">Windows</h2>
+  <p>Each region can be closed with its own control, and the closed state is remembered
+  between sessions &mdash; so these are how you get one back.</p>
+
+  <table>
+    <tr><th>Type</th><th>What happens</th></tr>
+    <tr><td><code>WATCH</code>, <code>PANEL</code>, <code>MARKET</code>, <code>CHAT</code></td><td>Opens that window, or closes it if it is already open. <code>WATCHLIST</code>, <code>CENTER</code>, <code>INFO</code> and <code>ROOM</code> do the same.</td></tr>
+    <tr><td><code>WINDOWS</code>, <code>ALL</code></td><td>Opens all four at once.</td></tr>
+    <tr><td><code>RESET</code>, <code>TILE</code></td><td>Puts the layout back to the default tiling.</td></tr>
+  </table>
+
   <h2 id="panels">Panel codes</h2>
   <p>Type any of these on their own, or after a ticker. They are also the tabs across the
   top of the stage.</p>
@@ -245,12 +287,12 @@ tr:hover td{background:#080808}
   <table>
     <tr><th>Code</th><th>Panel</th><th>Data</th></tr>
     <tr><td><code>HEATMAP</code></td><td>Sector map for the exchange. Cell size is weight, colour is the day's move. Click a sector for its constituents, then a name to chart it in candles, line or area over 1D, 1M, 1Y, 10Y or the full history.</td><td><span class="tag live">live snapshot</span></td></tr>
-    <tr><td><code>SCREENER</code></td><td>Every listed equity, filtered by sector, price, change and volume. Exports to CSV.</td><td><span class="tag live">live snapshot</span></td></tr>
+    <tr><td><code>SCREENER</code></td><td>Every listed equity, filtered by sector, price, change, volume and dividend yield. Exports to CSV.</td><td><span class="tag live">live snapshot</span></td></tr>
     <tr><td><code>FINANCIALS</code></td><td>Income statement, balance sheet and cash flow, parsed from company filings, with reporting periods side by side.</td><td><span class="tag live">all four exchanges</span></td></tr>
         <tr><td><code>NEWS</code></td><td>One wire per market: press headlines, the regulator wire, and corporate actions — dividends and book closures with ticker chips.</td><td><span class="tag live">live</span></td></tr>
-    <tr><td><code>FX</code></td><td>Cross rates and a converter across KES, NGN, ZAR, EGP, USD, EUR and GBP.</td><td><span class="tag live">live</span></td></tr>
     <tr><td><code>GLCO</code></td><td>Global commodities: gold, brent and the rest of the complex that moves these markets.</td><td><span class="tag live">live</span></td></tr>
         <tr><td><code>BND</code></td><td>Government bonds and treasury bills by country.</td><td><span class="tag live">central-bank auctions</span></td></tr>
+<tr><td><code>FX</code></td><td>Cross rates and a converter across KES, NGN, ZAR, EGP, USD, EUR and GBP.</td><td><span class="tag live">live</span></td></tr>
     <tr><td><code>TAS</code></td><td>Time and sales, the intraday print tape.</td><td><span class="tag none">not available</span></td></tr>
     <tr><td><code>RATINGS</code></td><td>Analyst consensus and signal tally.</td><td><span class="tag none">no signals yet</span></td></tr>
   </table>
