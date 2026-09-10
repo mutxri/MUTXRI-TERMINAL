@@ -19,7 +19,10 @@ BR = "gh-pages"
 HDRS = {"Authorization": "Bearer " + sec["github_pat"],
         "Accept": "application/vnd.github+json",
         "User-Agent": "mutxri-deploy"}
-DEPLOY = os.path.join(BASE, "gh_pages_deploy")
+# assemble_deploy.py builds gh_pages_deploy2. Pointing here at the older
+# gh_pages_deploy folder - which nothing writes any more - meant this script
+# happily "deployed" a months-old snapshot over the live site.
+DEPLOY = os.path.join(BASE, "gh_pages_deploy2")
 
 
 def api(method, path, body=None, retries=5):
@@ -34,7 +37,10 @@ def api(method, path, body=None, retries=5):
             detail = e.read().decode(errors="replace")[:200]
             # 1700+ rapid blob POSTs trip GitHub's secondary rate limit, which
             # comes back as a 403 (not a 429) and is retryable after a pause
-            retryable = e.code in (502, 503, 504, 429) or (
+            # 500s show up on writes too (seen on both git/refs and contents),
+            # and they clear on a retry - a deploy that dies on the ref update
+            # has already uploaded every blob for nothing
+            retryable = e.code in (500, 502, 503, 504, 429) or (
                 e.code == 403 and ("rate limit" in detail.lower() or "abuse" in detail.lower()))
             if retryable and a < retries - 1:
                 wait = int(e.headers.get("Retry-After") or 0) or 10 * (a + 1)
@@ -59,6 +65,9 @@ def blob_sha(data: bytes) -> str:
 def main():
     msg = sys.argv[1] if len(sys.argv) > 1 else "data refresh"
     dry = "--dry-run" in sys.argv
+    # --only <prefix> [--only <prefix> ...]: ship one feature without dragging
+    # every other pending local change onto the live site with it
+    only = [sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--only"]
 
     ref, err = api("GET", f"git/ref/heads/{BR}")
     if err:
@@ -82,6 +91,8 @@ def main():
         for f in files:
             full = os.path.join(root, f)
             rel = os.path.relpath(full, DEPLOY).replace("\\", "/")
+            if only and not any(rel == p or rel.startswith(p.rstrip("/") + "/") for p in only):
+                continue
             data = open(full, "rb").read()
             scanned += 1
             if have.get(rel) != blob_sha(data):

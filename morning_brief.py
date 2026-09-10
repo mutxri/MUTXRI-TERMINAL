@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """AFRI Terminal - Morning Brief email.
 Pulls the terminal's dashboard data (indices, top movers, FX, rates, news, dividends)
-and emails a clean morning brief to the owner via SES SMTP.
+and emails a clean morning brief to the owner via Zoho SMTP.
 Run: python morning_brief.py [--to jimmy@mutxri.com]
 """
 import json, smtplib, ssl, time, urllib.request, sys, os
@@ -11,12 +11,17 @@ from email.mime.multipart import MIMEMultipart
 
 API = "http://127.0.0.1:8081"
 
-# SES credentials — from environment (see .env.example); never commit real creds
-SES_SERVER = os.environ.get("SES_SERVER", "svz9a92twnyt.fips.wmjb.mail-manager-smtp.amazonaws.com")
-SES_PORT = int(os.environ.get("SES_PORT", "587"))
-SES_USER = os.environ.get("SES_USER", "")
-SES_PASS = os.environ.get("SES_PASS", "")
-FROM = os.environ.get("BRIEF_FROM", "jimmy@mutxri.com")
+# Mail credentials - from environment (see .env.example); never commit real creds.
+# Zoho, not SES: the SES account is sandboxed (200/day, verified recipients only)
+# and its domain identity is unverified, so SES mail is signed with Amazon's default
+# key and fails DMARC alignment for mutxri.com. Zoho's 'zmail' DKIM aligns.
+# smtppro.zoho.com is the host for custom-domain (paid) accounts; free/personal
+# accounts use smtp.zoho.com. Override with MAIL_SERVER.
+MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtppro.zoho.com")
+MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+MAIL_USER = os.environ.get("MAIL_USER", "")
+MAIL_PASS = os.environ.get("MAIL_PASS", "")
+FROM = os.environ.get("MAIL_FROM", MAIL_USER or "jimmy@mutxri.com")
 
 def api_get(path):
     try:
@@ -127,9 +132,9 @@ def send(to_addr):
     msg.attach(MIMEText(html, "html"))
 
     ctx = ssl.create_default_context()
-    with smtplib.SMTP(SES_SERVER, SES_PORT, timeout=30) as s:
+    with smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=30) as s:
         s.starttls(context=ctx)
-        s.login(SES_USER, SES_PASS)
+        s.login(MAIL_USER, MAIL_PASS)
         s.sendmail(FROM, [to_addr], msg.as_string())
     print(f"Morning brief sent to {to_addr} ({len(html)} chars)")
 

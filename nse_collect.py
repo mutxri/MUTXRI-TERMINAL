@@ -84,6 +84,12 @@ def match_symbol(name_tokens, sym, company_name):
     nt = set(name_tokens)
     if sym.lower() in nt:
         return 1.0  # ticker literally in the filename (EABL, KCB, BAT...)
+    # acronym alias: filenames often use the ticker's prefix ("HF-Group..." for
+    # HFCB, "IM-Group..." for IMH) while the listing name spells the acronym out
+    if len(sym) >= 3:
+        alias = sym[:2].lower()
+        if alias in nt and alias not in ct:
+            return 0.9
     hit = sum(1 for w in ct if w in nt)
     if len(ct) == 1:
         return 1.0 if (hit == 1 and len(ct[0]) >= 2) else 0.0

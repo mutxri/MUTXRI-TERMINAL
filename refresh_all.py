@@ -63,6 +63,12 @@ try:
     print((_h.stdout or "")[-2200:], flush=True)
 except Exception as _e:
     print("doctor skipped: %s" % _e, flush=True)
+# Financial statements are regenerated from the raw parser output by the
+# collectors, and that output still contains mis-parsed figures - gross profit
+# above revenue, net profit above pre-tax. Re-apply the accounting checks on
+# every run, immediately before assembling, or the corrupted figures go back
+# out with the next refresh.
+run("validate financials", ["validate_financials.py", "--apply"])
 run("assemble deploy", ["assemble_deploy.py"])
 run("push changed files", ["bulk_push.py"], timeout=3600)
 

@@ -27,6 +27,18 @@ with open(os.path.join(DEPLOY, "CNAME"), "w", encoding="utf-8") as _c:
 # documentation page (root-level, linked from landing)
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
 
+# user guide (root-level, linked from the landing nav) + the tour video it embeds.
+# Only the web-sized assets ship; the 4K master stays in the repo.
+shutil.copy(os.path.join(BASE, "guide.html"), os.path.join(DEPLOY, "guide.html"))
+_MEDIA = os.path.join(DEPLOY, "media")
+os.makedirs(_MEDIA, exist_ok=True)
+for _m in ("mutxri_tour_1080p.mp4", "mutxri_tour_poster.jpg"):
+    _ms = os.path.join(BASE, "media", _m)
+    if os.path.exists(_ms):
+        shutil.copy(_ms, os.path.join(_MEDIA, _m))
+    else:
+        print("  WARNING: missing media/" + _m + " - guide video will 404")
+
 # favicon + og:image targets - referenced by index.html and terminal/index.html.
 # These lived only in the repo root, so a clean rebuild dropped the favicon
 # and the social preview image.
@@ -136,6 +148,11 @@ shutil.copytree(os.path.join(BASE, "static_data"),
                 ignore=shutil.ignore_patterns("afri_heatmap_static.html",
                                               "ngx_pdfs", "nse_pdfs", "jse_pdfs",
                                               "financials_all.json",
+                                              # 8 MB fetch intermediate. The panel reads
+                                              # financials/<TKR>__<type>.json and
+                                              # financials_index.json; nothing on the site
+                                              # ever requests this file.
+                                              "yahoo_financials*.json",
                                               # the bot's outputs fed the BOT panel only; with the
                                               # panel gone nothing on the site reads them, and they
                                               # are ~1.1 MB. market_bot.py still writes them locally

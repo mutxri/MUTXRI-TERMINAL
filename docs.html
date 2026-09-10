@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="robots" content="noindex, nofollow">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MUTXRI TERMINAL — Documentation</title>
@@ -43,6 +44,8 @@ a{color:var(--acc)}
   <a href="#api">API</a>
   <a href="#limits">Limits</a>
   <a href="#deploy">Deployment</a>
+  <a href="#commands">Commands</a>
+  <a href="guide.html">User guide</a>
 </div>
 
 <h2 id="overview">1 · Overview</h2>
@@ -152,18 +155,35 @@ enabled), set <code>API_BASE</code> in index.html, redeploy. See the repo
 README for the full guide.</p>
 
 <h2 id="commands">7 · Command bar</h2>
-<p>Type <code>`</code> then a command:</p>
+<p>The command line is the input at the <b>bottom right of the status bar</b>. Click it,
+type, press Enter. Input is upper-cased before it is matched. There is no global
+keyboard shortcut to focus it: the <code>`</code> glyph in the status bar is a label,
+not a binding.</p>
+<p>Full user-facing reference, with the tour video:
+<a href="guide.html">guide.html</a>.</p>
+
+<h3>Grammar</h3>
 <table>
-  <tr><th>Command</th><th>Action</th></tr>
-  <tr><td><code>HELP</code></td><td>List commands</td></tr>
-  <tr><td><code>DES</code></td><td>Company description &amp; profile</td></tr>
-  <tr><td><code>FA</code></td><td>Financial statements</td></tr>
-  <tr><td><code>CF</code></td><td>Cash flow</td></tr>
-  <tr><td><code>DIV</code></td><td>Dividends</td></tr>
-  <tr><td><code>WEI</code></td><td>Weightings</td></tr>
-  <tr><td><code>FX</code></td><td>Foreign exchange</td></tr>
-  <tr><td><code>NEWS</code></td><td>Market news</td></tr>
+  <tr><th>Input</th><th>Resolves via</th><th>Action</th></tr>
+  <tr><td><code>HELP</code></td><td>literal</td><td>Lists every panel label in the info rail</td></tr>
+  <tr><td><code>SOL</code></td><td><code>resolveSec()</code></td><td>Ticker, bare ticker (<code>ABG</code> for <code>ABG.JO</code>) or exact name &rarr; quote sheet</td></tr>
+  <tr><td><code>HEATMAP</code></td><td><code>panelFor()</code></td><td>Panel <code>label</code> or lower-case <code>id</code> &rarr; opens in the stage</td></tr>
+  <tr><td><code>ABG FINANCIALS</code></td><td>both</td><td>Last token is a panel, the rest is the security &rarr; panel scoped to it</td></tr>
 </table>
+
+<h3>Aliases (<code>PANEL_ALIAS</code>)</h3>
+<table>
+  <tr><th>Code</th><th>Target</th><th>Status</th></tr>
+  <tr><td><code>DES</code>, <code>SPLC</code></td><td>info (quote sheet)</td><td class="up">works</td></tr>
+  <tr><td><code>FA</code>, <code>FIN</code>, <code>RV</code></td><td>financials</td><td class="up">works</td></tr>
+  <tr><td><code>EQS</code></td><td>screener</td><td class="up">works</td></tr>
+  <tr><td><code>CN</code></td><td>news</td><td class="up">works</td></tr>
+  <tr><td><code>GP</code>, <code>HP</code></td><td>chart</td><td class="down">dead: no panel has id <code>chart</code>, so <code>panelFor()</code> returns null and the input falls through to "unknown"</td></tr>
+</table>
+
+<p class="warn">Removed from this table: <code>CF</code>, <code>DIV</code> and
+<code>WEI</code> were documented here but were never implemented in either
+<code>PANELS</code> or <code>PANEL_ALIAS</code>.</p>
 
 <div class="footer">MUTXRI TERMINAL · Documentation v1.0 · 24 Aug 2026 · Godel palette (#33e29a mint / #1ecfb0 teal) · honest data policy: never fabricate, always label</div>
 </div>

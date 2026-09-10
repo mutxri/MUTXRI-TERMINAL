@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AFRI Terminal - HEATMAP (TradingView-style squarified treemap).
+<!-- MUTXRI TERMINAL - HEATMAP (TradingView-style squarified treemap).
      Sector-grouped, cells packed by weight to fill space, colored by day %,
      AUTO-POLLING with animated transitions. Godel palette, vanilla JS, no build.
      Standalone on SAMPLE data; polls /api/heatmap?exchange=X when reachable.
@@ -8,11 +8,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AFRI Terminal - Heatmap</title>
+<title>MUTXRI TERMINAL - Heatmap</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://mutxriterminal.com/">
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
+  /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
+     each panel is its own document, so the app's scrollbar CSS cannot reach in
+     here and every panel has to say this for itself. */
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
   :root{
     --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
     --line:#1a1a1a;--line2:#262626;--tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
@@ -79,11 +85,6 @@
     background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.05) 45%,transparent 60%);
     background-size:250% 100%;animation:shimmer 5.5s linear infinite;}
   @keyframes shimmer{0%{background-position:120% 0;}100%{background-position:-120% 0;}}
-  .legend{display:flex;align-items:center;gap:14px;padding:8px 14px;border-top:1px solid var(--line);flex-wrap:wrap;}
-  .legend .lg{color:var(--tx3);font-size:10px;}
-  .sw{width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px;border-radius:1px;}
-  .legend .item{color:var(--tx2);font-size:10px;display:inline-flex;align-items:center;}
-  .foot{padding:6px 14px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
   /* sector drill-down panel */
   #chartPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
   #chartPanel.open{display:flex;animation:bdIn .25s ease;}
@@ -141,14 +142,6 @@
     </div>
   </div>
   <div id="canvas"></div>
-  <div class="legend">
-    <span class="lg">Legend:</span>
-    <span class="item"><span class="sw" style="background:#f87171;"></span>down</span>
-    <span class="item"><span class="sw" style="background:#2a2a2a;"></span>flat / no data</span>
-    <span class="item"><span class="sw" style="background:#33e29a;"></span>up</span>
-    <span class="item" style="color:var(--tx3);">cell size &prop; weight (volume/mcap)</span>
-  </div>
-  <div class="foot"><span id="src">-</span><span id="refreshTxt">-</span></div>
 </div>
 <div id="chartPanel">
   <div class="cp-box">
@@ -493,13 +486,9 @@
         if(d.sectors){rows=[];d.sectors.forEach(function(s){(s.cells||[]).forEach(function(c){c.sector=s.sector;rows.push(c);});});}
         else rows=d.stocks||[];
         draw(normalize(rows));setStatus(true);
-        $("src").textContent="";
-        $("refreshTxt").textContent="updated "+new Date().toLocaleTimeString();
       })
       .catch(function(){
         draw(normalize(SAMPLE[activeEx]||[]));setStatus(false);
-        $("src").textContent="";
-        $("refreshTxt").textContent="sample rendered "+new Date().toLocaleTimeString();
       });
   }
   function startPolling(){if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(load,POLL_MS);}

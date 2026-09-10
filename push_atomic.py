@@ -10,7 +10,8 @@ gh_token = sec["github_pat"]
 REPO = "mutxri/MUTXRI-TERMINAL"
 BR = "gh-pages"
 HDRS = {"Authorization": "Bearer " + gh_token, "Accept": "application/vnd.github+json"}
-DEPLOY = r"D:\mutxri-terminal\gh_pages_deploy"
+# the folder assemble_deploy.py actually builds (gh_pages_deploy is dead)
+DEPLOY = r"D:\mutxri-terminal\gh_pages_deploy2"
 
 def api(method, path, body=None, retries=5):
     url = f"https://api.github.com/repos/{REPO}/{path}"

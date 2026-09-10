@@ -53,7 +53,22 @@ def cache_put(key, ttl, payload):
 # ---- auth rate limiting (brute-force / signup-spam protection) ----
 _RATE = {}          # (ip, action) -> [timestamps]
 _RATE_LOCK = threading.Lock()
-RATE_LIMITS = {"login": (10, 600), "signup": (10, 600), "logout": (60, 600), "me": (120, 600)}
+RATE_LIMITS = {"login": (10, 600), "signup": (10, 600), "logout": (60, 600), "me": (120, 600),
+               # the room: generous on reading, tight on posting (spam floor)
+               "chat_history": (400, 600), "chat_send": (20, 60), "chat_delete": (30, 600)}
+
+def real_ip(handler):
+    """The caller's address, not the proxy's.
+
+    Render terminates TLS in front of this process, so client_address is the
+    proxy for every request on the internet. Keying the rate limiter on it put
+    every visitor in one bucket: at 10 logins per 10 minutes, the eleventh
+    person to sign in anywhere got a 429, and one person refreshing a login
+    form could lock out the whole site.
+    """
+    fwd = (handler.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
+    return fwd or handler.client_address[0]
+
 
 def rate_limited(ip, action):
     maxn, window = RATE_LIMITS.get(action, (60, 600))
@@ -356,6 +371,14 @@ try:
     auth_api._init(_mongo_db, _mongo_ok)
 except Exception as _ae:
     print("auth_api init failed:", str(_ae)[:60])
+
+# ---------------- Shared chat room (chat_room) ----------------
+try:
+    import chat_room
+    chat_room.init(_mongo_db, _mongo_ok)
+except Exception as _ce:
+    chat_room = None
+    print("chat_room init failed:", str(_ce)[:60])
 
 # ---------------- Full listings (stocks.json) ----------------
 try:
@@ -1294,7 +1317,8 @@ class Handler(SimpleHTTPRequestHandler):
         elif path.path == "/api/rates":
             self.json(rates())
         elif path.path == "/api/health":
-            self.json({"ok": True, "time": time.time(), "db": auth_api.store_mode()})
+            self.json({"ok": True, "time": time.time(), "db": auth_api.store_mode(),
+                       "chat": chat_room.store_mode() if chat_room else "off"})
         elif path.path == "/api/financials":
             # Claude's per-statement endpoint, served from OUR real AF data
             q = urllib.parse.parse_qs(path.query)
@@ -1364,10 +1388,7 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 if action == "callback":
                     qq = urllib.parse.parse_qs(path.query)
-                    # Render sits behind a proxy, so the real client address
-                    # is in X-Forwarded-For, not the socket.
-                    fwd = (self.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
-                    client_ip = fwd or self.client_address[0]
+                    client_ip = real_ip(self)
                     target = auth_api.oauth_callback(provider, (qq.get("code") or [""])[0],
                                                      (qq.get("state") or [""])[0],
                                                      self.headers.get("Host", ""),
@@ -1382,11 +1403,10 @@ class Handler(SimpleHTTPRequestHandler):
             q = urllib.parse.parse_qs(path.query)
             # the client cannot set these - they are read off the request so the
             # login log records the real caller, not whatever was in the query
-            fwd = (self.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
-            q["_ip"] = [fwd or self.client_address[0]]
+            q["_ip"] = [real_ip(self)]
             q["_ua"] = [self.headers.get("User-Agent", "")]
             action = path.path.split("/")[-1]
-            if rate_limited(self.client_address[0], action):
+            if rate_limited(real_ip(self), action):
                 self.send_error(429, "too many attempts")
                 return
             self.json(auth_api.handle_auth(path.path, q))
@@ -1429,7 +1449,7 @@ class Handler(SimpleHTTPRequestHandler):
             # GitHub Pages origin can load them cross-origin if needed
             # SECURITY: never serve sensitive files (users.json holds password
             # hashes; secrets/.env/.pem/.git must never be web-accessible)
-            if re.search(r"(users\.json|secrets[^/]*\.json|\.env|\.pem|\.key|\.htpasswd|/\.git/|\.git$|config\.json|admin\.json)", path.path, re.I):
+            if re.search(r"(users\.json|sessions\.json|chat_messages\.json|login_events\.json|secrets[^/]*\.json|\.env|\.pem|\.key|\.htpasswd|/\.git/|\.git$|config\.json|admin\.json)", path.path, re.I):
                 self.send_error(404)
                 return
             super().do_GET()
@@ -1449,9 +1469,38 @@ class Handler(SimpleHTTPRequestHandler):
                 data = {}
             self.json(auth_api.admin_list((data or {}).get("key", ""), (data or {}).get("delete", "")))
             return
+        if path.path.startswith("/api/chat/"):
+            action = "chat_" + path.path.split("/")[-1]
+            if chat_room is None:
+                self.json({"ok": False, "error": "chat unavailable"})
+                return
+            if action not in ("chat_send", "chat_history", "chat_delete"):
+                self.send_error(404)
+                return
+            if rate_limited(real_ip(self), action):
+                self.send_error(429, "too many messages")
+                return
+            data = self.body_json()
+            who = auth_api.me(data.get("token", ""))
+            if not who.get("ok"):
+                self.json({"ok": False, "error": who.get("error") or "sign in to post", "auth": False})
+                return
+            if action == "chat_send":
+                self.json(chat_room.post(who.get("email"), who.get("name"), data.get("text", ""),
+                                         data.get("room", chat_room.DEFAULT_ROOM), data.get("ctx", "")))
+            elif action == "chat_history":
+                # POST, not GET: a session token in a query string ends up in
+                # every proxy and access log between here and the browser
+                out = chat_room.history(data.get("room", chat_room.DEFAULT_ROOM),
+                                        data.get("after", 0), data.get("limit", 60))
+                out["me"] = chat_room._handle(who.get("email"), who.get("name"))
+                self.json(out)
+            else:
+                self.json(chat_room.delete(data.get("id", ""), who.get("email"), who.get("owner")))
+            return
         if path.path.startswith("/api/auth/"):
             action = path.path.split("/")[-1]
-            if rate_limited(self.client_address[0], action):
+            if rate_limited(real_ip(self), action):
                 self.send_error(429, "too many attempts")
                 return
             # read JSON (or form) body — never accept credentials in URLs
@@ -1469,6 +1518,18 @@ class Handler(SimpleHTTPRequestHandler):
             self.json(auth_api.handle_auth(path.path, q))
             return
         self.send_error(404)
+
+    def body_json(self):
+        """The request body as a dict - never larger than 64KB, never a crash."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if 0 < length <= 65536:
+                body = self.rfile.read(length).decode("utf-8", "ignore")
+                data = json.loads(body) if body.strip() else {}
+                return data if isinstance(data, dict) else {}
+        except Exception:
+            pass
+        return {}
 
     def json(self, obj):
         # strict JSON: NaN/Infinity are invalid JSON and crash the browser's

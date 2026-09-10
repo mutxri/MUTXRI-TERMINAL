@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - WIRE panel. One merged feed of everything that moves or
+  announces: media headlines + regulatory wire + corporate actions (dividend
+  payments and book closures) for the exchange in view. Vanilla JS, Godel palette.
+
+  Sources (all static snapshots, all honest):
+    headlines   nse_news / ngx_news / jse_news + bot_news_<EX>  (collector + bot scans)
+    regulatory  reg.json  (CMA/CBK/SEC/CBN/FSCA/SARB/FRA/CBE releases, all four markets)
+    actions     nse_corporate_actions.json, ngx_corporate_actions.json (dividends, closures)
+  Exchanges with no free corporate-actions feed (JSE/EGX) say so instead of inventing one.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - WIRE</title>
+<style>
+  /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
+     each panel is its own document, so the app's scrollbar CSS cannot reach in
+     here and every panel has to say this for itself. */
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--acc:#33e29a;--acc2:#1ecfb0;--amber:#e0a340;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#000;color:var(--tx);font-family:var(--ui);font-size:13px}
+  .wrap{max-width:640px;margin:0 auto;padding:14px}
+  .head{display:flex;align-items:center;gap:10px;padding:8px 4px 12px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+  .code{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.1em;border:1px solid var(--line2);padding:2px 6px;border-radius:2px}
+  .title{font-family:var(--mono);font-size:12px;color:var(--tx2);letter-spacing:.06em}
+  .title b{color:var(--acc)}
+  .spacer{flex:1}
+  .src{font-family:var(--mono);font-size:9px;color:var(--tx3)}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;padding:9px 0 2px}
+  .chip{font-family:var(--mono);font-size:10px;padding:2px 8px;border:1px solid var(--line2);border-radius:2px;color:var(--tx3);cursor:pointer;user-select:none}
+  .chip:hover{border-color:var(--acc);color:var(--tx2)}
+  .chip.on{border-color:var(--acc);color:var(--acc)}
+  .chip.off{opacity:.35;cursor:default}
+  .item{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:10px 12px;margin-top:8px}
+  .item .row1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .badge{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.05em;padding:1px 6px;border-radius:2px;border:1px solid var(--line2);color:var(--tx2);white-space:nowrap}
+  .b-news{border-color:#333;color:#9a9a9a}
+  .b-reg{border-color:rgba(30,207,176,.45);color:var(--acc2)}
+  .b-div{border-color:rgba(51,226,154,.5);color:var(--acc)}
+  .b-close{border-color:rgba(224,163,64,.5);color:var(--amber)}
+  .sym{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx)}
+  .sym.reg{color:var(--acc2)}
+  .dt{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-left:auto;white-space:nowrap}
+  .ttl{font-size:12.5px;line-height:1.5;color:var(--tx);margin-top:6px}
+  a.ttl{text-decoration:none;display:block}
+  a.ttl:hover{color:var(--acc)}
+  .meta{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .meta .pub{color:var(--acc2)}
+  .meta .amt{color:var(--acc);font-weight:700}
+  .tick{color:var(--acc2);border:1px solid var(--line2);border-radius:2px;padding:1px 5px}
+  .empty{padding:30px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:11px}
+  .foot{padding:10px 2px 2px;color:var(--tx3);font-family:var(--mono);font-size:9px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="head">
+    <span class="code">WIRE</span>
+    <span class="title"><span id="exTitle">NSE</span> <b>· NEWS · REG · CORP ACTIONS</b></span>
+    <span class="spacer"></span>
+    <span class="src" id="src">—</span>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div id="items"><div class="empty">loading…</div></div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var CUR = "NSE";
+  try{ var _q = new URLSearchParams(window.location.search); if(_q.get("ex")) CUR = _q.get("ex").toUpperCase(); }catch(e){}
+
+  // headline feeds per exchange (official/collector plus the market-bot scan)
+  var EX_FILE = {
+    "NSE": ["nse_news.json", "bot_news_NSE.json"],
+    "NGX": ["ngx_news.json", "bot_news_NGX.json"],
+    "JSE": ["jse_news.json", "bot_news_JSE.json"],
+    "EGX": ["bot_news_EGX.json"]
+  };
+  // corporate-actions feed per exchange (dividends / book closures / disclosures)
+  var ACT_FILE = { "NSE": "nse_corporate_actions.json", "NGX": "ngx_corporate_actions.json" };
+  var MONTHS = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  var TYPES = [
+    {t:"head",  label:"HEADLINES"},
+    {t:"reg",   label:"REGULATORY"},
+    {t:"div",   label:"DIVIDENDS"},
+    {t:"close", label:"BOOK CLOSURES"}
+  ];
+  var activeT = "all"; // all | head | reg | div | close
+
+  function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function $(id){ return document.getElementById(id); }
+
+  // The feeds date their items differently: the bot emits an epoch ts, the
+  // NGX disclosures use "2026-08-28", the regulators an ISO timestamp, and the
+  // older collectors use "Sep 3". Reduce them all to one number so the merged
+  // list orders honestly; anything unparseable sorts last rather than faking recency.
+  function stamp(n){
+    if(n && typeof n.ts === "number" && n.ts > 0) return n.ts;
+    var d = String((n && n.date) || "").trim();
+    var iso = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(iso) return Date.UTC(+iso[1], +iso[2]-1, +iso[3]) / 1000;
+    var md = d.match(/^([A-Z][a-z]{2})\s+(\d{1,2})(?:\s+(\d{4}))?/);
+    if(md && MONTHS[md[1]] != null){
+      var now = new Date(), y = md[3] ? +md[3] : now.getUTCFullYear();
+      var t = Date.UTC(y, MONTHS[md[1]], +md[2]) / 1000;
+      // a bare "Sep 3" more than a week ahead is last year's, not the future
+      if(!md[3] && t > now.getTime()/1000 + 7*86400) t = Date.UTC(y-1, MONTHS[md[1]], +md[2]) / 1000;
+      return t;
+    }
+    return 0;
+  }
+  // display form: ISO keeps its date part (time when present), "Sep 04 2026" passes through
+  function fmtD(d){
+    if(!d) return "";
+    var s = String(d).trim();
+    var t = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if(t) return t[1] + "-" + t[2] + "-" + t[3] + " " + t[4] + ":" + t[5];
+    return s;
+  }
+  function key(n){
+    var u = String((n && (n.url || n.link)) || "").split("?")[0];
+    if(u) return "u:" + u;
+    return "t:" + String((n && (n.title || n.headline || n.text)) || "").toLowerCase().replace(/[^a-z0-9 ]/g, "").slice(0, 90);
+  }
+
+  // classify a corporate-action item: dividends vs book closures; NGX items that
+  // are neither (board meetings, earnings, directors dealing, ...) stay in ALL
+  // under their own kind badge instead of pretending to be something they are not.
+  function clsAct(a){
+    var hay = (String(a.kind || "") + " " + String(a.text || "")).toUpperCase();
+    if(hay.indexOf("DIVIDEND") >= 0) return "div";
+    if(hay.indexOf("CLOSURE") >= 0 || hay.indexOf("CLOSE") >= 0) return "close";
+    return null;
+  }
+
+  function load(name){
+    return fetch("../../static_data/" + name)
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .catch(function(){ return []; });
+  }
+
+  var all = [];      // merged, recency-sorted item list
+  var counts = {head:0, reg:0, div:0, close:0};
+
+  function feedEl(){
+    $("items").innerHTML = "";
+    var items = activeT === "all" ? all : all.filter(function(x){ return x.kind === activeT; });
+    if(!items.length){
+      $("items").innerHTML = '<div class="empty">' + (activeT === "all" ? "no items in the current feeds" : "no " + activeT + " items for " + esc(CUR)) + '</div>';
+      return;
+    }
+    var html = "";
+    for(var i = 0; i < items.length; i++){
+      var n = items[i];
+      var badgeTxt, badgeCls, sym = "", symCls = "", href, meta = "";
+      if(n._kind === "head"){
+        badgeTxt = "NEWS"; badgeCls = "b-news";
+        href = n.url || "";
+        var ticks = (n.tickers || []).slice(0, 3).map(function(t){
+          return '<span class="tick">' + esc(t) + '</span>'; }).join(" ");
+        meta = '<span class="pub">' + esc(n.publisher || "") + '</span>' + ticks;
+      } else if(n._kind === "reg"){
+        badgeTxt = "REG"; badgeCls = "b-reg"; sym = n.regulator; symCls = "reg";
+        href = n.link || n.url || "";
+        meta = '<span class="pub">' + esc(n.country || n.iso || "") + '</span>' +
+          (n.outlet ? '<span>via ' + esc(n.outlet) + '</span>' : '');
+      } else if(n._kind === "div"){
+        badgeTxt = "DIV"; badgeCls = "b-div"; sym = n.ticker;
+        meta = (n.amount ? '<span class="amt">' + esc(n.amount) + '</span>' : '') +
+          (n.name ? '<span>' + esc(n.name) + '</span>' : '');
+        href = n.url || "";
+      } else if(n._kind === "close"){
+        badgeTxt = "CLOSE"; badgeCls = "b-close"; sym = n.ticker;
+        meta = (n.amount ? '<span class="amt">' + esc(n.amount) + '</span>' : '') +
+          (n.name ? '<span>' + esc(n.name) + '</span>' : '');
+        href = n.url || "";
+      } else {
+        // exchange disclosure that is neither dividend nor closure: keep its own kind
+        badgeTxt = n.kind || "DISC"; badgeCls = "b-gen b-news"; sym = n.ticker;
+        href = n.url || "";
+        meta = n.name ? '<span>' + esc(n.name) + '</span>' : '';
+      }
+      var link = href && href !== "#"
+        ? '<a class="ttl" href="' + esc(href) + '" target="_blank" rel="nofollow noopener">' + esc(n._ttl) + '</a>'
+        : '<span class="ttl">' + esc(n._ttl) + '</span>';
+      html += '<div class="item">' +
+        '<div class="row1"><span class="badge ' + badgeCls + '">' + esc(badgeTxt) + '</span>' +
+        (sym ? '<span class="sym ' + symCls + '">' + esc(sym) + '</span>' : '') +
+        '<span class="dt">' + esc(n._d) + '</span></div>' +
+        link +
+        (meta ? '<div class="meta">' + meta + '</div>' : '') +
+      '</div>';
+    }
+    $("items").innerHTML = html;
+  }
+
+  function renderChips(){
+    var html = '<span class="chip' + (activeT === "all" ? " on" : "") + '" data-t="all">ALL</span>';
+    TYPES.forEach(function(x){
+      html += '<span class="chip' + (activeT === x.t ? " on" : "") + '" data-t="' + x.t + '">' + x.label + '</span>';
+    });
+    $("chips").innerHTML = html;
+    Array.prototype.forEach.call($("chips").querySelectorAll(".chip"), function(c){
+      c.addEventListener("click", function(){
+        activeT = c.getAttribute("data-t");
+        renderChips(); feedEl();
+      });
+    });
+  }
+
+  function finish(){
+    var note = "news " + counts.head + " · regulatory " + counts.reg +
+               " · dividends " + counts.div + " · book closures " + counts.close;
+    $("src").textContent = CUR + " wire";
+    $("foot").textContent = note;
+    feedEl();
+  }
+
+  // --- load every feed for this exchange, merge, sort newest first ---
+  $("exTitle").textContent = CUR;
+  var files = EX_FILE[CUR] || [];
+  var jobs = files.map(function(f){ return load(f).then(function(list){ return {kind:"head", list:list}; }); });
+  jobs.push(load("reg.json").then(function(list){
+    return {kind:"reg", list: (list && list.items) ? list.items : (list || [])};
+  }));
+  var actFile = ACT_FILE[CUR];
+  if(actFile){
+    jobs.push(load(actFile).then(function(list){ return {kind:"act", list: list || []}; }));
+  }
+  Promise.all(jobs).then(function(results){
+    var seen = {};
+    results.forEach(function(r){
+      (r.list || []).forEach(function(n){
+        if(!n) return;
+        var isAct = (r.kind === "act");
+        var title = n.title || n.headline || (isAct ? (n.text || "") : "");
+        if(!String(title).trim()) return;
+        var k = key(n);
+        if(seen[k]) return;
+        seen[k] = 1;
+        if(r.kind === "head"){
+          n._kind = "head"; counts.head++;
+        } else if(r.kind === "reg"){
+          n._kind = "reg"; counts.reg++;
+        } else {
+          var c = clsAct(n);
+          if(c === "div"){ n._kind = "div"; counts.div++; }
+          else if(c === "close"){ n._kind = "close"; counts.close++; }
+          else { n._kind = "gen"; } // stays in ALL under its own kind badge
+        }
+        n._ttl = String(title).trim();
+        n._d = fmtD(n.date);
+        n._t = stamp(n);
+        n._meta = "";
+        all.push(n);
+      });
+    });
+    all.sort(function(a, b){ return b._t - a._t; });
+    finish();
+  }).catch(function(){ finish(); });
+  renderChips();
+})();
+</script>
+</body>
+</html>

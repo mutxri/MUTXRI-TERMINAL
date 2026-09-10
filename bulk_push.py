@@ -26,8 +26,19 @@ def git_blob_sha(content):
     return hashlib.sha1(b"blob %d\0" % len(content) + content).hexdigest()
 
 def main():
-    # live tree (one call)
-    tree = api("git/trees/gh-pages?recursive=1")
+    # live tree (one call) — retry hard: the ~930KB recursive tree GET is where
+    # the flaky contents API truncates (http.client.IncompleteRead) and kills runs.
+    tree = None
+    for attempt in range(8):
+        try:
+            tree = api("git/trees/gh-pages?recursive=1")
+            break
+        except Exception as e:
+            print(f"tree GET retry {attempt + 1}/8: {str(e)[:70]}")
+            time.sleep(6 * (attempt + 1))
+    if tree is None:
+        print("FATAL: could not fetch the gh-pages tree after 8 attempts")
+        return
     live = {t["path"]: t["sha"] for t in tree["tree"] if t["type"] == "blob"}
     print(f"live branch: {len(live)} blobs")
 
@@ -43,7 +54,9 @@ def main():
                 changed.append((rel, content))
     print(f"changed files to push: {len(changed)}")
 
-    msg = "Price refresh + screener rebuild + logo globe fix (runbook fixes 3-5)"
+    # commit message: pass one as argv[1], else fall back to the old default
+    msg = sys.argv[1] if len(sys.argv) > 1 else \
+        "Price refresh + screener rebuild + logo globe fix (runbook fixes 3-5)"
     ok = 0
     for rel, content in changed:
         for attempt in range(3):

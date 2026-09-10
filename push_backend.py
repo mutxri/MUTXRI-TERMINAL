@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
-"""push_backend.py - push hardened backend files to the backend branch."""
+"""push_backend.py - push hardened backend files to the backend branch.
+
+GUARD: refuses to push anything that reintroduces scrapped features
+(welcome/sign-in emails, login attempt log, GitHub OAuth) - these were
+deliberately removed 2026-09-03 per user instruction.
+"""
 import urllib.request, json, base64, os, sys
 
 sec = json.load(open(r"D:\mutxri-terminal\secrets_local.json", encoding="utf-8"))
 gh_token = sec["github_pat"]
 REPO = "mutxri/MUTXRI-TERMINAL"
 BR = "backend"
+
+# Content that must NEVER come back on the backend branch
+BANNED_TOKENS = ["signin_notify", "login_log", "notify_signin",
+                 'provider == "github"', "GITHUB_CLIENT_ID"]
 
 def raw(path, method="GET", data=None):
     url = f"https://api.github.com/repos/{REPO}/{path}"
@@ -22,19 +31,21 @@ def raw(path, method="GET", data=None):
 files = {
     "afri_server.py": r"D:\mutxri-terminal\backend_render\afri_server.py",
     "auth_api.py": r"D:\mutxri-terminal\backend_render\auth_api.py",
-    "login_log.py": r"D:\mutxri-terminal\backend_render\login_log.py",
+    "chat_room.py": r"D:\mutxri-terminal\backend_render\chat_room.py",
 }
 for rel, local in files.items():
     content = open(local, "rb").read()
+    text = content.decode("utf-8", "replace")
+    for tok in BANNED_TOKENS:
+        if tok in text:
+            print(f"BLOCKED: {rel} contains banned token '{tok}' - refusing to push.")
+            print("(Scrapped features must not be reintroduced. Remove it first.)")
+            sys.exit(1)
     st, out = raw(f"contents/{rel}?ref=backend")
-    data = {"message": "Sign-in notifications + login log: welcome/new-device emails (SES) and durable attempt log (Mongo login_events, JSON fallback)",
-            "content": base64.b64encode(content).decode(), "branch": BR}
-    if st == 200:
-        data["sha"] = out["sha"]  # update existing file
-    elif st == 404:
-        pass  # new file - create without sha
-    else:
-        print(f"{rel}: sha lookup failed ({st})")
-        continue
-    st2, out2 = raw(f"contents/{rel}", "PUT", data)
+    data = {"message": "Backend update (auth/persistence)",
+            "content": base64.b64encode(content).decode(),
+            "branch": BR, "sha": out["sha"] if st == 200 else None}
+    st2, out2 = raw("contents/" + rel, "PUT", data)
     print(f"{rel}: push {st2} ({len(content)} bytes)")
+    if st2 not in (200, 201):
+        print("  response:", str(out2)[:200])

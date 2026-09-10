@@ -46,8 +46,8 @@
 
 <div class="wrap">
   <div class="head">
-    <span class="code">NEWS</span>
-    <span class="title"><span id="exTitle">NSE</span> NEWS <b>· HEADLINES · REGULATORY · ACTIONS</b></span>
+    <span class="code" id="panelCode">NEWS</span>
+    <span class="title"><span id="exTitle">NSE</span> <span id="panelKind">NEWS</span> <b id="panelFeeds">· HEADLINES · REGULATORY · ACTIONS</b></span>
     <span class="spacer"></span>
     <span class="src" id="src">Headlines · Reg · Actions</span>
   </div>
@@ -57,7 +57,17 @@
 (function(){
   "use strict";
   var CUR = "NSE";
-  try{ var _q = new URLSearchParams(window.location.search); if(_q.get("ex")) CUR = _q.get("ex").toUpperCase(); }catch(e){}
+  // PRESS_ONLY drops the regulator wire and the corporate actions, leaving the
+  // press headlines on their own. Same file, two tabs: NEWS is the merged wire,
+  // PRESS is the reading list. Kept as a mode rather than a second panel file
+  // because this panel already exists twice on disk (features/panels and the
+  // static_data snapshot) and a third copy would be a third thing to drift.
+  var PRESS_ONLY = false;
+  try{
+    var _q = new URLSearchParams(window.location.search);
+    if(_q.get("ex")) CUR = _q.get("ex").toUpperCase();
+    PRESS_ONLY = (_q.get("feeds") || "").toLowerCase() === "press";
+  }catch(e){}
   // Each exchange draws on its official/collector feed plus the market-bot scan.
   // JSE had headlines in jse_news.json all along that this panel never loaded,
   // and EGX had no feed at all - the scan reaches it through three sources.
@@ -69,15 +79,25 @@
   };
   var EX_NAME = { "NSE": "NSE", "NGX": "NGX", "JSE": "JSE", "EGX": "EGX" };
   var MONTHS = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  var MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   // The REG panel's content folds into this one: the regulator wire, filtered
   // to the country of the exchange currently shown.
   var REG_ISO = { "NSE": "KE", "NGX": "NG", "JSE": "ZA", "EGX": "EG" };
   // Structured corporate actions (dividends / book closures) for exchanges
-  // that publish them as their own feed. NGX dividends and closures already
-  // ride ngx_news.json (official disclosures), JSE corporate actions arrive
-  // via the bot scan, and EGX has no reachable English feed - so only NSE
-  // needs its separate corporate-action file folded in.
-  var CORP_FILE = { "NSE": "nse_corporate_actions.json" };
+  // that publish them as their own feed.
+  //
+  // NGX was previously left out on the assumption that its dividends and
+  // closures already rode ngx_news.json. They do not: that feed carries
+  // dividends but no book closures at all, while ngx_corporate_actions.json
+  // holds 397 corporate actions - 86 of them closure notices - plus directors'
+  // dealings and board meetings. Only one of its 1000 rows duplicates a
+  // headline already in the news feed, so folding it in adds coverage without
+  // doubling anything up.
+  //
+  // JSE corporate actions arrive via the bot scan; EGX has no reachable
+  // English feed.
+  var CORP_FILE = { "NSE": "nse_corporate_actions.json",
+                    "NGX": "ngx_corporate_actions.json" };
 
   function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
@@ -108,6 +128,14 @@
   }
 
   document.getElementById("exTitle").textContent = EX_NAME[CUR] || CUR;
+  // the header must describe what is actually in the list below it
+  if(PRESS_ONLY){
+    document.getElementById("panelCode").textContent = "PRESS";
+    document.getElementById("panelKind").textContent = "PRESS";
+    document.getElementById("panelFeeds").textContent = "· HEADLINES";
+    document.getElementById("src").textContent = "Headlines only";
+    document.title = "MUTXRI TERMINAL - PRESS";
+  }
   var files = EX_FILE[CUR];
   var el = document.getElementById("items");
   if(!files || !files.length){
@@ -152,19 +180,46 @@
     var out = [];
     (list || []).forEach(function(r){
       if(!r || !r.name || !r.text) return;
-      var m = String(r.date || "").trim().match(/^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4})$/);
-      var ts = 0, disp = r.date || "";
+      // The two exchanges date these differently - NSE writes "Sep 04 2026",
+      // NGX writes "2026-08-28". Parse both, or the ISO rows get no timestamp,
+      // sort to the bottom of a date-ordered list and print a date shaped
+      // unlike every other row.
+      var raw = String(r.date || "").trim();
+      var ts = 0, disp = raw;
+      var m = raw.match(/^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4})$/);
+      var iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if(m && MONTHS[m[1]] != null){
         ts = Date.UTC(+m[3], MONTHS[m[1]], +m[2]) / 1000;
         disp = m[1] + " " + (+m[2]);
+      }else if(iso){
+        ts = Date.UTC(+iso[1], +iso[2] - 1, +iso[3]) / 1000;
+        // same "Sep 4" shape the NSE rows use, so one list reads as one list
+        disp = MONTH_NAMES[+iso[2] - 1] + " " + (+iso[3]);
       }
       out.push({ title: r.name + ": " + r.text,
         publisher: String(r.kind || "Corporate Action").toLowerCase().replace(/\b\w/g, function(c){ return c.toUpperCase(); }),
-        date: disp, url: r.url || "", ts: ts,
+        date: disp, url: r.url || "", ts: ts, _corp: true,
         tickers: r.ticker ? [r.ticker] : [] });
     });
     out.sort(function(a, b){ return (b.ts || 0) - (a.ts || 0); });
-    return out.slice(0, 25);
+
+    // Dividends and book closures are the two announcements people open this
+    // panel for, and a plain newest-25 buries them: NGX files enough board
+    // meetings and directors' dealings in any given week to fill the slice, so
+    // the dividend notices - days older - never appeared at all. Give those two
+    // categories their own share of the slice and let everything else fill the
+    // rest, all still newest-first.
+    // Take the dividend and closure notices first, then fill the remainder of
+    // the slice with everything else, newest-first. Capping the priority bucket
+    // instead would cut NSE in half - every one of its corporate actions is a
+    // dividend or a closure - so the rule is "these go in first", never "these
+    // get at most N".
+    var PRIORITY = /dividend|book clos|closure of register|closed period/i;
+    var CORP_CAP = 25;
+    var keyed = [], other = [];
+    out.forEach(function(n){ (PRIORITY.test(n.title) ? keyed : other).push(n); });
+    var pick = keyed.slice(0, CORP_CAP);
+    return pick.concat(other.slice(0, CORP_CAP - pick.length));
   }
 
   function shortDate(ts){
@@ -177,9 +232,9 @@
   var jobs = (files || []).map(function(nm){
     return load(nm).then(function(d){ return { kind: "plain", rows: d }; });
   });
-  if(REG_ISO[CUR])
+  if(!PRESS_ONLY && REG_ISO[CUR])
     jobs.push(load("reg.json").then(function(d){ return { kind: "reg", rows: d }; }));
-  if(CORP_FILE[CUR])
+  if(!PRESS_ONLY && CORP_FILE[CUR])
     jobs.push(load(CORP_FILE[CUR]).then(function(d){ return { kind: "corp", rows: d }; }));
 
   Promise.all(jobs).then(function(srcs){
@@ -199,7 +254,19 @@
     });
     if(!all.length){ el.innerHTML = '<div class="empty">no news</div>'; return; }
     all.sort(function(a, b){ return b._t - a._t; });
-    el.innerHTML = all.slice(0, 120).map(function(n){
+
+    // Corporate actions must not lose a date race. NGX files ~300 press items a
+    // month, so on a straight date sort the dividend and book-closure notices -
+    // which are days older - fall past the 120-row cut and vanish, which is
+    // exactly what they did before this. They are already capped at 25 by
+    // corpRows, so reserve them their places and fill the rest by date.
+    var CAP = 120;
+    var corp = all.filter(function(n){ return n._corp; });
+    var rest = all.filter(function(n){ return !n._corp; });
+    var shown = corp.concat(rest.slice(0, Math.max(0, CAP - corp.length)));
+    shown.sort(function(a, b){ return b._t - a._t; });
+
+    el.innerHTML = shown.map(function(n){
       var ticks = (n.tickers || []).slice(0, 3).map(function(t){
         return '<span class="tick">' + esc(t) + '</span>'; }).join(" ");
       var head = n.url
