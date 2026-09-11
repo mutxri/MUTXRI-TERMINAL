@@ -59,8 +59,15 @@ def check(rows):
             if test(x, y):
                 hits.setdefault(i, []).append((a, b, reason))
 
+    # Signed, not absolute. Cost of sales is never negative, so gross profit can
+    # never sit ABOVE revenue - but it can sit below it by more than revenue's
+    # own size. An investment holding company with fair-value losses reports
+    # negative revenue (EPE Capital Partners, FY2025: revenue -726.8M, gross
+    # profit -757.2M); a business selling below cost reports a gross loss larger
+    # than its revenue. Both are real. Comparing magnitudes flagged both as
+    # impossible and suppressed them.
     pair("Revenue", "Gross Profit",
-         lambda rev, gp: bool(rev) and bool(gp) and abs(gp) > abs(rev) * 1.02,
+         lambda rev, gp: bool(rev) and bool(gp) and gp > rev + abs(rev) * 0.02,
          "gross profit exceeds revenue")
     pair("Profit Before Tax", "Net Profit",
          lambda pbt, np_: pbt > 0 and np_ > 0 and np_ > pbt * 1.05,
