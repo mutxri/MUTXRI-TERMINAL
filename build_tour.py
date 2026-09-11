@@ -40,19 +40,12 @@ TAIL = 0.35                       # beat after each line so scenes do not collid
 # The narration is now a neural voice, which arrives even and full-bodied, so
 # this is a light touch rather than the repair job the SAPI track needed:
 #   highpass   - clears anything below the voice
-#   compand    - lifts the unstressed words the voice throws away. Aria puts
-#                "the" and "from" 5-10 dB under the rest of the line; on a
-#                laptop speaker that is heard as a missing word, so quiet
-#                syllables come up while the loud ones stay put. Slow release,
-#                so it lifts rather than pumps.
 #   equalizer  - a small presence lift at 3 kHz for phone speakers
 #   loudnorm   - lands on a consistent -18 LUFS with headroom to spare
 AUDIO_CHAIN = (
     "highpass=f=80,"
-    "compand=attacks=0.008:decays=0.28:"
-    "points=-70/-70|-46/-28|-30/-19|-16/-12|0/-7:soft-knee=6:gain=2,"
     "equalizer=f=3000:t=q:w=1.4:g=1.5,"
-    "loudnorm=I=-18:TP=-1.5:LRA=9"
+    "loudnorm=I=-18:TP=-1.5:LRA=11"
 )
 
 
