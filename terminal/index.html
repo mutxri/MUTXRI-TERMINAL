@@ -1220,14 +1220,22 @@ function exOn(ex){ return !EX_FULL[ex] || EX_FULL[ex].enabled !== false; }
 // bar does not grow when a listing is added.
 function renderExchTabs(){ /* the chips are gone; kept so old call sites are safe */ }
 function switchExchange(ex){
+  const moved = ex !== currentEx;
   currentEx = ex;
+  // A selected security belongs to one exchange. Carried across a switch, the
+  // financials panel labelled Sasol "NGX" - a Johannesburg company under Lagos.
+  // Every caller that switches TO a security sets curSec again straight after
+  // this returns, so clearing here only affects a plain change of market.
+  if(moved) curSec = null;
   // remember it: a returning user should never be asked again
   try{ localStorage.setItem('mt_ex', currentEx); }catch(e){}
   renderExchTabs();
   $('wlEx').textContent = currentEx + ' · ' + ((listing[currentEx] || []).length || '…');
-  // reload the open panel for the new exchange (every panel is ?ex= aware)
-  const _cur = $('stageFrame').src;
-  $('stageFrame').src = _cur.replace(/([?&])ex=[A-Za-z]+/, '$1ex=' + currentEx);
+  // reload the open panel for the new exchange (every panel is ?ex= aware),
+  // and drop the old market's security from it
+  let _cur = $('stageFrame').src.replace(/([?&])ex=[A-Za-z]+/, '$1ex=' + currentEx);
+  if(moved) _cur = _cur.replace(/([?&])sym=[^&]*(&|$)/, '$1').replace(/[?&]$/, '');
+  $('stageFrame').src = _cur;
   if(!listing[currentEx]) {
     // immediate tape from the new exchange's own data, then refresh
     buildTapeFromListing(currentEx);
@@ -1459,8 +1467,11 @@ function buildTapeFromListing(ex){
 
 // ===== Command bar =====
 // ===== Command bar: Bloomberg-style "TICKER FUNCTION" =====
-const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'chart', CN:'wire', NEWS:'wire', REG:'wire',
-                     HP:'chart', EQS:'screener', RV:'financials', SPLC:'info'};
+// CN and REG open NEWS, which merged company news and the regulatory wire -
+// they pointed at a 'wire' panel that no longer exists and answered "unknown".
+// GP/HP are gone: there is no chart panel (a chart opens from a heatmap cell).
+const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', CN:'news', REG:'news',
+                     EQS:'screener', RV:'financials', SPLC:'info'};
 // Every market's tickers, fetched once at boot (39 KB gzipped for all four) so
 // a ticker resolves no matter which board is on screen. Before this, typing a
 // Nairobi ticker while on the JSE board just answered "unknown".
