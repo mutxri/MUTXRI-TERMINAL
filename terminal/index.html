@@ -1058,8 +1058,10 @@ renderTabs();
 // (?panel= deep-link support for the landing showcase; unknown panels fall back to default)
 let __startIdx = 0;
 if(window.__INIT_PANEL){
-  // NEWS and REG merged into WIRE; old deep links still land on the right tab
-  const __pid = {news:'wire', reg:'wire'}[window.__INIT_PANEL] || window.__INIT_PANEL;
+  // The merged wire's panel id is 'news'; 'wire' and 'reg' are older names for it.
+  // This used to map news TO 'wire', a panel that no longer exists, so every
+  // ?panel=news link fell back to the heatmap.
+  const __pid = {wire:'news', reg:'news'}[window.__INIT_PANEL] || window.__INIT_PANEL;
   const __pi = PANELS.findIndex(p => p.id === __pid);
   if(__pi >= 0) __startIdx = __pi;
 }
