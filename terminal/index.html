@@ -706,6 +706,9 @@ let PANELS = [
   {id:'fx',      label:'FX',       url:'features/panels/afri_fx.html'},
   {id:'tas',     label:'TAS',      url:'features/panels/afri_tas.html'},
   {id:'ratings', label:'RATINGS',  url:'features/panels/afri_ratings.html'},
+  // Paper trading: simulated orders filled at the last close, the account held
+  // in the browser. Not a broker, and the panel says so on screen.
+  {id:'trade',   label:'TRADE',    url:'features/panels/afri_trade.html'},
 ];
 // restore the user's saved tab order (workflow persistence)
 try{
@@ -1556,6 +1559,23 @@ function runCommand(raw){
     const k = WINDOW_CMDS[v];
     // a command for a window you are already looking at means "close it"
     window.MTWin.set(k, !window.MTWin.isOpen(k));
+    return;
+  }
+  // BUY / SELL <TICKER> <QTY> - paper trading. The ticker resolves the same way
+  // it does everywhere else, the board switches if the security lives on another
+  // market, and the order goes to the TRADE panel, which is the only thing that
+  // fills it - simulated, in the browser, against the last close.
+  const _tr = v.match(/^(BUY|SELL)\s+([A-Z0-9.\-]+)\s+(\d+)$/);
+  if(_tr){
+    const _tp = PANELS.find(x => x.id === 'trade');
+    if(!_tp){ showUnknown('the TRADE panel is not available'); return; }
+    const _tsec = resolveSec(_tr[2]);
+    if(!_tsec){ showUnknown('no security matches "' + _tr[2] + '"'); return; }
+    if(_tsec.ex !== currentEx && typeof switchExchange === 'function') switchExchange(_tsec.ex);
+    curSec = _tsec.sym;
+    openPanelTab(_tp);
+    $('stageFrame').src = panelUrl(_tp) + '&order=' +
+      encodeURIComponent(_tr[1] + ':' + _tsec.sym + ':' + _tr[3]);
     return;
   }
   let parts = v.split(/\s+/);
