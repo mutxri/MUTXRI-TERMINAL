@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL — TRADE (paper trading demo).
+
+  Simulated orders only. There is no broker behind this, no money moves, and
+  nothing leaves the browser: the account lives in localStorage, one per
+  exchange, in that exchange's own currency (the JSE quotes in cents, so its
+  balance is in ZAc). Orders fill at the last close carried in
+  static_data/listing_<EX>.json, and every fill records the session date it
+  used, because that is the only price this data set has.
+
+  The banner says all of that on screen. Until there is a licence and a real
+  execution venue behind it, the UI must never let a demo look like an order.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL — TRADE (DEMO)</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+  :root{
+    --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
+    --line:#1a1a1a; --line2:#262626;
+    --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
+    --up:#33e29a; --down:#f87171; --acc:#33e29a; --warn:#e0a340;
+    --mono:'Oxygen Mono',ui-monospace,monospace; --ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--ui);font-size:13px;}
+  .wrap{padding:10px 14px 26px;}
+  .demo{display:flex;align-items:center;gap:10px;border:1px solid var(--warn);
+        background:rgba(224,163,64,.08);border-radius:3px;padding:8px 12px;margin-bottom:12px;}
+  .demo b{color:var(--warn);font-family:var(--mono);font-size:11px;letter-spacing:.12em;}
+  .demo span{color:var(--tx2);font-size:11.5px;}
+  .bar{display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;margin-bottom:12px;
+       border-bottom:1px solid var(--line2);padding-bottom:10px;}
+  .stat .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--tx3);}
+  .stat .v{font-family:var(--mono);font-size:15px;color:var(--tx);}
+  .ticket{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;}
+  .side{display:flex;border:1px solid var(--line2);border-radius:2px;overflow:hidden;}
+  .side button{background:var(--bg3);color:var(--tx2);border:0;padding:7px 14px;
+               font-family:var(--mono);font-size:11px;letter-spacing:.08em;cursor:pointer;}
+  .side button.on[data-side=BUY]{background:var(--up);color:#00160e;}
+  .side button.on[data-side=SELL]{background:var(--down);color:#1a0000;}
+  input{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
+        font-family:var(--mono);font-size:12px;padding:7px 10px;border-radius:2px;}
+  input:focus{outline:none;border-color:var(--acc);}
+  #sym{width:130px;text-transform:uppercase;} #qty{width:90px;}
+  .go{background:var(--acc);color:#00160e;border:0;padding:8px 18px;border-radius:2px;
+      font-family:var(--mono);font-size:11px;letter-spacing:.1em;font-weight:700;cursor:pointer;}
+  .go:disabled{background:var(--bg4);color:var(--tx3);cursor:not-allowed;}
+  .est{font-family:var(--mono);font-size:11.5px;color:var(--tx2);}
+  .msg{font-family:var(--mono);font-size:11.5px;margin:6px 0 14px;min-height:16px;}
+  .msg.err{color:var(--down);} .msg.ok{color:var(--up);}
+  h2{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--tx3);
+     text-transform:uppercase;margin:18px 0 8px;font-weight:400;}
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px;}
+  th{text-align:right;color:var(--tx3);font-weight:400;font-size:10px;letter-spacing:.08em;
+     padding:5px 8px;border-bottom:1px solid var(--line2);}
+  th:first-child,td:first-child{text-align:left;}
+  td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);color:var(--tx);}
+  tr:hover td{background:var(--bg2);}
+  .up{color:var(--up);} .down{color:var(--down);} .dim{color:var(--tx3);}
+  .empty{color:var(--tx3);font-family:var(--mono);font-size:11.5px;padding:10px 0;}
+  .foot{margin-top:20px;display:flex;justify-content:space-between;align-items:center;
+        border-top:1px solid var(--line2);padding-top:10px;}
+  .reset{background:none;border:1px solid var(--line2);color:var(--tx3);border-radius:2px;
+         padding:6px 12px;font-family:var(--mono);font-size:10.5px;cursor:pointer;}
+  .reset:hover{border-color:var(--down);color:var(--down);}
+  .asof{font-family:var(--mono);font-size:10.5px;color:var(--tx3);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="demo">
+    <b>DEMO</b>
+    <span>Simulated orders. Nothing is sent to a broker and no money moves. Fills use the
+          last close, and no fees are modelled.</span>
+  </div>
+
+  <div class="bar">
+    <div class="stat"><div class="k" id="kCash">CASH</div><div class="v" id="vCash">—</div></div>
+    <div class="stat"><div class="k">HOLDINGS</div><div class="v" id="vHold">—</div></div>
+    <div class="stat"><div class="k">ACCOUNT VALUE</div><div class="v" id="vTotal">—</div></div>
+    <div class="stat"><div class="k">UNREALISED</div><div class="v" id="vPnl">—</div></div>
+    <div class="stat" style="margin-left:auto"><div class="k">MARKET</div><div class="v" id="vEx">—</div></div>
+  </div>
+
+  <div class="ticket">
+    <div class="side">
+      <button data-side="BUY" class="on">BUY</button>
+      <button data-side="SELL">SELL</button>
+    </div>
+    <input id="sym" list="tickers" placeholder="TICKER" autocomplete="off" />
+    <datalist id="tickers"></datalist>
+    <input id="qty" type="number" min="1" step="1" placeholder="QTY" />
+    <button class="go" id="go">PLACE</button>
+    <span class="est" id="est"></span>
+  </div>
+  <div class="msg" id="msg"></div>
+
+  <h2>Positions</h2>
+  <div id="positions"></div>
+
+  <h2>Order history</h2>
+  <div id="orders"></div>
+
+  <div class="foot">
+    <span class="asof" id="asof"></span>
+    <button class="reset" id="reset">RESET DEMO ACCOUNT</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var Q = new URLSearchParams(location.search);
+  var EX = (Q.get("ex") || "JSE").toUpperCase();
+  var PRESET = (Q.get("sym") || "").toUpperCase();
+  var ORDER = (Q.get("order") || "").toUpperCase();   // SIDE:TICKER:QTY from the command line
+  var KEY = "mx_paper_v1";
+  // Demo balances, in each market's own quote currency. The JSE quotes in
+  // cents, so ten million ZAc is R100,000 - not a hundred million rand.
+  var START = {JSE:10000000, NGX:5000000, NSE:1000000, EGX:500000};
+  var side = "BUY", rows = [], bySym = {}, dateBy = {}, cur = "", asOf = "";
+
+  function $(id){ return document.getElementById(id); }
+  function store(){
+    var all;
+    try { all = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){ all = {}; }
+    if(!all[EX]) all[EX] = {cash: START[EX] || 1000000, positions:{}, orders:[]};
+    return all;
+  }
+  function save(all){ try{ localStorage.setItem(KEY, JSON.stringify(all)); }catch(e){} }
+  function acct(){ return store()[EX]; }
+  function fmt(n, dp){
+    if(n === null || n === undefined || isNaN(n)) return "—";
+    return Number(n).toLocaleString(undefined,{minimumFractionDigits:dp===undefined?2:dp,
+                                               maximumFractionDigits:dp===undefined?2:dp});
+  }
+  function money(n){ return cur + " " + fmt(n); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+  function priceOf(t){ var r = bySym[t]; return r && r.price != null ? Number(r.price) : null; }
+  function nameOf(t){ var r = bySym[t]; return r ? (r.name || "") : ""; }
+  function dateOf(t){ return dateBy[t] || dateBy[String(t).split(".")[0]] || ""; }
+
+  function render(){
+    var a = acct(), held = 0, cost = 0;
+    var keys = Object.keys(a.positions).sort();
+    var body = keys.map(function(t){
+      var p = a.positions[t], px = priceOf(t);
+      var mv = px == null ? null : px * p.qty;
+      var bk = p.avg * p.qty;
+      var pl = mv == null ? null : mv - bk;
+      var plp = (mv == null || bk === 0) ? null : (pl / bk) * 100;
+      if(mv != null){ held += mv; cost += bk; }
+      var cls = pl == null ? "dim" : (pl >= 0 ? "up" : "down");
+      return "<tr><td>" + esc(t) + " <span class='dim'>" + esc(nameOf(t).slice(0,26)) + "</span></td>" +
+             "<td>" + fmt(p.qty,0) + "</td><td>" + fmt(p.avg) + "</td>" +
+             "<td>" + (px == null ? "—" : fmt(px)) + "</td>" +
+             "<td>" + (mv == null ? "—" : fmt(mv)) + "</td>" +
+             "<td class='" + cls + "'>" + (pl == null ? "—" : (pl >= 0 ? "+" : "") + fmt(pl)) + "</td>" +
+             "<td class='" + cls + "'>" + (plp == null ? "—" : (plp >= 0 ? "+" : "") + fmt(plp) + "%") + "</td></tr>";
+    }).join("");
+    $("positions").innerHTML = keys.length
+      ? "<table><tr><th>SECURITY</th><th>QTY</th><th>AVG COST</th><th>LAST</th><th>VALUE</th><th>P&amp;L</th><th>P&amp;L %</th></tr>" + body + "</table>"
+      : "<div class='empty'>No positions yet. Place a demo order above.</div>";
+
+    var pl = held - cost, cls = pl >= 0 ? "up" : "down";
+    $("vCash").textContent = money(a.cash);
+    $("vHold").textContent = money(held);
+    $("vTotal").textContent = money(a.cash + held);
+    $("vPnl").textContent = (pl >= 0 ? "+" : "") + fmt(pl);
+    $("vPnl").className = "v " + cls;
+    $("kCash").textContent = "CASH (" + cur + ")";
+    $("vEx").textContent = EX;
+
+    var o = a.orders.slice(0, 40).map(function(r){
+      return "<tr><td>" + esc(new Date(r.t).toLocaleString()) + "</td>" +
+             "<td class='" + (r.side === "BUY" ? "up" : "down") + "'>" + r.side + "</td>" +
+             "<td>" + esc(r.sym) + "</td><td>" + fmt(r.qty,0) + "</td><td>" + fmt(r.px) + "</td>" +
+             "<td>" + fmt(r.qty * r.px) + "</td><td class='dim'>" + esc(r.close || "") + "</td></tr>";
+    }).join("");
+    $("orders").innerHTML = a.orders.length
+      ? "<table><tr><th>WHEN</th><th>SIDE</th><th>SECURITY</th><th>QTY</th><th>FILL</th><th>VALUE</th><th>CLOSE USED</th></tr>" + o + "</table>"
+      : "<div class='empty'>No orders yet.</div>";
+    estimate();
+  }
+
+  function say(text, bad){
+    $("msg").textContent = text || "";
+    $("msg").className = "msg " + (text ? (bad ? "err" : "ok") : "");
+  }
+
+  function estimate(){
+    var t = ($("sym").value || "").trim().toUpperCase();
+    var q = parseInt($("qty").value, 10);
+    var px = priceOf(t);
+    if(!t || !q || q <= 0 || px == null){ $("est").textContent = ""; return; }
+    var dt = dateOf(t);
+    $("est").textContent = side + " " + q + " " + t + " at " + fmt(px) +
+      (dt ? " (close " + dt + ")" : "") + " = " + money(q * px);
+  }
+
+  function place(){
+    var t = ($("sym").value || "").trim().toUpperCase();
+    var q = parseInt($("qty").value, 10);
+    if(!t){ return say("Enter a ticker.", true); }
+    if(!bySym[t]){ return say(t + " is not listed on " + EX + ".", true); }
+    if(!q || q <= 0){ return say("Quantity must be a whole number above zero.", true); }
+    var px = priceOf(t);
+    if(px == null){ return say(t + " has no close price, so it cannot be filled.", true); }
+
+    var all = store(), a = all[EX], val = q * px;
+    var pos = a.positions[t] || {qty:0, avg:0};
+    if(side === "BUY"){
+      if(val > a.cash) return say("Not enough demo cash: " + money(val) + " needed, " + money(a.cash) + " available.", true);
+      a.cash -= val;
+      pos.avg = (pos.avg * pos.qty + val) / (pos.qty + q);
+      pos.qty += q;
+      a.positions[t] = pos;
+    } else {
+      if(pos.qty < q) return say("You hold " + fmt(pos.qty,0) + " " + t + ", not " + fmt(q,0) + ".", true);
+      a.cash += val;
+      pos.qty -= q;
+      if(pos.qty === 0) delete a.positions[t]; else a.positions[t] = pos;
+    }
+    a.orders.unshift({t: Date.now(), side: side, sym: t, qty: q, px: px, close: dateOf(t)});
+    save(all);
+    say(side + " " + fmt(q,0) + " " + t + " filled at " + fmt(px) + " (" + money(val) + ")", false);
+    $("qty").value = "";
+    render();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".side button"), function(b){
+    b.onclick = function(){
+      side = b.getAttribute("data-side");
+      Array.prototype.forEach.call(document.querySelectorAll(".side button"), function(x){
+        x.classList.toggle("on", x === b); });
+      estimate();
+    };
+  });
+  $("go").onclick = place;
+  $("sym").oninput = estimate;
+  $("qty").oninput = estimate;
+  $("qty").onkeydown = function(e){ if(e.key === "Enter") place(); };
+  $("sym").onkeydown = function(e){ if(e.key === "Enter") $("qty").focus(); };
+  $("reset").onclick = function(){
+    if(!confirm("Reset the demo account for " + EX + "? Positions and history are cleared.")) return;
+    var all = store(); delete all[EX]; save(all); say("Demo account reset.", false); render();
+  };
+
+  // The listing's own "date" field is not always a date - NSE carries the string
+  // "live board" - and a fill stamped with that says nothing. The session date
+  // comes from the market snapshot, and only if it really is a date.
+  Promise.all([
+    fetch("../../static_data/listing_" + EX + ".json").then(function(r){ return r.json(); }),
+    fetch("../../static_data/market_" + EX + ".json").then(function(r){ return r.json(); })
+                                                     .catch(function(){ return null; })
+  ])
+    .then(function(both){
+      var d = both[0], mkt = both[1];
+      var when = mkt && mkt.asOf ? String(mkt.asOf).slice(0, 10) : "";
+      if(/^\d{4}-\d{2}-\d{2}$/.test(when)) asOf = when;
+      rows = (d && d.stocks) || [];
+      // Each security carries its own session date - on the NSE some rows are
+      // weeks behind others - so a fill is stamped with that security’s close,
+      // never with the snapshot’s generation date.
+      ((mkt && mkt.stocks) || []).forEach(function(r){
+        var k = String(r.ticker || r.sym || "").toUpperCase();
+        var dt = String(r.asOf || r.date || r.session || "").slice(0, 10);
+        if(k && dt.length === 10 && !isNaN(Date.parse(dt))){
+          dateBy[k] = dt;
+          var kb = k.split(".")[0];
+          if(kb && !dateBy[kb]) dateBy[kb] = dt;
+        }
+      });
+      rows.forEach(function(r){
+        var t = String(r.ticker || r.sym || "").toUpperCase();
+        var b = t.split(".")[0];
+        if(t) bySym[t] = r;
+        if(b && !bySym[b]) bySym[b] = r;
+        if(!cur && r.currency) cur = r.currency;
+      });
+      cur = cur || "";
+      $("tickers").innerHTML = Object.keys(bySym).sort().map(function(t){
+        return "<option value='" + esc(t) + "'>"; }).join("");
+      $("asof").textContent = "Each fill uses that security’s own last close · " +
+                              rows.length + " securities on " + EX;
+      if(PRESET && bySym[PRESET]) $("sym").value = PRESET;
+      render();
+      if(ORDER){
+        var p = ORDER.split(":");
+        if(p.length === 3 && (p[0] === "BUY" || p[0] === "SELL")){
+          side = p[0];
+          Array.prototype.forEach.call(document.querySelectorAll(".side button"), function(x){
+            x.classList.toggle("on", x.getAttribute("data-side") === side); });
+          $("sym").value = p[1]; $("qty").value = p[2];
+          place();
+        }
+      }
+    })
+    .catch(function(){
+      $("asof").textContent = "Could not load the " + EX + " listing.";
+      say("No price data for " + EX + " right now.", true);
+    });
+})();
+</script>
+</body>
+</html>
