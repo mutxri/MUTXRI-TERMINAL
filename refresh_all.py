@@ -53,6 +53,11 @@ if "--history" in sys.argv:
     run("nse price history", ["fetch_nse_history_fast.py", "24"], timeout=1800)
     steps += 3
 run("market snapshots", ["build_market_snapshots.py"])
+# One volume per security, everywhere. The snapshot builder takes volume from
+# the latest bar and dates it; the listing that the watchlist and market rail
+# read carried an undated scrape that disagreed on 298 of 324 JSE securities.
+# This copies the dated figure across before anything is assembled.
+run("volume sync", ["sync_volumes.py"])
 run("screener", ["build_screener.py"])
 # heatmap_<EX>.json is derived from market_<EX>.json - without this the
 # default view silently ages while every price behind it refreshes
