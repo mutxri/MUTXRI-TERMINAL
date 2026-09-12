@@ -47,7 +47,11 @@ if "--history" in sys.argv:
     # of the terminal moved on. Cheap: one zip + PDF per session, skips any
     # session already in the archive.
     run("ngx price history", ["fetch_ngx_history.py", "10"], timeout=1800)
-    steps += 2
+    # NSE was never in this chain at all, so the Nairobi board froze on the
+    # last day the feed had been read. The NSE IR feed serves current months,
+    # so a normal fetch keeps it level with the other three exchanges.
+    run("nse price history", ["fetch_nse_history_fast.py", "24"], timeout=1800)
+    steps += 3
 run("market snapshots", ["build_market_snapshots.py"])
 run("screener", ["build_screener.py"])
 # heatmap_<EX>.json is derived from market_<EX>.json - without this the

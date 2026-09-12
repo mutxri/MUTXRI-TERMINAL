@@ -16,7 +16,8 @@ UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0'
 REF = 'https://www.nse.co.ke/share-price/'
 
 SYMS = ["SCOM", "EQTY", "EABL", "ABSA", "COOP", "KPLC", "NCBA", "SCBK", "SBIC",
-        "IMH", "KNRE", "NMG", "KEGN", "CIC", "TCL", "FMLY", "AMAC", "KPC"]
+        "IMH", "KNRE", "NMG", "KEGN", "CIC", "TCL", "FMLY", "AMAC", "KPC",
+        "BKG", "BRIT", "KQ", "NSE"]
 
 ROW = re.compile(r"<td class=l>(\d{4}-\d{2}-\d{2})</td>\s*<td>([\d,.-]+)</td>\s*<td>([\d,.-]+)</td>\s*<td>([\d,.-]+)</td>\s*<td>([\d,.-]+)</td>")
 
@@ -61,7 +62,11 @@ def fetch_symbol(ticker, months):
 def main():
     months_back = int(sys.argv[1]) if len(sys.argv) > 1 else 24
     months = []
-    y, mo = 2026, 8
+    # Start from the CURRENT month, not a hardcoded one: pinning this to a
+    # fixed (year, month) meant the feed was only ever read up to that month
+    # and the NSE board silently froze on the last day it covered.
+    _today = datetime.date.today()
+    y, mo = _today.year, _today.month
     for _ in range(months_back):
         months.append((y, mo))
         mo -= 1
