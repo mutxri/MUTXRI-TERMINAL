@@ -1110,7 +1110,13 @@ async function loadListing(ex){
           const m = byTkr[tkr] || byTkr[s.sym] || {};
           if(m.price != null){
             return Object.assign({}, s, {
-              price: m.price, chgPct: m.chgPct, volume: m.volume,
+              price: m.price, chgPct: m.chgPct,
+              // The snapshot carries the dated volume and wins where it has one.
+              // Where it has none, the listing's own figure stands rather than
+              // being wiped: on the NSE that is 20 securities the exchange board
+              // reported and the price bars do not carry.
+              volume: m.volume != null ? m.volume : s.volume,
+              volDate: m.volume != null ? (m.asOf || null) : (s.volDate || null),
               currency: m.currency || s.currency,
               sym: s.sym || m.sym || tkr,
               high: m.high, low: m.low, open: m.open, prevClose: m.prevClose,
@@ -1289,6 +1295,31 @@ function renderMarketOverview(ex){
              '<span class="' + cls + '">' + (c == null || isNaN(c) ? '—' : ((c >= 0 ? '+' : '') + c.toFixed(2) + '%')) + '</span></div>';
     }).join('');
   };
+  // Session volume for the whole board. Only securities that actually reported a
+  // volume are counted, and the count is shown beside the total - a third of the
+  // EGX board reports none, and a total that quietly leaves them out while
+  // implying the whole market would be a lie.
+  const volNum = function(v){
+    if(v == null) return null;
+    const n = Number(String(v).replace(/,/g, ''));
+    return isFinite(n) ? n : null;
+  };
+  let volTotal = 0, volCount = 0, volDate = '';
+  rows.forEach(function(s){
+    const v = volNum(s.volume);
+    if(v != null && v > 0){
+      volTotal += v; volCount++;
+      if(s.volDate && s.volDate > volDate) volDate = s.volDate;
+    }
+  });
+  const compact = function(n){
+    const a = Math.abs(n);
+    if(a >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+    if(a >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if(a >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if(a >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return String(Math.round(n));
+  };
   const srt = priced.filter(function(s){ return s.chgPct != null && !isNaN(Number(s.chgPct)); });
   const gainers = srt.slice().sort(function(a, b){ return Number(b.chgPct) - Number(a.chgPct); });
   const losers  = srt.slice().sort(function(a, b){ return Number(a.chgPct) - Number(b.chgPct); });
@@ -1306,6 +1337,13 @@ function renderMarketOverview(ex){
         '<span style="color:var(--down)">▼ ' + dec + '</span>' +
         '<span style="color:var(--tx3)">— ' + unc + '</span>' +
         '<span class="' + tCls + '" style="margin-left:auto;letter-spacing:.08em;font-size:9px;align-self:center">' + tone.toUpperCase() + '</span>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;align-items:baseline;font-family:var(--mono);font-size:10px;color:var(--tx3);padding-top:2px">' +
+        '<span>VOLUME</span>' +
+        '<span style="color:var(--tx);font-size:12px">' + (volCount ? compact(volTotal) : '—') + '</span>' +
+        '<span>shares</span>' +
+        '<span style="margin-left:auto">' + volCount + '/' + rows.length + ' reported' +
+          (volDate ? ' · ' + esc(volDate) : '') + '</span>' +
       '</div>' +
     '</div>' +
     '<div style="padding:8px 12px">' +
