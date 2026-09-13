@@ -302,11 +302,33 @@ def store_mode():
     """'mongo' when connected to MongoDB, 'json' when falling back to users.json."""
     return "mongo" if _USE_MONGO else "json"
 
-def admin_list(key, delete_email=None):
-    """Admin: list signed-up users (or delete one with delete_email).
-    Requires ADMIN_KEY env (constant-time compare). Never exposes password hashes."""
+def _admin_key_ok(key):
+    """The ADMIN_KEY from the environment, compared in constant time."""
     expected = os.environ.get("ADMIN_KEY", "")
-    if not expected or not key or not hmac.compare_digest(key, expected):
+    return bool(expected) and bool(key) and hmac.compare_digest(key, expected)
+
+
+def _owner_token_ok(token):
+    """True when the caller holds a live session for the OWNER account.
+
+    The owner already signs into the terminal with their own account, so they
+    should not have to go digging the ADMIN_KEY out of the Render dashboard
+    just to see who is using it. Reading is owner-only; nothing here exposes a
+    password hash.
+    """
+    s = _session_get(token or "")
+    return bool(s) and s.get("exp", 0) > time.time() and _is_owner(s.get("email"))
+
+
+def _admin_ok(key, token):
+    return _admin_key_ok(key) or _owner_token_ok(token)
+
+
+def admin_list(key, delete_email=None, token=""):
+    """Admin: list signed-up users (or delete one with delete_email).
+    Authorised by the ADMIN_KEY env var OR a live owner session token.
+    Never exposes password hashes."""
+    if not _admin_ok(key, token):
         return {"ok": False, "error": "unauthorized"}
     if delete_email:
         delete_email = delete_email.lower().strip()
@@ -335,6 +357,23 @@ def admin_list(key, delete_email=None):
         return {"ok": False, "error": "db error: %s" % str(e)[:80]}
     users.sort(key=lambda r: r.get("created") or 0, reverse=True)
     return {"ok": True, "count": len(users), "users": users}
+
+def admin_overview(key="", token=""):
+    """The owner's at-a-glance view: every account, how it was created, when
+    the newest one arrived, and which store answered."""
+    if not _admin_ok(key, token):
+        return {"ok": False, "error": "unauthorized"}
+    base = admin_list(key, token=token)
+    if not base.get("ok"):
+        return base
+    users = base.get("users", [])
+    by_provider = {}
+    for u in users:
+        p = (u.get("oauth") or "email").lower() or "email"
+        by_provider[p] = by_provider.get(p, 0) + 1
+    newest = max([u.get("created") or 0 for u in users] or [0])
+    return {"ok": True, "count": len(users), "by_provider": by_provider,
+            "newest_created": newest, "store": store_mode(), "users": users}
 
 def handle_auth(path, q):
     """Router for /api/auth/*  (signup | login | logout | me | oauth exchange)."""
