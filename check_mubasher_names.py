@@ -34,8 +34,11 @@ products packaging printing medical agricultural engineering projects enterprise
 
 
 def words(s):
+    # compared on a 5-letter stem: "Paints"/"Paint", "Tourism"/"Touristic" and
+    # "Marseille"/"Marseilia" are the same company spelled two ways, and whole-word
+    # matching rejected all three
     s = re.sub(r"\(.*?\)", " ", s or "").lower()
-    return {w for w in re.findall(r"[a-z]{3,}", s) if w not in GENERIC}
+    return {w[:5] for w in re.findall(r"[a-z]{3,}", s) if w not in GENERIC}
 
 
 def main():
