@@ -789,7 +789,12 @@ function renderTabs(){
     function fresh(name){ return {name: name, wins: tiled(), auto: true}; }
     function touched(){
       const sp = cur();
-      if(sp && sp.auto){ sp.auto = false; }
+      if(sp && sp.auto){
+        sp.auto = false;
+        // remember the board this arrangement was made on, so it can follow it
+        const b = box();
+        if(b.width && b.height){ sp.bw = b.width; sp.bh = b.height; }
+      }
     }
     function retile(){
       const sp = cur();
@@ -800,10 +805,19 @@ function renderTabs(){
       KEYS.forEach(function(k){ sp.wins[k].open = open[k]; });   // a closed window stays closed
     }
 
+    // v2 layouts carry the board size they were arranged on (bw/bh). Layouts saved
+    // before that were also hit by clampWin writing a momentarily small board's
+    // height into the saved window - the PANEL stopped short of the board and never
+    // grew back - so those re-tile once.
+    const LAYOUT_V = 2;
     function save(){
       try{
-        localStorage.setItem('mt_ws', JSON.stringify({active: active,
-          spaces: spaces.map(function(sp){ return {name: sp.name, wins: sp.wins, auto: !!sp.auto}; })}));
+        const b = box(), sp = cur();
+        if(sp && !sp.auto && b.width && b.height){ sp.bw = b.width; sp.bh = b.height; }
+        localStorage.setItem('mt_ws', JSON.stringify({v: LAYOUT_V, active: active,
+          spaces: spaces.map(function(sp){
+            return {name: sp.name, wins: sp.wins, auto: !!sp.auto, bw: sp.bw || 0, bh: sp.bh || 0};
+          })}));
       }catch(e){}
     }
     (function restore(){
@@ -819,7 +833,8 @@ function renderTabs(){
                        open: w.open !== false, z: +w.z || 10 + i};
           });
           return {name: String(sp.name || ('WS ' + (i + 1))).slice(0, 18), wins: wins,
-                  auto: sp.auto !== false};
+                  auto: s.v === LAYOUT_V ? sp.auto !== false : true,
+                  bw: +sp.bw || 0, bh: +sp.bh || 0};
         });
         active = Math.min(Math.max(0, s.active | 0), spaces.length - 1);
       }else{
@@ -835,19 +850,48 @@ function renderTabs(){
     function cur(){ return spaces[active]; }
     function win(k){ return cur().wins[k]; }
 
-    function clampWin(k){
-      const b = box(), w = win(k);
-      w.w = Math.max(MIN_W, Math.min(w.w, Math.max(MIN_W, b.width - 8)));
-      w.h = Math.max(MIN_H, Math.min(w.h, Math.max(MIN_H, b.height - 8)));
+    // Clamp a COPY for display. This used to write the clamped size back into the
+    // saved window, so a board that was briefly small (mid-load, a smaller screen)
+    // shrank the window for good.
+    function clamped(k){
+      const b = box(), s = Object.assign({}, win(k));
+      s.w = Math.max(MIN_W, Math.min(s.w, Math.max(MIN_W, b.width - 8)));
+      s.h = Math.max(MIN_H, Math.min(s.h, Math.max(MIN_H, b.height - 8)));
       // never let a window's title bar leave the workspace, or it cannot be grabbed back
-      w.x = Math.max(-(w.w - 80), Math.min(w.x, b.width - 80));
-      w.y = Math.max(0, Math.min(w.y, Math.max(0, b.height - BAR)));
+      s.x = Math.max(-(s.w - 80), Math.min(s.x, b.width - 80));
+      s.y = Math.max(0, Math.min(s.y, Math.max(0, b.height - BAR)));
+      return s;
+    }
+    // commit the clamp - only after a deliberate move, when the board is its real size
+    function clampWin(k){
+      const w = win(k), c = clamped(k);
+      w.x = c.x; w.y = c.y; w.w = c.w; w.h = c.h;
+    }
+    // A hand-arranged layout follows the board: positions and sizes scale with it,
+    // and an edge that sat against the board's edge stays against it, so the PANEL
+    // keeps reaching the bottom when the window grows.
+    function follow(){
+      const sp = cur(), b = box();
+      if(!sp || sp.auto || !b.width || !b.height) return;
+      const ow = sp.bw, oh = sp.bh;
+      if(!ow || !oh){ sp.bw = b.width; sp.bh = b.height; return; }
+      if(Math.abs(ow - b.width) < 2 && Math.abs(oh - b.height) < 2) return;
+      const fx = b.width / ow, fy = b.height / oh, G = 14;
+      KEYS.forEach(function(k){
+        const w = sp.wins[k], r = w.x + w.w, btm = w.y + w.h;
+        const x = w.x <= G ? w.x : w.x * fx;
+        const y = w.y <= G ? w.y : w.y * fy;
+        const R = Math.abs(ow - r) <= G ? b.width - (ow - r) : r * fx;
+        const B = Math.abs(oh - btm) <= G ? b.height - (oh - btm) : btm * fy;
+        w.x = x; w.y = y; w.w = Math.max(MIN_W, R - x); w.h = Math.max(MIN_H, B - y);
+      });
+      sp.bw = b.width; sp.bh = b.height;
     }
     function place(k){
-      const n = NODE[k], w = win(k);
+      const n = NODE[k];
       if(!n) return;
-      if(!w.open){ n.style.display = 'none'; return; }
-      clampWin(k);
+      if(!win(k).open){ n.style.display = 'none'; return; }
+      const w = clamped(k);
       n.style.display = '';
       n.style.left = Math.round(w.x) + 'px';
       n.style.top = Math.round(w.y) + 'px';
@@ -859,6 +903,7 @@ function renderTabs(){
       if(EMBED) return;
       document.documentElement.classList.add('floating');
       retile();
+      follow();
       KEYS.forEach(place);
       tabs();
       front();
@@ -970,6 +1015,8 @@ function renderTabs(){
         ov.remove();
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', end);
+        clampWin(k);
+        place(k);
         save();
         window.dispatchEvent(new Event('mt:layout'));
       }
@@ -1020,7 +1067,18 @@ function renderTabs(){
           raise(k); place(k); save();
         });
       });
-      window.addEventListener('resize', function(){ KEYS.forEach(place); });
+      // Follow the board, not just the browser window. The resize handler only
+      // re-placed windows, so an auto layout never re-tiled, and the board's height
+      // also settles after load (tape, fonts) without any resize event at all.
+      // a short timer rather than requestAnimationFrame: rAF does not run in a
+      // background tab, so a window resized there would keep the old layout
+      let _rq = 0;
+      const relayout = function(){
+        if(_rq) return;
+        _rq = setTimeout(function(){ _rq = 0; render(); }, 60);
+      };
+      window.addEventListener('resize', relayout);
+      if(window.ResizeObserver) new ResizeObserver(relayout).observe(main);
     }
     render();
 
