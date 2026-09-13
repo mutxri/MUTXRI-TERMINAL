@@ -1456,7 +1456,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urllib.parse.urlparse(self.path)
-        if path.path == "/api/admin/users":
+        if path.path in ("/api/admin/users", "/api/admin/overview"):
             data = {}
             try:
                 length = int(self.headers.get("Content-Length") or 0)
@@ -1467,7 +1467,12 @@ class Handler(SimpleHTTPRequestHandler):
                         data = {}
             except Exception:
                 data = {}
-            self.json(auth_api.admin_list((data or {}).get("key", ""), (data or {}).get("delete", "")))
+            _k = (data or {}).get("key", "")
+            _t = (data or {}).get("token", "")
+            if path.path == "/api/admin/overview":
+                self.json(auth_api.admin_overview(_k, _t))
+            else:
+                self.json(auth_api.admin_list(_k, (data or {}).get("delete", ""), _t))
             return
         if path.path.startswith("/api/chat/"):
             action = "chat_" + path.path.split("/")[-1]
