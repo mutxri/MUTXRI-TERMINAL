@@ -186,6 +186,10 @@ def main():
     limit = int(arg("--limit", "0") or 0)
     rows = listings(arg("--exchange"))
     todo = [r for r in rows if r[1] not in hand]
+    # --missing-only: look up only securities with no CEO yet, so a backfill
+    # does not spend hundreds of requests re-checking names already on file.
+    if "--missing-only" in sys.argv:
+        todo = [r for r in todo if not str(ceos.get(r[1]) or "").strip()]
     if limit:
         todo = todo[:limit]
 
@@ -218,6 +222,11 @@ def main():
                              "checked": TODAY}
         if i % 25 == 0:
             print("  ... %d/%d" % (i, len(todo)), flush=True)
+            # save as it goes: a run of several hundred lookups that is cut off
+            # near the end should keep what it already found
+            if APPLY:
+                json.dump(ceos, open(CEOS, "w", encoding="utf-8"), ensure_ascii=False)
+                json.dump(meta, open(META, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         time.sleep(0.25)
 
     if APPLY:
