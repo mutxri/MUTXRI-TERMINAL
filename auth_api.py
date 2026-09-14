@@ -39,7 +39,8 @@ def _session_put(token, rec):
     try:
         if _USE_MONGO:
             _DB["sessions"].replace_one(
-                {"_id": token}, {"_id": token, "email": rec["email"], "exp": rec["exp"]},
+                {"_id": token}, {"_id": token, "email": rec["email"], "exp": rec["exp"],
+                                 "seen": rec.get("seen", 0)},
                 upsert=True)
         else:
             d = _sessions_load(); d[token] = rec; _sessions_save(d)
@@ -57,7 +58,7 @@ def _session_get(token):
         if _USE_MONGO:
             r = _DB["sessions"].find_one({"_id": token})
             if r:
-                rec = {"email": r.get("email"), "exp": r.get("exp", 0)}
+                rec = {"email": r.get("email"), "exp": r.get("exp", 0), "seen": r.get("seen", 0)}
                 _SESSIONS[token] = rec
                 return rec
         else:
@@ -85,11 +86,44 @@ _OWNER = (os.environ.get("OWNER_EMAIL", "") or "jimmymuturi99@gmail.com").lower(
 def _is_owner(email):
     return bool(_OWNER) and (email or "").lower().strip() == _OWNER
 
+# Everyone but the owner is signed out once they leave the site. Every open page
+# checks in (POST /api/auth/me) about once a minute; a session that has gone
+# SESSION_IDLE_SECONDS without a check-in is over, so the next visit asks them to
+# log in again. Reloads, moving between pages and a tab left in the background
+# all sit inside the window. The owner keeps a lifetime session, never idled out.
+IDLE_SECONDS = int(os.environ.get("SESSION_IDLE_SECONDS", "600") or 600)
+_TOUCH_EVERY = 60   # write a check-in to the store at most once a minute
+
+
 def _issue_token(email):
     token = secrets.token_hex(32)
-    exp = time.time() + (3650 * 86400 if _is_owner(email) else 30 * 86400)  # owner: ~10y
-    _session_put(token, {"email": email, "exp": exp})
+    now = time.time()
+    exp = now + (3650 * 86400 if _is_owner(email) else 30 * 86400)  # owner: ~10y
+    _session_put(token, {"email": email, "exp": exp, "seen": now})
     return token
+
+
+def _live(token):
+    """The session behind token while it is still valid, recording the check-in.
+
+    Returns None, and deletes the session, once it has expired or - for anyone
+    but the owner - once it has gone IDLE_SECONDS without a check-in. Sessions
+    issued before idle expiry existed carry no 'seen', so deploying this does not
+    sign everyone out at once: their next check-in starts the window."""
+    s = _session_get(token)
+    now = time.time()
+    if not s or s.get("exp", 0) < now:
+        _session_del(token)
+        return None
+    if not _is_owner(s.get("email")):
+        seen = s.get("seen") or 0
+        if seen and now - seen > IDLE_SECONDS:
+            _session_del(token)
+            return None
+        if now - seen >= _TOUCH_EVERY:
+            s["seen"] = now
+            _session_put(token, s)
+    return s
 
 
 
@@ -269,9 +303,8 @@ def set_password(token, password):
     """
     if not password or len(password) < 8:
         return {"ok": False, "error": "password must be at least 8 characters"}
-    s = _session_get(token)
-    if not s or s["exp"] < time.time():
-        _session_del(token)
+    s = _live(token)
+    if not s:
         return {"ok": False, "error": "session expired"}
     u = _find_user(s["email"])
     if not u:
@@ -290,12 +323,14 @@ def logout(token):
 def me(token):
     if not token:
         return {"ok": False, "error": "not logged in"}
-    s = _session_get(token)
-    if not s or s["exp"] < time.time():
-        _session_del(token)
+    s = _live(token)
+    if not s:
         return {"ok": False, "error": "session expired"}
     u = _find_user(s["email"])
-    return {"ok": True, "email": s["email"], "name": (u or {}).get("name", ""), "owner": _is_owner(s["email"])}
+    owner = _is_owner(s["email"])
+    return {"ok": True, "email": s["email"], "name": (u or {}).get("name", ""), "owner": owner,
+            "access": "lifetime" if owner else "standard",
+            "idle_seconds": None if owner else IDLE_SECONDS}
 
 
 def store_mode():
