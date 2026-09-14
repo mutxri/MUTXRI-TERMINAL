@@ -41,8 +41,10 @@ HOST = "mutxriterminal.com"
 KEYFILE = os.path.join(HERE, "indexnow_key.txt")
 SITEMAP = os.path.join(HERE, "sitemap.xml")
 GOOGLEBOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
-# pages meant to appear in search results, and the source file each is built from
-PAGES = [("/", "landing/index.html")]
+# pages meant to appear in search results, and the source file each is built from.
+# The guide was made indexable on 2026-09-14 (no noindex, own canonical); leaving
+# it out here would drop it from the sitemap on the next run.
+PAGES = [("/", "landing/index.html"), ("/guide.html", "guide.html")]
 
 
 def key(create=True):
