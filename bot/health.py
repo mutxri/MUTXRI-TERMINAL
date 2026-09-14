@@ -123,6 +123,39 @@ def sources():
             "signals": (blob.get("counts") or {}).get("signals")}
 
 
+def eod_health():
+    """The last end-of-day price check (bot/eod.py), if one has run.
+
+    File age alone cannot say whether today's closes are in - a price file
+    rewritten this morning can still hold Friday's session - so this reads the
+    per-exchange verdict instead: which session should be on disk, and which is.
+    """
+    p = os.path.join(SD, "eod_status.json")
+    if not os.path.exists(p):
+        return {"status": "never-run",
+                "detail": "no end-of-day check yet - run: python mutxri_ai.py eod check"}
+    try:
+        blob = json.load(open(p, encoding="utf-8"))
+    except Exception as e:
+        return {"status": "unreadable", "detail": type(e).__name__}
+    exs = {}
+    for ex, r in (blob.get("exchanges") or {}).items():
+        exs[ex] = {"expected": r.get("expectedSession"),
+                   "observed": r.get("observedSession"),
+                   "status": r.get("status"), "currentPct": r.get("currentPct"),
+                   "lagging": len(r.get("lagging") or [])}
+    age = _age_days(p)
+    status = "ok"
+    if any(v["status"] != "current" for v in exs.values()):
+        status = "behind"
+    if age is not None and age > 2:
+        status = "stale"
+    return {"status": status, "checkedAt": blob.get("checkedAt"),
+            "ageDays": round(age, 2) if age is not None else None,
+            "failedSteps": ((blob.get("run") or {}).get("failedSteps") or []),
+            "exchanges": exs}
+
+
 def credentials():
     """Which optional capabilities are switched on. Never prints a secret."""
     def has(*names):
@@ -154,9 +187,12 @@ def report():
             worst = "problems"
     if s.get("status") in ("down", "missing", "unreadable"):
         worst = "problems"
+    e = eod_health()
+    if e.get("status") in ("behind", "stale"):
+        worst = "problems"
     return {"generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "overall": worst, "files": f, "coverage": c,
-            "statements": statements_health(), "sources": s,
+            "statements": statements_health(), "sources": s, "eod": e,
             "credentials": credentials()}
 
 

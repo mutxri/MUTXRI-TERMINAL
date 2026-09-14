@@ -2,7 +2,9 @@
 """refresh_all.py - scheduled data refresh for the MUTXRI TERMINAL static site.
 
 Chain (each step safe to re-run):
-  1. [optional, daily] history top-up for JSE/EGX from Yahoo (prices source)
+  1. end-of-day prices <- mutxri_ai.py eod run (daily with --history; otherwise
+     only when a published session is missing and untried, to catch up a
+     skipped daily task). Non-fatal, and verified per security.
   2. market_<EX>.json  <- build_market_snapshots.py (prices/chg/volume)
   3. screener_<EX>.json <- build_screener.py
   3b. heatmap_<EX>.json <- rebuild_heatmaps.py (derived from step 2)
@@ -15,7 +17,7 @@ Chain (each step safe to re-run):
   9. assemble gh_pages_deploy2
  10. push changed files to the gh-pages branch (bulk_push tree-compare)
 
-usage: python refresh_all.py [--history]     (--history adds step 1)
+usage: python refresh_all.py [--history]     (--history forces step 1)
 """
 import subprocess, sys, os, time
 
@@ -39,19 +41,49 @@ def run(name, args, env=None, timeout=1800):
     return r
 
 
+def run_soft(name, args, timeout=1800):
+    """run(), except a failure is reported and the refresh carries on.
+
+    End-of-day prices must not share run()'s all-or-nothing exit: one collector
+    timing out used to abort the chain before the snapshots were rebuilt and
+    before anything was deployed, so every exchange lost its close for the day.
+    """
+    print(f"\n=== {name} ===", flush=True)
+    try:
+        r = subprocess.run([PY] + args, capture_output=True, text=True, cwd=BASE,
+                           timeout=timeout)
+        print((r.stdout or "")[-3000:] + (r.stderr or "")[-400:], flush=True)
+        return r.returncode
+    except Exception as e:
+        print(f"!!! {name} did not complete: {e}", flush=True)
+        return None
+
+
 steps = 0
 if "--history" in sys.argv:
-    run("history topup JSE/EGX", ["refresh_history.py", "JSE", "EGX", "--topup", "--workers", "8"], timeout=3600)
-    # NGX (and NSE) publish their own EOD price lists and no scheduled step ever
-    # fetched them, so the NGX board sat frozen on 28 Aug prices while the rest
-    # of the terminal moved on. Cheap: one zip + PDF per session, skips any
-    # session already in the archive.
-    run("ngx price history", ["fetch_ngx_history.py", "10"], timeout=1800)
-    # NSE was never in this chain at all, so the Nairobi board froze on the
-    # last day the feed had been read. The NSE IR feed serves current months,
-    # so a normal fetch keeps it level with the other three exchanges.
-    run("nse price history", ["fetch_nse_history_fast.py", "24"], timeout=1800)
-    steps += 3
+    # The daily end-of-day update, via the bot. It runs each exchange's own
+    # collector in isolation - JSE/EGX Yahoo top-up, NGX official price lists,
+    # NSE official board plus a merge-safe IR backfill - so one failing never
+    # costs the other three their close. Then it rebuilds the snapshots, checks
+    # per security that the expected session landed, re-fetches daily traders
+    # that missed it, and writes static_data/eod_status.json.
+    run_soft("end-of-day prices (all exchanges)", ["mutxri_ai.py", "eod", "run"], timeout=5400)
+    steps += 1
+else:
+    # Catch-up. The daily task is skipped whenever the machine is on battery or
+    # asleep at 18:30 and Windows does not re-run it, so the closes for that day
+    # never arrived. Any later refresh that finds a published session missing -
+    # and not already attempted - runs the end-of-day update itself.
+    try:
+        _due = subprocess.run([PY, "mutxri_ai.py", "eod", "due"], capture_output=True,
+                              text=True, cwd=BASE, timeout=300)
+        if _due.returncode == 0:
+            print("\n" + (_due.stdout or "").strip(), flush=True)
+            run_soft("end-of-day catch-up (daily run was missed)",
+                     ["mutxri_ai.py", "eod", "run"], timeout=5400)
+            steps += 1
+    except Exception as _e:
+        print(f"eod due-check skipped: {_e}", flush=True)
 run("market snapshots", ["build_market_snapshots.py"])
 # One volume per security, everywhere. The snapshot builder takes volume from
 # the latest bar and dates it; the listing that the watchlist and market rail

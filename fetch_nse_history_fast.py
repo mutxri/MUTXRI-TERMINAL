@@ -54,8 +54,27 @@ def fetch_symbol(ticker, months):
                 all_bars[b["t"]] = b
         time.sleep(0.15)
     if all_bars:
-        bars = [all_bars[k] for k in sorted(all_bars.keys())]
-        json.dump({"bars": bars[-1500:]}, open(os.path.join(HIST, f"NSE_{ticker}.json"), "w", encoding="utf-8"), ensure_ascii=False)
+        # MERGE, never replace. The IR feed carries no volume and only the months
+        # requested, and this used to rewrite the whole archive from it - which
+        # deleted every older session outside the window and stripped the volume
+        # from each day the official board had recorded (append_nse_bars). A day
+        # already on disk with volume is the richer official record and is kept;
+        # the feed only fills sessions the archive does not have.
+        path = os.path.join(HIST, f"NSE_{ticker}.json")
+        merged = {}
+        try:
+            with open(path, encoding="utf-8") as f:
+                for b in json.load(f).get("bars", []):
+                    if b.get("t"):
+                        merged[b["t"]] = b
+        except Exception:
+            pass
+        for day, b in all_bars.items():
+            if day in merged and merged[day].get("v") is not None:
+                continue
+            merged[day] = b
+        bars = [merged[k] for k in sorted(merged.keys())]
+        json.dump({"bars": bars[-1500:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
         return ticker, len(bars)
     return ticker, 0
 

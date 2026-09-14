@@ -642,12 +642,104 @@ def cmd_doctor(args):
     else:
         print(c("  %s" % sr.get("detail", sr.get("status")), RED))
 
+    # Whether today's closes actually landed, per exchange - file age cannot
+    # say that, since a price file rebuilt this morning can hold Friday's session.
+    ed = r.get("eod") or {}
+    print()
+    print(c("END-OF-DAY PRICES", BOLD))
+    if ed.get("exchanges"):
+        for ex, v in ed["exchanges"].items():
+            pct = ("%s%% current" % v["currentPct"]) if v["currentPct"] is not None else "-"
+            print(c("  %-5s expected %-10s on disk %-10s %-8s %s, %d lagging" % (
+                ex, v["expected"], v["observed"], v["status"], pct, v["lagging"]),
+                GREEN if v["status"] == "current" else RED))
+        failed = ed.get("failedSteps") or []
+        print(c("  checked %s%s" % (ed.get("checkedAt"),
+                ("; failed steps: " + ", ".join(failed)) if failed else ""), DIM))
+    else:
+        print(c("  %s" % ed.get("detail", ed.get("status")), YELLOW))
+
     print(c("\nCAPABILITIES", BOLD))
     for cap in r["credentials"]:
         mark = "on " if cap["enabled"] else "off"
         print(c("  %-3s %-48s %s" % (mark, cap["capability"], cap["env"]),
                 GREEN if cap["enabled"] else DIM))
     return 0 if r["overall"] == "ok" else 0
+
+
+def _eod_line(r):
+    k = r["counts"]
+    in_play = k["current"] + k["lagging"] + k["illiquid"]
+    pct = ("%5.1f%%" % r["currentPct"]) if r["currentPct"] is not None else "    -"
+    snap = "ok" if r["snapshotAgrees"] else "stale (%s)" % r["snapshotAsOf"]
+    return "%-4s %-11s %-11s %-8s %8s %s %4d %6d %8d %8d  %s" % (
+        r["exchange"], r["expectedSession"] or "-", r["observedSession"] or "-",
+        r["status"], "%d/%d" % (k["current"], in_play), pct, k["lagging"],
+        k["illiquid"], k["dormant"], k["nodata"], snap)
+
+
+def _print_eod(rep, verbose=False):
+    print()
+    print(c("END-OF-DAY PRICES", BOLD) + c("  checked %s" % rep.get("checkedAt"), DIM))
+    print(c("%-4s %-11s %-11s %-8s %8s %6s %4s %6s %8s %8s  %s" % (
+        "EX", "EXPECTED", "ON DISK", "STATUS", "CURRENT", "", "LAG", "ILLIQ",
+        "DORMANT", "NO-DATA", "SNAPSHOT"), DIM))
+    for ex, r in rep["exchanges"].items():
+        print(c(_eod_line(r), GREEN if r["status"] == "current" else RED))
+    for ex, r in rep["exchanges"].items():
+        bits = []
+        if r["lagging"]:
+            more = len(r["lagging"]) - 12
+            bits.append("lagging (trades daily, missed the session): " +
+                        ", ".join(r["lagging"][:12]) + (" +%d more" % more if more > 0 else ""))
+        if r["future"]:
+            bits.append("dated in the future: " + ", ".join(r["future"][:8]))
+        if r["integrity"]:
+            bits.append("newest bar as published, flagged not repaired: " +
+                        ", ".join("%s %d" % kv for kv in sorted(r["integrity"].items())))
+        if r["note"]:
+            bits.append(r["note"])
+        if not r["snapshotAgrees"]:
+            bits.append("market_%s.json says %s but the archive holds %s - rebuild the snapshot"
+                        % (ex, r["snapshotAsOf"], r["observedSession"]))
+        if bits:
+            print(c("  " + ex, BOLD))
+            for b in bits:
+                print(c("    " + b, DIM))
+        if verbose:
+            for e in r["integrityExamples"]:
+                print(c("      %s %s %s  o=%s h=%s l=%s c=%s" % (
+                    e["id"], e["session"], e["issue"], e["o"], e["h"], e["l"], e["c"]), DIM))
+    run = rep.get("run")
+    if run:
+        failed = run.get("failedSteps") or []
+        msg = ("failed steps: " + ", ".join(failed)) if failed else "every collector step succeeded"
+        print(c("run took %.0fs; %s" % (run["seconds"], msg), RED if failed else DIM))
+
+
+def cmd_eod(args):
+    from bot import eod as E
+    if args.eod_cmd == "due":
+        is_due, reasons = E.due()
+        for r in reasons:
+            print(r)
+        print("EOD run due" if is_due else "nothing due")
+        return 0 if is_due else 1
+    if args.eod_cmd == "status":
+        rep = E.last_status()
+        if not rep:
+            print("no EOD check on file yet - run: python mutxri_ai.py eod check")
+            return 1
+    elif args.eod_cmd == "run":
+        rep = E.run(exchanges=args.exchange, collect=not args.no_collect,
+                    retry=not args.no_retry)
+    else:
+        rep = E.check()
+    if args.json:
+        print(json.dumps(rep, indent=1, ensure_ascii=False, default=str))
+    else:
+        _print_eod(rep, verbose=args.verbose)
+    return 0 if rep.get("allCurrent") else 2
 
 
 def cmd_selftest(args):
@@ -868,6 +960,21 @@ def main():
     p = sub.add_parser("selftest", help="verify every financial formula against worked examples")
     p.add_argument("--verbose", action="store_true", help="list every check, not just failures")
     p.set_defaults(fn=cmd_selftest)
+
+    p = sub.add_parser("eod", help="daily end-of-day price update and verification")
+    e = p.add_subparsers(dest="eod_cmd")
+    er = e.add_parser("run", help="collect every exchange's closes, rebuild, verify, retry")
+    er.add_argument("--exchange", action="append", help="limit to NSE/NGX/JSE/EGX (repeatable)")
+    er.add_argument("--no-collect", action="store_true", help="skip collectors; rebuild and verify")
+    er.add_argument("--no-retry", action="store_true", help="do not re-fetch lagging securities")
+    ec = e.add_parser("check", help="verify what is on disk without fetching anything")
+    e.add_parser("due", help="exit 0 when a published session is missing and untried")
+    es = e.add_parser("status", help="print the last check or run")
+    for sp in (er, ec, es):
+        sp.add_argument("--json", action="store_true")
+        sp.add_argument("--verbose", action="store_true", help="show flagged bars")
+    p.set_defaults(fn=cmd_eod, eod_cmd="check", exchange=None, no_collect=False,
+                   no_retry=False, json=False, verbose=False)
 
     p = sub.add_parser("card", help="build a social card from real, licensed images")
     p.add_argument("--signal", type=int, help="build from signal N of the last scan")

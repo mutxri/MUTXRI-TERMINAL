@@ -317,6 +317,46 @@ lifting is news too). Seen-state is held for 30 days, deliberately longer than
 the 7-day news window, so nothing can expire from state while still in the scan
 and re-fire as new. `--dry-run` previews without consuming.
 
+### Daily end-of-day prices (`bot/eod.py`)
+
+```
+python mutxri_ai.py eod run       # collect every exchange's closes, rebuild, verify, retry
+python mutxri_ai.py eod check     # which session should be on disk by now, and which is
+python mutxri_ai.py eod due       # exit 0 when a published session is missing and untried
+```
+
+Every exchange already had a collector: the NSE board plus its IR feed, NGX's
+official price lists, Yahoo for JSE and EGX. What was missing was a daily run that
+reliably happened, and any way to know the closes had landed.
+
+- **The daily task mostly did not run.** `MUTXRI_RefreshDaily` (18:30) and
+  `MUTXRI_Refresh3h` will not start on battery and never re-run a missed start, and
+  `wscript` returns 0 instantly, so "Last Result 0" proved nothing. On 14 Sep the
+  18:30 run was skipped and `Refresh3h` had missed four starts. Any refresh that runs
+  after a session publishes now asks `eod due` and catches up - once per session, so
+  a holiday does not relaunch a half-hour collection every three hours.
+- **One failure aborted everything.** `refresh_all.py` exits on any failed step, so a
+  timeout anywhere cost all four exchanges their close. Collectors now run in
+  isolation and the EOD step is non-fatal.
+- **The NSE backfill destroyed history.** `fetch_nse_history_fast.py` rewrote each
+  archive from the IR feed, which carries no volume and only the months requested.
+  It now merges, keeping the official board's volume-bearing bars.
+- **Verified per security**, against a per-exchange trading week (EGX trades Sun-Thu)
+  and publication hour: *current*, *lagging* (trades daily and missed the session -
+  only these are re-fetched), *illiquid*, *dormant*, *no data*. An FGN savings bond
+  that trades twice a year is not a failure.
+- **Flagged, never repaired.** On 14 Sep, 30 of 69 NSE closing bars contradicted
+  themselves (ABSA opened at 34.20 above a high of 34.00) exactly as the NSE board
+  published them; 8.95% of JSE and 16.56% of EGX Yahoo bars in the archive do the
+  same. The check counts and names them. It does not rewrite an exchange's print.
+- **Snapshot agreement.** It caught `market_NSE.json` reporting 11 Sep while the
+  archive already held 14 Sep.
+
+Market holidays are not modelled: when no security has the expected session the
+report says "not fetched, or a holiday" rather than guessing. Results go to
+`static_data/eod_status.json` and one line per run to `static_data/eod_ledger.jsonl`;
+`doctor` shows the per-exchange verdict.
+
 ### Data health (`bot/health.py`)
 
 ```
