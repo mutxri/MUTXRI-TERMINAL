@@ -350,6 +350,170 @@ html{scrollbar-width:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
 
 </style>
+<style id="mxUiCss">
+/* ---------- account menu + settings ---------- */
+.mx-user{position:relative;display:flex;align-items:center}
+.mx-user-btn{width:30px;height:30px;display:grid;place-items:center;background:var(--bg3);border:1px solid var(--line2);
+  border-radius:3px;color:var(--tx2);cursor:pointer;transition:border-color .15s,color .15s}
+.mx-user-btn:hover,.mx-user-btn[aria-expanded="true"]{border-color:var(--mint-line);color:var(--acc)}
+.mx-user-btn:focus-visible{outline:2px solid var(--mint-line);outline-offset:2px}
+.mx-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:20000;min-width:236px;background:var(--bg2);
+  border:1px solid var(--line2);border-radius:4px;padding:4px;box-shadow:0 18px 44px rgba(0,0,0,.75)}
+.mx-menu[hidden],.mx-set-back[hidden]{display:none!important}
+.mx-menu-who{padding:8px 10px 10px;border-bottom:1px solid var(--line2);margin-bottom:4px}
+.mx-menu-name{color:var(--tx);font-size:12px}
+.mx-menu-mail{color:var(--tx3);font-size:10.5px;margin-top:3px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mx-menu-sep{height:1px;background:var(--line2);margin:4px 0}
+.mx-mi{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;background:none;border:0;border-radius:3px;
+  color:var(--tx);font-family:var(--mono);font-size:12px;text-align:left;cursor:pointer;text-decoration:none}
+.mx-mi svg{flex:none;color:var(--tx3)}
+.mx-mi:hover,.mx-mi:focus-visible{background:var(--bg4);outline:0}
+.mx-mi:hover svg,.mx-mi:focus-visible svg{color:var(--acc)}
+.mx-set-back{position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,.55);display:flex;align-items:center;
+  justify-content:center;padding:16px}
+.mx-set{width:min(860px,100%);height:min(620px,100%);display:flex;flex-direction:column;background:var(--bg2);
+  border:1px solid var(--mint-line);border-radius:4px;box-shadow:0 24px 60px rgba(0,0,0,.8);font-family:var(--mono)}
+.mx-set-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line2);
+  letter-spacing:.14em;font-size:11px;color:var(--tx2)}
+.mx-x{background:none;border:0;color:var(--tx3);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
+.mx-x:hover,.mx-x:focus-visible{color:var(--acc);outline:0}
+.mx-set-body{flex:1;display:flex;min-height:0}
+.mx-set-nav{width:196px;flex:none;border-right:1px solid var(--line2);padding:8px 0;overflow-y:auto}
+.mx-set-nav button{display:block;width:100%;text-align:left;background:none;border:0;border-left:2px solid transparent;
+  color:var(--tx2);font-family:var(--mono);font-size:12px;padding:9px 14px;cursor:pointer}
+.mx-set-nav button:hover{color:var(--tx);background:var(--bg3)}
+.mx-set-nav button:focus-visible{outline:0;color:var(--tx);background:var(--bg3)}
+.mx-set-nav button.on{color:var(--acc);border-left-color:var(--acc);background:var(--mint-dim)}
+.mx-set-pane{flex:1;overflow-y:auto;padding:4px 22px 22px}
+.mx-set-pane h3{font-family:var(--mono);font-weight:400;font-size:14px;color:var(--tx);padding:16px 0 10px;
+  border-bottom:1px solid var(--line2);margin-bottom:4px}
+.mx-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line)}
+.mx-lbl{color:var(--tx);font-size:12px}
+.mx-hint{color:var(--tx3);font-size:10.5px;margin-top:3px}
+.mx-ctl{flex:none;display:flex;align-items:center;gap:8px}
+.mx-ctl select{background:var(--bg3);color:var(--tx);border:1px solid var(--line2);border-radius:3px;font-family:var(--mono);
+  font-size:11.5px;padding:6px 8px;min-width:220px;cursor:pointer}
+.mx-ctl select:focus-visible{outline:0;border-color:var(--mint-line)}
+.mx-ctl input[type=color]{width:44px;height:24px;padding:0;border:1px solid var(--line2);border-radius:3px;background:var(--bg3);cursor:pointer}
+.mx-ctl input[type=color]:focus-visible{outline:2px solid var(--mint-line);outline-offset:2px}
+.mx-val{color:var(--tx2);font-size:12px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mx-tog{position:relative;display:inline-block;width:36px;height:20px}
+.mx-tog input{position:absolute;inset:0;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.mx-tog span{position:absolute;inset:0;background:var(--bg4);border:1px solid var(--line2);border-radius:20px;transition:.15s;pointer-events:none}
+.mx-tog span::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--tx3);transition:.15s}
+.mx-tog input:checked+span{background:var(--mint-dim);border-color:var(--mint-line)}
+.mx-tog input:checked+span::after{left:18px;background:var(--acc)}
+.mx-tog input:focus-visible+span{box-shadow:0 0 0 2px var(--mint-line)}
+.mx-btn{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);font-family:var(--mono);font-size:11px;
+  letter-spacing:.06em;padding:6px 12px;border-radius:3px;cursor:pointer;white-space:nowrap}
+.mx-btn:hover,.mx-btn:focus-visible{border-color:var(--mint-line);color:var(--acc);outline:0}
+.mx-btn.mx-pri{background:var(--acc);border-color:var(--acc);color:#000}
+.mx-btn.mx-pri:hover{filter:brightness(1.1);color:#000}
+.mx-btn.mx-danger:hover,.mx-btn.mx-danger:focus-visible{border-color:var(--down);color:var(--down)}
+.mx-note,.mx-p{color:var(--tx3);font-size:11px;line-height:1.6;padding:10px 0}
+.mx-invite{display:flex;gap:8px;padding:6px 0}
+.mx-invite input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--line2);border-radius:3px;color:var(--tx);
+  font-family:var(--mono);font-size:12px;padding:8px 10px}
+.mx-share{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0}
+.mx-foot{padding:14px 0 0}
+/* settings that act on the workspace (classes sit on <html>, beside .floating) */
+html.mx-noshadow.floating .rail,html.mx-noshadow.floating .panel,html.mx-noshadow .win-front{box-shadow:none!important}
+html.mx-custom-outline.floating .rail,html.mx-custom-outline.floating .panel{border-color:var(--win-line)!important}
+html.mx-custom-outline.floating .win-front{border-color:var(--win-front)!important}
+.mx-notape .tape{display:none}
+@keyframes mxPulse{0%{outline:2px solid var(--acc);outline-offset:0}100%{outline:2px solid rgba(0,0,0,0);outline-offset:6px}}
+.mx-pulse{animation:mxPulse .7s ease-out 1}
+.hide-chrome .mx-user{display:none}
+@media (max-width:700px){.mx-set-nav{width:132px}.mx-ctl select{min-width:140px}.mx-row{flex-wrap:wrap}}
+</style>
+<script>
+/* ===== Settings: theme and preferences, saved in this browser =====
+   Applied here in <head>, before the first paint, so a saved theme never
+   flashes the default first. The panels load in iframes that use the same CSS
+   variables, so the terminal pushes the same override into each one as it
+   loads. Default values change nothing: only a setting that differs is written. */
+(function(){
+  var KEY = 'mx_settings';
+  var DEF = {preset: 'default', acc: '#33e29a', up: '#33e29a', down: '#f87171', bg: '#000000',
+             font: 'Oxygen Mono', winPulse: true, winShadow: true, winLine: '', winFront: '',
+             defaultEx: '', defaultPanel: '', clock: 'exchange', tape: true, tickerPanel: ''};
+  var PRESETS = {
+    'default':  {label: 'Default',            acc: '#33e29a', up: '#33e29a', down: '#f87171', bg: '#000000'},
+    'ocean':    {label: 'Ocean',              acc: '#38bdf8', up: '#34d399', down: '#fb7185', bg: '#020617'},
+    'amber':    {label: 'Amber',              acc: '#f5a524', up: '#4ade80', down: '#f87171', bg: '#0a0703'},
+    'violet':   {label: 'Violet',             acc: '#a78bfa', up: '#34d399', down: '#f472b6', bg: '#07050d'},
+    'cvd':      {label: 'Colour-blind safe',  acc: '#60a5fa', up: '#60a5fa', down: '#f59e0b', bg: '#000000'}
+  };
+  // font name -> Google Fonts family parameter (Oxygen Mono already loads with the page)
+  var FONTS = {'Oxygen Mono': '', 'IBM Plex Mono': 'IBM+Plex+Mono:wght@400;500;600',
+               'JetBrains Mono': 'JetBrains+Mono:wght@400;500;600', 'Roboto Mono': 'Roboto+Mono:wght@400;500;600',
+               'Source Code Pro': 'Source+Code+Pro:wght@400;500;600', 'Space Mono': 'Space+Mono:wght@400;700'};
+  function hex(c){ return /^#[0-9a-f]{6}$/i.test(c || '') ? String(c).toLowerCase() : null; }
+  function rgb(c){ var n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function mix(c, t){
+    return '#' + rgb(c).map(function(v){ var x = Math.round(v + (255 - v) * t).toString(16); return x.length < 2 ? '0' + x : x; }).join('');
+  }
+  function read(){
+    var s = {};
+    try{ s = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){ s = {}; }
+    var out = {};
+    for(var k in DEF){ out[k] = (s[k] === undefined || s[k] === null || typeof s[k] !== typeof DEF[k]) ? DEF[k] : s[k]; }
+    if(!Object.prototype.hasOwnProperty.call(FONTS, out.font)) out.font = DEF.font;
+    return out;
+  }
+  var cur = read();
+  function css(s){
+    var d = [];
+    var acc = hex(s.acc) || DEF.acc, up = hex(s.up) || DEF.up, down = hex(s.down) || DEF.down, bg = hex(s.bg) || DEF.bg;
+    var a = rgb(acc).join(',');
+    if(acc !== DEF.acc) d.push('--acc:' + acc, '--acc2:' + acc, '--mint-dim:rgba(' + a + ',.10)', '--mint-line:rgba(' + a + ',.35)');
+    if(up !== DEF.up) d.push('--up:' + up);
+    if(down !== DEF.down) d.push('--down:' + down);
+    if(bg !== DEF.bg) d.push('--bg:' + bg, '--bg2:' + mix(bg, .035), '--bg3:' + mix(bg, .07), '--bg4:' + mix(bg, .11));
+    if(s.font !== DEF.font) d.push("--mono:'" + s.font + "',ui-monospace,SFMono-Regular,Menlo,monospace");
+    d.push('--win-line:' + (hex(s.winLine) || 'var(--line2)'), '--win-front:' + (hex(s.winFront) || 'rgba(' + a + ',.45)'));
+    return ':root{' + d.join(';') + '}';
+  }
+  function applyTo(doc, s){
+    s = s || cur;
+    if(!doc || !doc.documentElement) return;
+    var host = doc.head || doc.documentElement;
+    var st = doc.getElementById('mxTheme');
+    if(!st){ st = doc.createElement('style'); st.id = 'mxTheme'; host.appendChild(st); }
+    st.textContent = css(s);
+    var fam = FONTS[s.font], ln = doc.getElementById('mxFont');
+    if(fam){
+      var href = 'https://fonts.googleapis.com/css2?family=' + fam + '&display=swap';
+      if(!ln){ ln = doc.createElement('link'); ln.id = 'mxFont'; ln.rel = 'stylesheet'; host.appendChild(ln); }
+      if(ln.getAttribute('href') !== href) ln.setAttribute('href', href);
+    }else if(ln && ln.parentNode){ ln.parentNode.removeChild(ln); }
+  }
+  function apply(){
+    applyTo(document, cur);
+    var h = document.documentElement.classList;
+    h.toggle('mx-noshadow', !cur.winShadow);
+    h.toggle('mx-custom-outline', !!(hex(cur.winLine) || hex(cur.winFront)));
+    h.toggle('mx-notape', !cur.tape);
+  }
+  function announce(){ try{ window.dispatchEvent(new CustomEvent('mx:settings', {detail: cur})); }catch(e){} }
+  function set(patch){
+    for(var k in patch){ if(Object.prototype.hasOwnProperty.call(DEF, k)) cur[k] = patch[k]; }
+    try{ localStorage.setItem(KEY, JSON.stringify(cur)); }catch(e){}
+    apply();
+    announce();
+  }
+  // another tab changed a setting: follow it
+  window.addEventListener('storage', function(e){ if(e.key === KEY){ cur = read(); apply(); announce(); } });
+  window.MXSettings = {
+    get: function(){ return cur; }, set: set, applyTo: applyTo, DEF: DEF, PRESETS: PRESETS, FONTS: FONTS,
+    resetTheme: function(){
+      set({preset: DEF.preset, acc: DEF.acc, up: DEF.up, down: DEF.down, bg: DEF.bg, font: DEF.font,
+           winPulse: DEF.winPulse, winShadow: DEF.winShadow, winLine: '', winFront: ''});
+    }
+  };
+  apply();
+})();
+</script>
 </head>
 <body>
 <!-- ===== auth gate: sign in required to enter the terminal ===== -->
@@ -493,6 +657,11 @@ html{scrollbar-width:none;}
     </label>
     <span class="wstabs" id="wsTabs" title="Workspaces"></span>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
+    <div class="mx-user" id="mxUser">
+      <button type="button" class="mx-user-btn" id="mxUserBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account and settings" title="Account and settings">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+      </button>
+    </div>
   </header>
 
   <!-- TAPE -->
@@ -596,6 +765,11 @@ function pickInitialExchange(){
     const p = (new URLSearchParams(location.search).get('ex') || '').toUpperCase();
     if(EXCHANGES.includes(p)) return p;
   }catch(e){}
+  // Settings > Terminal > Default market wins over the last board used
+  try{
+    const d = window.MXSettings && window.MXSettings.get().defaultEx;
+    if(EXCHANGES.includes(d)) return d;
+  }catch(e){}
   try{
     const saved = localStorage.getItem('mt_ex');
     if(EXCHANGES.includes(saved)) return saved;
@@ -677,6 +851,16 @@ const EX_TZ = {
   NSE: {tz: 'Africa/Nairobi',      city: 'NBO'},
 };
 function clockTZ(){
+  // Settings > Terminal > Clock: the viewer's own time instead of the exchange's
+  try{
+    if(window.MXSettings && window.MXSettings.get().clock === 'local'){
+      const d = new Date();
+      $('clock').textContent = d.toLocaleTimeString('en-GB', {hour12: false}) + ' LOCAL';
+      $('clock').title = d.toLocaleDateString('en-GB', {day: '2-digit', month: 'short'}) + ' · ' +
+                         (Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time');
+      return;
+    }
+  }catch(e){}
   const ex = (typeof currentEx !== 'undefined' ? currentEx : 'JSE');
   const info = EX_TZ[ex] || EX_TZ.JSE;
   try{
@@ -1125,6 +1309,12 @@ renderTabs();
 // load the default panel WITH the current exchange
 // (?panel= deep-link support for the landing showcase; unknown panels fall back to default)
 let __startIdx = 0;
+// Settings > Terminal > Default panel (a ?panel= deep link below still wins)
+try{
+  const _dp = window.MXSettings && window.MXSettings.get().defaultPanel;
+  const _di = _dp ? PANELS.findIndex(p => p.id === _dp) : -1;
+  if(_di >= 0) __startIdx = _di;
+}catch(e){}
 if(window.__INIT_PANEL){
   // The merged wire's panel id is 'news'; 'wire' and 'reg' are older names for it.
   // This used to map news TO 'wire', a panel that no longer exists, so every
@@ -1134,6 +1324,7 @@ if(window.__INIT_PANEL){
   if(__pi >= 0) __startIdx = __pi;
 }
 $('stageFrame').src = panelUrl(PANELS[__startIdx]);
+document.querySelectorAll('.ctab').forEach((x, i) => x.classList.toggle('active', i === __startIdx));
 if(__startIdx > 0){
   const __tabs = document.querySelectorAll('.ctab');
   if(__tabs[__startIdx]){ __tabs.forEach(x => x.classList.remove('active')); __tabs[__startIdx].classList.add('active'); }
@@ -1641,10 +1832,21 @@ const WINDOW_CMDS = {WATCH: 'watch', WATCHLIST: 'watch', PANEL: 'center', CENTER
 function runCommand(raw){
   let v = String(raw || '').trim().toUpperCase();
   if(!v) return;
+  // account and settings (SET is left alone: it is an NGX ticker)
+  const ACCOUNT_CMDS = {SETTINGS: 'theme', PREFS: 'theme', THEME: 'theme', INVITE: 'invite', PROFILE: 'account', ACCOUNT: 'account'};
+  if(ACCOUNT_CMDS[v]){
+    if(window.MXUI) window.MXUI.open(ACCOUNT_CMDS[v]);
+    return;
+  }
+  if(v === 'LOGOUT' || v === 'SIGNOUT'){
+    if(window.MXUI) window.MXUI.logout();
+    return;
+  }
   if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
       '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both — e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>';
+      '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>' +
+      '<div style="padding:4px 0;color:var(--tx3)">Account: <b style="color:var(--acc)">SETTINGS</b>, <b style="color:var(--acc)">INVITE</b>, <b style="color:var(--acc)">PROFILE</b>, <b style="color:var(--acc)">LOGOUT</b>.</div>';
     return;
   }
   if(v === 'RESET' || v === 'TILE'){
@@ -2007,6 +2209,15 @@ function openStock(sym){
     var _f = document.getElementById('stageFrame');
     if(_f && _f.src.indexOf('afri_financials') >= 0){ _f.src = panelUrl(PANELS[__activePanelIdx]); }
   }
+  // Settings > Ticker click: also bring up a chosen panel for this security
+  try{
+    const _tp = window.MXSettings && window.MXSettings.get().tickerPanel;
+    const _embed = /(^|\s)view-/.test(document.documentElement.className);
+    if(_tp && !_embed && !(PANELS[__activePanelIdx] && PANELS[__activePanelIdx].id === _tp)){
+      const _p = PANELS.find(p => p.id === _tp);
+      if(_p) openPanelTab(_p);
+    }
+  }catch(e){}
   try{ if(new URLSearchParams(location.search).get('view') === 'watchlist'){ openChartModal(sym); return; } }catch(e){}
   const ex = currentEx;
   const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
@@ -2461,6 +2672,348 @@ function renderStockInfo(d, sym){
 loadListing(currentEx);  // honor ?ex= deep-link, else remembered/inferred market
 loadSearchIndex();       // every other market's tickers, so search spans all four
 
+</script>
+<script>
+// ===== Account menu, settings and invites =====
+// The account button opens a menu (profile, invite, settings, guide, log out).
+// Settings live in one dialog; MXSettings (in <head>) stores and applies them.
+(function(){
+  var S = window.MXSettings;
+  var wrap = document.getElementById('mxUser'), btn = document.getElementById('mxUserBtn');
+  if(!S || !wrap || !btn) return;
+  var AUTH_API = (window.AUTH_API || (new URLSearchParams(location.search).get('api') || '')) || 'https://mutxri-terminal.onrender.com';
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+    });
+  }
+  function tok(){ try{ return localStorage.getItem('mt_token') || ''; }catch(e){ return ''; } }
+  function lastEmail(){ try{ return localStorage.getItem('mt_email') || ''; }catch(e){ return ''; } }
+  function svg(p){
+    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+           'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
+  }
+  var ICON = {
+    user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'),
+    link: svg('<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'),
+    book: svg('<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>'),
+    out:  svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>')
+  };
+
+  // ---- who is signed in ----
+  var profile = null, profileP = null;
+  function loadProfile(){
+    if(profile) return Promise.resolve(profile);
+    var t = tok();
+    if(!t) return Promise.resolve(null);
+    if(!profileP){
+      profileP = fetch(AUTH_API + '/api/auth/me', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                   body: JSON.stringify({token: t})})
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d && d.ok) profile = {email: d.email || '', name: d.name || ''}; return profile; })
+        .catch(function(){ return null; })
+        .then(function(p){ profileP = null; return p; });
+    }
+    return profileP;
+  }
+  function who(){ return {email: (profile && profile.email) || lastEmail(), name: (profile && profile.name) || ''}; }
+  // A short code derived from the account, so the link never carries an email address.
+  function inviteCode(email){
+    var h = 0x811c9dc5;
+    email = String(email || '').toLowerCase();
+    for(var i = 0; i < email.length; i++){ h ^= email.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(36).toUpperCase();
+  }
+  function inviteLink(){ var e = who().email; return 'https://mutxriterminal.com/' + (e ? '?ref=' + inviteCode(e) : ''); }
+  function logout(){
+    var t = tok(), gone = false;
+    function done(){
+      if(gone) return;
+      gone = true;
+      try{ localStorage.removeItem('mt_token'); }catch(e){}
+      location.reload();
+    }
+    if(!t){ done(); return; }
+    setTimeout(done, 2500);   // a sleeping server must not keep anyone signed in
+    fetch(AUTH_API + '/api/auth/logout', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                         body: JSON.stringify({token: t})})
+      .catch(function(){}).then(done);
+  }
+
+  // ---- menu ----
+  function mi(act, icon, label){
+    return '<button type="button" class="mx-mi" role="menuitem" data-act="' + act + '">' + icon + '<span>' + label + '</span></button>';
+  }
+  var menu = document.createElement('div');
+  menu.className = 'mx-menu';
+  menu.hidden = true;
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML =
+    '<div class="mx-menu-who"><div class="mx-menu-name" id="mxWhoName">Account</div><div class="mx-menu-mail" id="mxWhoMail"></div></div>' +
+    mi('account', ICON.user, 'Profile') + mi('invite', ICON.link, 'Invite a friend') + mi('theme', ICON.gear, 'Settings') +
+    '<a class="mx-mi" role="menuitem" href="/guide.html" target="_blank" rel="noopener">' + ICON.book + '<span>User guide</span></a>' +
+    '<div class="mx-menu-sep"></div>' + mi('logout', ICON.out, 'Log out');
+  wrap.appendChild(menu);
+  function fillWho(){
+    var w = who();
+    document.getElementById('mxWhoName').textContent = w.name || (w.email ? 'Signed in' : 'Not signed in');
+    document.getElementById('mxWhoMail').textContent = w.email || '';
+  }
+  function openMenu(){
+    fillWho();
+    menu.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    var first = menu.querySelector('.mx-mi');
+    if(first) first.focus();
+    loadProfile().then(fillWho);
+  }
+  function closeMenu(){ menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+  btn.addEventListener('click', function(e){ e.stopPropagation(); if(menu.hidden) openMenu(); else closeMenu(); });
+  document.addEventListener('mousedown', function(e){ if(!menu.hidden && !wrap.contains(e.target)) closeMenu(); });
+  menu.addEventListener('keydown', function(e){
+    var items = Array.prototype.slice.call(menu.querySelectorAll('.mx-mi'));
+    var i = items.indexOf(document.activeElement);
+    if(e.key === 'Escape'){ e.preventDefault(); closeMenu(); btn.focus(); }
+    else if(e.key === 'ArrowDown'){ e.preventDefault(); items[(i + 1) % items.length].focus(); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+    e.stopPropagation();
+  });
+  menu.addEventListener('click', function(e){
+    var b = e.target.closest('.mx-mi');
+    if(!b) return;
+    closeMenu();
+    var a = b.getAttribute('data-act');
+    if(!a) return;                         // the guide link navigates on its own
+    if(a === 'logout') logout(); else open(a);
+  });
+
+  // ---- settings dialog ----
+  var SECTIONS = [['theme', 'Theme'], ['terminal', 'Terminal'], ['ticker', 'Ticker click'],
+                  ['account', 'Account & security'], ['invite', 'Invite a friend']];
+  var back = document.createElement('div');
+  back.className = 'mx-set-back';
+  back.hidden = true;
+  back.innerHTML =
+    '<div class="mx-set" role="dialog" aria-modal="true" aria-labelledby="mxSetTitle">' +
+      '<div class="mx-set-head"><span id="mxSetTitle">SETTINGS</span>' +
+        '<button type="button" class="mx-x" data-close aria-label="Close settings">&times;</button></div>' +
+      '<div class="mx-set-body"><nav class="mx-set-nav" aria-label="Settings sections"></nav>' +
+        '<div class="mx-set-pane"></div></div>' +
+    '</div>';
+  document.body.appendChild(back);
+  var nav = back.querySelector('.mx-set-nav'), pane = back.querySelector('.mx-set-pane');
+  var section = 'theme';
+
+  function row(label, hint, control){
+    return '<div class="mx-row"><div><div class="mx-lbl">' + label + '</div>' +
+           (hint ? '<div class="mx-hint">' + hint + '</div>' : '') + '</div><div class="mx-ctl">' + control + '</div></div>';
+  }
+  function select(k, opts, val, label){
+    return '<select data-k="' + k + '" aria-label="' + esc(label) + '">' + opts.map(function(o){
+      return '<option value="' + esc(o[0]) + '"' + (o[0] === val ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+    }).join('') + '</select>';
+  }
+  function color(k, val, label){
+    return '<input type="color" data-k="' + k + '" value="' + esc(val) + '" aria-label="' + esc(label) + '">';
+  }
+  function toggle(k, on, label){
+    return '<label class="mx-tog"><input type="checkbox" data-k="' + k + '"' + (on ? ' checked' : '') +
+           ' aria-label="' + esc(label) + '"><span></span></label>';
+  }
+  function panelOpts(first, prefix){
+    var o = [['', first]];
+    (typeof PANELS !== 'undefined' ? PANELS : []).forEach(function(p){ o.push([p.id, (prefix || '') + p.label]); });
+    return o;
+  }
+  function paneHtml(sec){
+    var s = S.get();
+    if(sec === 'theme'){
+      var presets = Object.keys(S.PRESETS).map(function(k){ return [k, S.PRESETS[k].label]; }).concat([['custom', 'Custom']]);
+      return '<h3>Theme</h3>' +
+        row('Color presets', '', select('preset', presets, s.preset, 'Color presets')) +
+        row('Primary color', 'Accents, active tabs and highlights', color('acc', s.acc, 'Primary color')) +
+        row('Positive color', 'Prices that rose', color('up', s.up, 'Positive color')) +
+        row('Negative color', 'Prices that fell', color('down', s.down, 'Negative color')) +
+        row('Background color', '', color('bg', s.bg, 'Background color')) +
+        row('Font', '', select('font', Object.keys(S.FONTS).map(function(f){ return [f, f]; }), s.font, 'Font')) +
+        '<h3>Windows</h3>' +
+        row('Open animation', 'Flash the outline when you open a window', toggle('winPulse', s.winPulse, 'Open animation')) +
+        row('Shadow', 'Shadow under floating windows', toggle('winShadow', s.winShadow, 'Window shadow')) +
+        row('Outline color', 'Windows you are not working in', color('winLine', s.winLine || '#262626', 'Window outline color')) +
+        row('Active outline color', 'The window you are working in', color('winFront', s.winFront || s.acc, 'Active window outline color')) +
+        '<div class="mx-foot"><button type="button" class="mx-btn" data-act="reset-theme">Reset theme</button></div>';
+    }
+    if(sec === 'terminal'){
+      return '<h3>Terminal</h3>' +
+        row('Default market', 'The board that opens when you load the terminal',
+            select('defaultEx', [['', 'Last one used'], ['JSE', 'JSE  Johannesburg'], ['NGX', 'NGX  Lagos'],
+                                 ['NSE', 'NSE  Nairobi'], ['EGX', 'EGX  Cairo']], s.defaultEx, 'Default market')) +
+        row('Default panel', 'What the PANEL window shows on load', select('defaultPanel', panelOpts('First tab'), s.defaultPanel, 'Default panel')) +
+        row('Clock', 'The clock in the top bar',
+            select('clock', [['exchange', 'Exchange time'], ['local', 'My local time']], s.clock, 'Clock')) +
+        row('Ticker tape', 'Scrolling prices under the top bar', toggle('tape', s.tape, 'Ticker tape')) +
+        row('Window layout', 'Put this workspace back to the full-board layout',
+            '<button type="button" class="mx-btn" data-act="tile">Reset layout</button>') +
+        '<div class="mx-note">Default market and default panel apply the next time the terminal loads.</div>';
+    }
+    if(sec === 'ticker'){
+      return '<h3>Ticker click</h3>' +
+        row('When you click a security', 'Its details always open in the MARKET window',
+            select('tickerPanel', panelOpts('Keep the current panel', 'Also open '), s.tickerPanel, 'When you click a security')) +
+        '<div class="mx-note">Applies when you click a security in the watchlist.</div>';
+    }
+    if(sec === 'account'){
+      var w = who();
+      return '<h3>Account &amp; security</h3>' +
+        row('Signed in as', '', '<span class="mx-val" id="mxAcctMail">' + esc(w.email || 'Not signed in') + '</span>') +
+        row('Name', '', '<span class="mx-val" id="mxAcctName">' + esc(w.name || '-') + '</span>') +
+        row('Log out', 'Ends this session on the server and in this browser',
+            '<button type="button" class="mx-btn mx-danger" data-act="logout">Log out</button>') +
+        '<div class="mx-note">Settings are saved in this browser. Another device or browser keeps its own.</div>';
+    }
+    return '<h3>Invite a friend</h3>' +
+      '<p class="mx-p">Send your link to anyone who follows African markets. It opens MX Terminal, where they can create their own account.</p>' +
+      '<div class="mx-invite"><input type="text" readonly id="mxInvLink" value="' + esc(inviteLink()) + '" aria-label="Your invite link">' +
+        '<button type="button" class="mx-btn mx-pri" data-act="copy">Copy link</button></div>' +
+      '<div class="mx-share">' +
+        '<button type="button" class="mx-btn" data-act="share-wa">WhatsApp</button>' +
+        '<button type="button" class="mx-btn" data-act="share-mail">Email</button>' +
+        '<button type="button" class="mx-btn" data-act="share-x">X</button>' +
+        '<button type="button" class="mx-btn" data-act="share-li">LinkedIn</button>' +
+        (navigator.share ? '<button type="button" class="mx-btn" data-act="share-native">More</button>' : '') +
+      '</div>' +
+      '<div class="mx-note" id="mxInvNote" aria-live="polite"></div>';
+  }
+  function renderNav(){
+    nav.innerHTML = SECTIONS.map(function(x){
+      return '<button type="button" data-sec="' + x[0] + '"' + (x[0] === section ? ' class="on" aria-current="true"' : '') + '>' +
+             esc(x[1]) + '</button>';
+    }).join('');
+  }
+  function renderPane(){
+    pane.innerHTML = paneHtml(section);
+    pane.scrollTop = 0;
+    if(section === 'account' || section === 'invite'){
+      loadProfile().then(function(){
+        if(back.hidden) return;
+        var w = who();
+        var m = document.getElementById('mxAcctMail'), n = document.getElementById('mxAcctName'), l = document.getElementById('mxInvLink');
+        if(m) m.textContent = w.email || 'Not signed in';
+        if(n) n.textContent = w.name || '-';
+        if(l) l.value = inviteLink();
+      });
+    }
+  }
+  function open(sec){
+    closeMenu();
+    if(!SECTIONS.some(function(x){ return x[0] === sec; })) sec = 'theme';
+    section = sec;
+    back.hidden = false;
+    renderNav();
+    renderPane();
+    var on = nav.querySelector('.on');
+    if(on) on.focus();
+  }
+  function close(){ back.hidden = true; btn.focus(); }
+  nav.addEventListener('click', function(e){
+    var b = e.target.closest('[data-sec]');
+    if(!b) return;
+    section = b.getAttribute('data-sec');
+    renderNav();
+    renderPane();
+    var on = nav.querySelector('.on');
+    if(on) on.focus();
+  });
+  back.addEventListener('mousedown', function(e){ if(e.target === back) close(); });
+  back.querySelector('[data-close]').addEventListener('click', close);
+  // keys typed in the dialog belong to the dialog, not the terminal's shortcuts
+  back.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ e.preventDefault(); close(); }
+    e.stopPropagation();
+  });
+
+  var THEME_COLORS = {acc: 1, up: 1, down: 1, bg: 1};
+  function commit(t){
+    var k = t.getAttribute('data-k');
+    if(!k) return;
+    var val = t.type === 'checkbox' ? t.checked : t.value;
+    if(k === 'preset'){
+      var p = S.PRESETS[val];
+      if(p){ S.set({preset: val, acc: p.acc, up: p.up, down: p.down, bg: p.bg}); renderPane(); }
+      else S.set({preset: 'custom'});
+      return;
+    }
+    var patch = {};
+    patch[k] = val;
+    if(THEME_COLORS[k]){
+      patch.preset = 'custom';
+      var ps = pane.querySelector('select[data-k="preset"]');
+      if(ps) ps.value = 'custom';
+    }
+    S.set(patch);
+  }
+  pane.addEventListener('input', function(e){ if(e.target.type === 'color') commit(e.target); });
+  pane.addEventListener('change', function(e){ commit(e.target); });
+
+  function note(t){ var n = document.getElementById('mxInvNote'); if(n) n.textContent = t; }
+  function copyLink(link){
+    function fallback(){
+      var i = document.getElementById('mxInvLink');
+      if(!i) return;
+      i.focus();
+      i.select();
+      try{ document.execCommand('copy'); note('Link copied.'); }catch(e){ note('Select the link and copy it.'); }
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(link).then(function(){ note('Link copied.'); }, fallback);
+    }else fallback();
+  }
+  pane.addEventListener('click', function(e){
+    var b = e.target.closest('[data-act]');
+    if(!b) return;
+    var a = b.getAttribute('data-act'), link = inviteLink(), enc = encodeURIComponent;
+    var text = 'I use MX Terminal for African market data: JSE, NGX, NSE and EGX in one terminal.';
+    if(a === 'reset-theme'){ S.resetTheme(); renderPane(); }
+    else if(a === 'tile'){
+      if(window.MTWin && window.MTWin.reset) window.MTWin.reset();
+      b.textContent = 'Done';
+      setTimeout(function(){ b.textContent = 'Reset layout'; }, 1500);
+    }
+    else if(a === 'logout') logout();
+    else if(a === 'copy') copyLink(link);
+    else if(a === 'share-wa') window.open('https://wa.me/?text=' + enc(text + ' ' + link), '_blank', 'noopener');
+    else if(a === 'share-mail') location.href = 'mailto:?subject=' + enc('Try MX Terminal') + '&body=' + enc(text + '\n\n' + link);
+    else if(a === 'share-x') window.open('https://twitter.com/intent/tweet?text=' + enc(text) + '&url=' + enc(link), '_blank', 'noopener');
+    else if(a === 'share-li') window.open('https://www.linkedin.com/sharing/share-offsite/?url=' + enc(link), '_blank', 'noopener');
+    else if(a === 'share-native' && navigator.share) navigator.share({title: 'MX Terminal', text: text, url: link}).catch(function(){});
+  });
+
+  // ---- the theme reaches inside the panels ----
+  var frame = document.getElementById('stageFrame');
+  function themeFrame(){ try{ if(frame && frame.contentDocument) S.applyTo(frame.contentDocument, S.get()); }catch(e){} }
+  if(frame){ frame.addEventListener('load', themeFrame); themeFrame(); }
+  window.addEventListener('mx:settings', themeFrame);
+
+  // ---- open animation: flash a window's outline when it is opened ----
+  ['colWatch', 'colCenter', 'colInfo', 'colChat'].forEach(function(id){
+    var n = document.getElementById(id);
+    if(!n || !window.MutationObserver) return;
+    var wasHidden = n.style.display === 'none';
+    new MutationObserver(function(){
+      var hidden = n.style.display === 'none';
+      if(wasHidden && !hidden && S.get().winPulse){
+        n.classList.remove('mx-pulse');
+        void n.offsetWidth;
+        n.classList.add('mx-pulse');
+        setTimeout(function(){ n.classList.remove('mx-pulse'); }, 800);
+      }
+      wasHidden = hidden;
+    }).observe(n, {attributes: true, attributeFilter: ['style']});
+  });
+
+  window.MXUI = {open: open, close: close, logout: logout};
+})();
 </script>
 
 </body>
