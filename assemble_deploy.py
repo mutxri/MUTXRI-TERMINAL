@@ -52,8 +52,20 @@ for _logo in ("mutxri_logo.png", "mutxri_logo.svg", "mutxri_logo_256.png"):
 # 404 page
 if os.path.exists(os.path.join(BASE, "404.html")):
     shutil.copy(os.path.join(BASE, "404.html"), os.path.join(DEPLOY, "404.html"))
-    shutil.copy(os.path.join(BASE, "robots.txt"), os.path.join(DEPLOY, "robots.txt"))
-    shutil.copy(os.path.join(BASE, "sitemap.xml"), os.path.join(DEPLOY, "sitemap.xml"))
+
+# robots + sitemap. These were copied inside the 404 block above, so a build
+# without a 404 page would have shipped neither.
+shutil.copy(os.path.join(BASE, "robots.txt"), os.path.join(DEPLOY, "robots.txt"))
+shutil.copy(os.path.join(BASE, "sitemap.xml"), os.path.join(DEPLOY, "sitemap.xml"))
+
+# IndexNow key: the protocol requires it served at /<key>.txt (see speed_index.py).
+# Public by design - it proves the submitter controls the site, nothing more.
+_kf = os.path.join(BASE, "indexnow_key.txt")
+if os.path.exists(_kf):
+    _k = open(_kf, encoding="utf-8").read().strip()
+    if _k:
+        with open(os.path.join(DEPLOY, _k + ".txt"), "w", encoding="utf-8") as _o:
+            _o.write(_k)
 
 # links hub page
 # LINKS.html is an internal scratch page - it names the Atlas cluster and user,
