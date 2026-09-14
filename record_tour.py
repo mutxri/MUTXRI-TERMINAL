@@ -166,6 +166,18 @@ def run_steps(page, steps, rec_len):
                     page.wait_for_timeout(480)
                     page.evaluate("()=>window.__mxClick()")
                     page.mouse.click(pt[0], pt[1])
+            elif "js" in st:
+                # A native <select> popup is drawn by the OS, not the page, so the
+                # screencast never shows it opening. Glide to the control, pulse
+                # the click, and set the value in the page instead - what changes
+                # on screen is the real result of the choice.
+                if st.get("at"):
+                    pt = centre(page, st["at"])
+                    if pt:
+                        page.evaluate("([x,y,m])=>window.__mxCur(x,y,m)", [pt[0], pt[1], 450])
+                        page.wait_for_timeout(480)
+                        page.evaluate("()=>window.__mxClick()")
+                page.evaluate(st["js"])
             elif "type" in st:
                 page.keyboard.type(st["type"], delay=st.get("delay", 95))
             elif "key" in st:
@@ -235,6 +247,11 @@ def main():
         ctx = browser.new_context(viewport={"width": VW, "height": VH},
                                   device_scale_factor=2,
                                   reduced_motion="no-preference")
+        # the account menu shows the address the sign-in scene typed, not "Not signed in".
+        # Only on the tour views: the sign-in page prefills its email box from the same
+        # key, and the scene then typed the address a second time on top of it.
+        ctx.add_init_script("try{ if(location.search.indexOf('view=') >= 0 && !localStorage.getItem('mt_email'))"
+                            " localStorage.setItem('mt_email','you@example.com'); }catch(e){}")
         page = ctx.new_page()
         cdp = ctx.new_cdp_session(page)
         rec = Recorder(cdp)
@@ -257,6 +274,14 @@ def main():
             rec.start()
             run_steps(page, sc.get("steps", []), rec_len)
             frames = rec.stop()
+
+            # a scene that changes settings (theme, paper orders) must not leave
+            # them behind for the scenes recorded after it
+            try:
+                page.evaluate("()=>{try{['mx_settings','mx_paper_v1','mt_ws']"
+                              ".forEach(k=>localStorage.removeItem(k));}catch(e){}}")
+            except Exception:
+                pass
 
             ok = encode(frames, out, rec_len)
             print("  %-14s %5.1fs  %4d painted frames  %s"
