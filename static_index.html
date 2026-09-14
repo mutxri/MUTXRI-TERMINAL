@@ -2711,13 +2711,19 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
       profileP = fetch(AUTH_API + '/api/auth/me', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                                    body: JSON.stringify({token: t})})
         .then(function(r){ return r.json(); })
-        .then(function(d){ if(d && d.ok) profile = {email: d.email || '', name: d.name || ''}; return profile; })
+        .then(function(d){ if(d && d.ok) profile = asProfile(d); return profile; })
         .catch(function(){ return null; })
         .then(function(p){ profileP = null; return p; });
     }
     return profileP;
   }
-  function who(){ return {email: (profile && profile.email) || lastEmail(), name: (profile && profile.name) || ''}; }
+  function asProfile(d){
+    return {email: d.email || '', name: d.name || '', access: d.access || (d.owner ? 'lifetime' : 'standard')};
+  }
+  function who(){
+    return {email: (profile && profile.email) || lastEmail(), name: (profile && profile.name) || '',
+            access: (profile && profile.access) || ''};
+  }
   // A short code derived from the account, so the link never carries an email address.
   function inviteCode(email){
     var h = 0x811c9dc5;
@@ -2750,7 +2756,8 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
   menu.hidden = true;
   menu.setAttribute('role', 'menu');
   menu.innerHTML =
-    '<div class="mx-menu-who"><div class="mx-menu-name" id="mxWhoName">Account</div><div class="mx-menu-mail" id="mxWhoMail"></div></div>' +
+    '<div class="mx-menu-who"><div class="mx-menu-name" id="mxWhoName">Account</div><div class="mx-menu-mail" id="mxWhoMail"></div>' +
+      '<div class="mx-menu-mail" id="mxWhoAccess" style="color:var(--acc)" hidden>Lifetime access</div></div>' +
     mi('account', ICON.user, 'Profile') + mi('invite', ICON.link, 'Invite a friend') + mi('theme', ICON.gear, 'Settings') +
     '<a class="mx-mi" role="menuitem" href="/guide.html" target="_blank" rel="noopener">' + ICON.book + '<span>User guide</span></a>' +
     '<div class="mx-menu-sep"></div>' + mi('logout', ICON.out, 'Log out');
@@ -2759,6 +2766,7 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     var w = who();
     document.getElementById('mxWhoName').textContent = w.name || (w.email ? 'Signed in' : 'Not signed in');
     document.getElementById('mxWhoMail').textContent = w.email || '';
+    document.getElementById('mxWhoAccess').hidden = w.access !== 'lifetime';
   }
   function openMenu(){
     fillWho();
@@ -2868,6 +2876,9 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
       return '<h3>Account &amp; security</h3>' +
         row('Signed in as', '', '<span class="mx-val" id="mxAcctMail">' + esc(w.email || 'Not signed in') + '</span>') +
         row('Name', '', '<span class="mx-val" id="mxAcctName">' + esc(w.name || '-') + '</span>') +
+        row('Access', w.access === 'lifetime' ? 'Stays signed in on this browser'
+                                              : 'Signed out when you leave the site; log in again next visit',
+            '<span class="mx-val" id="mxAcctAccess">' + (w.access === 'lifetime' ? 'Lifetime' : (w.access ? 'Standard' : '-')) + '</span>') +
         row('Log out', 'Ends this session on the server and in this browser',
             '<button type="button" class="mx-btn mx-danger" data-act="logout">Log out</button>') +
         '<div class="mx-note">Settings are saved in this browser. Another device or browser keeps its own.</div>';
@@ -2901,6 +2912,8 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
         var m = document.getElementById('mxAcctMail'), n = document.getElementById('mxAcctName'), l = document.getElementById('mxInvLink');
         if(m) m.textContent = w.email || 'Not signed in';
         if(n) n.textContent = w.name || '-';
+        var ac = document.getElementById('mxAcctAccess');
+        if(ac) ac.textContent = w.access === 'lifetime' ? 'Lifetime' : (w.access ? 'Standard' : '-');
         if(l) l.value = inviteLink();
       });
     }
@@ -3011,6 +3024,32 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
       wasHidden = hidden;
     }).observe(n, {attributes: true, attributeFilter: ['style']});
   });
+
+  // ---- stay signed in only while the site is open ----
+  // Every open page checks in once a minute, and again when its tab comes back
+  // into view. The server ends a session that stops checking in (the owner's
+  // lifetime session excepted), so someone who leaves logs in again next visit.
+  // No answer - offline, or a sleeping server - is not a sign-out.
+  var EMBEDDED = /(^|\s)view-/.test(document.documentElement.className) || window.self !== window.top;
+  function checkIn(){
+    var t = tok();
+    if(!t || EMBEDDED) return;
+    fetch(AUTH_API + '/api/auth/me', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                     body: JSON.stringify({token: t})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.ok){ profile = asProfile(d); return; }
+        if(d && d.error === 'session expired'){
+          try{ localStorage.removeItem('mt_token'); }catch(e){}
+          location.reload();                 // back to the sign-in screen
+        }
+      })
+      .catch(function(){});
+  }
+  if(!EMBEDDED){
+    setInterval(checkIn, 60000);
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) checkIn(); });
+  }
 
   window.MXUI = {open: open, close: close, logout: logout};
 })();

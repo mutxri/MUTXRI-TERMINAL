@@ -11,7 +11,7 @@ if(location.protocol==='http:'&&location.hostname!=='localhost'&&location.hostna
 
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<title>MUTXRI TERMINAL — African Markets Terminal</title>
+<title>MUTXRI TERMINAL - African Markets Terminal</title>
 <link rel="canonical" href="https://mutxriterminal.com/">
 
 <meta name="description" content="MUTXRI TERMINAL is a financial terminal for African markets. 969 listed securities across JSE, NGX, NSE and EGX - financial statements, filings and news in one workspace." />
@@ -1226,6 +1226,13 @@ function __signedInNav(){
 // have fired - registering a listener alone would silently never run
 if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", __signedInNav);
 else __signedInNav();
+// A signed-in visitor checks in once a minute while the page is open, and when the
+// tab comes back into view. The server ends a session that stops checking in (the
+// owner's lifetime session excepted), so leaving the site means logging in again.
+setInterval(function(){ if(__token()) __verifySession(); }, 60000);
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden && __token()) __verifySession();
+});
 
 function openAuth(mode){
 
