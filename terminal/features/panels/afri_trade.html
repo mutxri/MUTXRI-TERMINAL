@@ -73,6 +73,16 @@
          padding:6px 12px;font-family:var(--mono);font-size:10.5px;cursor:pointer;}
   .reset:hover{border-color:var(--down);color:var(--down);}
   .asof{font-family:var(--mono);font-size:10.5px;color:var(--tx3);}
+  .next{margin-top:20px;border:1px solid var(--line2);background:var(--bg2);border-radius:3px;padding:12px 14px;}
+  .next .hd{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;}
+  .next .hd b{color:var(--acc);font-family:var(--mono);font-size:11px;letter-spacing:.08em;}
+  .next .hd span{color:var(--tx);font-size:12.5px;}
+  .next ul{margin:0 0 8px 18px;padding:0;}
+  .next li{color:var(--tx2);font-size:12px;line-height:1.55;margin:3px 0;}
+  .next .reg{color:var(--tx2);font-size:12px;margin:6px 0 2px;}
+  .next a{color:var(--acc);text-decoration:none;}
+  .next a:hover{text-decoration:underline;}
+  .next .fine{color:var(--tx3);font-size:11px;margin-top:6px;}
 </style>
 </head>
 <body>
@@ -110,12 +120,8 @@
   <h2>Order history</h2>
   <div id="orders"></div>
 
-  <div class="demo" style="margin-top:20px;border-color:var(--line2);background:var(--bg2)">
-    <b style="color:var(--acc)">NEXT</b>
-    <span>Live orders are in development. They will route through a licensed broker partner,
-          with your CDS account for the Nairobi market, covering equities and bonds. Until then
-          everything here is simulated.</span>
-  </div>
+  <!-- what a real account needs on THIS market; filled from REQS for ?ex= -->
+  <div class="next" id="next"></div>
 
   <div class="foot">
     <span class="asof" id="asof"></span>
@@ -130,6 +136,51 @@
   var PRESET = (Q.get("sym") || "").toUpperCase();
   var ORDER = (Q.get("order") || "").toUpperCase();   // SIDE:TICKER:QTY from the command line
   var KEY = "mx_paper_v1";
+
+  // What it takes to buy real shares on each market. This note used to name a
+  // CDS account and the Nairobi market on every board, which is wrong on the JSE,
+  // NGX and EGX. Each entry is what that market's exchange, depository and
+  // regulator publish; checked 2026-09-14. A broker's own checklist is final.
+  var REQS = {
+    JSE: {market: "the JSE (South Africa)",
+          items: ["An account with a JSE-registered stockbroker. Your shares are held in custody by a CSDP, through Strate, South Africa's central securities depository.",
+                  "FICA documents: your SA ID or passport, proof of address no older than three months, and your SA income tax number.",
+                  "Money in the account before you trade: brokers need it funded before an order is placed."],
+          reg: "Regulated by the Financial Sector Conduct Authority (FSCA).",
+          link: ["Find a JSE-registered stockbroker", "https://www.jse.co.za/"]},
+    NGX: {market: "the NGX (Nigeria)",
+          items: ["A stockbroker that holds an NGX trading licence. It opens your CSCS account and gives you a CHN (Clearing House Number).",
+                  "A valid means of identification, your NIN and your BVN.",
+                  "A Nigerian bank account to fund trades and receive dividends."],
+          reg: "Regulated by the Securities and Exchange Commission (SEC Nigeria).",
+          link: ["Find a broker on NGX", "https://ngxgroup.com/exchange/trade/becoming-an-investor/"]},
+    NSE: {market: "the NSE (Kenya)",
+          items: ["A CDS account at CDSC, opened through a stockbroker or custodian (a Central Depository Agent).",
+                  "CDS Form 1, your national ID or passport, your KRA PIN, two passport photos and your bank details.",
+                  "Money in your broker account before you buy."],
+          reg: "Regulated by the Capital Markets Authority (CMA).",
+          link: ["CMA licensed stockbrokers", "https://www.cma.or.ke/"]},
+    EGX: {market: "the EGX (Egypt)",
+          items: ["An account with a brokerage licensed by the Financial Regulatory Authority (FRA).",
+                  "A unified investor code, which your broker registers for you. Your shares are recorded at MCDR, Egypt's central depository.",
+                  "Identification (national ID, or a passport for foreign investors) and a bank account to fund your trades."],
+          reg: "Regulated by the Financial Regulatory Authority (FRA).",
+          link: ["EGX member brokerages", "https://www.egx.com.eg/"]}
+  };
+  (function renderNext(){
+    var r = REQS[EX], box = document.getElementById("next");
+    if(!box) return;
+    if(!r){ box.hidden = true; return; }
+    function e(s){ return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+    box.innerHTML =
+      "<div class='hd'><b>NEXT</b><span>To buy real shares on " + e(r.market) + " you need:</span></div>" +
+      "<ul>" + r.items.map(function(t){ return "<li>" + e(t) + "</li>"; }).join("") + "</ul>" +
+      "<div class='reg'>" + e(r.reg) + " <a href='" + e(r.link[1]) + "' target='_blank' rel='noopener'>" + e(r.link[0]) + " &rarr;</a></div>" +
+      "<div class='fine'>Live orders through MX Terminal are in development, through licensed brokers, " +
+      "covering equities and bonds. Until then everything here is simulated. Requirements checked 2026-09-14; " +
+      "your broker's own checklist is final.</div>";
+  })();
   // Demo balances, in each market's own quote currency. The JSE quotes in
   // cents, so ten million ZAc is R100,000 - not a hundred million rand.
   var START = {JSE:10000000, NGX:5000000, NSE:1000000, EGX:500000};
