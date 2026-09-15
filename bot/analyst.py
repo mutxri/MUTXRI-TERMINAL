@@ -86,7 +86,44 @@ net finance costs. Say so if you lean on it.
 Two habits that matter. A ratio without a comparison is close to meaningless, so \
 reach for the peer median or the company's own history rather than calling a \
 number good or bad on its own. And a flag is a prompt for scrutiny, not a \
-verdict: one year of weak cash conversion can be working-capital timing."""
+verdict: one year of weak cash conversion can be working-capital timing.
+
+Further metrics you may be given, computed the same way:
+
+- EBITDA = EBIT + depreciation. net_debt_to_ebitda is net debt in years of \
+EBITDA; above about 3 lenders grow wary. pretax_margin = PBT / revenue.
+- Five-step DuPont: ROE = tax_burden (net profit / PBT) x interest_burden \
+(PBT / EBIT) x EBIT margin x asset turnover x equity multiplier.
+- cash_ratio and ocf_ratio are cash and operating cash flow over current \
+liabilities; equity_ratio and debt_ratio are equity and liabilities as a share \
+of assets.
+- inventory_days, receivable_days, payable_days and cash_conversion_cycle \
+(inventory days + receivable days - payable days): how long cash is tied up.
+- capex_to_depreciation below 1 for years means the asset base is shrinking. \
+fcf_to_net_profit and cash_return_on_assets measure cash quality.
+- dividend_payout, retention_ratio, and sustainable_growth = ROE x retention: \
+the growth fundable without new equity or more leverage. roe_avg and roa_avg \
+use the average of opening and closing balances.
+- Banks: loan_to_deposit, nii_to_assets, cost_of_risk, cost-to-income, equity \
+ratio. Insurers: loss_ratio, expense_ratio, combined_ratio (above 100 is an \
+underwriting loss). Current ratios, gross margins and Altman scores were not \
+built for banks and insurers; never judge them on those.
+- Altman Z (listed manufacturers, bands 1.81 / 2.99), Z' (private firms, \
+1.23 / 2.90) and Z'' (emerging markets, 1.1 / 2.6). A Beneish M-score above \
+-1.78 matches the profile of earnings manipulation; it says which notes to \
+read, not that fraud occurred.
+- The life-cycle stage comes from the signs of operating, investing and \
+financing cash flow (Dickinson): introduction, growth, mature, shake-out, \
+decline.
+- riskFree is the shortest government yield on file for that market. A return \
+on equity below it means shareholders earned less than treasury paper that \
+carries no equity risk. Say how old the yield is when it is marked stale.
+
+Read statements in order: whether the figures can be trusted, the income \
+statement, the balance sheet, cash flow, returns, efficiency, earnings \
+quality, distress and strength, valuation. In high-inflation currencies (NGN, \
+EGP) nominal growth can be a real decline; say so rather than calling it \
+growth."""
 
 
 class AnalystUnavailable(RuntimeError):
@@ -200,6 +237,13 @@ def _facts_block(analysis, max_periods=5):
               "debt_to_equity", "net_debt_to_equity", "current_ratio",
               "interest_cover", "ocf_to_net_profit",
               "revenue_growth", "net_profit_growth", "ocf_growth",
+              "ebitda", "ebitda_margin", "pretax_margin", "tax_burden",
+              "interest_burden", "asset_turnover", "equity_multiplier",
+              "roce", "roic", "roe_avg", "cash_ratio", "equity_ratio",
+              "net_debt_to_ebitda", "inventory_days", "receivable_days",
+              "payable_days", "cash_conversion_cycle", "capex_to_depreciation",
+              "fcf_to_net_profit", "dividend_payout", "sustainable_growth",
+              "loan_to_deposit", "cost_of_risk", "combined_ratio",
               "yearsSincePrior"]
     for r in analysis["metrics"][:max_periods]:
         lines.append("  " + json.dumps({k: r.get(k) for k in fields}))

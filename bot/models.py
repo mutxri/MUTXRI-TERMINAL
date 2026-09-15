@@ -22,20 +22,18 @@ What is implemented, and why:
                       a large share of these markets by value is banks.
   Operating leverage  how hard profit moves when revenue moves.
 
-What is deliberately NOT implemented, because this corpus cannot support it
-honestly - the line items simply are not in the filings:
+  Altman Z and Z'     the original listed-manufacturer model (needs market
+                      capitalisation) and the private-firm variant (book
+                      equity), alongside Z''.
+  Beneish M-Score     eight indices of receivables, margins, asset quality,
+                      growth, depreciation, overheads, accruals and leverage.
+  Bank and insurer    loan-to-deposit, cost of risk, loss, expense and
+  ratios              combined ratios.
 
-  Beneish M-Score          needs receivables, depreciation, SG&A and sales
-                           quality across two years. None of the first three
-                           are in these statements.
-  Cash conversion cycle    needs inventory, receivables and payables.
-  Dividend cover / yield    needs a dividends-paid line; the cash flow
-                           statements here do not carry one.
-
-Those line items are mapped in bot/statements.py regardless, so each of these
-lights up automatically for a private company whose accounts do carry them.
-Reporting "not computable, and here is what was missing" beats a number built
-out of substitutes.
+Most of the parsed public filings lack the lines Beneish, the cash conversion
+cycle and dividend cover need (receivables, property, depreciation, payables,
+dividends paid). Each model says exactly which inputs were missing rather than
+substituting, and lights up for any accounts that do carry them.
 """
 
 
@@ -253,12 +251,137 @@ def operating_leverage(rows):
             "revenueGrowth": rg, "ebitGrowth": eg}
 
 
+# ------------------------------------------------------- Altman variants
+def _altman_inputs(row, keys):
+    vals = {k: _get(row, k) for k in keys}
+    missing = [k for k, v in vals.items() if v is None]
+    if not vals.get("total_assets"):
+        missing = sorted(set(missing) | {"total_assets"})
+    if not missing and not vals.get("total_liabilities"):
+        missing = ["total_liabilities (zero)"]
+    return vals, missing
+
+
+def altman_z_original(row, market_cap):
+    """Altman (1968) Z for listed manufacturers:
+    Z = 1.2 X1 + 1.4 X2 + 3.3 X3 + 0.6 X4 + 1.0 X5, X4 = market value of equity /
+    total liabilities, X5 = sales / total assets. Bands 1.81 and 2.99."""
+    v, missing = _altman_inputs(row, ("working_capital", "retained_earnings", "ebit", "revenue",
+                                      "total_liabilities", "total_assets"))
+    if not market_cap:
+        missing = missing + ["market_cap"]
+    if missing:
+        return {"available": False, "missing": missing}
+    ta = v["total_assets"]
+    x = [v["working_capital"] / ta, v["retained_earnings"] / ta, v["ebit"] / ta,
+         market_cap / abs(v["total_liabilities"]), v["revenue"] / ta]
+    z = 1.2 * x[0] + 1.4 * x[1] + 3.3 * x[2] + 0.6 * x[3] + 1.0 * x[4]
+    return {"available": True, "score": round(z, 2),
+            "band": _bands(z, [1.81, 2.99], ["distress", "grey", "safe"]),
+            "terms": dict(zip(("X1", "X2", "X3", "X4", "X5"), [round(t, 4) for t in x])),
+            "variant": "Z (Altman 1968), listed manufacturers, bands 1.81 / 2.99"}
+
+
+def altman_z_private(row):
+    """Altman Z' for private firms: book equity replaces market value.
+    Z' = 0.717 X1 + 0.847 X2 + 3.107 X3 + 0.420 X4 + 0.998 X5. Bands 1.23 and 2.90."""
+    v, missing = _altman_inputs(row, ("working_capital", "retained_earnings", "ebit", "revenue",
+                                      "total_equity", "total_liabilities", "total_assets"))
+    if missing:
+        return {"available": False, "missing": missing}
+    ta = v["total_assets"]
+    x = [v["working_capital"] / ta, v["retained_earnings"] / ta, v["ebit"] / ta,
+         v["total_equity"] / abs(v["total_liabilities"]), v["revenue"] / ta]
+    z = 0.717 * x[0] + 0.847 * x[1] + 3.107 * x[2] + 0.420 * x[3] + 0.998 * x[4]
+    return {"available": True, "score": round(z, 2),
+            "band": _bands(z, [1.23, 2.90], ["distress", "grey", "safe"]),
+            "terms": dict(zip(("X1", "X2", "X3", "X4", "X5"), [round(t, 4) for t in x])),
+            "variant": "Z' (Altman), private firms, bands 1.23 / 2.90"}
+
+
+# ------------------------------------------------------------- Beneish
+BENEISH_THRESHOLD = -1.78
+
+
+def beneish_from_indices(dsri, gmi, aqi, sgi, depi, sgai, tata, lvgi):
+    """Beneish (1999) eight-variable M-score."""
+    return (-4.84 + 0.920 * dsri + 0.528 * gmi + 0.404 * aqi + 0.892 * sgi
+            + 0.115 * depi - 0.172 * sgai + 4.679 * tata - 0.327 * lvgi)
+
+
+def beneish(rows):
+    """Beneish M-score from two adjacent years of statements.
+
+    DSRI receivables/sales, GMI gross margin (prior over current), AQI the share
+    of assets that are neither current nor property, SGI sales growth, DEPI
+    depreciation rate (prior over current), SGAI overheads/sales, TATA accruals
+    over assets, LVGI leverage. Above -1.78 matches the profile of companies
+    later found to have manipulated earnings; it is a screen, not a finding.
+    """
+    if not rows or len(rows) < 2:
+        return {"available": False, "reason": "needs two periods"}
+    cur, prv = rows[0], rows[1]
+    if cur.get("priorIsAdjacentYear") is False:
+        return {"available": False, "reason": "prior period is not the preceding year"}
+
+    def gp(r):
+        g = _get(r, "gross_profit")
+        rev, cos = _get(r, "revenue"), _get(r, "cost_of_sales")
+        return g if g is not None else (rev - abs(cos) if rev is not None and cos is not None else None)
+
+    both = ("receivables", "revenue", "current_assets", "ppe", "depreciation",
+            "operating_expenses", "total_liabilities", "total_assets")
+    missing = sorted({k for r in (cur, prv) for k in both if _get(r, k) is None}
+                     | {k for k in ("net_profit", "ocf") if _get(cur, k) is None}
+                     | ({"gross_profit"} if gp(cur) is None or gp(prv) is None else set()))
+    if missing:
+        return {"available": False, "missing": missing}
+    g = lambda r, k: abs(_get(r, k))
+    try:
+        rev_c, rev_p = _get(cur, "revenue"), _get(prv, "revenue")
+        idx = {
+            "dsri": (g(cur, "receivables") / rev_c) / (g(prv, "receivables") / rev_p),
+            "gmi": (gp(prv) / rev_p) / (gp(cur) / rev_c),
+            "aqi": ((1 - (_get(cur, "current_assets") + g(cur, "ppe")) / _get(cur, "total_assets"))
+                    / (1 - (_get(prv, "current_assets") + g(prv, "ppe")) / _get(prv, "total_assets"))),
+            "sgi": rev_c / rev_p,
+            "depi": ((g(prv, "depreciation") / (g(prv, "depreciation") + g(prv, "ppe")))
+                     / (g(cur, "depreciation") / (g(cur, "depreciation") + g(cur, "ppe")))),
+            "sgai": (g(cur, "operating_expenses") / rev_c) / (g(prv, "operating_expenses") / rev_p),
+            "tata": (_get(cur, "net_profit") - _get(cur, "ocf")) / _get(cur, "total_assets"),
+            "lvgi": ((g(cur, "total_liabilities") / _get(cur, "total_assets"))
+                     / (g(prv, "total_liabilities") / _get(prv, "total_assets"))),
+        }
+    except ZeroDivisionError:
+        return {"available": False, "reason": "a component has a zero denominator"}
+    m = beneish_from_indices(**idx)
+    return {"available": True, "score": round(m, 2), "threshold": BENEISH_THRESHOLD,
+            "likelyManipulator": m > BENEISH_THRESHOLD,
+            "indices": {k: round(v, 4) for k, v in idx.items()},
+            "note": "LVGI uses total liabilities over assets; operating expenses stand in for SG&A"}
+
+
+# --------------------------------------------------- banks and insurers
+def bank_ratios(row):
+    vals = {"loanToDeposit": _get(row, "loan_to_deposit"),
+            "niiToAssets": _get(row, "nii_to_assets"),
+            "costOfRisk": _get(row, "cost_of_risk"),
+            "equityToAssets": _get(row, "equity_ratio")}
+    return dict(vals, available=any(v is not None for k, v in vals.items() if k != "equityToAssets"))
+
+
+def insurance_ratios(row):
+    vals = {"lossRatio": _get(row, "loss_ratio"), "expenseRatio": _get(row, "expense_ratio"),
+            "combinedRatio": _get(row, "combined_ratio")}
+    return dict(vals, available=any(v is not None for v in vals.values()))
+
+
 NOT_COMPUTABLE = {
-    "beneish_m_score": "needs receivables, depreciation and SG&A across two "
-                       "periods; none are present in these filings",
-    "cash_conversion_cycle": "needs inventory, receivables and payables",
-    "dividend_cover_and_yield": "needs a dividends-paid line in the cash flow "
-                                "statement",
+    "beneish_m_score": "computed when a statement carries receivables, property plant and "
+                       "equipment, depreciation and operating expenses for two adjacent "
+                       "years; the parsed public filings carry none of the first three",
+    "cash_conversion_cycle": "computed when inventory, receivables and payables are present",
+    "dividend_cover_and_yield": "computed when the cash flow statement carries dividends paid",
 }
 
 
@@ -266,13 +389,21 @@ def score_all(analysis):
     """Every model that this company's data supports."""
     rows = analysis.get("metrics") or []
     cur = rows[0] if rows else {}
-    shares = (analysis.get("entity") or {}).get("sharesOutstanding")
+    entity = analysis.get("entity") or {}
+    shares = entity.get("sharesOutstanding")
+    listed = entity.get("kind", "public") == "public"
     return {
         "piotroski": piotroski(rows),
         "altmanZ": altman_z(cur),
+        "altmanZOriginal": altman_z_original(cur, entity.get("marketCap")),
+        "altmanZPrivate": (altman_z_private(cur) if not listed else
+                           {"available": False, "reason": "listed company: Z or Z'' apply"}),
+        "beneish": beneish(rows),
         "accruals": sloan_accruals(rows),
         "perShare": per_share(cur, shares),
         "costToIncome": cost_to_income(cur),
         "operatingLeverage": operating_leverage(rows),
+        "bank": bank_ratios(cur),
+        "insurance": insurance_ratios(cur),
         "notComputable": NOT_COMPUTABLE,
     }

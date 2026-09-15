@@ -445,9 +445,256 @@ def check_valuation():
     return out
 
 
+def _check(group, name, expected, got, how, ok):
+    return {"group": group, "name": name, "expected": expected, "got": got,
+            "how": how, "ok": bool(ok)}
+
+
+def check_tvm():
+    import datetime as dt
+    from . import tvm as V
+    g = "time-value"
+    cf = [-1000.0, 500.0, 500.0, 500.0]
+    loan = V.amortisation(100000, 12, 1)
+    return [
+        _row(g, "future_value", 1331.0, V.fv(1000, 10, 3), "1000 x 1.1^3"),
+        _row(g, "present_value", 1000.0, V.pv(1331, 10, 3), "1331 / 1.1^3"),
+        _row(g, "annuity_pv", 248.6852, V.annuity_pv(100, 10, 3), "100 x (1 - 1.1^-3) / 0.1"),
+        _row(g, "annuity_fv", 331.0, V.annuity_fv(100, 10, 3), "100 x (1.1^3 - 1) / 0.1"),
+        _row(g, "annuity_due_pv", 273.5537, V.annuity_pv(100, 10, 3, due=True), "248.6852 x 1.1"),
+        _row(g, "growing_perpetuity", 2000.0, V.growing_perpetuity(100, 10, 5), "100 / (0.10 - 0.05)"),
+        _row(g, "effective_annual_rate", 12.6825, V.ear(12, 12), "1.01^12 - 1"),
+        _row(g, "continuous_ear", 12.7497, V.ear_continuous(12), "e^0.12 - 1"),
+        _row(g, "nominal_ear_round_trip", 12.0, V.nominal_from_ear(V.ear(12, 12), 12),
+             "the two conversions invert each other", 1e-9),
+        _row(g, "loan_payment", 8884.88, loan["payment"], "100000 x 0.01 / (1 - 1.01^-12)"),
+        _row(g, "loan_clears_to_zero", 0.0, loan["schedule"][-1]["balance"],
+             "the twelfth payment leaves nothing owed", 1e-6),
+        _row(g, "npv", 243.426, V.npv(10, cf), "-1000 + 500 x 2.486852"),
+        _row(g, "irr", 23.3752, V.irr(cf), "the rate at which the 3-year annuity factor is 2.0"),
+        _row(g, "npv_at_irr_is_zero", 0.0, V.npv(V.irr(cf), cf), "the definition of IRR", 1e-6),
+        _row(g, "irr_one_period", 10.0, V.irr([-100.0, 110.0]), "110 / 100 - 1", 1e-9),
+        _check(g, "irr_none_without_sign_change", None, V.irr([100.0, 50.0]),
+               "no outlay, no rate of return", V.irr([100.0, 50.0]) is None),
+        _row(g, "mirr", 18.285, V.mirr(cf, 10, 10), "(605 + 550 + 500 = 1655) / 1000, cube root - 1"),
+        _row(g, "xirr_one_year", 10.0, V.xirr([(dt.date(2025, 1, 1), -1000.0),
+                                              (dt.date(2026, 1, 1), 1100.0)]),
+             "365 days apart, 1100 back on 1000", 1e-6),
+        _row(g, "payback", 2.5, V.payback([-1000.0, 400.0, 400.0, 400.0]),
+             "-600, -200, then 200 of the third 400"),
+        _row(g, "discounted_payback", 2.352, V.discounted_payback(10, cf),
+             "454.55 + 413.22, then 132.23 of 375.66"),
+        _row(g, "profitability_index", 1.2434, V.profitability_index(10, cf), "1243.43 / 1000"),
+        _row(g, "equivalent_annual_annuity", 97.885, V.equivalent_annual_annuity(10, cf),
+             "243.426 x 0.1 / (1 - 1.1^-3)"),
+        _row(g, "cagr", 10.0, V.cagr(100, 121, 2), "(121 / 100)^(1/2) - 1"),
+        _row(g, "holding_period_return", 15.0, V.holding_period_return(100, 110, 5),
+             "(110 - 100 + 5) / 100"),
+        _row(g, "time_weighted_return", 4.5, V.twr([10, -5]), "1.10 x 0.95 - 1"),
+        _row(g, "geometric_mean_return", 1.8152, V.geometric_mean_return([10, -5, 1]),
+             "(1.10 x 0.95 x 1.01)^(1/3) - 1, below the arithmetic 2.0"),
+        _row(g, "breakeven_units", 500.0, V.breakeven_units(10000, 50, 30), "10000 / (50 - 30)"),
+        _row(g, "financial_leverage", 1.5, V.degree_financial_leverage(150, 50), "150 / (150 - 50)"),
+    ]
+
+
+def check_derivatives():
+    from . import derivatives as D
+    g = "derivatives"
+    gk = D.greeks(100, 100, 1, 5, 20)
+    put = D.black_scholes(100, 100, 1, 5, 20, kind="put")
+    american_put = D.binomial(100, 100, 1, 5, 20, steps=300, kind="put", american=True)
+    return [
+        _row(g, "black_scholes_call", 10.4506, gk["price"],
+             "100 N(0.35) - 100 e^-0.05 N(0.15) = 63.6831 - 53.2325"),
+        _row(g, "black_scholes_put", 5.5735, put, "100 e^-0.05 N(-0.15) - 100 N(-0.35)"),
+        _row(g, "put_call_parity", 4.8771, gk["price"] - put, "C - P = 100 - 100 e^-0.05"),
+        _row(g, "delta_call", 0.6368, gk["delta"], "N(0.35)", 0.001),
+        _row(g, "gamma", 0.018762, gk["gamma"], "phi(0.35) / (100 x 0.2)", 0.0001),
+        _row(g, "vega_per_point", 0.3752, gk["vegaPerPoint"], "100 x phi(0.35) / 100", 0.001),
+        _row(g, "theta_per_year", -6.414, gk["thetaPerYear"],
+             "-100 x phi(0.35) x 0.2 / 2 - 0.05 x 95.1229 x N(0.15)"),
+        _row(g, "rho_per_point", 0.5323, gk["rhoPerPoint"], "95.1229 x N(0.15) / 100", 0.001),
+        _row(g, "implied_vol_round_trip", 20.0, D.implied_vol(gk["price"], 100, 100, 1, 5),
+             "the price of a 20% option implies 20%", 1e-4),
+        _row(g, "binomial_converges_to_black_scholes", 10.4506,
+             D.binomial(100, 100, 1, 5, 20, steps=500), "CRR tree, 500 steps", 0.02),
+        _check(g, "american_put_at_least_european", True, round(american_put - put, 4),
+               "early exercise can only add value", american_put >= put - 0.01),
+        _row(g, "forward_price", 103.0455, D.forward_price(100, 5, 1, 2), "100 e^(0.05 - 0.02)"),
+        _row(g, "fx_forward_interest_parity", 135.2019, D.fx_forward(129, 9, 4, 1),
+             "129 x 1.09 / 1.04"),
+        _row(g, "cross_rate", 11.6279, D.cross_rate(129, 1500), "1500 NGN / 129 KES per dollar"),
+        _row(g, "fx_adjusted_return", 3.4, D.fx_adjusted_return(10, -6), "1.10 x 0.94 - 1"),
+    ]
+
+
+def check_performance():
+    from . import risk as R
+    g = "performance"
+    return [
+        _row(g, "treynor", 8.0, R.treynor(15, 5, 1.25), "(15 - 5) / 1.25"),
+        _row(g, "jensen_alpha", 1.25, R.jensen_alpha(15, 5, 1.25, 12), "15 - (5 + 1.25 x 7)"),
+        _row(g, "tracking_error", 0.7071, R.tracking_error([0.03, 0.02], [0.01, 0.01], 1),
+             "sample sd of active returns 2% and 1%"),
+        _row(g, "information_ratio", 2.1213, R.information_ratio([0.03, 0.02], [0.01, 0.01], 1),
+             "mean active 1.5% / 0.7071%"),
+        _row(g, "calmar", 0.8, R.calmar(20, -25), "20 / 25"),
+        _row(g, "m_squared", 15.0, R.m_squared(0.5, 20, 5), "5 + 0.5 x 20"),
+        _row(g, "two_asset_volatility", 18.0278, R.portfolio_vol_two(0.5, 20, 30, 0.0),
+             "sqrt(0.25 x 400 + 0.25 x 900)"),
+    ]
+
+
+# Lines a fuller filing carries, added to the fixture for the extended toolkit.
+TOOLKIT_CHANGES = dict(cashflow__depreciation=[50.0, 40.0], balance__payables=[150.0, 120.0],
+                       cashflow__dividends_paid=[-28.0, -20.0], cashflow__icf=[-40.0, -30.0],
+                       cashflow__fcf_financing=[-60.0, -50.0])
+
+EXPECTED_TOOLKIT = {
+    "ebitda":                  (200.0,  "150 EBIT + 50 depreciation"),
+    "ebitda_margin":           (20.0,   "200 / 1000"),
+    "net_debt_to_ebitda":      (2.5,    "500 / 200"),
+    "pretax_margin":           (10.0,   "100 / 1000"),
+    "tax_burden":              (0.7,    "70 / 100"),
+    "interest_burden":         (0.6667, "100 / 150"),
+    "cash_ratio":              (0.2,    "100 / 500"),
+    "ocf_ratio":               (0.28,   "140 / 500"),
+    "equity_ratio":            (40.0,   "800 / 2000"),
+    "debt_ratio":              (60.0,   "1200 / 2000"),
+    "non_current_asset_turnover": (0.8333, "1000 / (2000 - 800)"),
+    "working_capital_turnover": (3.3333, "1000 / 300"),
+    "payable_days":            (91.25,  "150 x 365 / 600"),
+    "cash_conversion_cycle":   (139.92, "121.67 + 109.5 - 91.25"),
+    "capex_to_revenue":        (4.0,    "40 / 1000"),
+    "capex_to_depreciation":   (0.8,    "40 / 50"),
+    "fcf_to_net_profit":       (1.4286, "100 / 70"),
+    "cash_return_on_assets":   (7.0,    "140 / 2000"),
+    "dividend_payout":         (40.0,   "28 / 70"),
+    "retention_ratio":         (60.0,   "100 - 40"),
+    "sustainable_growth":      (5.25,   "ROE 8.75 x 60%"),
+    "roe_avg":                 (9.333,  "70 / ((800 + 700) / 2)"),
+    "roa_avg":                 (3.684,  "70 / ((2000 + 1800) / 2)"),
+}
+
+
+def check_statement_toolkit():
+    cur = S.analyse(_mutate(**TOOLKIT_CHANGES))["metrics"][0]
+    out = [_row("toolkit", m, want, cur.get(m), how, 0.02)
+           for m, (want, how) in EXPECTED_TOOLKIT.items()]
+    parts = [cur.get(k) for k in ("tax_burden", "interest_burden", "ebit_margin",
+                                  "asset_turnover", "equity_multiplier")]
+    five = None
+    if None not in parts:
+        five = parts[0] * parts[1] * parts[2] * parts[3] * parts[4]
+    out.append(_row("toolkit", "five_step_dupont_reconciles", cur["roe"], five,
+                    "0.70 x 0.6667 x 15% x 0.5 x 2.5 = ROE", 0.05))
+    return out
+
+
+def _beneish_doc(ocf_now):
+    """Two identical years, so every Beneish index is 1; only accruals vary."""
+    return {"entity": {"id": "BENEISH", "name": "Beneish Test", "kind": "private"},
+            "periods": ["FY2025", "FY2024"],
+            "sections": {
+                "income": {"revenue": [1000.0, 1000.0], "cost_of_sales": [600.0, 600.0],
+                           "gross_profit": [400.0, 400.0], "operating_expenses": [250.0, 250.0],
+                           "net_profit": [70.0, 70.0]},
+                "balance": {"total_assets": [2000.0, 2000.0], "current_assets": [800.0, 800.0],
+                            "ppe": [900.0, 900.0], "receivables": [300.0, 300.0],
+                            "total_liabilities": [1200.0, 1200.0],
+                            "total_equity": [800.0, 800.0]},
+                "cashflow": {"ocf": [ocf_now, 70.0], "depreciation": [50.0, 50.0]}},
+            "source": {"kind": "fixture"}}
+
+
+def check_models_extra():
+    from . import models as M
+    g = "model"
+    a = S.analyse(FIXTURE)
+    cur = a["metrics"][0]
+    zo, zp = M.altman_z_original(cur, 1400.0), M.altman_z_private(cur)
+    b0 = M.beneish(S.analyse(_beneish_doc(70.0))["metrics"])
+    b1 = M.beneish(S.analyse(_beneish_doc(-30.0))["metrics"])
+    nob = M.beneish(a["metrics"])
+    return [
+        _row(g, "altman_z_listed", 1.91, zo.get("score"),
+             "1.2(.15) + 1.4(.20) + 3.3(.075) + 0.6(1400/1200) + 1.0(.5) = 1.9075", 0.01),
+        _check(g, "altman_z_listed_band", "grey", zo.get("band"), "between 1.81 and 2.99",
+               zo.get("band") == "grey"),
+        _row(g, "altman_z_private", 1.29, zp.get("score"),
+             "0.717(.15) + 0.847(.20) + 3.107(.075) + 0.420(.6667) + 0.998(.5) = 1.289", 0.01),
+        _row(g, "beneish_neutral_company", -2.48, b0.get("score"),
+             "all indices 1, no accruals: -4.84 + the index weights", 0.005),
+        _row(g, "beneish_accruals_term", -2.25, b1.get("score"),
+             "TATA (70 + 30) / 2000 = 0.05 adds 4.679 x 0.05 = 0.234", 0.01),
+        _check(g, "beneish_refuses_without_inputs", False, nob.get("available"),
+               "the fixture has no property or depreciation lines",
+               nob.get("available") is False and "ppe" in (nob.get("missing") or [])),
+    ]
+
+
+def check_registry():
+    from . import formulas as F
+    broken = []
+    for fid, e in F.REGISTRY.items():
+        try:
+            F.run_example(e)
+        except Exception as ex:
+            broken.append("%s: %s" % (fid, ex))
+    out = [_check("registry", "every_formula_runs_its_example", 0, len(broken),
+                  "; ".join(broken[:3]) or "%d formulas" % len(F.REGISTRY), not broken)]
+    cur = S.analyse(_mutate(**TOOLKIT_CHANGES))["metrics"][0]
+    pairs = [("current_ratio", {"current_assets": 800, "current_liabilities": 500}, "current_ratio"),
+             ("quick_ratio", {"current_assets": 800, "inventory": 200, "current_liabilities": 500},
+              "quick_ratio"),
+             ("roe", {"net_profit": 70, "total_equity": 800}, "roe"),
+             ("interest_cover", {"ebit": 150, "finance_costs": 50}, "interest_cover"),
+             ("ebitda_margin", {"ebit": 150, "depreciation": 50, "revenue": 1000}, "ebitda_margin"),
+             ("payable_days", {"payables": 150, "cost_of_sales": 600}, "payable_days"),
+             ("sustainable_growth", {"roe_pct": 8.75, "retention_pct": 60}, "sustainable_growth")]
+    for fid, kwargs, metric in pairs:
+        out.append(_row("registry", "calculator_matches_engine_" + fid, cur.get(metric),
+                        F.REGISTRY[fid]["fn"](**kwargs),
+                        "the calculator and statements.compute must agree", 0.01))
+    return out
+
+
+def check_reader():
+    from . import reader as RD
+    g = "reader"
+    rep = RD.read(_mutate(**TOOLKIT_CHANGES))
+    f = {x["metric"]: x for s in rep["sections"] for x in s["findings"]}
+    life = f.get("lifecycle") or {}
+    roe = f.get("roe") or {}
+    bank = _mutate(**TOOLKIT_CHANGES)
+    bank["entity"] = dict(bank["entity"], name="Testco Bank Ltd")
+    br = RD.read(bank)
+    bf = {x["metric"]: x for s in br["sections"] for x in s["findings"]}
+    return [
+        _check(g, "life_cycle_mature", "mature", life.get("display"),
+               "operating +, investing -, financing -: Dickinson's mature stage",
+               life.get("display") == "mature"),
+        _check(g, "general_company_classified", "general", rep["kind"],
+               "no bank, insurer or property marker", rep["kind"] == "general"),
+        _check(g, "roe_judged_without_a_yield", "neutral", roe.get("verdict"),
+               "8.75% with no yield on file sits between the 5% and 15% conventions",
+               roe.get("verdict") == "neutral"),
+        _check(g, "covered_dividend_not_flagged", False, "dividend_vs_fcf" in f,
+               "28 of dividends against 100 of free cash flow", "dividend_vs_fcf" not in f),
+        _check(g, "bank_liquidity_not_judged", "info", (bf.get("liquidity") or {}).get("verdict"),
+               "a bank has no meaningful current ratio",
+               br["kind"] == "bank" and "current_ratio" not in bf
+               and (bf.get("liquidity") or {}).get("verdict") == "info"),
+    ]
+
+
 def run():
     results = (check_formulas() + check_identities() + check_edges() + check_models()
-               + check_markets() + check_fixed_income() + check_valuation())
+               + check_markets() + check_fixed_income() + check_valuation()
+               + check_tvm() + check_derivatives() + check_performance()
+               + check_statement_toolkit() + check_models_extra() + check_registry()
+               + check_reader())
     passed = sum(1 for r in results if r["ok"])
     return {"results": results, "passed": passed, "total": len(results),
             "ok": passed == len(results)}

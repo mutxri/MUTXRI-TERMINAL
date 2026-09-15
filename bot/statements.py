@@ -47,6 +47,14 @@ INCOME_MAP = [
                     "net income", "pat", "profit/(loss) for the year",
                     "profit attributable to owners"]),
     ("eps", ["eps", "earnings per share", "basic eps", "basic earnings per share"]),
+    # Bank and insurer lines, appended last so they never displace a match above.
+    ("net_interest_income", ["net interest income"]),
+    ("impairment_charges", ["loan impairment charges", "credit impairment charges",
+                            "impairment losses on loans and advances"]),
+    ("net_earned_premium", ["net earned premium", "net earned premiums",
+                            "net premiums earned", "net insurance premium income"]),
+    ("claims_incurred", ["net claims incurred", "claims incurred",
+                         "net insurance benefits and claims"]),
 ]
 
 BALANCE_MAP = [
@@ -72,6 +80,12 @@ BALANCE_MAP = [
     ("retained_earnings", ["retained earnings", "accumulated profits",
                            "retained income", "accumulated losses",
                            "revenue reserves"]),
+    ("ppe", ["property plant and equipment", "property plant & equipment", "ppe"]),
+    # Bank lines. Only the customer-specific spellings: "loans and advances to
+    # banks" is interbank lending and must not be read as the loan book.
+    ("loans", ["loans and advances to customers", "net loans and advances to customers",
+               "loans to customers"]),
+    ("deposits", ["customer deposits", "deposits from customers", "deposits due to customers"]),
 ]
 
 CASHFLOW_MAP = [
@@ -226,6 +240,107 @@ def _fy(period):
     """Extract a fiscal year integer from 'FY2026', '2026', 'Dec 2026'."""
     m = re.search(r"(19|20)\d{2}", str(period or ""))
     return int(m.group(0)) if m else None
+
+
+def _extra_metrics(inc, bal, cfs, i, row, periods):
+    """The rest of the analyst's toolkit, from lines a filing may or may not carry.
+
+    Kept apart from compute() for readability; the rule is the same - a number
+    from real inputs, or None. The parsed public filings rarely carry
+    depreciation, working-capital lines or dividends, so much of this lights up
+    for private accounts and fuller filings.
+    """
+    def g(sec, key, j=i):
+        return _at(sec.get(key), j)
+
+    def r4(x):
+        return None if x is None else round(x, 4)
+
+    rev, np_, ebit, pbt = row["revenue"], row["net_profit"], row["ebit"], row["pbt"]
+    ta, te, tl = row["total_assets"], row["total_equity"], row["total_liabilities"]
+    cl, cash = row["current_liabilities"], row["cash"]
+    ocf, capex, fcf, nd = row["ocf"], row["capex"], row["fcf"], row["net_debt"]
+    wc, opex = row.get("working_capital"), row.get("operating_expenses")
+    cos, gp = g(inc, "cost_of_sales"), g(inc, "gross_profit")
+    dep, divs, ppe = g(cfs, "depreciation"), g(cfs, "dividends_paid"), g(bal, "ppe")
+    inv, recv, pay = g(bal, "inventory"), g(bal, "receivables"), g(bal, "payables")
+    nca, ncl = g(bal, "non_current_assets"), g(bal, "non_current_liabilities")
+    if nca is None and ta is not None and row["current_assets"] is not None:
+        nca = ta - row["current_assets"]
+    loans, deposits = g(bal, "loans"), g(bal, "deposits")
+    nii, impair = g(inc, "net_interest_income"), g(inc, "impairment_charges")
+    nep, claims = g(inc, "net_earned_premium"), g(inc, "claims_incurred")
+
+    ebitda = ebit + abs(dep) if (ebit is not None and dep is not None) else None
+    inv_d = abs(inv) * 365.0 / abs(cos) if (inv is not None and cos not in (None, 0)) else None
+    recv_d = abs(recv) * 365.0 / rev if (recv is not None and (rev or 0) > 0) else None
+    pay_d = abs(pay) * 365.0 / abs(cos) if (pay is not None and cos not in (None, 0)) else None
+    payout = _pct(abs(divs), np_) if (divs is not None and (np_ or 0) > 0) else None
+    retention = round(100 - payout, 2) if payout is not None else None
+    loss_r = _pct(abs(claims), nep) if (claims is not None and (nep or 0) > 0) else None
+    exp_r = _pct(abs(opex), nep) if (opex is not None and (nep or 0) > 0) else None
+
+    # Average-balance returns, only across genuinely adjacent years.
+    adjacent = False
+    if i + 1 < len(periods):
+        fy, fyp = _fy(periods[i]), _fy(periods[i + 1])
+        adjacent = bool(fy and fyp and fy - fyp == 1)
+    te_p = g(bal, "total_equity", i + 1) if adjacent else None
+    ta_p = g(bal, "total_assets", i + 1) if adjacent else None
+
+    return {
+        "gross_profit": gp, "cost_of_sales": cos, "tax": g(inc, "tax"),
+        "net_finance_costs": g(inc, "net_finance_costs"), "depreciation": dep,
+        "inventory": inv, "receivables": recv, "payables": pay, "ppe": ppe,
+        "non_current_assets": nca, "non_current_liabilities": ncl,
+        "icf": g(cfs, "icf"), "financing_cf": g(cfs, "fcf_financing"),
+        "net_change_cash": g(cfs, "net_change_cash"),
+        "loans": loans, "deposits": deposits, "net_interest_income": nii,
+        "impairment_charges": impair, "net_earned_premium": nep, "claims_incurred": claims,
+        # operating profitability
+        "ebitda": ebitda,
+        "ebitda_margin": _pct(ebitda, rev) if (ebitda is not None and (rev or 0) > 0) else None,
+        "pretax_margin": _pct(pbt, rev) if (pbt is not None and (rev or 0) > 0) else None,
+        # five-step DuPont: ROE = tax burden x interest burden x EBIT margin x
+        # asset turnover x equity multiplier
+        "tax_burden": r4(np_ / pbt) if (np_ is not None and (pbt or 0) > 0) else None,
+        "interest_burden": r4(pbt / ebit) if (pbt is not None and (ebit or 0) > 0) else None,
+        # liquidity and solvency
+        "cash_ratio": r4(cash / abs(cl)) if (cash is not None and cl not in (None, 0)) else None,
+        "ocf_ratio": r4(ocf / abs(cl)) if (ocf is not None and cl not in (None, 0)) else None,
+        "equity_ratio": _pct(te, ta) if (te is not None and (ta or 0) > 0) else None,
+        "debt_ratio": _pct(abs(tl), ta) if (tl is not None and (ta or 0) > 0) else None,
+        "net_debt_to_ebitda": r4(nd / ebitda) if (nd is not None and (ebitda or 0) > 0) else None,
+        # efficiency
+        "non_current_asset_turnover": r4(rev / nca) if (rev is not None and (nca or 0) > 0) else None,
+        "working_capital_turnover": r4(rev / wc) if (rev is not None and (wc or 0) > 0) else None,
+        "payable_days": round(pay_d, 2) if pay_d is not None else None,
+        "cash_conversion_cycle": (round(inv_d + recv_d - pay_d, 1)
+                                  if None not in (inv_d, recv_d, pay_d) else None),
+        # cash quality and investment
+        "capex_to_revenue": _pct(abs(capex), rev) if (capex is not None and (rev or 0) > 0) else None,
+        "capex_to_depreciation": (r4(abs(capex) / abs(dep))
+                                  if (capex is not None and dep not in (None, 0)) else None),
+        "fcf_to_net_profit": r4(fcf / np_) if (fcf is not None and (np_ or 0) > 0) else None,
+        "cash_return_on_assets": _pct(ocf, ta) if (ocf is not None and (ta or 0) > 0) else None,
+        # distribution and self-funded growth
+        "dividend_payout": payout, "retention_ratio": retention,
+        "sustainable_growth": (round(row["roe"] * retention / 100.0, 2)
+                               if (row.get("roe") is not None and retention is not None) else None),
+        "roe_avg": (_pct(np_, (te + te_p) / 2.0)
+                    if (np_ is not None and (te or 0) > 0 and (te_p or 0) > 0) else None),
+        "roa_avg": (_pct(np_, (ta + ta_p) / 2.0)
+                    if (np_ is not None and (ta or 0) > 0 and (ta_p or 0) > 0) else None),
+        # banks
+        "loan_to_deposit": (_pct(abs(loans), abs(deposits))
+                            if (loans is not None and deposits not in (None, 0)) else None),
+        "nii_to_assets": _pct(nii, ta) if (nii is not None and (ta or 0) > 0) else None,
+        "cost_of_risk": (_pct(abs(impair), abs(loans))
+                         if (impair is not None and loans not in (None, 0)) else None),
+        # insurers
+        "loss_ratio": loss_r, "expense_ratio": exp_r,
+        "combined_ratio": round(loss_r + exp_r, 2) if None not in (loss_r, exp_r) else None,
+    }
 
 
 def compute(doc):
@@ -397,6 +512,7 @@ def compute(doc):
             "fcf_margin": _pct(fcf, rev),
             "eps": _at(inc.get("eps"), i),
         })
+        rows[-1].update(_extra_metrics(inc, bal, cfs, i, rows[-1], periods))
 
     # Growth, only between adjacent fiscal years.
     for i in range(len(rows) - 1):
@@ -580,6 +696,23 @@ def verify(doc, tolerance=0.02):
                            "note": ("shortfall is consistent with non-controlling "
                                     "interests or discontinued operations")
                                    if benign else None})
+
+        cfs = doc["sections"].get("cashflow", {})
+        o, iv, fn, ch = (_at(cfs.get("ocf"), i), _at(cfs.get("icf"), i),
+                         _at(cfs.get("fcf_financing"), i), _at(cfs.get("net_change_cash"), i))
+        if None not in (o, iv, fn, ch):
+            ok = _close(ch, o + iv + fn)
+            # Exchange-rate effects on cash sit outside the three sections, so a
+            # gap here is common and noted rather than failed.
+            checks.append({"period": p, "check": "operating + investing + financing = change in cash",
+                           "ok": ok, "lhs": ch, "rhs": o + iv + fn,
+                           "severity": "strict" if ok else "informational",
+                           "note": None if ok else "exchange-rate effects on cash, or cash "
+                                                   "flows presented outside the three sections"})
+        ca_r, nca_r = _at(bal.get("current_assets"), i), _at(bal.get("non_current_assets"), i)
+        if None not in (ta, ca_r, nca_r):
+            checks.append({"period": p, "check": "current + non-current assets = total assets",
+                           "ok": _close(ta, ca_r + nca_r), "lhs": ta, "rhs": ca_r + nca_r})
 
     # Only strict breaks count as failures; the informational ones are surfaced
     # separately so they prompt a look without crying wolf on every group.

@@ -25,6 +25,9 @@ import json, os, time
 from . import statements as S, universe as U
 
 CACHE = os.path.join(S.SD, "statement_corpus.json")
+# Bumped whenever the metrics or models change, so the cache rebuilds itself
+# instead of serving fields computed by an older engine.
+ENGINE_VERSION = 2
 # Below this many peers a percentile is not a measurement, just an ordering.
 MIN_PEERS = 5
 
@@ -42,7 +45,7 @@ def _corpus_signature():
             newest = max(newest, os.path.getmtime(os.path.join(S.FIN_DIR, f)))
         except OSError:
             pass
-    return {"files": count, "newest": round(newest, 3)}
+    return {"files": count, "newest": round(newest, 3), "engine": ENGINE_VERSION}
 
 
 def build(verbose=False):
@@ -94,7 +97,12 @@ def build(verbose=False):
                     "ocf", "ocf_to_net_profit", "fcf", "fcf_margin", "current_ratio",
                     "quick_ratio", "debt_to_equity", "interest_cover", "total_equity",
                     "roce", "roic", "asset_turnover", "equity_multiplier",
-                    "effective_tax_rate", "inventory_days", "receivable_days")},
+                    "effective_tax_rate", "inventory_days", "receivable_days",
+                    "ebitda_margin", "pretax_margin", "tax_burden", "interest_burden",
+                    "net_debt_to_ebitda", "cash_ratio", "equity_ratio", "payable_days",
+                    "cash_conversion_cycle", "capex_to_revenue", "fcf_to_net_profit",
+                    "cash_return_on_assets", "dividend_payout", "sustainable_growth",
+                    "roe_avg", "loan_to_deposit", "combined_ratio")},
                 # Valuation lives beside the metrics so a screen can mix them -
                 # "cheap on earnings and generating cash" is one query, not two.
                 **{k: (a.get("valuation") or {}).get(k) for k in
@@ -126,6 +134,9 @@ def _model_summary(a):
         "accruals": acc.get("ratio") if acc.get("available") else None,
         "cost_to_income": m["costToIncome"].get("ratio"),
         "operating_leverage": m["operatingLeverage"].get("dol"),
+        "altman_z_listed": (m["altmanZOriginal"].get("score")
+                            if m["altmanZOriginal"].get("available") else None),
+        "beneish": m["beneish"].get("score") if m["beneish"].get("available") else None,
     }
 
 

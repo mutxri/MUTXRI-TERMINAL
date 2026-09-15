@@ -163,7 +163,7 @@ it not to derive numbers — if a figure is missing it must say so.
 ### The metric engine, and proving it (`bot/statements.py`, `bot/selftest.py`)
 
 ```
-python mutxri_ai.py selftest          # 95 checks against worked examples
+python mutxri_ai.py selftest          # 188 checks against worked examples
 python mutxri_ai.py analyse ABG.JO    # margins, DuPont, ROCE/ROIC, P/E, CAGR
 ```
 
@@ -203,7 +203,7 @@ identities that must hold whatever the numbers (DuPont reconciling to ROE, the
 two P/E routes agreeing, the balance sheet balancing), plus the edge cases that
 produced wrong answers before: negative equity, a loss, liabilities in brackets,
 a gap in the fiscal years, a bank's EBIT. The price, risk, bond and valuation skills
-below are held to the same standard. **95/95 pass.** Writing it immediately
+below are held to the same standard. **188/188 pass.** Writing it immediately
 caught a live boundary bug - the EBIT gate admitted a rebuild worth exactly 100%
 of revenue, which implies a company with no costs.
 
@@ -416,6 +416,93 @@ What it refuses to do, and why:
   the share count.
 - **History is too short on most NSE names.** 47 of 69 have only the two official board
   snapshots, so they report "not enough history" until the daily update accumulates it.
+
+### Every formula, and reading statements like an analyst
+
+```
+python mutxri_ai.py guide                     # the order to read a set of accounts, and why
+python mutxri_ai.py read SCOM                 # that order applied to one company
+python mutxri_ai.py formulas                  # all 189 formulas in 20 categories
+python mutxri_ai.py formulas margin           # search
+python mutxri_ai.py calc npv rate_pct=12 cashflows=-5000,1500,2000,2500,1000
+python mutxri_ai.py calc xirr "dated_cashflows=2024-03-01:-10000;2025-02-15:2500;2026-09-01:9800"
+python mutxri_ai.py calc black_scholes --example kind=put
+```
+
+**`read`** (`bot/reader.py`) goes through a company in nine steps:
+1. whether the figures can be trusted
+2. the income statement
+3. the balance sheet
+4. cash flow
+5. returns
+6. efficiency
+7. earnings quality
+8. distress
+9. valuation
+
+Each finding carries its number, what it means for this company, and a verdict:
+strength, concern, neutral or information. The report ends with the strengths, the
+concerns, the questions to put to management and what could not be assessed.
+
+- **The kind of business is decided first.** 420 of the 651 companies read as general,
+  44 as banks, 35 as insurers, 61 as property and 91 as other financials. Current
+  ratios, gross margins and Z-scores are not judged for banks and insurers.
+- **Returns are set against the government bill yield on file** for that market. ROE
+  below the T-bill rate means shareholders earned less than treasury paper.
+- **Nominal growth in NGN and EGP is not called growth** without the inflation
+  caveat.
+- **The five-step DuPont names the factor that moved ROE most**: tax burden, interest
+  burden, operating margin, asset turnover or leverage.
+- **The life-cycle stage comes from the cash flow signs** (Dickinson): 135 mature, 54
+  growth, 47 shake-out, 30 introduction and 13 in decline.
+
+**`formulas` and `calc`** (`bot/formulas.py`) hold every formula with a worked
+example, callable with your own inputs. The 20 categories:
+- time value of money and capital budgeting (NPV, IRR, MIRR, XIRR, payback, loans)
+- returns
+- profitability, DuPont, liquidity, solvency and efficiency
+- cash flow (FCFF, FCFE, accruals)
+- per-share figures and multiples
+- dividends and growth
+- equity valuation (CAPM, WACC, Hamada beta, DDM, DCF, justified multiples,
+  residual income)
+- banking (NIM, capital adequacy, NPL coverage) and insurance (combined ratio)
+- credit and distress (three Altman variants, Beneish)
+- risk and performance (Sharpe, Sortino, Treynor, Jensen's alpha, information
+  ratio, M-squared, VaR)
+- fixed income
+- derivatives (Black-Scholes, greeks, implied volatility, binomial trees,
+  put-call parity, forwards) and FX (interest parity, cross rates)
+- cost and break-even
+
+The new modules are `bot/tvm.py` and `bot/derivatives.py`. The self-test runs every
+formula's example, and checks that the calculator and the statement engine agree.
+
+**The statement engine gained:**
+- EBITDA and its margin, and net debt to EBITDA
+- pre-tax margin, and the tax and interest burdens
+- cash and operating cash flow ratios
+- equity and debt ratios
+- payable days and the cash conversion cycle
+- capex against revenue and against depreciation
+- free cash flow against profit, and cash return on assets
+- payout, retention and sustainable growth
+- ROE and ROA on average balances
+- bank ratios (loan to deposit, interest income to assets, cost of risk)
+- insurer ratios (loss, expense, combined)
+
+The listed-company Altman Z and private-company Z' join the emerging-markets Z'',
+and the Beneish M-score is added. Each lights up when the filing carries the lines
+and names what is missing when it does not.
+
+**Two new consistency checks:**
+- **The three cash flow sections should sum to the change in cash.** A gap is
+  noted, not failed, because exchange-rate effects sit outside the sections.
+- **Current plus non-current assets must equal total assets.** This one is strict,
+  and it exposed genuinely broken parses. Safaricom's "current assets" line is 1.6bn
+  against 518bn of total assets, and Dangote Cement's liabilities exceed its assets.
+  Gaps run from 2.8% to 88,782%, so those companies' ratios are flagged rather than
+  trusted.
 
 ### Data health (`bot/health.py`)
 

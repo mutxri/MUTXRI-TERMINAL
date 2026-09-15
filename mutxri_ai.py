@@ -1424,6 +1424,27 @@ def main():
     p.set_defaults(fn=cmd_eod, eod_cmd="check", exchange=None, no_collect=False,
                    no_retry=False, json=False, verbose=False)
 
+    p = sub.add_parser("read", help="read and analyse a company's statements, section by section")
+    p.add_argument("entity", help="ticker or saved private entity id")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_read)
+
+    p = sub.add_parser("guide", help="how to read a set of financial statements")
+    p.set_defaults(fn=cmd_guide)
+
+    p = sub.add_parser("formulas", help="every formula the bot knows, by category")
+    p.add_argument("query", nargs="?", help="search ids, names and formulas")
+    p.add_argument("--category", help="filter by category, or 'list' to show categories")
+    p.add_argument("-v", "--verbose", action="store_true", help="show how to read each one")
+    p.set_defaults(fn=cmd_formulas)
+
+    p = sub.add_parser("calc", help="compute any formula, e.g. calc npv rate_pct=10 "
+                                    "cashflows=-1000,500,500,500")
+    p.add_argument("formula")
+    p.add_argument("inputs", nargs="*", metavar="NAME=VALUE")
+    p.add_argument("--example", action="store_true", help="start from the worked example inputs")
+    p.set_defaults(fn=cmd_calc)
+
     p = sub.add_parser("tech", help="technical profile of a security, or scan a board")
     p.add_argument("ticker", nargs="?")
     p.add_argument("--exchange")
@@ -1521,6 +1542,132 @@ def main():
 
     args = ap.parse_args()
     return args.fn(args)
+
+
+def cmd_read(args):
+    from bot import reader as RD
+    doc = ingest.load_any(args.entity)
+    if not doc:
+        print(c("no statements for %r" % args.entity, RED))
+        return 1
+    rep = RD.read(doc)
+    if args.json:
+        _dump(rep)
+        return 0
+    e = rep["entity"]
+    print(c("\n%s - %s" % (e.get("ticker") or e.get("id"), e.get("name")), BOLD)
+          + c("  [%s%s]" % (rep["period"], ", " + rep["sector"] if rep.get("sector") else ""), DIM))
+    print(c("read as %s: %s" % (rep["kind"], rep["kindReason"]), DIM))
+    marks = {"strength": c("+", GREEN), "concern": c("!", RED), "neutral": " ", "info": c("i", DIM)}
+    for sec in rep["sections"]:
+        if not sec["findings"]:
+            continue
+        print(c("\n" + sec["title"].upper(), BOLD))
+        for f in sec["findings"]:
+            disp = f["display"] if f["display"] != "-" else ""
+            print("%s %-30s %s" % (marks.get(f["verdict"], " "), f["label"][:30], disp))
+            print(c(textwrap.fill(f["reading"], 88, initial_indent="    ",
+                                  subsequent_indent="    "), DIM))
+    if rep.get("notAssessed"):
+        print(c("\nNOT ASSESSED", BOLD))
+        for n in rep["notAssessed"]:
+            print(c("  - " + n, DIM))
+    print(c("\nSTRENGTHS  %d" % len(rep.get("strengths") or []), GREEN))
+    for f in rep.get("strengths") or []:
+        print("  + %s %s" % (f["label"], f["display"] if f["display"] != "-" else ""))
+    print(c("CONCERNS   %d" % len(rep.get("concerns") or []), RED if rep.get("concerns") else DIM))
+    for f in rep.get("concerns") or []:
+        print("  ! %s %s" % (f["label"], f["display"] if f["display"] != "-" else ""))
+    if rep.get("questions"):
+        print(c("\nQUESTIONS TO ASK", BOLD))
+        for q in rep["questions"]:
+            print(textwrap.fill(q, 88, initial_indent="  ? ", subsequent_indent="    "))
+    return 0
+
+
+def cmd_guide(args):
+    from bot import reader as RD
+    print(c("\nHOW TO READ A SET OF FINANCIAL STATEMENTS", BOLD))
+    for i, (title, body) in enumerate(RD.GUIDE, 1):
+        print(c("\n%d. %s" % (i, title), CYAN))
+        print(textwrap.fill(body, 88, initial_indent="   ", subsequent_indent="   "))
+    print(c("\n`read TICKER` applies this to a company; `formulas` lists every formula; "
+            "`calc ID --example` works one through", DIM))
+    return 0
+
+
+def cmd_formulas(args):
+    from bot import formulas as FM
+    if args.category == "list":
+        for cat in FM.CATEGORIES:
+            print("  %-26s %d" % (cat, sum(1 for e in FM.REGISTRY.values()
+                                           if e["category"] == cat)))
+        return 0
+    hits = FM.search(args.query, args.category)
+    cur = None
+    for e in hits:
+        if e["category"] != cur:
+            cur = e["category"]
+            print(c("\n" + cur.upper(), BOLD))
+        print("  %-28s %s" % (e["id"], e["formula"]))
+        if args.verbose and e["reading"]:
+            print(c("  %-28s %s" % ("", e["reading"]), DIM))
+    print(c("\n%d of %d formulas. `calc ID --example` runs one with worked inputs."
+            % (len(hits), len(FM.REGISTRY)), DIM))
+    return 0 if hits else 1
+
+
+def _show_value(v):
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return str(v)
+    if abs(v) >= 1e5:
+        return "{:,.2f}".format(v)
+    return "%.6g" % v
+
+
+def cmd_calc(args):
+    from bot import formulas as FM
+    e = FM.get(args.formula)
+    if not e:
+        near = FM.search(args.formula)[:8]
+        print(c("no formula %r" % args.formula, RED))
+        if near:
+            print("did you mean: " + ", ".join(x["id"] for x in near))
+        return 1
+    params = FM.params(e)
+    names = [n for n, _ in params]
+    kwargs = dict(e["example"]) if args.example else {}
+    for tok in args.inputs:
+        k, sep, v = tok.partition("=")
+        if not sep or k not in names:
+            print(c("unknown input %r; %s takes %s" % (tok, e["id"], ", ".join(names)), RED))
+            return 1
+        kwargs[k] = FM.parse_value(v, e["example"].get(k, 0.0))
+    missing = [n for n, required in params if required and n not in kwargs]
+    if missing:
+        print(c("%s needs %s" % (e["id"], ", ".join(missing)), RED))
+        print(c("example: calc %s %s" % (e["id"], FM.example_args(e)), DIM))
+        return 1
+    try:
+        res = e["fn"](**kwargs)
+    except (ValueError, ZeroDivisionError, TypeError, OverflowError) as ex:
+        print(c("cannot compute: %s" % ex, RED))
+        return 1
+    print(c("\n%s" % e["name"], BOLD) + c("  [%s]" % e["category"], DIM))
+    print(c("  " + e["formula"], DIM))
+    print(c("  inputs: " + ", ".join("%s=%s" % (k, FM.format_input(v))
+                                     for k, v in kwargs.items()), DIM))
+    if isinstance(res, dict):
+        for k, v in res.items():
+            if k != "schedule":
+                print("  %-22s %s" % (k, _show_value(v)))
+    elif res is None:
+        print(c("  not defined for these inputs", YELLOW))
+    else:
+        print("  = %s" % _show_value(res))
+    if e["reading"]:
+        print(c("  " + e["reading"], DIM))
+    return 0
 
 
 if __name__ == "__main__":

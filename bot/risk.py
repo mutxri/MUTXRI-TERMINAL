@@ -109,6 +109,48 @@ def portfolio_stats(series, weights):
     }
 
 
+# --------------------------------------------------- performance measures
+def treynor(return_pct, rf_pct, beta_coef):
+    """Excess return per unit of market risk."""
+    return (return_pct - rf_pct) / beta_coef if beta_coef else None
+
+
+def jensen_alpha(return_pct, rf_pct, beta_coef, market_return_pct):
+    """Return above what CAPM says the beta earned."""
+    return return_pct - (rf_pct + beta_coef * (market_return_pct - rf_pct))
+
+
+def tracking_error(portfolio, benchmark, periods_per_year=TRADING_DAYS):
+    if len(portfolio) != len(benchmark):
+        raise ValueError("portfolio and benchmark need the same number of periods")
+    sd = T.stdev([p - b for p, b in zip(portfolio, benchmark)])
+    return sd * math.sqrt(periods_per_year) * 100 if sd is not None else None
+
+
+def information_ratio(portfolio, benchmark, periods_per_year=TRADING_DAYS):
+    if len(portfolio) != len(benchmark):
+        raise ValueError("portfolio and benchmark need the same number of periods")
+    active = [p - b for p, b in zip(portfolio, benchmark)]
+    sd = T.stdev(active)
+    return T.mean(active) / sd * math.sqrt(periods_per_year) if sd else None
+
+
+def calmar(annual_return_pct, max_drawdown_pct):
+    return annual_return_pct / abs(max_drawdown_pct) if max_drawdown_pct else None
+
+
+def m_squared(sharpe_ratio, benchmark_vol_pct, rf_pct):
+    """Modigliani: the return the portfolio would earn at the benchmark's risk."""
+    return rf_pct + sharpe_ratio * benchmark_vol_pct
+
+
+def portfolio_vol_two(weight_1, vol_1_pct, vol_2_pct, correlation):
+    w2 = 1 - weight_1
+    var = (weight_1 ** 2 * vol_1_pct ** 2 + w2 ** 2 * vol_2_pct ** 2
+           + 2 * weight_1 * w2 * correlation * vol_1_pct * vol_2_pct)
+    return math.sqrt(max(var, 0.0))
+
+
 # ------------------------------------------------------------ market data
 def _trimmed_mean(xs, cut=BOARD_TRIM):
     xs = sorted(xs)
