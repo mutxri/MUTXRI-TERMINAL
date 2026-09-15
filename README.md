@@ -163,7 +163,7 @@ it not to derive numbers — if a figure is missing it must say so.
 ### The metric engine, and proving it (`bot/statements.py`, `bot/selftest.py`)
 
 ```
-python mutxri_ai.py selftest          # 47 checks against worked examples
+python mutxri_ai.py selftest          # 95 checks against worked examples
 python mutxri_ai.py analyse ABG.JO    # margins, DuPont, ROCE/ROIC, P/E, CAGR
 ```
 
@@ -202,7 +202,8 @@ correct. A fixture of round numbers with every answer worked out by hand, plus
 identities that must hold whatever the numbers (DuPont reconciling to ROE, the
 two P/E routes agreeing, the balance sheet balancing), plus the edge cases that
 produced wrong answers before: negative equity, a loss, liabilities in brackets,
-a gap in the fiscal years, a bank's EBIT. **47/47 pass.** Writing it immediately
+a gap in the fiscal years, a bank's EBIT. The price, risk, bond and valuation skills
+below are held to the same standard. **95/95 pass.** Writing it immediately
 caught a live boundary bug - the EBIT gate admitted a rebuild worth exactly 100%
 of revenue, which implies a company with no costs.
 
@@ -356,6 +357,65 @@ Market holidays are not modelled: when no security has the expected session the
 report says "not fetched, or a holiday" rather than guessing. Results go to
 `static_data/eod_status.json` and one line per run to `static_data/eod_ledger.jsonl`;
 `doctor` shows the per-exchange verdict.
+
+### Market skills: the tape, risk, bonds and valuation
+
+```
+python mutxri_ai.py tech SCOM                 # trend, momentum, bands, ATR, volume, 52w range
+python mutxri_ai.py tech --scan JSE           # every liquid, current name's events today
+python mutxri_ai.py risk ABG.JO               # vol, Sharpe/Sortino, VaR/CVaR, drawdown, beta
+python mutxri_ai.py portfolio SCOM:50 EQTY:30 ABG.JO:20
+python mutxri_ai.py bond price --coupon 12 --yield 14 --years 10 --shock 200
+python mutxri_ai.py bond bill --yield 8.77 --days 91 --wht 15 --inflation 4.5
+python mutxri_ai.py bond curve
+python mutxri_ai.py value SCOM --fcf N --net-debt N --shares N --discount 18 --growth 8 --terminal 5
+python mutxri_ai.py value SCOM ... --reverse  # the growth today's price already assumes
+```
+
+The daily EOD update keeps every bar current, so the bot reads prices as well as
+filings. Four modules, each with hand-worked checks in `selftest`:
+
+- **`bot/technicals.py`** — SMA/EMA, Wilder RSI(14) and ATR(14), MACD(12,26,9),
+  Bollinger(20,2), period returns, 52-week closing range, volume against its 20-day
+  average. `--scan` reports new 52-week highs and lows, golden and death crosses,
+  RSI extremes, volume spikes, 3-sigma moves and MACD crosses.
+- **`bot/risk.py`** — annualised volatility, Sharpe and Sortino against the
+  shortest government yield on file (dated, marked stale), historical and parametric
+  VaR with CVaR, maximum drawdown, and portfolio volatility with each holding's share
+  of the risk and a correlation matrix.
+- **`bot/fixed_income.py`** — price and yield to maturity, Macaulay and modified
+  duration, convexity, DV01, duration-plus-convexity shock estimates shown beside full
+  repricing, accrued interest, bill yield and discount quoting (364-day basis for
+  Kenya by default), after-tax and Fisher real yields, and the curve from `bonds.json`.
+- **`bot/valuation.py`** — CAPM, WACC, Gordon growth and DDM, a DCF with the terminal
+  value's share of the total reported, a sensitivity grid, and a reverse DCF.
+
+What it refuses to do, and why:
+
+- **No house assumptions.** Discount rate, equity risk premium and growth are always
+  inputs. `--erp` builds the rate by CAPM from the yield on file and a measured beta,
+  and prints every piece.
+- **Thin trading is named.** A price that barely moves looks calm. Names that are
+  unchanged on more than half of the last 60 sessions, or print on fewer than half of
+  them, carry a caution and are left out of the scan.
+- **Bad prints do not raise alarms.** On 14 Sep KPLC printed 6.00 with zero volume after
+  closing at 22.05, and TCL moved +57.7%. Both are past the exchange's plausibility cap,
+  so the scan lists them as suspect prints, not as a new 52-week low or a breakout.
+- **Beta is labelled for what it is.** No index price history is on file, so beta is
+  measured against the trimmed mean daily return of the board's liquid names. Thin
+  names are excluded because their zero returns flatten the board and inflate every beta.
+  Where the board explains under 10% of a name's daily moves (Sasol: R-squared 0.03, beta
+  -1.14) the beta is marked not meaningful, and `value --erp` refuses to build a
+  discount rate on it.
+- **Mixed currencies are not blended silently.** A KES and ZAc portfolio says its
+  returns are unconverted.
+- **Company valuation needs inputs the corpus lacks.** None of the 651 parsed companies
+  has a share count or net debt on file, and 233 have positive free cash flow. `value`
+  names what is missing and takes it from the annual report as flags. It warns when the
+  value and the price differ tenfold, which usually means statement units do not match
+  the share count.
+- **History is too short on most NSE names.** 47 of 69 have only the two official board
+  snapshots, so they report "not enough history" until the daily update accumulates it.
 
 ### Data health (`bot/health.py`)
 

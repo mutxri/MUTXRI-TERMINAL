@@ -311,10 +311,20 @@ def cmd_ask(args):
     statep = os.path.join(SD, "bot_market_state.json")
     if os.path.exists(statep):
         ctx["marketState"] = json.load(open(statep, encoding="utf-8"))
+    from bot import risk as R, technicals as T
     for ent in args.entity or []:
         doc = ingest.load_any(ent)
         if doc:
             ctx.setdefault("companies", []).append(S.analyse(doc))
+        # The price-based readings, computed here so the model explains them
+        # rather than estimating them.
+        try:
+            ta, ra = T.analyse(ent), R.analyse(ent)
+        except ValueError:
+            continue
+        if ta.get("available"):
+            ctx.setdefault("prices", []).append({"technicals": ta,
+                                                 "risk": ra if ra.get("available") else None})
     try:
         print(textwrap.fill(analyst.answer(args.question, ctx, effort=args.effort), 88))
     except analyst.AnalystUnavailable as e:
@@ -766,6 +776,444 @@ def cmd_selftest(args):
     return 0 if rep["ok"] else 1
 
 
+def _pc(v, signed=True):
+    if not isinstance(v, (int, float)):
+        return "-"
+    return ("%+.2f%%" if signed else "%.2f%%") % v
+
+
+def _num(v, fmt="%.2f"):
+    return fmt % v if isinstance(v, (int, float)) else "-"
+
+
+def _dump(obj):
+    print(json.dumps(obj, indent=1, default=str, ensure_ascii=False))
+
+
+def cmd_tech(args):
+    from bot import technicals as T
+    if args.scan:
+        rep = T.scan(args.scan, events=args.event)
+        if args.json:
+            _dump(rep)
+            return 0
+        sk = rep["skipped"]
+        print(c("\n%s TAPE SCAN  as of %s" % (rep["exchange"], rep["asOf"]), BOLD))
+        print(c("%d liquid, current securities read; skipped %d thin, %d not current, "
+                "%d under 60 bars, %d with a suspect latest bar"
+                % (rep["scanned"], sk["thin"], sk["stale"], sk["short"], sk["suspect"]), DIM))
+        cur = None
+        for e in rep["events"]:
+            if e["event"] != cur:
+                cur = e["event"]
+                print(c("\n" + e["label"].upper(), CYAN))
+            print("  %-10s %-34s %12s  %s" % (e["id"][:10], (e["name"] or "")[:34],
+                                              _num(e["close"]), e["detail"]))
+        if not rep["events"]:
+            print("\n  no events on the latest session")
+        for s in rep["suspect"]:
+            print(c("  suspect print: %s %s at %s (%+.1f%% in one session), not scanned"
+                    % (s["id"], s["name"] or "", _num(s["close"]), s["movePct"]), YELLOW))
+        return 0
+    if not args.ticker:
+        print(c("give a ticker, or --scan EXCHANGE", RED))
+        return 1
+    try:
+        a = T.analyse(args.ticker, args.exchange)
+    except ValueError as e:
+        print(c(str(e), RED))
+        return 1
+    if args.json:
+        _dump(a)
+        return 0 if a["available"] else 1
+    if not a["available"]:
+        print(c(a["reason"], YELLOW))
+        return 1
+    cur = a.get("currency") or ""
+    print(c("\n%s - %s" % (a["id"], a["name"] or ""), BOLD)
+          + c("  [%s, %d bars since %s]" % (a["exchange"], a["bars"], a["firstBar"]), DIM))
+    print("close %s %s on %s" % (cur, _num(a["close"]), a["asOf"]))
+    pf = a["performancePct"]
+    print("return   " + "  ".join("%s %s" % (k, _pc(pf[k])) for k in
+                                  ("1w", "1m", "3m", "6m", "1y", "ytd")))
+    r = a["range52w"]
+    print("52w      high %s (%s) %s   low %s (%s) %s   [%s]"
+          % (_num(r["high"]), r["highDate"], _pc(r["fromHighPct"]), _num(r["low"]),
+             r["lowDate"], _pc(r["fromLowPct"]), r["basis"]))
+    t = a["trend"]
+    cross = t.get("recentCross")
+    print("trend    %s   SMA20 %s  SMA50 %s  SMA200 %s%s"
+          % (t.get("state") or "-", _num(t["sma20"]), _num(t["sma50"]), _num(t["sma200"]),
+             ("   %s cross on %s" % (cross["type"], cross["date"])) if cross else ""))
+    m = a["momentum"]
+    md = m["macd"] or {}
+    b = a["bands"] or {}
+    print("momentum RSI14 %s   MACD %s / signal %s (hist %s)   Bollinger %%B %s"
+          % (_num(m["rsi14"], "%.1f"), _num(md.get("macd"), "%.3f"),
+             _num(md.get("signal"), "%.3f"), _num(md.get("histogram"), "%+.3f"),
+             _num(b.get("pctB"))))
+    v = a["volatilityAnnualPct"]
+    print("risk     vol 3m %s  1y %s   ATR14 %s (%s of price)   1y drawdown %s"
+          % (_pc(v["3m"], False), _pc(v["1y"], False), _num(a["atr14"]),
+             _pc(a["atr14Pct"], False), _pc((a["drawdown1y"] or {}).get("pct"))))
+    vo = a["volume"]
+    if vo.get("ratio") is not None:
+        print("volume   last %s, %.1fx its 20-day average%s"
+              % (_num(vo["last"], "%.0f"), vo["ratio"],
+                 (", z %.1f" % vo["zScore"]) if vo.get("zScore") is not None else ""))
+    else:
+        print(c("volume   not enough volume history for an average", DIM))
+    ev = T.events_for(a)
+    if ev:
+        print(c("events   " + "; ".join("%s (%s)" % (T.EVENT_LABELS[k], d) for k, d in ev), CYAN))
+    if a.get("caution"):
+        print(c("caution  " + a["caution"], YELLOW))
+    return 0
+
+
+def cmd_risk(args):
+    from bot import risk as R
+    try:
+        a = R.analyse(args.ticker, args.exchange, rf_pct=args.rf)
+    except ValueError as e:
+        print(c(str(e), RED))
+        return 1
+    if args.json:
+        _dump(a)
+        return 0 if a["available"] else 1
+    if not a["available"]:
+        print(c(a["reason"], YELLOW))
+        return 1
+    w, rf = a["window"], a["riskFree"]
+    print(c("\n%s - %s" % (a["id"], a["name"] or ""), BOLD)
+          + c("  [%s, %d daily returns %s to %s]"
+              % (a["exchange"], w["observations"], w["from"], w["to"]), DIM))
+    rf_note = ("%s at %.2f%%%s" % (rf["instrument"], rf["yieldPct"],
+                                   (" as of %s" % rf["asOf"]) if rf.get("asOf") else "")
+               if rf.get("instrument") else rf.get("note"))
+    if rf.get("stale"):
+        rf_note += " (stale)"
+    print("volatility  %s a year" % _pc(a["volAnnualPct"], False))
+    print("sharpe      %s   sortino %s   against %s"
+          % (_num(a["sharpe"]), _num(a["sortino"]), rf_note))
+    v95, v99, vp = a["var95"], a["var99"], a["var95Parametric"]
+    print("1-day VaR   95%% %s (average beyond it %s)   parametric %s%s"
+          % (_pc(v95["varPct"], False), _pc(v95["cvarPct"], False), _pc(vp["varPct"], False),
+             ("   99%% %s" % _pc(v99["varPct"], False)) if v99 else ""))
+    dd = a["maxDrawdown"] or {}
+    print("drawdown    %s, %s on %s to %s on %s, %s"
+          % (_pc(dd.get("pct")), _num(dd.get("peak")), dd.get("peakDate"),
+             _num(dd.get("trough")), dd.get("troughDate"),
+             "recovered" if dd.get("recovered") else "not yet recovered"))
+    print("days        best %s   worst %s" % (_pc(a["bestDayPct"]), _pc(a["worstDayPct"])))
+    b = a["beta"]
+    if b:
+        print("beta        %s  (correlation %s, R-squared %s) vs %s"
+              % (_num(b["beta"]), _num(b["correlation"]), _num(b["rSquared"]), b["against"]))
+    if a.get("caution"):
+        print(c("caution     " + a["caution"], YELLOW))
+    return 0
+
+
+def cmd_portfolio(args):
+    from bot import risk as R
+    holdings = []
+    for tok in args.holdings:
+        name, _, wt = tok.rpartition(":")
+        if not name:
+            name, wt = tok, "1"
+        ticker, _, ex = name.partition("@")
+        try:
+            holdings.append((ticker, float(wt), ex or None))
+        except ValueError:
+            print(c("bad holding %r; use TICKER[@EX]:WEIGHT" % tok, RED))
+            return 1
+    try:
+        rep = R.portfolio(holdings)
+    except ValueError as e:
+        print(c(str(e), RED))
+        return 1
+    if args.json:
+        _dump(rep)
+        return 0 if rep["available"] else 1
+    if not rep["available"]:
+        print(c(rep["reason"], YELLOW))
+        return 1
+    print(c("\nPORTFOLIO  %d holdings, %d shared trading days %s to %s"
+            % (len(rep["holdings"]), rep["commonDays"], rep["from"], rep["to"]), BOLD))
+    print(c("%-12s %-4s %8s %10s %14s" % ("HOLDING", "EX", "WEIGHT", "VOL", "RISK SHARE"), DIM))
+    for h in rep["holdings"]:
+        print("%-12s %-4s %8s %10s %14s" % (h["id"], h["exchange"], _pc(h["weight"] * 100, False),
+                                           _pc(h["volAnnualPct"], False),
+                                           _pc(h["riskContributionPct"], False)))
+    print("\nportfolio volatility %s a year, diversification ratio %s, 1-day VaR 95%% %s"
+          % (_pc(rep["volAnnualPct"], False), _num(rep["diversificationRatio"]),
+             _pc(rep["var95"]["varPct"], False)))
+    ids = [h["id"][:8] for h in rep["holdings"]]
+    print(c("\ncorrelation", DIM))
+    print("          " + " ".join("%8s" % i for i in ids))
+    for i, row in enumerate(rep["correlation"]):
+        print("%-9s " % ids[i] + " ".join("%8s" % _num(x) for x in row))
+    if rep.get("caution"):
+        print(c("\ncaution: " + rep["caution"], YELLOW))
+    return 0
+
+
+def cmd_bond(args):
+    from bot import fixed_income as F
+    try:
+        if args.action == "curve":
+            rows = F.curve()
+            if not rows:
+                print(c("no yields on file (static_data/bonds.json)", YELLOW))
+                return 1
+            for row in rows:
+                print(c("\n%s" % row["country"], BOLD)
+                      + c("  %s, spread %s pp" % (row.get("shape") or "one point only",
+                                                  _num(row.get("termSpreadPp"))), DIM))
+                for p in row["points"]:
+                    print("  %-18s %6s yrs  %6s%%  %s%s"
+                          % (p["name"], ("" if p["tenorExact"] else "~") + _num(p["years"], "%.1f"),
+                             _num(p["yieldPct"]), p["asOf"] or "",
+                             c("  stale", YELLOW) if p["stale"] else ""))
+                if row.get("caution"):
+                    print(c("  " + row["caution"], DIM))
+            return 0
+        if args.action in ("price", "yield"):
+            if args.coupon is None or args.years is None:
+                print(c("give --coupon and --years", RED))
+                return 1
+            if args.action == "price":
+                if args.ytm is None:
+                    print(c("give --yield", RED))
+                    return 1
+                y = args.ytm
+            else:
+                if args.price is None:
+                    print(c("give --price", RED))
+                    return 1
+                y = F.ytm(args.price, args.face, args.coupon, args.years, args.freq)
+            rk = F.risk(args.face, args.coupon, y, args.years, args.freq)
+            print(c("\n%.2f%% coupon, %g years, %d a year, face %g"
+                    % (args.coupon, args.years, args.freq, args.face), BOLD))
+            print("yield to maturity   %.4f%%" % y)
+            print("price               %.4f" % rk["price"])
+            print("current yield       %.4f%%" % rk["currentYieldPct"])
+            print("Macaulay duration   %.4f years" % rk["macaulayDuration"])
+            print("modified duration   %.4f" % rk["modifiedDuration"])
+            print("convexity           %.4f" % rk["convexity"])
+            print("DV01                %.4f per %g face" % (rk["dv01"], args.face))
+            for bp in args.shock or [100.0, -100.0]:
+                est = F.price_change(rk["modifiedDuration"], rk["convexity"], rk["price"], bp)
+                exact = F.price(args.face, args.coupon, y + bp / 100.0, args.years, args.freq)
+                print("%+5.0f bp             %s to %.4f (full repricing %.4f)"
+                      % (bp, _pc(est["pct"]), est["price"], exact))
+            return 0
+        if args.action == "bill":
+            if not args.days:
+                print(c("give --days", RED))
+                return 1
+            basis = args.basis or F.BILL_BASIS.get(args.market.upper(), 365)
+            if args.discount is not None:
+                px = F.discount_price(args.discount, args.days, basis)
+                y = F.discount_to_yield(args.discount, args.days, basis)
+                d = args.discount
+            elif args.ytm is not None:
+                y = args.ytm
+                px = F.bill_price(y, args.days, basis)
+                d = F.yield_to_discount(y, args.days, basis)
+            elif args.price is not None:
+                px = args.price
+                y = F.bill_yield(px, args.days, basis)
+                d = F.yield_to_discount(y, args.days, basis)
+            else:
+                print(c("give --yield, --discount or --price", RED))
+                return 1
+            print(c("\n%d-day bill, %d-day basis" % (args.days, basis), BOLD))
+            print("price per 100     %.4f" % px)
+            print("yield             %.4f%%" % y)
+            print("discount rate     %.4f%%" % d)
+            if args.wht:
+                print("after %.1f%% tax    %.4f%%" % (args.wht, F.after_tax(y, args.wht)))
+            if args.inflation is not None:
+                print("real (Fisher)     %.4f%%"
+                      % F.real_yield(F.after_tax(y, args.wht), args.inflation))
+            return 0
+        if args.action == "real":
+            if args.ytm is None or args.inflation is None:
+                print(c("give --yield and --inflation", RED))
+                return 1
+            net = F.after_tax(args.ytm, args.wht)
+            print("nominal %.4f%%, after %.1f%% tax %.4f%%, real %.4f%% at %.2f%% inflation"
+                  % (args.ytm, args.wht, net, F.real_yield(net, args.inflation), args.inflation))
+            return 0
+    except ValueError as e:
+        print(c(str(e), RED))
+        return 1
+    return 1
+
+
+def cmd_value(args):
+    from bot import fixed_income as F, risk as R, technicals as T, valuation as V
+    inp = {"problems": []}
+    ex = None
+    if args.entity:
+        doc = ingest.load_any(args.entity)
+        if doc:
+            inp = V.company_inputs(doc)
+        elif args.fcf is None and args.ddm is None:
+            print(c("no statements on file for %s; pass --fcf, --net-debt and --shares"
+                    % args.entity, RED))
+            return 1
+        try:
+            loc = T.locate(args.entity)
+        except ValueError:
+            loc = None
+        if loc:
+            ex = loc[0]
+            if args.price is None:
+                ta = T.analyse(args.entity)
+                if ta.get("available") and not ta.get("latestBarSuspect"):
+                    args.price = ta["close"]
+                    inp["priceFrom"] = "last close %s" % ta["asOf"]
+    for key, val in (("fcf", args.fcf), ("netDebt", args.net_debt), ("shares", args.shares)):
+        if val is not None:
+            inp[key] = val
+    assumptions = []
+
+    r = args.discount
+    if r is None:
+        if args.erp is None:
+            print(c("give --discount, or --erp to build it by CAPM (the premium is your "
+                    "judgement; the bot does not assume one)", RED))
+            return 1
+        rf = args.rf
+        if rf is None:
+            got = F.risk_free(ex) if ex else None
+            if not got:
+                print(c("no risk-free yield on file for this market; pass --rf", RED))
+                return 1
+            rf = got["yieldPct"]
+            assumptions.append("risk-free %.2f%% (%s, %s%s)" % (
+                rf, got["instrument"], got["asOf"], ", stale" if got["stale"] else ""))
+        else:
+            assumptions.append("risk-free %.2f%% (given)" % rf)
+        beta = args.beta
+        if beta is None:
+            ra = R.analyse(args.entity, ex) if args.entity else {}
+            if not (ra.get("available") and ra.get("beta")):
+                print(c("beta could not be measured; pass --beta", RED))
+                return 1
+            if ra["beta"]["weakFit"]:
+                print(c("measured beta %.2f has R-squared %.2f against the board, too weak "
+                        "to build a discount rate on; pass --beta"
+                        % (ra["beta"]["beta"], ra["beta"]["rSquared"] or 0), RED))
+                return 1
+            beta = ra["beta"]["beta"]
+            assumptions.append("beta %.2f measured against the board (R-squared %.2f)"
+                               % (beta, ra["beta"]["rSquared"]))
+        else:
+            assumptions.append("beta %.2f (given)" % beta)
+        r = V.capm(rf, beta, args.erp)
+        assumptions.append("equity risk premium %.2f%% (given) -> CAPM %.2f%%" % (args.erp, r))
+    else:
+        assumptions.append("discount rate %.2f%% (given)" % r)
+
+    try:
+        if args.ddm is not None:
+            if args.growth is None:
+                print(c("--ddm needs --growth (the perpetual dividend growth)", RED))
+                return 1
+            val = V.ddm(args.ddm, r, args.growth)
+            print(c("\nDIVIDEND DISCOUNT", BOLD))
+            print("  dividend %s growing %.2f%% a year, discounted at %.2f%%"
+                  % (_num(args.ddm), args.growth, r))
+            print("  value per share %s" % _num(val))
+            mos = V.margin_of_safety(val, args.price)
+            if mos:
+                print("  vs price %s: margin of safety %s, upside %s"
+                      % (_num(args.price), _pc(mos["marginOfSafetyPct"]), _pc(mos["upsidePct"])))
+            return 0
+
+        if args.terminal is None:
+            print(c("give --terminal (the perpetual growth rate after the explicit years)", RED))
+            return 1
+        missing = [p for p in (["fcf"] if not inp.get("fcf") or inp["fcf"] <= 0 else [])
+                   + (["net debt"] if inp.get("netDebt") is None else [])
+                   + (["shares"] if not inp.get("shares") else [])]
+        if missing:
+            print(c("cannot value: missing or unusable %s" % ", ".join(missing), RED))
+            for p in inp.get("problems") or []:
+                print(c("  " + p, DIM))
+            flags = {"fcf": "--fcf", "net debt": "--net-debt", "shares": "--shares"}
+            print(c("supply them from the annual report: %s (same units as each other)"
+                    % " ".join(flags[m] + " N" for m in missing), DIM))
+            return 1
+        fcf, nd, sh = inp["fcf"], inp["netDebt"], inp["shares"]
+        head = "%s - %s" % (inp.get("ticker") or args.entity or "company", inp.get("name") or "")
+        print(c("\n" + head, BOLD) + c("  [FCF %s %s from %s]" % (
+            inp.get("currency") or "", _num(fcf, "%.0f"), inp.get("period") or "input"), DIM))
+        for a_ in assumptions:
+            print(c("  " + a_, DIM))
+
+        if args.reverse:
+            if args.price is None:
+                print(c("reverse DCF needs a market price (--price)", RED))
+                return 1
+            target = args.price * sh + nd
+            g = V.reverse_dcf(target, fcf, r, args.terminal, args.years)
+            print("\nprice %s x %s shares + net debt %s = enterprise value %s"
+                  % (_num(args.price), _num(sh, "%.0f"), _num(nd, "%.0f"), _num(target, "%.0f")))
+            if g is None:
+                print(c("no growth rate between -50%% and 150%% a year justifies that price", YELLOW))
+            else:
+                print(c("the price implies free cash flow growth of %.2f%% a year for %d years, "
+                        "then %.2f%% forever, at a %.2f%% discount rate"
+                        % (g, args.years, args.terminal, r), CYAN))
+            return 0
+
+        if args.growth is None:
+            print(c("give --growth for the explicit years (or --reverse to solve it)", RED))
+            return 1
+        d = V.dcf(fcf, r, args.terminal, args.growth, args.years)
+        br = V.equity_bridge(d["enterpriseValue"], nd, sh)
+        print(c("\n%-6s %16s %10s %16s" % ("YEAR", "FCF", "DISCOUNT", "PRESENT VALUE"), DIM))
+        for y in d["years"]:
+            print("%-6d %16s %10.4f %16s" % (y["year"], _num(y["fcf"], "%.0f"),
+                                            y["discountFactor"], _num(y["pv"], "%.0f")))
+        print("\nexplicit years     %s" % _num(d["pvExplicit"], "%.0f"))
+        print("terminal value     %s (%s of the total)"
+              % (_num(d["pvTerminal"], "%.0f"), _pc(d["terminalSharePct"], False)))
+        print("enterprise value   %s" % _num(d["enterpriseValue"], "%.0f"))
+        print("less net debt      %s" % _num(nd, "%.0f"))
+        print("equity value       %s" % _num(br["equityValue"], "%.0f"))
+        print(c("value per share    %s" % _num(br["perShare"]), BOLD))
+        mos = V.margin_of_safety(br["perShare"], args.price)
+        if mos:
+            print("vs price %s%s: margin of safety %s, upside %s"
+                  % (_num(args.price), (" (%s)" % inp["priceFrom"]) if inp.get("priceFrom") else "",
+                     _pc(mos["marginOfSafetyPct"]), _pc(mos["upsidePct"])))
+            ratio = br["perShare"] / args.price if args.price else None
+            if ratio and (ratio > 10 or ratio < 0.1):
+                print(c("value and price differ more than tenfold: check that statement units "
+                        "(thousands, millions) match the share count", YELLOW))
+        rates = [r - 2, r - 1, r, r + 1, r + 2]
+        gs = [args.terminal - 1, args.terminal, args.terminal + 1]
+        grid = V.sensitivity(fcf, args.growth, args.years, rates, gs, nd, sh)
+        print(c("\nper share by discount rate (rows) and terminal growth (columns)", DIM))
+        print("        " + " ".join("%12s" % _pc(g, False) for g in gs))
+        for rr, row in zip(rates, grid["perShare"]):
+            print("%7s " % _pc(rr, False) + " ".join("%12s" % _num(x) for x in row))
+        if d.get("caution"):
+            print(c("\ncaution: " + d["caution"], YELLOW))
+        if inp.get("unitWarning"):
+            print(c("caution: " + inp["unitWarning"], YELLOW))
+    except ValueError as e:
+        print(c(str(e), RED))
+        return 1
+    return 0
+
+
 def cmd_social(args):
     if args.action == "status":
         print("publishing credentials:")
@@ -975,6 +1423,62 @@ def main():
         sp.add_argument("--verbose", action="store_true", help="show flagged bars")
     p.set_defaults(fn=cmd_eod, eod_cmd="check", exchange=None, no_collect=False,
                    no_retry=False, json=False, verbose=False)
+
+    p = sub.add_parser("tech", help="technical profile of a security, or scan a board")
+    p.add_argument("ticker", nargs="?")
+    p.add_argument("--exchange")
+    p.add_argument("--scan", metavar="EXCHANGE", help="scan every liquid security on a board")
+    p.add_argument("--event", action="append", help="limit the scan to these events")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_tech)
+
+    p = sub.add_parser("risk", help="volatility, Sharpe, VaR, drawdown and beta")
+    p.add_argument("ticker")
+    p.add_argument("--exchange")
+    p.add_argument("--rf", type=float, help="risk-free rate %% (default: shortest yield on file)")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_risk)
+
+    p = sub.add_parser("portfolio", help="risk of a set of holdings")
+    p.add_argument("holdings", nargs="+", metavar="TICKER[@EX]:WEIGHT")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_portfolio)
+
+    p = sub.add_parser("bond", help="bond and bill maths, and the yield curve on file")
+    p.add_argument("action", choices=["price", "yield", "bill", "real", "curve"])
+    p.add_argument("--face", type=float, default=100.0)
+    p.add_argument("--coupon", type=float, help="annual coupon %%")
+    p.add_argument("--yield", dest="ytm", type=float, help="yield %%")
+    p.add_argument("--price", type=float)
+    p.add_argument("--years", type=float)
+    p.add_argument("--freq", type=int, default=2, help="coupons per year (default 2)")
+    p.add_argument("--shock", type=float, action="append", metavar="BP",
+                   help="price impact of a yield move in basis points (repeatable)")
+    p.add_argument("--days", type=int, help="bill days to maturity")
+    p.add_argument("--discount", type=float, help="bill discount rate %%")
+    p.add_argument("--basis", type=int, help="day-count basis (364 or 365)")
+    p.add_argument("--market", default="NSE", help="sets the default bill basis")
+    p.add_argument("--inflation", type=float)
+    p.add_argument("--wht", type=float, default=0.0, help="withholding tax %%")
+    p.set_defaults(fn=cmd_bond)
+
+    p = sub.add_parser("value", help="DCF, reverse DCF and dividend discount valuation")
+    p.add_argument("entity", nargs="?", help="ticker or saved private entity id")
+    p.add_argument("--discount", type=float, help="discount rate %% (or build it with --erp)")
+    p.add_argument("--erp", type=float, help="equity risk premium %%, to build the rate by CAPM")
+    p.add_argument("--rf", type=float, help="risk-free %% for CAPM (default: yield on file)")
+    p.add_argument("--beta", type=float, help="beta for CAPM (default: measured)")
+    p.add_argument("--growth", type=float, help="explicit-period growth %%")
+    p.add_argument("--years", type=int, default=5)
+    p.add_argument("--terminal", type=float, help="terminal growth %%")
+    p.add_argument("--reverse", action="store_true", help="solve the growth the price implies")
+    p.add_argument("--ddm", type=float, metavar="DIVIDEND", help="value a dividend per share")
+    p.add_argument("--fcf", type=float, help="override free cash flow")
+    p.add_argument("--net-debt", type=float)
+    p.add_argument("--shares", type=float)
+    p.add_argument("--price", type=float, help="market price per share")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_value)
 
     p = sub.add_parser("card", help="build a social card from real, licensed images")
     p.add_argument("--signal", type=int, help="build from signal N of the last scan")

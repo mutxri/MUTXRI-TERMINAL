@@ -320,8 +320,134 @@ def check_models():
     return out
 
 
+def _row(group, name, want, got, how, tol=0.01):
+    return {"group": group, "name": name, "expected": want,
+            "got": round(got, 4) if isinstance(got, float) else got,
+            "how": how, "ok": _close(got, want, tol)}
+
+
+def check_markets():
+    """Indicators and risk measures, each on a series small enough to do by hand."""
+    import datetime as dt
+    from . import risk as R, technicals as T
+    out = []
+    out.append(_row("markets", "sma_3", 4.0, T.sma([1, 2, 3, 4, 5], 3), "(3 + 4 + 5) / 3"))
+    out.append(_row("markets", "ema_3", 8.0, T.ema_series([2, 4, 6, 8, 10], 3)[-1],
+                    "seed SMA(2,4,6)=4; k=0.5: 8->6, 10->8"))
+    # Seven +1 and seven -1 changes: average gain = average loss = 0.5, RSI 50.
+    # One more +2: gain (0.5x13 + 2)/14 = 0.607143, loss 6.5/14 = 0.464286,
+    # RS 1.307692, RSI 100 - 100/2.307692 = 56.667
+    closes = [10.0]
+    for i in range(14):
+        closes.append(closes[-1] + (1 if i % 2 == 0 else -1))
+    out.append(_row("markets", "rsi_balanced", 50.0, T.rsi(closes), "equal average gain and loss"))
+    out.append(_row("markets", "rsi_wilder_smoothing", 56.667, T.rsi(closes + [closes[-1] + 2]),
+                    "Wilder: ((0.5x13+2)/14) / (6.5/14) -> RSI 56.667"))
+    out.append({"group": "markets", "name": "rsi_flat_is_none", "expected": None,
+                "got": T.rsi([5.0] * 20), "how": "no trades is not RSI 50",
+                "ok": T.rsi([5.0] * 20) is None})
+    flat = [3.0] * 40
+    out.append(_row("markets", "macd_constant_is_zero", 0.0, T.macd(flat)["macd"],
+                    "both EMAs equal the constant"))
+    day = dt.date(2026, 1, 1)
+    bars = [{"d": day, "h": 11.0, "l": 9.0, "c": 10.0, "v": None} for _ in range(20)]
+    out.append(_row("markets", "atr_constant_range", 2.0, T.atr(bars), "high 11 - low 9, no gaps"))
+    dd = T.max_drawdown([100, 120, 90, 95, 130, 104])
+    out.append(_row("markets", "max_drawdown", -25.0, dd["pct"],
+                    "120 -> 90 is -25%, deeper than 130 -> 104 at -20%"))
+    out.append(_row("markets", "annualised_volatility", 22.45,
+                    T.stdev([0.01, -0.01]) * 252 ** 0.5 * 100,
+                    "sample sd of +1%, -1% = 1.4142%, x sqrt(252)"))
+    tail = [-0.05, -0.03] + [0.0] * 38
+    v = R.var_historical(tail, 0.95)
+    out.append(_row("markets", "historical_var_95", 3.0, v["varPct"],
+                    "40 days: ceil(0.05 x 40) = 2nd worst day, -3%"))
+    out.append(_row("markets", "historical_cvar_95", 4.0, v["cvarPct"],
+                    "mean of the two worst days, -5% and -3%"))
+    out.append(_row("markets", "sharpe_ratio", 11.225, R.sharpe([0.002, 0.0], 0.0),
+                    "mean 0.1% / sd 0.14142% x sqrt(252)"))
+    b = R.beta([0.02, -0.04, 0.06], [0.01, -0.02, 0.03])
+    out.append(_row("markets", "beta_double_the_board", 2.0, b["beta"], "asset = 2 x board"))
+    out.append(_row("markets", "correlation_perfect", 1.0, b["correlation"], "exact multiple"))
+    a = [0.01, -0.01, 0.01, -0.01]
+    hedge = R.portfolio_stats([a, [-x for x in a]], [1, 1])
+    out.append(_row("markets", "perfect_hedge_zero_vol", 0.0, hedge["volAnnualPct"],
+                    "equal weights in two series with correlation -1"))
+    lev = R.portfolio_stats([a, [2 * x for x in a]], [1, 1])
+    out.append(_row("markets", "risk_contribution", 33.333, lev["riskContributionPct"][0],
+                    "cov s^2[[1,2],[2,4]], w=.5: 0.75 / 2.25 of the variance", 0.05))
+    return out
+
+
+def check_fixed_income():
+    import datetime as dt
+    from . import fixed_income as F
+    out = []
+    out.append(_row("bonds", "par_bond_prices_at_100", 100.0, F.price(100, 10, 10, 5, 1),
+                    "coupon equals yield"))
+    out.append(_row("bonds", "discount_bond_price", 92.7904, F.price(100, 10, 12, 5, 1),
+                    "10 x annuity(12%, 5) 3.604776 + 100 / 1.762342"))
+    out.append(_row("bonds", "ytm_round_trip", 12.0, F.ytm(F.price(100, 10, 12, 5, 1), 100, 10, 5, 1),
+                    "solving the yield of a bond priced at 12% returns 12%", 1e-6))
+    rk = F.risk(100, 10, 10, 5, 1)
+    out.append(_row("bonds", "macaulay_duration", 4.1699, rk["macaulayDuration"],
+                    "sum of t x PV(cf) = 416.9865, / price 100"))
+    out.append(_row("bonds", "modified_duration", 3.7908, rk["modifiedDuration"], "4.1699 / 1.10"))
+    out.append(_row("bonds", "convexity", 19.3683, rk["convexity"],
+                    "sum t(t+1) PV = 2343.568, / (100 x 1.21)"))
+    out.append(_row("bonds", "zero_coupon_duration_is_maturity", 5.0,
+                    F.risk(100, 0, 10, 5, 1)["macaulayDuration"], "one cash flow at year 5", 1e-9))
+    out.append(_row("bonds", "accrued_interest", 2.5,
+                    F.accrued_interest(100, 10, 2, dt.date(2026, 1, 1), dt.date(2026, 7, 1),
+                                       dt.date(2026, 4, 1)),
+                    "5 coupon x 90 of 181 days = 2.486", 0.02))
+    out.append(_row("bonds", "bill_price_364_basis", 97.8545, F.bill_price(8.77, 91, 364),
+                    "100 / (1 + 0.0877 x 91/364)"))
+    out.append(_row("bonds", "discount_rate_price", 92.0219, F.discount_price(16, 182, 365),
+                    "100 x (1 - 0.16 x 182/365)"))
+    out.append(_row("bonds", "discount_to_true_yield", 17.3871, F.discount_to_yield(16, 182, 365),
+                    "0.16 / (1 - 0.0797808)"))
+    out.append(_row("bonds", "yield_discount_round_trip", 16.0,
+                    F.yield_to_discount(F.discount_to_yield(16, 182, 365), 182, 365),
+                    "the two conversions invert each other", 1e-9))
+    out.append(_row("bonds", "fisher_real_yield", 4.7619, F.real_yield(10, 5), "1.10 / 1.05 - 1"))
+    return out
+
+
+def check_valuation():
+    from . import valuation as V
+    out = []
+    out.append(_row("valuation-models", "capm", 17.2, V.capm(10, 1.2, 6), "10 + 1.2 x 6"))
+    out.append(_row("valuation-models", "wacc", 11.8, V.wacc(600, 400, 15, 10, 30),
+                    "0.6 x 15 + 0.4 x 10 x (1 - 0.30)"))
+    out.append(_row("valuation-models", "gordon_ddm", 42.0, V.ddm(2, 10, 5), "2 x 1.05 / (0.10 - 0.05)"))
+    d = V.dcf(100, 10, 5, 10, 2)
+    out.append(_row("valuation-models", "dcf_explicit_pv", 200.0, d["pvExplicit"],
+                    "110 / 1.1 + 121 / 1.21"))
+    out.append(_row("valuation-models", "dcf_terminal_pv", 2100.0, d["pvTerminal"],
+                    "121 x 1.05 / 0.05 = 2541, / 1.21"))
+    out.append(_row("valuation-models", "dcf_terminal_share", 91.304, d["terminalSharePct"],
+                    "2100 / 2300"))
+    br = V.equity_bridge(d["enterpriseValue"], 300, 100)
+    out.append(_row("valuation-models", "equity_per_share", 20.0, br["perShare"],
+                    "(2300 - 300 net debt) / 100 shares"))
+    out.append(_row("valuation-models", "reverse_dcf_recovers_growth", 10.0,
+                    V.reverse_dcf(2300, 100, 10, 5, 2),
+                    "the growth that prices EV 2300 is the 10% that produced it", 1e-6))
+    try:
+        V.gordon(1, 5, 5)
+        refused = False
+    except ValueError:
+        refused = True
+    out.append({"group": "valuation-models", "name": "growth_at_discount_rate_refused",
+                "expected": True, "got": refused,
+                "how": "r = g has no finite perpetuity value", "ok": refused})
+    return out
+
+
 def run():
-    results = check_formulas() + check_identities() + check_edges() + check_models()
+    results = (check_formulas() + check_identities() + check_edges() + check_models()
+               + check_markets() + check_fixed_income() + check_valuation())
     passed = sum(1 for r in results if r["ok"])
     return {"results": results, "passed": passed, "total": len(results),
             "ok": passed == len(results)}
