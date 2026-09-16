@@ -159,6 +159,67 @@ def _save_user(record):
         _save_json(data)
 
 
+# ---------------------------------------------------------------------------
+# Sign-in record.
+# The account list only proves an account EXISTS. The owner asked for the email
+# of everyone who actually signs in, so every signup, password sign-in and
+# Google sign-in writes one row to the `signins` collection (a local file when
+# Mongo is not connected, same fallback the users table uses). Recording never
+# blocks a sign-in: any failure here is swallowed.
+# ---------------------------------------------------------------------------
+_SIGNINS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signins.json")
+SIGNIN_KEEP = 5000
+
+
+def _record_signin(email, name="", provider="password", kind="signin", ip="", user_agent=""):
+    email = (email or "").lower().strip()
+    if not email:
+        return
+    row = {
+        "email": email,
+        "name": (name or "")[:80],
+        "provider": (provider or "password")[:20],
+        "kind": (kind or "signin")[:12],     # signup | signin | oauth
+        "ts": time.time(),
+        "ip": (ip or "")[:64],
+        "ua": (user_agent or "")[:180],
+    }
+    try:
+        if _USE_MONGO:
+            _DB["signins"].insert_one(dict(row))
+            _DB["users"].update_one({"email": email},
+                                    {"$set": {"last_signin": row["ts"],
+                                              "last_provider": row["provider"],
+                                              "signins": (_find_user(email) or {}).get("signins", 0) + 1}})
+        else:
+            data = []
+            if os.path.exists(_SIGNINS_PATH):
+                with open(_SIGNINS_PATH, encoding="utf-8") as f:
+                    data = json.load(f)
+            data.append(row)
+            with open(_SIGNINS_PATH, "w", encoding="utf-8") as f:
+                json.dump(data[-SIGNIN_KEEP:], f, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
+
+
+def recent_signins(limit=300):
+    """Every recorded sign-in, newest first. Never raises."""
+    try:
+        limit = max(1, min(int(limit or 300), 2000))
+    except Exception:
+        limit = 300
+    try:
+        if _USE_MONGO:
+            rows = list(_DB["signins"].find({}, {"_id": 0}).sort("ts", -1).limit(limit))
+            return rows
+        with open(_SIGNINS_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        return list(reversed(data[-limit:]))
+    except Exception:
+        return []
+
+
 def _hash_password(password, salt=None):
     salt = salt or secrets.token_hex(16)
     dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120000)
@@ -238,6 +299,8 @@ def oauth_callback(provider, code, state, host, user_agent="", ip=""):
         u = {"email": email, "name": (name or "")[:80], "pw": _hash_password(secrets.token_hex(16)),
              "created": time.time(), "oauth": provider, "devices": []}
         _save_user(u)
+    _record_signin(email, u.get("name", ""), provider,
+                   "signup" if is_new else "signin", ip, user_agent)
 
     otc = secrets.token_hex(32)
     _OAUTH_CODES[otc] = {"email": email, "name": u.get("name", ""), "exp": time.time() + 120}
@@ -274,6 +337,7 @@ def signup(email, password, name="", ip="", user_agent=""):
         "created": time.time(),
     }
     _save_user(record)
+    _record_signin(email, record["name"], "password", "signup", ip, user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": record["name"], "owner": _is_owner(email)}
 
@@ -291,6 +355,7 @@ def login(email, password, ip="", user_agent=""):
                          % (u.get("oauth").title(), u.get("oauth").title())}
     if not u or not _check_password(password, u.get("pw", "")):
         return {"ok": False, "error": "invalid email or password"}
+    _record_signin(email, u.get("name", ""), "password", "signin", ip, user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": u.get("name", ""), "owner": _is_owner(email)}
 
@@ -407,8 +472,19 @@ def admin_overview(key="", token=""):
         p = (u.get("oauth") or "email").lower() or "email"
         by_provider[p] = by_provider.get(p, 0) + 1
     newest = max([u.get("created") or 0 for u in users] or [0])
+    signins = recent_signins(400)
+    last_seen = {}
+    for r in signins:
+        e = (r.get("email") or "").lower()
+        if e and e not in last_seen:
+            last_seen[e] = r.get("ts")
+    for u in users:
+        e = (u.get("email") or "").lower()
+        u["last_signin"] = last_seen.get(e) or u.get("last_signin")
+    users.sort(key=lambda r: (r.get("last_signin") or r.get("created") or 0), reverse=True)
     return {"ok": True, "count": len(users), "by_provider": by_provider,
-            "newest_created": newest, "store": store_mode(), "users": users}
+            "newest_created": newest, "store": store_mode(), "users": users,
+            "signin_count": len(signins), "signins": signins}
 
 def handle_auth(path, q):
     """Router for /api/auth/*  (signup | login | logout | me | oauth exchange)."""
