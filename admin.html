@@ -36,8 +36,14 @@
 <div class="ok" id="msg"></div>
 <div class="err" id="err"></div>
 <table id="tbl" style="display:none">
-  <thead><tr><th>EMAIL</th><th>NAME</th><th>SIGNED IN WITH</th><th>SIGNED UP</th><th></th></tr></thead>
+  <thead><tr><th>EMAIL</th><th>NAME</th><th>SIGNED IN WITH</th><th>SIGNED UP</th><th>LAST SIGN-IN</th><th></th></tr></thead>
   <tbody id="rows"></tbody>
+</table>
+<h1 id="sih1" style="display:none;margin-top:30px">EVERY SIGN-IN</h1>
+<div class="sub" id="sihint" style="display:none">One row per sign-in, newest first, straight from the database.</div>
+<table id="sitable" style="display:none">
+  <thead><tr><th>WHEN</th><th>EMAIL</th><th>METHOD</th><th>TYPE</th><th>IP</th></tr></thead>
+  <tbody id="sirows"></tbody>
 </table>
 <script>
 // A session token may arrive in the URL FRAGMENT (#token=...). Fragments are
@@ -88,6 +94,7 @@ function loadOverview(){
       var provTxt = Object.keys(prov).map(function(k){ return esc(k) + " " + prov[k]; }).join("  ·  ") || "-";
       stats.innerHTML =
         '<div class="stat"><b>' + (d.count || 0) + '</b><span>ACCOUNTS</span></div>' +
+        '<div class="stat"><b>' + (d.signin_count || 0) + '</b><span>SIGN-INS RECORDED</span></div>' +
         '<div class="stat"><b>' + esc(provTxt) + '</b><span>SIGN-IN METHOD</span></div>' +
         '<div class="stat"><b>' + esc(fmt(d.newest_created)) + '</b><span>NEWEST SIGN-UP</span></div>' +
         '<div class="stat"><b>' + esc(d.store || "?") + '</b><span>STORE</span></div>';
@@ -100,11 +107,30 @@ function loadOverview(){
         var em = esc(u.email), own = (u.owner ? ' <span class="tag owner">OWNER</span>' : '');
         tr.innerHTML = "<td>" + em + own + "</td><td>" + esc(u.name) + "</td>" +
           '<td><span class="tag">' + esc(u.oauth || "email") + "</span></td><td>" + esc(fmt(u.created)) + "</td>" +
-          "<td><a href='#' onclick='delUser(\"" + em.replace(/"/g, "&quot;") + "\");return false;' style='color:#ff5f56;text-decoration:none;font-size:11px'>remove</a></td>";
+          "<td>" + esc(fmt(u.last_signin)) + "</td>" +
+          "<td><a href='#' onclick='delUser(\"" + em.replace(/\"/g, "&quot;") + "\");return false;' style='color:#ff5f56;text-decoration:none;font-size:11px'>remove</a></td>";
         rows.appendChild(tr);
       });
       document.getElementById("tbl").style.display = "";
-      msg.textContent = (d.count || 0) + " account(s)";
+      // every recorded sign-in
+      var si = d.signins || [];
+      var sib = document.getElementById("sirows");
+      sib.innerHTML = "";
+      si.forEach(function(r){
+        var tr = document.createElement("tr");
+        tr.innerHTML = "<td>" + esc(fmt(r.ts)) + "</td><td>" + esc(r.email) + "</td>" +
+          '<td><span class="tag">' + esc(r.provider || "password") + "</span></td><td>" + esc(r.kind || "") + "</td>" +
+          "<td>" + esc(r.ip || "") + "</td>";
+        sib.appendChild(tr);
+      });
+      document.getElementById("sitable").style.display = si.length ? "" : "none";
+      document.getElementById("sih1").style.display = si.length ? "" : "none";
+      document.getElementById("sihint").style.display = si.length ? "" : "none";
+      if(!si.length){
+        document.getElementById("sihint").textContent = "No sign-ins recorded yet. New sign-ins are written to the database from now on.";
+        document.getElementById("sihint").style.display = "";
+      }
+      msg.textContent = (d.count || 0) + " account(s), " + (d.signin_count || 0) + " sign-in(s) recorded";
     })
     .catch(function(){ err.textContent = "Could not reach the server."; });
 }
