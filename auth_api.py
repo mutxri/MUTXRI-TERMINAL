@@ -354,7 +354,13 @@ def login(email, password, ip="", user_agent=""):
                 "error": "This account was created with %s. Use \"Continue with %s\" to sign in."
                          % (u.get("oauth").title(), u.get("oauth").title())}
     if not u or not _check_password(password, u.get("pw", "")):
-        return {"ok": False, "error": "invalid email or password"}
+        # A missing account skipped the KDF entirely (Python short-circuits the
+        # `or`), so a wrong password for a real user took measurably longer than
+        # an address with no account. Burn the same PBKDF2 work on the missing
+        # path so both answers cost the same, then say what the owner asked for.
+        if not u:
+            _check_password(password, "0" * 32 + ":" + "0" * 64)
+        return {"ok": False, "error": "User not found"}
     _record_signin(email, u.get("name", ""), "password", "signin", ip, user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": u.get("name", ""), "owner": _is_owner(email)}
