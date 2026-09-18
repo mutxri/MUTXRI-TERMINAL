@@ -425,6 +425,23 @@ html.mx-custom-outline.floating .win-front{border-color:var(--win-front)!importa
 .mx-pulse{animation:mxPulse .7s ease-out 1}
 .hide-chrome .mx-user{display:none}
 @media (max-width:700px){.mx-set-nav{width:132px}.mx-ctl select{min-width:140px}.mx-row{flex-wrap:wrap}}
+/* ---------- small screens: one stacked column, scrollable board ---------- */
+@media (max-width:700px){
+  /* The workspace stacks its four windows vertically at this width (see tiled()
+     in the workspace manager), so the board has to scroll. It kept
+     overflow:hidden, which clipped every window below the fold and every
+     column past the right edge. */
+  .main{overflow-y:auto;overflow-x:hidden}
+  .wrow{height:auto;min-height:0}
+  /* The top bar cannot hold everything here: the search box shrank to a
+     two-character stub. The command line is the mobile entry point, so give
+     that space back to the workspace tabs. */
+  .search{display:none}
+  .topbar{gap:var(--s3);padding:0 var(--s2)}
+  .wstabs button{max-width:74px;padding:3px 6px}
+  /* data tables keep their columns but stop being squeezed into 200px */
+  .wl-row{grid-template-columns:22px 1fr auto;gap:2px var(--s2)}
+}
 </style>
 <script>
 /* ===== Settings: theme and preferences, saved in this browser =====
@@ -953,9 +970,28 @@ function renderTabs(){
     let spaces = [], active = 0, zTop = 10;
 
     function box(){ return main.getBoundingClientRect(); }
+    // A phone board cannot hold the four rails side by side: the three fixed
+    // widths need roughly 700px, so below that INFO and CHAT were laid out past
+    // the right edge of .main, whose overflow:hidden then clipped them
+    // mid-column. Stack one column instead and let the board scroll.
+    function stackedFor(b){
+      const W = b.width || 360, H = b.height || 600;
+      const w = Math.max(160, W - 8);
+      const hC = Math.max(MIN_H, Math.round(H * 0.70));
+      const hS = Math.max(MIN_H, Math.round(H * 0.55));
+      let y = 4;
+      const out = {};
+      out.center = {x: 4, y: y, w: w, h: hC, open: true, z: 12}; y += hC + 8;
+      out.watch  = {x: 4, y: y, w: w, h: hS, open: true, z: 11}; y += hS + 8;
+      out.info   = {x: 4, y: y, w: w, h: hS, open: true, z: 13}; y += hS + 8;
+      out.chat   = {x: 4, y: y, w: w, h: hS, open: true, z: 14};
+      return out;
+    }
+    function narrow(){ return (box().width || 0) < 700; }
     function tiled(){
       // the first workspace mirrors the tiled layout people already know
       const b = box(), W = b.width || 1280, H = b.height || 700;
+      if(W < 700) return stackedFor(b);
       const railW = Math.min(280, Math.max(MIN_W, Math.round(W * 0.2)));
       const chatW = Math.min(320, Math.max(MIN_W, Math.round(W * 0.24)));
       const midW = Math.max(MIN_W, W - railW - chatW - 24);
@@ -1043,6 +1079,14 @@ function renderTabs(){
     // shrank the window for good.
     function clamped(k){
       const b = box(), s = Object.assign({}, win(k));
+      // A phone board always stacks, even when the workspace was hand-arranged:
+      // the saved positions put the rails off-canvas, and the y clamp below then
+      // folded the lower windows on top of each other. The board scrolls.
+      if(narrow()){
+        const st = stackedFor(b)[k];
+        if(st){ s.x = st.x; s.y = st.y; s.w = st.w; s.h = st.h; }
+        return s;
+      }
       s.w = Math.max(MIN_W, Math.min(s.w, Math.max(MIN_W, b.width - 8)));
       s.h = Math.max(MIN_H, Math.min(s.h, Math.max(MIN_H, b.height - 8)));
       // never let a window's title bar leave the workspace, or it cannot be grabbed back
@@ -1061,6 +1105,10 @@ function renderTabs(){
     function follow(){
       const sp = cur(), b = box();
       if(!sp || sp.auto || !b.width || !b.height) return;
+      // Opening the terminal on a phone must not rewrite a desktop arrangement:
+      // the stacked board is applied at render time (clamped above), so the
+      // saved window positions survive the visit.
+      if(narrow()) return;
       const ow = sp.bw, oh = sp.bh;
       if(!ow || !oh){ sp.bw = b.width; sp.bh = b.height; return; }
       if(Math.abs(ow - b.width) < 2 && Math.abs(oh - b.height) < 2) return;
