@@ -1366,25 +1366,37 @@ function submitAuth(e){
   msg.textContent = mode === "login" ? "Signing in…" : "Creating your account…";
   // POST JSON body — never put passwords in the URL (they'd land in browser
   // history, proxy logs and Referer headers)
-  fetch(AUTH_API + "/api/auth/" + action, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)})
-    .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
-    .then(function(d){
-      if(d && d.ok){
-        // fall back to what was typed: a response without an email field would
-        // otherwise wipe the address we prefill next time
-        try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); }catch(err){}
-        msg.className = "auth-msg ok";
-        msg.textContent = mode === "login" ? "Welcome back — opening the terminal…" : "Account created — opening the terminal…";
-        setTimeout(function(){ location.href = "terminal/"; }, 900);
-      }else{
+  // The free Render backend spins down when idle, so the first request can take
+  // 20+ seconds and the browser reports a network failure before any credential
+  // answer arrives. Attempt one wakes it; retry twice before showing a failure.
+  var MAX_TRIES = 3;
+  function send(n){
+    return fetch(AUTH_API + "/api/auth/" + action, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)})
+      .then(function(r){ return r.json().catch(function(){ throw new Error("bad json"); }); })
+      .then(function(d){
+        if(d && d.ok){
+          // fall back to what was typed: a response without an email field would
+          // otherwise wipe the address we prefill next time
+          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); }catch(err){}
+          msg.className = "auth-msg ok";
+          msg.textContent = mode === "login" ? "Welcome back - opening the terminal..." : "Account created - opening the terminal...";
+          setTimeout(function(){ location.href = "terminal/"; }, 900);
+          return;
+        }
         msg.className = "auth-msg err";
         msg.textContent = (d && d.error) ? d.error : "Could not reach the server. Try again shortly.";
-      }
-    })
-    .catch(function(){
-      msg.className = "auth-msg err";
-      msg.textContent = "Could not reach the server. Try again shortly.";
-    });
+      })
+      .catch(function(){
+        if(n < MAX_TRIES){
+          msg.className = "auth-msg";
+          msg.textContent = "Waking the server, attempt " + n + " of " + (MAX_TRIES - 1) + "...";
+          return new Promise(function(res){ setTimeout(res, 3000); }).then(function(){ return send(n + 1); });
+        }
+        msg.className = "auth-msg err";
+        msg.textContent = "Could not reach the server. Try again shortly.";
+      });
+  }
+  send(1);
   return false;
 }
 
