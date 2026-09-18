@@ -433,10 +433,20 @@ html.mx-custom-outline.floating .win-front{border-color:var(--win-front)!importa
      column past the right edge. */
   .main{overflow-y:auto;overflow-x:hidden}
   .wrow{height:auto;min-height:0}
-  /* The top bar cannot hold everything here: the search box shrank to a
-     two-character stub. The command line is the mobile entry point, so give
-     that space back to the workspace tabs. */
-  .search{display:none}
+  /* The top bar cannot hold a 420px search field here, so collapse it to the
+     magnifier alone and expand it on tap. Hiding .search outright removed the
+     only visible way into search on a phone. */
+  .search{flex:0 0 auto;max-width:none;margin-left:auto;padding:var(--s2);
+          min-width:34px;min-height:32px;justify-content:center;cursor:pointer}
+  .search input{display:none}
+  /* Expanded, the field takes the whole bar. A flex share only gave it ~67px
+     because the clock and workspace tabs keep their space, which is too narrow
+     to type a ticker into, so it overlays the bar instead. */
+  .topbar{position:relative}
+  .search.open{position:absolute;left:var(--s2);right:var(--s2);top:9px;z-index:6;
+               flex:none;justify-content:flex-start;padding:var(--s2) var(--s3)}
+  .search.open input{display:block;flex:1 1 auto}
+  .search svg{flex:0 0 auto}
   .topbar{gap:var(--s3);padding:0 var(--s2)}
   .wstabs button{max-width:74px;padding:3px 6px}
   /* data tables keep their columns but stop being squeezed into 200px */
@@ -668,9 +678,9 @@ html.mx-custom-outline.floating .win-front{border-color:var(--win-front)!importa
       <div class="mark">MX</div>
       <div class="brandname">MUTXRI<small>TERMINAL</small></div>
     </div>
-    <label class="search">
+    <label class="search" onclick="if(!this.classList.contains('open')){this.classList.add('open');setTimeout(function(){document.getElementById('q').focus();},0);}">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
-      <input id="q" placeholder="Ticker, company or market — SCOM, MTN JSE, FA…" autocomplete="off" aria-label="Search">
+      <input id="q" placeholder="Ticker, company or market — SCOM, MTN JSE, FA…" autocomplete="off" aria-label="Search" onblur="var s=this.closest('.search');if(s&&!this.value){setTimeout(function(){s.classList.remove('open');},160);}">
     </label>
     <span class="wstabs" id="wsTabs" title="Workspaces"></span>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
