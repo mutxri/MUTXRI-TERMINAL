@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - ANNOUNCEMENTS panel. Every NSE listed-company announcement
+  (audited results, AGM notices, dividends, board changes) with a link to the
+  issuer's filing PDF on nse.co.ke. Vanilla JS, Godel palette.
+-->
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - ANNOUNCEMENTS</title>
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--acc:#33e29a;--acc2:#1ecfb0;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:#000;color:var(--tx);font-family:var(--ui);font-size:13px}
+  .wrap{max-width:760px;margin:0 auto;padding:14px}
+  .head{display:flex;align-items:center;gap:10px;padding:8px 4px 12px;border-bottom:1px solid var(--line2)}
+  .code{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.1em;border:1px solid var(--line2);padding:2px 6px;border-radius:2px}
+  .title{font-family:var(--mono);font-size:12px;color:var(--tx2);letter-spacing:.06em}
+  .title b{color:var(--acc)}
+  .spacer{flex:1}
+  .src{font-family:var(--mono);font-size:9px;color:var(--tx3)}
+
+  .bar{display:flex;gap:8px;padding:12px 0;align-items:center}
+  .search{flex:1;background:var(--bg3);border:1px solid var(--line2);border-radius:3px;color:var(--tx);
+    font-family:var(--mono);font-size:12px;padding:8px 10px;outline:none}
+  .search:focus{border-color:var(--acc)}
+  select{background:var(--bg3);border:1px solid var(--line2);border-radius:3px;color:var(--tx);
+    font-family:var(--mono);font-size:12px;padding:8px 6px;outline:none}
+  .count{font-family:var(--mono);font-size:10px;color:var(--tx3);padding:0 4px 8px}
+
+  .item{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:11px 14px;margin-top:8px}
+  .item a{color:var(--tx);text-decoration:none;font-size:13px;line-height:1.45;display:block}
+  .item a:hover{color:var(--acc)}
+  .meta{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:7px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .co{color:var(--tx2)}
+  .yr{color:var(--acc2);border:1px solid var(--line2);border-radius:2px;padding:1px 5px}
+  .und{color:var(--tx3)}
+  .pdf{color:var(--acc);text-decoration:none;margin-left:auto}
+  .empty{padding:30px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:11px}
+  .more{display:block;width:100%;margin-top:10px;padding:10px;background:var(--bg3);border:1px solid var(--line2);
+    border-radius:3px;color:var(--tx2);font-family:var(--mono);font-size:11px;cursor:pointer}
+  .more:hover{color:var(--acc);border-color:var(--acc)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="head">
+    <span class="code">ANNOUNCEMENTS</span>
+    <span class="title"><b>NSE</b> LISTED-COMPANY FILINGS</span>
+    <span class="spacer"></span>
+    <span class="src" id="src">nse.co.ke · audited results · AGM · dividends</span>
+  </div>
+
+  <div class="bar">
+    <input class="search" id="q" placeholder="search company or filing…  (e.g. safaricom, dividend, results)" />
+    <select id="yr"><option value="all">ALL YEARS</option></select>
+  </div>
+  <div class="count" id="count"></div>
+  <div id="items"><div class="empty">loading…</div></div>
+  <button class="more" id="more" style="display:none">SHOW MORE</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var el = document.getElementById("items"),
+      qEl = document.getElementById("q"),
+      yrEl = document.getElementById("yr"),
+      countEl = document.getElementById("count"),
+      moreEl = document.getElementById("more");
+  var ALL = [];
+  var PAGE = 150;
+
+  function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  function render(){
+    var q = qEl.value.trim().toLowerCase();
+    var yr = yrEl.value;
+    var list = ALL.filter(function(o){
+      if(yr === "undated" && o.year) return false;
+      if(yr !== "all" && yr !== "undated" && String(o.year) !== yr) return false;
+      if(!q) return true;
+      return (o.title || "").toLowerCase().indexOf(q) >= 0 || (o.company || "").toLowerCase().indexOf(q) >= 0;
+    });
+    countEl.textContent = list.length + " of " + ALL.length + " filings";
+    var shown = list.slice(0, PAGE);
+    moreEl.style.display = list.length > PAGE ? "block" : "none";
+    if(!shown.length){ el.innerHTML = '<div class="empty">no filings match</div>'; return; }
+    el.innerHTML = shown.map(function(o){
+      var y = o.year ? '<span class="yr">' + esc(o.year) + '</span>' : '<span class="und">undated</span>';
+      var co = o.company ? '<span class="co">' + esc(o.company) + '</span>' : '';
+      var link = o.url
+        ? '<a href="' + esc(o.url) + '" target="_blank" rel="nofollow noopener">' + esc(o.title) + '</a>'
+        : '<span>' + esc(o.title) + '</span>';
+      var pdf = o.url ? '<a class="pdf" href="' + esc(o.url) + '" target="_blank" rel="nofollow noopener">PDF</a>' : '';
+      return '<div class="item">' + link +
+        '<div class="meta">' + co + y + pdf + '</div></div>';
+    }).join("");
+  }
+
+  function more(){
+    PAGE += 150;
+    render();
+  }
+
+  qEl.addEventListener("input", render);
+  yrEl.addEventListener("change", render);
+  moreEl.addEventListener("click", more);
+
+  fetch("../../static_data/nse_announcements.json")
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){
+      ALL = d || [];
+      // build the year selector from the data itself
+      var years = [];
+      ALL.forEach(function(o){ if(o.year && years.indexOf(o.year) < 0) years.push(o.year); });
+      years.sort(function(a,b){ return b-a; });
+      years.forEach(function(y){
+        var opt = document.createElement("option");
+        opt.value = String(y); opt.textContent = String(y);
+        yrEl.appendChild(opt);
+      });
+      var u = document.createElement("option");
+      u.value = "undated"; u.textContent = "UNDATED";
+      yrEl.appendChild(u);
+      document.getElementById("src").textContent = ALL.length + " filings · nse.co.ke";
+      render();
+    })
+    .catch(function(){ el.innerHTML = '<div class="empty">failed to load announcements</div>'; });
+})();
+</script>
+</body>
+</html>
