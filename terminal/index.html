@@ -26,6 +26,14 @@
   --ui:'Inter',system-ui,sans-serif;
   --brand:'Sofia Sans Semi Condensed','Inter',sans-serif;
 }
+/* light theme — same Godel tokens, restruck for a light canvas */
+html[data-theme="light"]{
+  --bg:#f5f5f6; --bg2:#ededef; --bg3:#e4e4e7; --bg4:#d7d7db;
+  --line:#e0e0e3; --line2:#c9c9cd;
+  --tx:#15171a; --tx2:#56585e; --tx3:#86888f;
+  --acc:#0b8a5c; --acc2:#0aa06a; --up:#0b8a5c; --down:#d02f2a; --warn:#b07a15;
+  --mint-dim:rgba(11,138,92,.10); --mint-line:rgba(11,138,92,.4);
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{
@@ -60,6 +68,26 @@ body{
   font-family:inherit;font-size:10px;padding:var(--s1) 10px;border-radius:2px;cursor:pointer;
   transition:border-color .15s,color .15s}
 .acct button:hover{border-color:var(--mint-line)}
+.settings{position:relative;display:flex;align-items:center}
+.settings>button{background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
+  width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+  border-radius:2px;cursor:pointer;transition:border-color .15s,color .15s}
+.settings>button:hover{border-color:var(--mint-line)}
+.settings-menu{position:absolute;top:calc(100% + 6px);right:0;min-width:230px;
+  background:var(--bg2);border:1px solid var(--line2);border-radius:3px;
+  padding:6px;z-index:400;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.settings-item{padding:5px 7px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.settings-k{color:var(--tx3);font-size:10px;letter-spacing:.08em}
+.settings-sep{height:1px;background:var(--line);margin:4px 2px}
+.settings-v{display:flex;gap:4px}
+.settings-v button{background:var(--bg3);border:1px solid var(--line2);color:var(--tx2);
+  font-family:inherit;font-size:10px;padding:3px 9px;border-radius:2px;cursor:pointer}
+.settings-v button:hover{border-color:var(--mint-line);color:var(--acc)}
+.settings-v button.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700}
+#acctItem{flex-wrap:wrap;justify-content:flex-start}
+#acctItem .acct-mail{color:var(--tx2);font-size:11px;font-family:var(--mono);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+#acctItem .acct-row{display:flex;align-items:center;gap:8px;width:100%}
 .clock{display:flex;align-items:center;gap:var(--s2);color:var(--tx2);font-size:11px}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);
   box-shadow:0 0 0 0 rgba(51,226,154,.5);animation:pulse 2.4s infinite}
@@ -348,6 +376,7 @@ html{scrollbar-width:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
 
 </style>
+<script>/* apply saved theme before paint to avoid a dark flash */try{document.documentElement.setAttribute("data-theme", localStorage.getItem("mt_theme")||"dark");}catch(e){}</script>
 </head>
 <body>
 <!-- ===== auth gate: sign in required to enter the terminal ===== -->
@@ -490,7 +519,22 @@ html{scrollbar-width:none;}
       <input id="q" placeholder="Ticker, company or market — SCOM, MTN JSE, FA…" autocomplete="off" aria-label="Search">
     </label>
     <span class="wstabs" id="wsTabs" title="Workspaces"></span>
-    <span class="acct" id="acctWrap"></span>
+    <div class="settings" id="settings">
+      <button id="settingsBtn" type="button" title="Settings" aria-label="Settings" aria-haspopup="true" aria-expanded="false">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <div class="settings-menu" id="settingsMenu" hidden>
+        <div class="settings-item" id="acctItem"></div>
+        <div class="settings-sep"></div>
+        <div class="settings-item">
+          <span class="settings-k">THEME</span>
+          <span class="settings-v" id="themeOpts">
+            <button type="button" data-theme="dark">DARK</button>
+            <button type="button" data-theme="light">LIGHT</button>
+          </span>
+        </div>
+      </div>
+    </div>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
   </header>
 
@@ -2331,20 +2375,57 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
 </script>
 
 <script>
-// ---- account button (topbar) ----
+// ---- settings button: account + theme ----
 (function(){
+  var LIGHT = "html[data-theme=light]{--bg:#f5f5f6;--bg2:#ededef;--bg3:#e4e4e7;--bg4:#d7d7db;--line:#e0e0e3;--line2:#c9c9cd;--tx:#15171a;--tx2:#56585e;--tx3:#86888f;--acc:#0b8a5c;--acc2:#0aa06a;--up:#0b8a5c;--down:#d02f2a;--warn:#b07a15;--mint-dim:rgba(11,138,92,.10);--mint-line:rgba(11,138,92,.4);}";
+  function theme(){ try{ return localStorage.getItem("mt_theme") || "dark"; }catch(e){ return "dark"; } }
+  function applyFrame(f){
+    if(!f) return;
+    try{
+      var d = f.contentDocument;
+      if(!d || !d.documentElement) return;
+      var t = theme();
+      d.documentElement.setAttribute("data-theme", t);
+      var st = d.getElementById("mt-theme-inject");
+      if(t === "light"){
+        if(!st){ st = d.createElement("style"); st.id = "mt-theme-inject"; (d.head||d.documentElement).appendChild(st); }
+        st.textContent = LIGHT;
+      } else if(st){ st.textContent = ""; }
+    }catch(e){}
+  }
+  function applyTheme(t){
+    try{ localStorage.setItem("mt_theme", t); }catch(e){}
+    document.documentElement.setAttribute("data-theme", t);
+    applyFrame(document.getElementById("stageFrame"));
+  }
+
+  // menu open/close
+  var btn = document.getElementById("settingsBtn");
+  var menu = document.getElementById("settingsMenu");
+  function closeMenu(){ if(menu){ menu.hidden = true; } if(btn){ btn.setAttribute("aria-expanded","false"); } }
+  if(btn && menu){
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      btn.setAttribute("aria-expanded", String(!menu.hidden));
+    });
+    document.addEventListener("click", function(e){
+      if(!menu.hidden && e.target !== btn && !menu.contains(e.target)) closeMenu();
+    });
+  }
+
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
   function renderAcct(){
-    var w = document.getElementById("acctWrap");
+    var w = document.getElementById("acctItem");
     if(!w) return;
     var email = "";
     try{ email = localStorage.getItem("mt_email") || ""; }catch(e){}
     if(email){
-      var name = email.split("@")[0];
-      w.innerHTML = '<button type="button" class="acct-email" title="Signed in as '+esc(email)+'">'+esc(name)+'</button>' +
-                    '<button type="button" onclick="window.__signOut()">SIGN OUT</button>';
+      w.innerHTML = '<span class="acct-row"><span class="acct-mail" title="Signed in as '+esc(email)+'">'+esc(email)+'</span>' +
+                    '<span class="settings-v"><button type="button" onclick="window.__signOut()">SIGN OUT</button></span></span>';
     } else {
-      w.innerHTML = '<button type="button" onclick="location.reload()">SIGN IN</button>';
+      w.innerHTML = '<span class="acct-row"><span class="acct-mail">Not signed in</span>' +
+                    '<span class="settings-v"><button type="button" onclick="location.reload()">SIGN IN</button></span></span>';
     }
   }
   window.__renderAcct = renderAcct;
@@ -2352,7 +2433,27 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     try{ localStorage.removeItem("mt_token"); localStorage.removeItem("mt_email"); }catch(e){}
     location.reload();
   };
+
+  function renderThemeOpts(){
+    var t = theme();
+    var btns = document.querySelectorAll("#themeOpts button");
+    for(var i=0;i<btns.length;i++){
+      btns[i].className = btns[i].getAttribute("data-theme") === t ? "on" : "";
+    }
+  }
+  var top = document.getElementById("themeOpts");
+  if(top) top.addEventListener("click", function(e){
+    var b = e.target;
+    if(!b || !b.getAttribute || !b.getAttribute("data-theme")) return;
+    applyTheme(b.getAttribute("data-theme"));
+    renderThemeOpts();
+  });
+
+  var sf = document.getElementById("stageFrame");
+  if(sf){ sf.addEventListener("load", function(){ applyFrame(sf); }); applyFrame(sf); }
+
   renderAcct();
+  renderThemeOpts();
 })();
 </script>
 
