@@ -175,6 +175,39 @@
   var TOTAL_KEYS={grossProfit:1,operatingProfit:1,netProfit:1,totalAssets:1,totalLiabilities:1,
     totalEquity:1,freeCashFlow:1,netChangeInCash:1};
 
+  // Label -> schema-key aliases, in PRIORITY order (first match wins). Statement
+  // files use issuer-varied labels ("Turnover", "Net Interest Income", "Insurance
+  // Revenue", "Profit for the year", ...); map them onto the canonical display keys.
+  var KEY_ALIASES={
+  revenue:["revenue","total operating income","total operating income (revenue)","total insurance revenue","insurance revenue","turnover","net revenue","gross sales","net sales","sales","revenue from contracts with customers","revenues from contracts with customers","revenue (operating income)","rental and related income","rental income","total income","gross written premium","gross written premiums","net earned premium","net earned premiums","net interest income","total interest income","electricity revenue","trading revenue","trading income","interest revenue calculated using the effective interest method"],
+  costOfSales:["cost of sales","cost of revenue","cost of operations","cost of production","cost of services"],
+  grossProfit:["gross profit","gross profit total"],
+  operatingExpenses:["operating expenses","operating expenses total","total operating expenses","total operating costs","administration and other expenses","administrative expenses","administration and general expenses","selling and distribution expenses","selling and distribution costs","distribution costs","general and administrative expenses","operating and administrative expenses","administrative costs","administration costs","administration","establishment expenses","administration and establishment expenses"],
+  operatingProfit:["operating profit (ebit)","operating profit","operating loss","results from operating activities"],
+  netFinanceCosts:["net finance costs","finance costs","finance cost","net finance income","finance costs (net)","finance income/(cost)","finance (cost)/income"],
+  profitBeforeTax:["profit before tax","profit before income tax","loss before tax","loss before income tax","profit before taxation","profit before tax and exceptional items","profit before income tax total"],
+  taxExpense:["income tax","income tax expense","income tax credit","income tax charge","tax expense","tax charge","taxation","tax","income tax (expense)/credit","income tax expense/credit","income tax credit/(expense)","income tax credit/(charge)","income tax (charge)/credit","tax (charge)/credit","taxation charge","taxation charge/ credit","taxation (credit)","tax credit","tax income (expense)","taxation credit"],
+  netProfit:["net profit","net income","profit for the year","profit after tax","profit attributable to owners of the company","profit attributable to equity holders","loss for the year","(loss)/profit for the year","profit/(loss) for the year","profit/(loss) for the period","profit/(loss) after taxation","profit from continuing operations","total comprehensive income","total comprehensive profit/(loss) for the year"],
+  eps:["eps","earnings per share","basic earnings per share (shs)","basic and diluted earnings per share (kshs)","earnings per share (kshs)","loss per share (ksh)","basic eps","diluted eps"],
+  roe:["roe (%)","roe"],roa:["roa (%)","roa"],
+  netMargin:["net margin (%)","net margin"],grossMargin:["gross margin (%)","gross margin"],
+  opMargin:["operating margin (%)","operating margin"],debtToEquity:["debt to equity"],
+  nonCurrentAssets:["non-current assets","non current assets","noncurrent assets","total non-current assets"],
+  currentAssets:["current assets","total current assets"],
+  cashAndEquivalents:["cash & equivalents","cash and cash equivalents","cash and bank balances","cash & bank balances","cash and balances with central banks","cash and balances with banking institutions","cash & cash equivalents"],
+  totalAssets:["total assets"],
+  nonCurrentLiabilities:["non-current liabilities","non current liabilities","noncurrent liabilities","total non-current liabilities"],
+  currentLiabilities:["current liabilities","total current liabilities"],
+  totalLiabilities:["total liabilities"],
+  totalEquity:["total equity","total shareholders' equity","total shareholders equity","shareholders' equity","total stockholders' equity","capital and reserves"],
+  operatingCashFlow:["operating cash flow","net cash from operating activities","net cash generated from operating activities","net cash flows from operating activities","net cash provided by operating activities","cash generated from operations","net cash generated from/(used in) operating activities","net cash flows used in operating activities","net cash from operations"],
+  investingCashFlow:["investing cash flow","net cash from investing activities","net cash generated from investing activities","net cash flows from investing activities","net cash used in investing activities","net cash generated from/(used in) investing activities"],
+  financingCashFlow:["financing cash flow","net cash from financing activities","net cash generated from financing activities","net cash flows from financing activities","net cash used in financing activities","net cash generated from/(used in) financing activities"],
+  capex:["capital expenditure","capex","purchase of property, plant and equipment","purchase of property and equipment","acquisition of property, plant and equipment","purchase of property plant and equipment","additions to property, plant and equipment","purchase of pp&e","purchase of property, plant & equipment","purchase of intangible assets","acquisition of intangible assets"],
+  freeCashFlow:["free cash flow"],
+  netChangeInCash:["net change in cash","net increase in cash","net decrease in cash","net increase/(decrease) in cash","net (decrease)/increase in cash","net increase/(decrease) in cash and cash equivalents","increase/(decrease) in cash and cash equivalents","net movement in cash and cash equivalents"]
+  };
+
   var DASH="\u2014";
   function fmtMoney(v,cur){
     if(v===null||v===undefined||isNaN(v))return DASH;
@@ -220,13 +253,21 @@
     var sch=SCHEMA[state.statement];
     var per=(rec&&rec.periods&&rec.periods.length)?rec.periods:["Latest"];
     var vals=(rec&&rec.values)||{};
-    // normalize: files store rows as [{label,values:[...]}] - map by label to schema keys
+    // normalize: files store rows as [{label,values:[...]}] - map by label (with
+    // issuer-varied aliases) to schema keys, in priority order (first match wins)
     if(!Object.keys(vals).length && rec && rec.rows && rec.rows.length){
-      var labelToKey = {};
-      sch.forEach(function(p){ labelToKey[p[1].toLowerCase()] = p[0]; });
+      var normL = function(s){return String(s==null?"":s).trim().toLowerCase().replace(/\s+/g," ");};
+      var lmap = {};
       (rec.rows||[]).forEach(function(rw){
-        var k = labelToKey[String(rw.label||"").toLowerCase()];
-        if(k) vals[k] = rw.values || [];
+        var l = normL(rw.label);
+        if(!(l in lmap)) lmap[l] = rw.values || [];
+      });
+      sch.forEach(function(p){
+        var key = p[0], aliases = KEY_ALIASES[key] || [normL(p[1])];
+        for(var i=0;i<aliases.length;i++){
+          var a = normL(aliases[i]);
+          if(a in lmap){ vals[key] = lmap[a]; break; }
+        }
       });
     }
     var h='<table><thead><tr><th>'+STMT_TITLE()+'</th>';
