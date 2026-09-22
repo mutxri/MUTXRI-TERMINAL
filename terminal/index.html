@@ -133,6 +133,7 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .settings-side button.on{border-left-color:var(--acc);color:var(--acc);background:var(--mint-dim)}
 .settings-content{flex:1;min-width:0;min-height:0;padding:12px 14px;overflow-y:auto}
 .settings-content .settings-head:first-child{margin-top:0}
+.settings-subhead{color:var(--tx3);font-size:9px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 2px}
 .settings-field select{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:4px;color:var(--tx);font-family:var(--mono);font-size:11px;padding:7px 10px;outline:none}
 .settings-btn{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
   font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:6px 12px;
@@ -714,15 +715,10 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
             </div>
             <div class="settings-content">
               <div data-sect-pane="theme">
+          <div class="settings-head">Theme</div>
           <div class="settings-head">Color</div>
-          <div class="settings-row">
-            <span class="settings-k">Background color</span>
-            <span class="settings-seg" id="themeOpts">
-              <button type="button" data-theme="dark">DARK</button>
-              <button type="button" data-theme="light">LIGHT</button>
-            </span>
-          </div>
-          <div class="settings-row" style="margin-top:12px">
+          <div class="settings-subhead">presets</div>
+          <div class="settings-row" style="margin-top:8px">
             <span class="settings-k">Primary color</span>
             <span class="settings-swatches" id="accentOpts">
               <button type="button" class="settings-swatch" data-accent="mint" style="background:#33e29a" title="Mint" aria-label="Accent Mint"></button>
@@ -755,19 +751,24 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
               <button type="button" class="settings-swatch" data-down="violet" style="background:#a78bfa" title="Violet" aria-label="Negative Violet"></button>
             </span>
           </div>
+          <div class="settings-row" style="margin-top:12px">
+            <span class="settings-k">Background color</span>
+            <span class="settings-swatches" id="bgOpts">
+              <button type="button" class="settings-swatch" data-bg="dark" style="background:#0a0a0a;border-color:#3a3a3a" title="Dark" aria-label="Background Dark"></button>
+              <button type="button" class="settings-swatch" data-bg="light" style="background:#f5f5f6" title="Light" aria-label="Background Light"></button>
+            </span>
+          </div>
           <div class="settings-div"></div>
           <div class="settings-head">Font</div>
-          <div class="settings-field">
-            <label for="fontSel">Interface font</label>
-            <select id="fontSel">
-              <option value="mono">Oxygen Mono</option>
-              <option value="system">Default</option>
-            </select>
+          <div class="settings-seg" id="fontOpts" style="max-width:230px">
+            <button type="button" data-font="system">Default</button>
+            <button type="button" data-font="mono">Oxygen Mono</button>
           </div>
           <div class="settings-div"></div>
           <div class="settings-head">Table</div>
-          <div class="settings-row">
-            <span class="settings-k">Animation<small>Fade - highlights new entries in tables</small></span>
+          <div class="settings-subhead">animation</div>
+          <div class="settings-row" style="margin-top:8px">
+            <span class="settings-k">Fade<small>Highlights new entries in tables</small></span>
             <button type="button" class="settings-toggle on" id="tblAnim" data-tog="tblAnim">ON</button>
           </div>
           <div class="settings-div"></div>
@@ -781,7 +782,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
             <button type="button" class="settings-toggle on" id="winShadow" data-tog="winShadow">ON</button>
           </div>
           <div class="settings-row" style="margin-top:10px">
-            <span class="settings-k">Inactive window outline</span>
+            <span class="settings-k">Inactive window outline color</span>
             <span class="settings-swatches" id="winOutlineOpts">
               <button type="button" class="settings-swatch" data-outline="default" style="background:#4a4a4a" title="Gray" aria-label="Outline Gray"></button>
               <button type="button" class="settings-swatch" data-outline="mint" style="background:#33e29a" title="Mint" aria-label="Outline Mint"></button>
@@ -791,7 +792,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
             </span>
           </div>
               </div>
-              <div data-sect-pane="terminal" hidden>
+<div data-sect-pane="terminal" hidden>
                 <div class="settings-head">Market</div>
                 <div class="settings-field">
                   <label for="defMarket">Default market</label>
@@ -2895,19 +2896,26 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     location.reload();
   };
 
-  function renderThemeOpts(){
+  function renderBgOpts(){
     var t = theme();
-    var btns = document.querySelectorAll("#themeOpts button");
+    var btns = document.querySelectorAll("#bgOpts .settings-swatch");
     for(var i=0;i<btns.length;i++){
-      btns[i].className = btns[i].getAttribute("data-theme") === t ? "on" : "";
+      btns[i].className = "settings-swatch" + (btns[i].getAttribute("data-bg") === t ? " on" : "");
     }
   }
-  var top = document.getElementById("themeOpts");
-  if(top) top.addEventListener("click", function(e){
+  function renderFontOpts(){
+    var f = fontName();
+    var btns = document.querySelectorAll("#fontOpts button");
+    for(var i=0;i<btns.length;i++){
+      btns[i].className = (btns[i].getAttribute("data-font") === f) ? "on" : "";
+    }
+  }
+  var bgO = document.getElementById("bgOpts");
+  if(bgO) bgO.addEventListener("click", function(e){
     var b = e.target;
-    if(!b || !b.getAttribute || !b.getAttribute("data-theme")) return;
-    applyTheme(b.getAttribute("data-theme"));
-    renderThemeOpts();
+    if(!b || !b.getAttribute || !b.getAttribute("data-bg")) return;
+    applyTheme(b.getAttribute("data-bg"));
+    renderBgOpts();
   });
 
   var sf = document.getElementById("stageFrame");
@@ -2963,11 +2971,15 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     applyDown(b.getAttribute("data-down"));
     renderRoleOpts("#downOpts .settings-swatch", "data-down", downName());
   });
-  var fs = document.getElementById("fontSel");
-  if(fs){
-    fs.value = fontName();
-    fs.addEventListener("change", function(){ applyFont(fs.value); toast(fs.value === "mono" ? "Font: Oxygen Mono" : "Font: Default"); });
-  }
+  var fo = document.getElementById("fontOpts");
+  if(fo) fo.addEventListener("click", function(e){
+    var b = e.target;
+    if(!b || !b.getAttribute || !b.getAttribute("data-font")) return;
+    var f = b.getAttribute("data-font");
+    applyFont(f);
+    renderFontOpts();
+    toast(f === "mono" ? "Font: Oxygen Mono" : "Font: Default");
+  });
   var wo = document.getElementById("winOutlineOpts");
   if(wo) wo.addEventListener("click", function(e){
     var b = e.target;
@@ -3176,7 +3188,8 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     if(_tape && localStorage.getItem("mt_breakingNews") === "off") _tape.style.display = "none";
   }catch(e){}
   renderAcct();
-  renderThemeOpts();
+  renderBgOpts();
+  renderFontOpts();
   renderAccentOpts();
   renderRoleOpts("#upOpts .settings-swatch", "data-up", upName());
   renderRoleOpts("#downOpts .settings-swatch", "data-down", downName());
