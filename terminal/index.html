@@ -391,6 +391,12 @@ html{scrollbar-width:none;}
 .chat-form button{background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;
   font-size:10px;letter-spacing:.08em;padding:0 12px;border-radius:2px;cursor:pointer}
 .chat-form button:disabled{opacity:.45;cursor:default}
+.chat-rooms{display:flex;gap:3px;overflow-x:auto;padding:6px var(--s4);border-bottom:1px solid var(--line2);flex:none}
+.chat-rooms::-webkit-scrollbar{height:0}
+.room-chip{flex:none;background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);
+  font-family:var(--mono);font-size:9px;letter-spacing:.03em;padding:3px 7px;border-radius:2px;cursor:pointer;white-space:nowrap}
+.room-chip:hover{color:var(--tx2);border-color:var(--tx3)}
+.room-chip.on{color:var(--acc);border-color:var(--acc);background:var(--mint-dim)}
 .no-rails #colChat,.no-rails #rszC{display:none}
 .view-panel #colChat,.view-watchlist #colChat,.view-info #colChat,.hide-panel #colChat{display:none}
 .view-panel #rszC,.view-watchlist #rszC,.view-info #rszC,.hide-panel #rszC{display:none}
@@ -757,6 +763,7 @@ window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange
           
         </span>
       </div>
+      <div class="chat-rooms" id="chatRooms" role="tablist" aria-label="Sector rooms"></div>
       <div class="chat-log" id="roomLog" aria-live="polite"></div>
       <div class="chat-log" id="chatLog" aria-live="polite" style="display:none"></div>
       <div class="chat-note" id="chatNote" hidden></div>
@@ -2273,6 +2280,49 @@ function renderStockInfo(d, sym){
   const CHAT_API = (window.API_BASE || 'https://mutxri-terminal.onrender.com').replace(/\/$/, '');
   const HIST_KEY = 'mt_chat', MAX_HIST = 40;
   let mode = 'room';
+  // sector channels - African market sectors instead of one shared room
+  const ROOMS = [
+    {slug:'general',    label:'#general'},
+    {slug:'banking',    label:'#banking'},
+    {slug:'telecom',    label:'#telecom'},
+    {slug:'energy',     label:'#energy'},
+    {slug:'mining',     label:'#mining'},
+    {slug:'industrials',label:'#industrials'},
+    {slug:'consumer',   label:'#consumer'},
+    {slug:'agriculture',label:'#agriculture'},
+    {slug:'property',   label:'#property'},
+    {slug:'funds',      label:'#funds'},
+  ];
+  let activeRoom = 'general';
+  function roomsHost(){ return $('chatRooms'); }
+  function roomLabel(slug){
+    for(var i=0;i<ROOMS.length;i++){ if(ROOMS[i].slug === slug) return ROOMS[i].label; }
+    return '#general';
+  }
+  function renderRooms(){
+    const h = roomsHost();
+    if(!h) return;
+    h.innerHTML = '';
+    ROOMS.forEach(function(r){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'room-chip' + (r.slug === activeRoom ? ' on' : '');
+      b.textContent = r.label;
+      b.title = r.slug + ' room';
+      b.setAttribute('data-room', r.slug);
+      b.addEventListener('click', function(){ setRoom(r.slug); });
+      h.appendChild(b);
+    });
+  }
+  function setRoom(slug){
+    if(slug === activeRoom) return;
+    activeRoom = slug;
+    Object.keys(seen).forEach(function(k){ delete seen[k]; });
+    lastTs = 0; drew = false;
+    if(roomLog) roomLog.innerHTML = '';
+    renderRooms();
+    refresh();
+  }
 
   function token(){ try{ return localStorage.getItem('mt_token') || ''; }catch(e){ return ''; } }
   async function api(path, body){
@@ -2326,7 +2376,7 @@ function renderStockInfo(d, sym){
       return;
     }
     try{
-      const d = await api('/api/chat/history', {after: lastTs, limit: 60});
+      const d = await api('/api/chat/history', {after: lastTs, limit: 60, room: activeRoom});
       if(!d || !d.ok){
         if(d && d.auth === false){
           empty('Sign in to join the room.');
@@ -2383,7 +2433,7 @@ function renderStockInfo(d, sym){
     sendBtn.disabled = true;
     try{
       const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
-      const d = await api('/api/chat/send', {text: text, ctx: ctx});
+      const d = await api('/api/chat/send', {text: text, ctx: ctx, room: activeRoom});
       if(d && d.ok && d.message){
         if(!drew){ roomLog.innerHTML = ''; drew = true; }
         drawMsg(d.message);
@@ -2511,7 +2561,7 @@ function renderStockInfo(d, sym){
     input.disabled = block;
     sendBtn.disabled = block;
     input.placeholder = mode === 'room'
-      ? (signedIn ? 'Message the room...' : 'Sign in to post')
+      ? (signedIn ? ('Message ' + roomLabel(activeRoom) + '...') : 'Sign in to post')
       : 'Ask about a ticker or market...';
   }
   function setMode(m){
@@ -2521,6 +2571,7 @@ function renderStockInfo(d, sym){
     });
     roomLog.style.display = m === 'room' ? '' : 'none';
     askLog.style.display = m === 'ask' ? '' : 'none';
+    if(roomsHost()) roomsHost().style.display = m === 'room' ? '' : 'none';
     setNote('');
     gate();
     if(m === 'room'){ refresh(); roomLog.scrollTop = roomLog.scrollHeight; }
@@ -2541,6 +2592,7 @@ function renderStockInfo(d, sym){
   }else{
     bubble('bot', HELP, false);
   }
+  renderRooms();
   setMode('room');
   refresh();
   loop();
