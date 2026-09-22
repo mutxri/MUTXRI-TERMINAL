@@ -119,9 +119,10 @@ body{
 .settings-planrow{color:var(--tx);font-size:11px}
 .settings-toggle{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:4px 10px;border-radius:4px;cursor:pointer;min-width:44px}
 .settings-toggle.on{background:var(--acc);border-color:var(--acc);color:#000;font-weight:700}
-html[data-tbl-anim="off"] .wl-row,html[data-tbl-anim="off"] .tape-item{animation:none}
-html[data-win-shadow="off"] .wrow,html[data-win-shadow="off"] .panel{box-shadow:none}
-html[data-win-anim="on"] .wrow{animation:winpulse .5s ease-out}
+html[data-tbl-anim="on"] .wl-row,html[data-tbl-anim="on"] #tape{animation:tblfade .45s ease}
+@keyframes tblfade{from{opacity:0}to{opacity:1}}
+html[data-win-shadow="off"] .rail,html[data-win-shadow="off"] .panel{box-shadow:none}
+html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 @keyframes winpulse{0%{outline:1px solid var(--mint-line)}100%{outline:1px solid transparent}}
 .settings-pane{display:flex;min-width:430px;min-height:300px;max-height:70vh}
 .settings-side{width:120px;flex:none;border-right:1px solid var(--line2);padding:8px 0;overflow-y:auto}
@@ -182,7 +183,7 @@ html[data-win-anim="on"] .wrow{animation:winpulse .5s ease-out}
 .wrow{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);
   min-height:0;min-width:0;position:relative;flex:1 1 auto}
 #rowBot:empty{display:none}
-.floating .rail,.floating .panel{position:absolute;border:1px solid var(--line2);border-radius:3px;
+.floating .rail,.floating .panel{position:absolute;border:1px solid var(--win-outline,var(--line2));border-radius:3px;
   box-shadow:0 10px 30px rgba(0,0,0,.55);overflow:hidden;min-width:0;min-height:0}
 .floating .rail{border-right:1px solid var(--line2)}
 .floating .rail.right{border-left:1px solid var(--line2)}
@@ -446,6 +447,7 @@ window.__ACCENTS = {
 };
 window.__UPS = { green:['#33e29a','#0b8a5c'], teal:['#2dd4bf','#0d9488'], blue:['#4aa8ff','#1d6fd6'], cyan:['#22d3ee','#0e7490'], lime:['#a3e635','#65a30d'] };
 window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange:['#fb923c','#ea580c'], amber:['#e0a340','#b07a15'], violet:['#a78bfa','#7c3aed'] };
+window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'#e0a340', rose:'#f472b6' };
 (function(){
   try{
     var t = localStorage.getItem('mt_theme') || 'dark';
@@ -465,6 +467,10 @@ window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange
     var _dns = window.__DOWNS[_dnn] || window.__DOWNS.red;
     document.documentElement.style.setProperty('--up', light ? _ups[1] : _ups[0]);
     document.documentElement.style.setProperty('--down', light ? _dns[1] : _dns[0]);
+    var _f = localStorage.getItem('mt_font') || 'mono';
+    document.documentElement.style.setProperty('--mono', _f === 'system' ? 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace' : "'Oxygen Mono',ui-monospace,SFMono-Regular,Menlo,monospace");
+    var _o = localStorage.getItem('mt_outline') || 'default';
+    document.documentElement.style.setProperty('--win-outline', (window.__OUTLINES && window.__OUTLINES[_o]) || '#4a4a4a');
   }catch(e){}
 })();
 </script>
@@ -748,9 +754,12 @@ window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange
           </div>
           <div class="settings-div"></div>
           <div class="settings-head">Font</div>
-          <div class="settings-row">
-            <span class="settings-k">Interface font</span>
-            <span class="settings-k" style="color:var(--tx)">Oxygen Mono</span>
+          <div class="settings-field">
+            <label for="fontSel">Interface font</label>
+            <select id="fontSel">
+              <option value="mono">Oxygen Mono</option>
+              <option value="system">Default</option>
+            </select>
           </div>
           <div class="settings-div"></div>
           <div class="settings-head">Table</div>
@@ -768,6 +777,16 @@ window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange
             <span class="settings-k">Window shadow<small>Drop shadow behind each window</small></span>
             <button type="button" class="settings-toggle on" id="winShadow" data-tog="winShadow">ON</button>
           </div>
+          <div class="settings-row" style="margin-top:10px">
+            <span class="settings-k">Inactive window outline</span>
+            <span class="settings-swatches" id="winOutlineOpts">
+              <button type="button" class="settings-swatch" data-outline="default" style="background:#4a4a4a" title="Gray" aria-label="Outline Gray"></button>
+              <button type="button" class="settings-swatch" data-outline="mint" style="background:#33e29a" title="Mint" aria-label="Outline Mint"></button>
+              <button type="button" class="settings-swatch" data-outline="blue" style="background:#4aa8ff" title="Blue" aria-label="Outline Blue"></button>
+              <button type="button" class="settings-swatch" data-outline="amber" style="background:#e0a340" title="Amber" aria-label="Outline Amber"></button>
+              <button type="button" class="settings-swatch" data-outline="rose" style="background:#f472b6" title="Rose" aria-label="Outline Rose"></button>
+            </span>
+          </div>
               </div>
               <div data-sect-pane="terminal" hidden>
                 <div class="settings-head">Market</div>
@@ -784,7 +803,11 @@ window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange
               </div>
               <div data-sect-pane="commands" hidden>
                 <div class="settings-head">Command Bar</div>
-                <div class="settings-field"><small>The search box at the top is the command bar. Type a ticker, company or market. Use the chat's ASK tab for "top gainers", "top losers" and "open financials".</small></div>
+                <div class="settings-row">
+                  <span class="settings-k">Open with backtick<small>Press ` to focus the command bar</small></span>
+                  <button type="button" class="settings-toggle on" id="cmdBacktick">ON</button>
+                </div>
+                <div class="settings-field" style="margin-top:10px"><small>Type a ticker, company or market, then Enter to open it. Matches all four boards at once.</small></div>
               </div>
               <div data-sect-pane="notifications" hidden>
                 <div class="settings-head">Notifications</div>
@@ -793,21 +816,21 @@ window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange
                   <button type="button" class="settings-toggle on" id="breakingNews">ON</button>
                 </div>
                 <div class="settings-row" style="margin-top:10px">
-                  <span class="settings-k">Ticker Click<small>Open a security when you click it</small></span>
+                  <span class="settings-k">Ticker Click<small>Open a security when you click its ticker</small></span>
                   <button type="button" class="settings-toggle on" id="tickerClick">ON</button>
                 </div>
                 <div class="settings-row" style="margin-top:10px">
-                  <span class="settings-k">Pinned Commands<small>Keep recent commands pinned</small></span>
+                  <span class="settings-k">Pinned Commands<small>Pin your recent commands in the command bar</small></span>
                   <button type="button" class="settings-toggle" id="pinnedCommands">OFF</button>
                 </div>
               </div>
               <div data-sect-pane="integrations" hidden>
-                <div class="settings-head">Integrations</div>
+                <div class="settings-head">Mail</div>
                 <div class="settings-field">
-                  <label>Mail</label>
-                  <small>Email alerts and notification rollups</small>
+                  <label>Notification email</label>
+                  <small>Alerts and rollups go to your primary email</small>
+                  <div class="settings-emailrow"><span id="intEmail">—</span></div>
                 </div>
-                <div class="settings-field"><small>Mail integration is not available yet.</small></div>
               </div>
               <div data-sect-pane="security" hidden>
                 <div class="settings-head">Security</div>
@@ -1325,6 +1348,13 @@ function renderTabs(){
       render();
       save();
       window.dispatchEvent(new Event('mt:layout'));
+      if(on && document.documentElement.getAttribute("data-win-anim") === "on"){
+        var _n = NODE[k];
+        if(_n && _n.classList){
+          _n.classList.add("pulse");
+          setTimeout(function(){ _n.classList.remove("pulse"); }, 550);
+        }
+      }
     }
 
     if(!EMBED){
@@ -2742,6 +2772,22 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     target.style.setProperty("--up", roleColor(window.__UPS, upName(), light ? 1 : 0));
     target.style.setProperty("--down", roleColor(window.__DOWNS, downName(), light ? 1 : 0));
   }
+  function fontName(){ try{ return localStorage.getItem("mt_font") || "mono"; }catch(e){ return "mono"; } }
+  function fontStack(name){
+    return name === "system" ? "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" : "'Oxygen Mono',ui-monospace,SFMono-Regular,Menlo,monospace";
+  }
+  function applyFont(name){
+    try{ localStorage.setItem("mt_font", name); }catch(e){}
+    document.documentElement.style.setProperty("--mono", fontStack(name));
+    applyFrame(document.getElementById("stageFrame"));
+  }
+  function outlineName(){ try{ return localStorage.getItem("mt_outline") || "default"; }catch(e){ return "default"; } }
+  function applyOutline(name){
+    try{ localStorage.setItem("mt_outline", name); }catch(e){}
+    var c = (window.__OUTLINES && window.__OUTLINES[name]) || '#4a4a4a';
+    document.documentElement.style.setProperty("--win-outline", c);
+    applyFrame(document.getElementById("stageFrame"));
+  }
   function applyFrame(f){
     if(!f) return;
     try{
@@ -2755,7 +2801,8 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
         var _v = accentVals(accentName(), t);
         var _up = roleColor(window.__UPS, upName(), t === "light" ? 1 : 0);
         var _dn = roleColor(window.__DOWNS, downName(), t === "light" ? 1 : 0);
-        _css += 'html{--acc:'+_v.acc+';--acc2:'+_v.acc2+';--mint-dim:'+_v.dim+';--mint-line:'+_v.line+';--up:'+_up+';--down:'+_dn+';}';
+        var _outl = (window.__OUTLINES && window.__OUTLINES[outlineName()]) || '#4a4a4a';
+        _css += 'html{--acc:'+_v.acc+';--acc2:'+_v.acc2+';--mint-dim:'+_v.dim+';--mint-line:'+_v.line+';--up:'+_up+';--down:'+_dn+';--mono:'+fontStack(fontName())+';--win-outline:'+_outl+';}';
         st.textContent = _css;
     }catch(e){}
   }
@@ -2873,6 +2920,18 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     applyDown(b.getAttribute("data-down"));
     renderRoleOpts("#downOpts .settings-swatch", "data-down", downName());
   });
+  var fs = document.getElementById("fontSel");
+  if(fs){
+    fs.value = fontName();
+    fs.addEventListener("change", function(){ applyFont(fs.value); toast(fs.value === "mono" ? "Font: Oxygen Mono" : "Font: Default"); });
+  }
+  var wo = document.getElementById("winOutlineOpts");
+  if(wo) wo.addEventListener("click", function(e){
+    var b = e.target;
+    if(!b || !b.getAttribute || !b.getAttribute("data-outline")) return;
+    applyOutline(b.getAttribute("data-outline"));
+    renderRoleOpts("#winOutlineOpts .settings-swatch", "data-outline", outlineName());
+  });
 
   // toast
   var toastEl = document.getElementById("settingsToast");
@@ -2924,15 +2983,17 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     if(e3) e3.textContent = email || "\u2014";
     var se = document.getElementById("secEmail");
     if(se) se.textContent = email || "Not signed in";
+    var ie = document.getElementById("intEmail");
+    if(ie) ie.textContent = email || "\u2014";
   }
-  function toggleDefaults(){ return { mt_tblAnim:"on", mt_winShadow:"on", mt_winAnim:"off", mt_breakingNews:"on", mt_tickerClick:"on", mt_pinnedCommands:"off" }; }
+  function toggleDefaults(){ return { mt_tblAnim:"on", mt_winShadow:"on", mt_winAnim:"off", mt_breakingNews:"on", mt_tickerClick:"on", mt_pinnedCommands:"off", mt_cmdBacktick:"on" }; }
   function toggleIsOn(key){
     var v = null;
     try{ v = localStorage.getItem(key); }catch(e){}
     return (v || toggleDefaults()[key]) === "on";
   }
   function renderToggles(){
-    var map = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim", breakingNews:"mt_breakingNews", tickerClick:"mt_tickerClick", pinnedCommands:"mt_pinnedCommands" };
+    var map = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim", breakingNews:"mt_breakingNews", tickerClick:"mt_tickerClick", pinnedCommands:"mt_pinnedCommands", cmdBacktick:"mt_cmdBacktick" };
     for(var id in map){
       var el = document.getElementById(id);
       if(!el) continue;
@@ -3030,7 +3091,12 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     if(!el) return;
     var on = !toggleIsOn(key);
     try{ localStorage.setItem(key, on ? "on" : "off"); }catch(e){}
-    if(key === "mt_tblAnim"){ document.documentElement.setAttribute("data-tbl-anim", on ? "on" : "off"); }
+    if(key === "mt_tblAnim"){
+      document.documentElement.setAttribute("data-tbl-anim", on ? "on" : "off");
+      if(on && typeof buildTapeFromListing === "function" && typeof currentEx !== "undefined"){
+        try{ buildTapeFromListing(currentEx); }catch(e){}
+      }
+    }
     else if(key === "mt_winShadow"){ document.documentElement.setAttribute("data-win-shadow", on ? "on" : "off"); }
     else if(key === "mt_winAnim"){ document.documentElement.setAttribute("data-win-anim", on ? "on" : "off"); }
     else if(key === "mt_breakingNews"){
@@ -3039,13 +3105,23 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     }
     renderToggles();
   }
-  var toggleMap = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim", breakingNews:"mt_breakingNews", tickerClick:"mt_tickerClick", pinnedCommands:"mt_pinnedCommands" };
+  var toggleMap = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim", breakingNews:"mt_breakingNews", tickerClick:"mt_tickerClick", pinnedCommands:"mt_pinnedCommands", cmdBacktick:"mt_cmdBacktick" };
   for(var tg in toggleMap){
     (function(id, key){
       var el = document.getElementById(id);
       if(el) el.addEventListener("click", function(){ applyToggle(id, key); });
     })(tg, toggleMap[tg]);
   }
+  // backtick opens the command bar (the top search box)
+  document.addEventListener("keydown", function(e){
+    if(e.key !== "`") return;
+    if(!toggleIsOn("mt_cmdBacktick")) return;
+    var t = e.target;
+    if(t && t.tagName && /INPUT|TEXTAREA|SELECT/.test(t.tagName)) return;
+    e.preventDefault();
+    var q = document.getElementById("q");
+    if(q) q.focus();
+  });
 
   applyAccentVars(document.documentElement, accentName(), theme());
   applyUpDownVars(document.documentElement, theme());
@@ -3063,6 +3139,7 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
   renderAccentOpts();
   renderRoleOpts("#upOpts .settings-swatch", "data-up", upName());
   renderRoleOpts("#downOpts .settings-swatch", "data-down", downName());
+  renderRoleOpts("#winOutlineOpts .settings-swatch", "data-outline", outlineName());
   renderToggles();
 })();
 </script>
