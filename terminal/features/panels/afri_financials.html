@@ -278,7 +278,11 @@
       h+='<tr class="'+(isTot?'total':'')+'"><td class="item">'+esc(lbl)+'</td>';
       for(var c=0;c<per.length;c++){
         var v=series[c];
-        var disp=(key==="eps")?(v==null||isNaN(v)?DASH:(+v).toFixed(2)):fmtMoney(v,cur);
+        var disp;
+        if(key==="eps"){ disp=(v==null||isNaN(v)?DASH:(+v).toFixed(2)); }
+        else if(key==="roe"||key==="roa"||key==="netMargin"||key==="grossMargin"||key==="opMargin"){ disp=(v==null||isNaN(v)?DASH:(+v).toFixed(1)+"%"); }
+        else if(key==="debtToEquity"){ disp=(v==null||isNaN(v)?DASH:(+v).toFixed(2)+"x"); }
+        else { disp=fmtMoney(v,cur); }
         var neg=(typeof v==="number"&&v<0)?' class="neg"':'';
         h+='<td'+neg+'>'+esc(disp)+'</td>';
       }
