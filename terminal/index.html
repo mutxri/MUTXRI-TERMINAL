@@ -120,7 +120,7 @@ body{
 .settings-planrow{color:var(--tx);font-size:11px}
 .settings-toggle{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:4px 10px;border-radius:4px;cursor:pointer;min-width:44px}
 .settings-toggle.on{background:var(--acc);border-color:var(--acc);color:#000;font-weight:700}
-html[data-tbl-anim="on"] .wl-row,html[data-tbl-anim="on"] #tape{animation:tblfade .45s ease}
+html[data-tbl-anim="on"] .wl-row{animation:tblfade .45s ease}
 @keyframes tblfade{from{opacity:0}to{opacity:1}}
 html[data-win-shadow="off"] .rail,html[data-win-shadow="off"] .panel{box-shadow:none}
 html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
@@ -3136,9 +3136,7 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     try{ localStorage.setItem(key, on ? "on" : "off"); }catch(e){}
     if(key === "mt_tblAnim"){
       document.documentElement.setAttribute("data-tbl-anim", on ? "on" : "off");
-      if(on && typeof buildTapeFromListing === "function" && typeof currentEx !== "undefined"){
-        try{ buildTapeFromListing(currentEx); }catch(e){}
-      }
+      try{ if(typeof renderWatchlist === "function") renderWatchlist(""); }catch(e){}
     }
     else if(key === "mt_winShadow"){ document.documentElement.setAttribute("data-win-shadow", on ? "on" : "off"); }
     else if(key === "mt_winAnim"){ document.documentElement.setAttribute("data-win-anim", on ? "on" : "off"); }
