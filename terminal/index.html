@@ -90,6 +90,20 @@ body{
 .settings-swatch{width:20px;height:20px;border-radius:4px;border:1px solid var(--line2);cursor:pointer;padding:0;flex:0 0 auto}
 .settings-swatch:hover{border-color:var(--tx2)}
 .settings-swatch.on{outline:2px solid var(--tx);outline-offset:1px;border-color:transparent}
+.settings-profile{display:flex;align-items:center;gap:10px;padding-bottom:2px}
+.settings-avatar{width:30px;height:30px;border-radius:4px;background:var(--bg3);border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;color:var(--tx2);flex:0 0 auto}
+.settings-id{min-width:0;flex:1}
+.settings-name{color:var(--tx);font-size:12px;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-email{color:var(--tx3);font-size:10px;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.settings-div{height:1px;background:var(--line2);margin:10px 0}
+.settings-item{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:var(--tx2);font-family:var(--mono);font-size:11px;letter-spacing:.02em;padding:7px 8px;border-radius:4px;cursor:pointer;text-align:left}
+.settings-item svg{flex:0 0 auto;color:var(--tx3)}
+.settings-item:hover{background:var(--bg3);color:var(--tx)}
+.settings-item:hover svg{color:var(--acc)}
+.settings-item.danger{color:var(--down)}
+.settings-item.danger svg{color:var(--down)}
+.settings-item.danger:hover{background:var(--bg3);color:var(--down)}
+.settings-toast{position:fixed;bottom:16px;right:16px;background:var(--bg3);border:1px solid var(--acc);color:var(--tx);font-family:var(--mono);font-size:10px;letter-spacing:.02em;padding:7px 12px;border-radius:4px;white-space:nowrap;z-index:9500}
 .settings-btn{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
   font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:6px 12px;
   border-radius:4px;cursor:pointer;white-space:nowrap}
@@ -560,34 +574,44 @@ window.__ACCENTS = {
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       </button>
       <div class="settings-menu" id="settingsMenu" hidden>
-        <div class="settings-sec">
-          <div class="settings-head">Account</div>
-          <div class="settings-row" id="acctRow"></div>
-        </div>
-        <div class="settings-sec">
-          <div class="settings-head">Appearance</div>
-          <div class="settings-row">
-            <span class="settings-k">Theme</span>
-            <span class="settings-seg" id="themeOpts">
-              <button type="button" data-theme="dark">DARK</button>
-              <button type="button" data-theme="light">LIGHT</button>
-            </span>
-          </div>
-          <div class="settings-row" style="margin-top:12px">
-            <span class="settings-k">Accent</span>
-            <span class="settings-swatches" id="accentOpts">
-              <button type="button" class="settings-swatch" data-accent="mint" style="background:#33e29a" title="Mint" aria-label="Accent Mint"></button>
-              <button type="button" class="settings-swatch" data-accent="teal" style="background:#2dd4bf" title="Teal" aria-label="Accent Teal"></button>
-              <button type="button" class="settings-swatch" data-accent="blue" style="background:#4aa8ff" title="Blue" aria-label="Accent Blue"></button>
-              <button type="button" class="settings-swatch" data-accent="amber" style="background:#e0a340" title="Amber" aria-label="Accent Amber"></button>
-              <button type="button" class="settings-swatch" data-accent="rose" style="background:#f472b6" title="Rose" aria-label="Accent Rose"></button>
-              <button type="button" class="settings-swatch" data-accent="violet" style="background:#a78bfa" title="Violet" aria-label="Accent Violet"></button>
-              <button type="button" class="settings-swatch" data-accent="red" style="background:#f87171" title="Red" aria-label="Accent Red"></button>
-              <button type="button" class="settings-swatch" data-accent="cyan" style="background:#22d3ee" title="Cyan" aria-label="Accent Cyan"></button>
-            </span>
+        <div class="settings-profile">
+          <div class="settings-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <div class="settings-id">
+            <div class="settings-name" id="acctName">Not signed in</div>
+            <div class="settings-email" id="acctEmail">Sign in to use the terminal</div>
           </div>
         </div>
+        <div class="settings-div"></div>
+        <button type="button" class="settings-item" data-act="profile"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></button>
+        <button type="button" class="settings-item" data-act="invite"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg><span>Invite a friend</span></button>
+        <button type="button" class="settings-item" data-act="refer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg><span>Refer + Earn</span></button>
+        <button type="button" class="settings-item" data-act="billing"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span>Team Billing</span></button>
+        <div class="settings-div"></div>
+        <div class="settings-head">Appearance</div>
+        <div class="settings-row">
+          <span class="settings-k">Theme</span>
+          <span class="settings-seg" id="themeOpts">
+            <button type="button" data-theme="dark">DARK</button>
+            <button type="button" data-theme="light">LIGHT</button>
+          </span>
+        </div>
+        <div class="settings-row" style="margin-top:12px">
+          <span class="settings-k">Accent</span>
+          <span class="settings-swatches" id="accentOpts">
+            <button type="button" class="settings-swatch" data-accent="mint" style="background:#33e29a" title="Mint" aria-label="Accent Mint"></button>
+            <button type="button" class="settings-swatch" data-accent="teal" style="background:#2dd4bf" title="Teal" aria-label="Accent Teal"></button>
+            <button type="button" class="settings-swatch" data-accent="blue" style="background:#4aa8ff" title="Blue" aria-label="Accent Blue"></button>
+            <button type="button" class="settings-swatch" data-accent="amber" style="background:#e0a340" title="Amber" aria-label="Accent Amber"></button>
+            <button type="button" class="settings-swatch" data-accent="rose" style="background:#f472b6" title="Rose" aria-label="Accent Rose"></button>
+            <button type="button" class="settings-swatch" data-accent="violet" style="background:#a78bfa" title="Violet" aria-label="Accent Violet"></button>
+            <button type="button" class="settings-swatch" data-accent="red" style="background:#f87171" title="Red" aria-label="Accent Red"></button>
+            <button type="button" class="settings-swatch" data-accent="cyan" style="background:#22d3ee" title="Cyan" aria-label="Accent Cyan"></button>
+          </span>
+        </div>
+        <div class="settings-div"></div>
+        <button type="button" class="settings-item danger" data-act="logout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>Logout</span></button>
       </div>
+      <div class="settings-toast" id="settingsToast" hidden></div>
     </div>
   </header>
 
@@ -2487,16 +2511,18 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
 
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
   function renderAcct(){
-    var w = document.getElementById("acctRow");
-    if(!w) return;
+    var n = document.getElementById("acctName");
+    var e = document.getElementById("acctEmail");
     var email = "";
-    try{ email = localStorage.getItem("mt_email") || ""; }catch(e){}
+    try{ email = localStorage.getItem("mt_email") || ""; }catch(err){}
+    var name = "";
+    try{ name = localStorage.getItem("mt_name") || ""; }catch(err){}
     if(email){
-      w.innerHTML = '<span class="settings-k" title="Signed in as '+esc(email)+'">'+esc(email)+'</span>' +
-                    '<button class="settings-btn" type="button" onclick="window.__signOut()">SIGN OUT</button>';
+      if(n) n.textContent = name || email.split('@')[0];
+      if(e) e.textContent = email;
     } else {
-      w.innerHTML = '<span class="settings-k">Not signed in<small>Sign in to use the terminal</small></span>' +
-                    '<button class="settings-btn primary" type="button" onclick="location.reload()">SIGN IN</button>';
+      if(n) n.textContent = 'Not signed in';
+      if(e) e.textContent = 'Sign in to use the terminal';
     }
   }
   window.__renderAcct = renderAcct;
@@ -2541,6 +2567,47 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     if(!b || !b.getAttribute || !b.getAttribute("data-accent")) return;
     applyAccent(b.getAttribute("data-accent"));
     renderAccentOpts();
+  });
+
+  // toast
+  var toastEl = document.getElementById("settingsToast");
+  var toastTimer = null;
+  function toast(msg){
+    if(!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.hidden = false;
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.hidden = true; }, 2600);
+  }
+  function copyText(txt, msg){
+    function done(){ toast(msg); }
+    function fallback(){
+      var ta = document.createElement("textarea");
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand("copy"); }catch(e){}
+      document.body.removeChild(ta);
+      done();
+    }
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, fallback); }
+      else fallback();
+    }catch(e){ fallback(); }
+  }
+  var menuEl = document.getElementById("settingsMenu");
+  if(menuEl) menuEl.addEventListener("click", function(e){
+    var it = e.target;
+    while(it && it !== menuEl && !(it.getAttribute && it.getAttribute("data-act"))) it = it.parentNode;
+    if(!it || it === menuEl || !it.getAttribute) return;
+    var act = it.getAttribute("data-act");
+    var email = "";
+    try{ email = localStorage.getItem("mt_email") || ""; }catch(err){}
+    var base = "https://mutxriterminal.com/terminal/";
+    if(act === "profile"){ toast(email ? ('Signed in as ' + email) : 'Not signed in'); }
+    else if(act === "invite"){ copyText(base, 'Invite link copied'); }
+    else if(act === "refer"){ copyText(email ? (base + '?ref=' + encodeURIComponent(email)) : base, 'Referral link copied'); }
+    else if(act === "billing"){ toast('Free plan — all four exchanges included'); }
+    else if(act === "logout"){ if(email){ window.__signOut(); } else { toast('Not signed in'); } }
+    closeMenu();
   });
 
   applyAccentVars(document.documentElement, accentName(), theme());
