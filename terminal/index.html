@@ -26,6 +26,14 @@
   --ui:'Inter',system-ui,sans-serif;
   --brand:'Sofia Sans Semi Condensed','Inter',sans-serif;
 }
+/* light theme — same Godel tokens, restruck for a light canvas */
+html[data-theme="light"]{
+  --bg:#f5f5f6; --bg2:#ededef; --bg3:#e4e4e7; --bg4:#d7d7db;
+  --line:#e0e0e3; --line2:#c9c9cd;
+  --tx:#15171a; --tx2:#56585e; --tx3:#86888f;
+  --acc:#0b8a5c; --acc2:#0aa06a; --up:#0b8a5c; --down:#d02f2a; --warn:#b07a15;
+  --mint-dim:rgba(11,138,92,.10); --mint-line:rgba(11,138,92,.4);
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{
@@ -55,6 +63,7 @@ body{
 .search input{background:none;border:0;outline:0;color:var(--tx);font-family:var(--mono);
   font-size:12px;width:100%}
 .search input::placeholder{color:var(--tx3)}
+.acct{display:flex;align-items:center;gap:6px}
 .acct button{background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
   font-family:inherit;font-size:10px;padding:var(--s1) 10px;border-radius:2px;cursor:pointer;
   transition:border-color .15s,color .15s}
@@ -347,6 +356,7 @@ html{scrollbar-width:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
 
 </style>
+<script>/* apply saved theme before paint to avoid a dark flash */try{document.documentElement.setAttribute("data-theme", localStorage.getItem("mt_theme")||"dark");}catch(e){}</script>
 </head>
 <body>
 <!-- ===== auth gate: sign in required to enter the terminal ===== -->
@@ -407,7 +417,7 @@ html{scrollbar-width:none;}
       setTimeout(function(){ var t = (em && em.value && pw) ? pw : em; if(t) t.focus(); }, 60);
     }catch(e){}
   }
-  function hide(){ if(gate) gate.remove(); }
+  function hide(){ if(gate) gate.remove(); try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){} }
   function msg(t, ok){ var m = document.getElementById("gateMsg"); if(!m) return; m.textContent = t || ""; m.className = "gate-msg" + (ok ? " ok" : ""); }
   // OAuth callback: ?oauth=<provider>&code=<one-time> -> trade for a session token
   var oauthP = q.get("oauth"), oauthCode = q.get("code");
@@ -489,6 +499,10 @@ html{scrollbar-width:none;}
       <input id="q" placeholder="Ticker, company or market — SCOM, MTN JSE, FA…" autocomplete="off" aria-label="Search">
     </label>
     <span class="wstabs" id="wsTabs" title="Workspaces"></span>
+    <span class="acct">
+      <button id="themeBtn" type="button" title="Toggle light/dark theme" aria-label="Toggle theme">&#9681;</button>
+      <span id="acctWrap"></span>
+    </span>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
   </header>
 
@@ -2326,6 +2340,59 @@ function renderStockInfo(d, sym){
 loadListing(currentEx);  // honor ?ex= deep-link, else remembered/inferred market
 loadSearchIndex();       // every other market's tickers, so search spans all four
 
+</script>
+
+<script>
+// ---- theme (shell + same-origin iframe panels) & account button ----
+(function(){
+  var LIGHT = "html[data-theme=light]{--bg:#f5f5f6;--bg2:#ededef;--bg3:#e4e4e7;--bg4:#d7d7db;--line:#e0e0e3;--line2:#c9c9cd;--tx:#15171a;--tx2:#56585e;--tx3:#86888f;--acc:#0b8a5c;--acc2:#0aa06a;--up:#0b8a5c;--down:#d02f2a;--warn:#b07a15;--mint-dim:rgba(11,138,92,.10);--mint-line:rgba(11,138,92,.4);}";
+  function theme(){ try{ return localStorage.getItem("mt_theme") || "dark"; }catch(e){ return "dark"; } }
+  function applyFrame(f){
+    if(!f) return;
+    try{
+      var d = f.contentDocument;
+      if(!d || !d.documentElement) return;
+      var t = theme();
+      d.documentElement.setAttribute("data-theme", t);
+      var st = d.getElementById("mt-theme-inject");
+      if(t === "light"){
+        if(!st){ st = d.createElement("style"); st.id = "mt-theme-inject"; (d.head||d.documentElement).appendChild(st); }
+        st.textContent = LIGHT;
+      } else if(st){ st.textContent = ""; }
+    }catch(e){}
+  }
+  function toggleTheme(){
+    var t = theme() === "dark" ? "light" : "dark";
+    try{ localStorage.setItem("mt_theme", t); }catch(e){}
+    document.documentElement.setAttribute("data-theme", t);
+    applyFrame(document.getElementById("stageFrame"));
+  }
+  var tb = document.getElementById("themeBtn");
+  if(tb) tb.addEventListener("click", toggleTheme);
+  var sf = document.getElementById("stageFrame");
+  if(sf){ sf.addEventListener("load", function(){ applyFrame(sf); }); applyFrame(sf); }
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function renderAcct(){
+    var w = document.getElementById("acctWrap");
+    if(!w) return;
+    var email = "";
+    try{ email = localStorage.getItem("mt_email") || ""; }catch(e){}
+    if(email){
+      var name = email.split("@")[0];
+      w.innerHTML = '<button type="button" class="acct-email" title="Signed in as '+esc(email)+'">'+esc(name)+'</button>' +
+                    '<button type="button" onclick="window.__signOut()">SIGN OUT</button>';
+    } else {
+      w.innerHTML = '<button type="button" onclick="location.reload()">SIGN IN</button>';
+    }
+  }
+  window.__renderAcct = renderAcct;
+  window.__signOut = function(){
+    try{ localStorage.removeItem("mt_token"); localStorage.removeItem("mt_email"); }catch(e){}
+    location.reload();
+  };
+  renderAcct();
+})();
 </script>
 
 </body>
