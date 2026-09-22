@@ -123,6 +123,15 @@ html[data-tbl-anim="off"] .wl-row,html[data-tbl-anim="off"] .tape-item{animation
 html[data-win-shadow="off"] .wrow,html[data-win-shadow="off"] .panel{box-shadow:none}
 html[data-win-anim="on"] .wrow{animation:winpulse .5s ease-out}
 @keyframes winpulse{0%{outline:1px solid var(--mint-line)}100%{outline:1px solid transparent}}
+.settings-pane{display:flex;min-width:430px;min-height:300px;max-height:70vh}
+.settings-side{width:120px;flex:none;border-right:1px solid var(--line2);padding:8px 0;overflow-y:auto}
+.settings-side-head{padding:2px 12px 5px;color:var(--tx3);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase}
+.settings-side button{display:block;width:100%;text-align:left;background:none;border:0;border-left:2px solid transparent;color:var(--tx2);font-family:var(--mono);font-size:10px;letter-spacing:.02em;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.settings-side button:hover{color:var(--tx)}
+.settings-side button.on{border-left-color:var(--acc);color:var(--acc);background:var(--mint-dim)}
+.settings-content{flex:1;min-width:0;padding:12px 14px;overflow-y:auto}
+.settings-content .settings-head:first-child{margin-top:0}
+.settings-field select{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:4px;color:var(--tx);font-family:var(--mono);font-size:11px;padding:7px 10px;outline:none}
 .settings-btn{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
   font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:6px 12px;
   border-radius:4px;cursor:pointer;white-space:nowrap}
@@ -632,23 +641,50 @@ window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange
             <button type="button" class="settings-back" data-back aria-label="Back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
             <div class="settings-title">Account Management</div>
           </div>
-          <div class="settings-head">Profile</div>
-          <div class="settings-field">
-            <label for="acctUsername">Username</label>
-            <small>How you appear in chat</small>
-            <input id="acctUsername" type="text" placeholder="username" autocomplete="off">
-          </div>
-          <div class="settings-field">
-            <label>Primary email</label>
-            <small>Sign-in and notification rollups</small>
-            <div class="settings-emailrow"><span id="acctEmail2">—</span> <span class="settings-badge" id="acctVerified" hidden>Verified</span></div>
-          </div>
-          <div class="settings-div"></div>
-          <div class="settings-head">Subscription</div>
-          <div class="settings-field">
-            <label>Plan</label>
-            <div class="settings-planrow" id="acctPlan">No subscription</div>
-            <small>Talk to sales about licensing a desk, or moving an organization onto MUTXRI.</small>
+          <div class="settings-pane">
+            <div class="settings-side">
+              <div class="settings-side-head">Account</div>
+              <button type="button" class="on" data-account="profile">Profile</button>
+              <button type="button" data-account="info">My Information</button>
+            </div>
+            <div class="settings-content">
+              <div data-account-pane="profile">
+                <div class="settings-head">Account</div>
+                <div class="settings-field">
+                  <label for="acctUsername">Username</label>
+                  <small>How you appear in chat</small>
+                  <input id="acctUsername" type="text" placeholder="username" autocomplete="off">
+                </div>
+                <div class="settings-field">
+                  <label>Primary email</label>
+                  <small>Sign-in and notification rollups</small>
+                  <div class="settings-emailrow"><span id="acctEmail2">—</span> <span class="settings-badge" id="acctVerified" hidden>Verified</span></div>
+                </div>
+                <div class="settings-div"></div>
+                <div class="settings-head">Subscription</div>
+                <div class="settings-field">
+                  <label>Plan</label>
+                  <div class="settings-planrow" id="acctPlan">No subscription</div>
+                  <small>Talk to sales about licensing a desk, or moving an organization onto MUTXRI.</small>
+                </div>
+              </div>
+              <div data-account-pane="info" hidden>
+                <div class="settings-head">My Information</div>
+                <div class="settings-field">
+                  <label for="acctFullName">Name</label>
+                  <small>How you appear in chat</small>
+                  <input id="acctFullName" type="text" placeholder="Your name" autocomplete="off">
+                </div>
+                <div class="settings-field">
+                  <label>Email</label>
+                  <small>Sign-in and notification rollups</small>
+                  <div class="settings-emailrow"><span id="acctEmail3">—</span></div>
+                </div>
+                <div class="settings-div"></div>
+                <div class="settings-head">Privacy</div>
+                <div class="settings-field"><small>Only your name and email are stored. Nothing else is collected.</small></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -658,9 +694,20 @@ window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange
             <button type="button" class="settings-back" data-back aria-label="Back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
             <div class="settings-title">Settings</div>
           </div>
-          <div class="settings-head">Theme</div>
+          <div class="settings-pane">
+            <div class="settings-side">
+              <button type="button" class="on" data-sect="theme">Theme</button>
+              <button type="button" data-sect="terminal">Terminal</button>
+              <button type="button" data-sect="commands">Command Settings</button>
+              <button type="button" data-sect="notifications">Notifications</button>
+              <button type="button" data-sect="integrations">Integrations</button>
+              <button type="button" data-sect="security">Security</button>
+            </div>
+            <div class="settings-content">
+              <div data-sect-pane="theme">
+          <div class="settings-head">Color</div>
           <div class="settings-row">
-            <span class="settings-k">Mode</span>
+            <span class="settings-k">Background color</span>
             <span class="settings-seg" id="themeOpts">
               <button type="button" data-theme="dark">DARK</button>
               <button type="button" data-theme="light">LIGHT</button>
@@ -699,23 +746,79 @@ window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange
               <button type="button" class="settings-swatch" data-down="violet" style="background:#a78bfa" title="Violet" aria-label="Negative Violet"></button>
             </span>
           </div>
-          <div class="settings-row" style="margin-top:12px">
-            <span class="settings-k">Font</span>
+          <div class="settings-div"></div>
+          <div class="settings-head">Font</div>
+          <div class="settings-row">
+            <span class="settings-k">Interface font</span>
             <span class="settings-k" style="color:var(--tx)">Oxygen Mono</span>
           </div>
           <div class="settings-div"></div>
-          <div class="settings-head">Window</div>
+          <div class="settings-head">Table</div>
           <div class="settings-row">
-            <span class="settings-k">Table animation<small>Fade — highlights new entries in tables</small></span>
+            <span class="settings-k">Animation<small>Fade - highlights new entries in tables</small></span>
             <button type="button" class="settings-toggle on" id="tblAnim" data-tog="tblAnim">ON</button>
+          </div>
+          <div class="settings-div"></div>
+          <div class="settings-head">Window Appearance</div>
+          <div class="settings-row">
+            <span class="settings-k">Window open animation<small>Pulse a window's outline once when it opens</small></span>
+            <button type="button" class="settings-toggle" id="winAnim" data-tog="winAnim">OFF</button>
           </div>
           <div class="settings-row" style="margin-top:10px">
             <span class="settings-k">Window shadow<small>Drop shadow behind each window</small></span>
             <button type="button" class="settings-toggle on" id="winShadow" data-tog="winShadow">ON</button>
           </div>
-          <div class="settings-row" style="margin-top:10px">
-            <span class="settings-k">Open animation<small>Pulse a window's outline once when it opens</small></span>
-            <button type="button" class="settings-toggle" id="winAnim" data-tog="winAnim">OFF</button>
+              </div>
+              <div data-sect-pane="terminal" hidden>
+                <div class="settings-head">Market</div>
+                <div class="settings-field">
+                  <label for="defMarket">Default market</label>
+                  <small>The board you land on when the terminal opens</small>
+                  <select id="defMarket">
+                    <option value="JSE">JSE (Johannesburg)</option>
+                    <option value="NGX">NGX (Lagos)</option>
+                    <option value="NSE">NSE (Nairobi)</option>
+                    <option value="EGX">EGX (Cairo)</option>
+                  </select>
+                </div>
+              </div>
+              <div data-sect-pane="commands" hidden>
+                <div class="settings-head">Command Bar</div>
+                <div class="settings-field"><small>The search box at the top is the command bar. Type a ticker, company or market. Use the chat's ASK tab for "top gainers", "top losers" and "open financials".</small></div>
+              </div>
+              <div data-sect-pane="notifications" hidden>
+                <div class="settings-head">Notifications</div>
+                <div class="settings-row">
+                  <span class="settings-k">Breaking News<small>Show the market tape</small></span>
+                  <button type="button" class="settings-toggle on" id="breakingNews">ON</button>
+                </div>
+                <div class="settings-row" style="margin-top:10px">
+                  <span class="settings-k">Ticker Click<small>Open a security when you click it</small></span>
+                  <button type="button" class="settings-toggle on" id="tickerClick">ON</button>
+                </div>
+                <div class="settings-row" style="margin-top:10px">
+                  <span class="settings-k">Pinned Commands<small>Keep recent commands pinned</small></span>
+                  <button type="button" class="settings-toggle" id="pinnedCommands">OFF</button>
+                </div>
+              </div>
+              <div data-sect-pane="integrations" hidden>
+                <div class="settings-head">Integrations</div>
+                <div class="settings-field">
+                  <label>Mail</label>
+                  <small>Email alerts and notification rollups</small>
+                </div>
+                <div class="settings-field"><small>Mail integration is not available yet.</small></div>
+              </div>
+              <div data-sect-pane="security" hidden>
+                <div class="settings-head">Security</div>
+                <div class="settings-field">
+                  <label>Signed in as</label>
+                  <div class="settings-emailrow"><span id="secEmail">—</span></div>
+                </div>
+                <div class="settings-div"></div>
+                <button type="button" class="settings-item danger" data-act="logout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>Sign out everywhere</span></button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2815,15 +2918,21 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     if(v) v.hidden = !email;
     var p = document.getElementById("acctPlan");
     if(p) p.textContent = email ? "Free" : "No subscription";
+    var fn = document.getElementById("acctFullName");
+    if(fn) fn.value = name || "";
+    var e3 = document.getElementById("acctEmail3");
+    if(e3) e3.textContent = email || "\u2014";
+    var se = document.getElementById("secEmail");
+    if(se) se.textContent = email || "Not signed in";
   }
-  function toggleDefaults(){ return { mt_tblAnim:"on", mt_winShadow:"on", mt_winAnim:"off" }; }
+  function toggleDefaults(){ return { mt_tblAnim:"on", mt_winShadow:"on", mt_winAnim:"off", mt_breakingNews:"on", mt_tickerClick:"on", mt_pinnedCommands:"off" }; }
   function toggleIsOn(key){
     var v = null;
     try{ v = localStorage.getItem(key); }catch(e){}
     return (v || toggleDefaults()[key]) === "on";
   }
   function renderToggles(){
-    var map = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim" };
+    var map = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim", breakingNews:"mt_breakingNews", tickerClick:"mt_tickerClick", pinnedCommands:"mt_pinnedCommands" };
     for(var id in map){
       var el = document.getElementById(id);
       if(!el) continue;
@@ -2831,6 +2940,35 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
       el.className = "settings-toggle" + (on ? " on" : "");
       el.textContent = on ? "ON" : "OFF";
     }
+  }
+  function switchSect(id){
+    var btns = document.querySelectorAll("#viewSettings .settings-side button");
+    for(var i=0;i<btns.length;i++){
+      btns[i].className = (btns[i].getAttribute("data-sect") === id) ? "on" : "";
+    }
+    var panes = document.querySelectorAll("#viewSettings .settings-content [data-sect-pane]");
+    for(var j=0;j<panes.length;j++){
+      panes[j].hidden = panes[j].getAttribute("data-sect-pane") !== id;
+    }
+  }
+  function switchAccountPane(id){
+    var btns = document.querySelectorAll("#viewAccount .settings-side button");
+    for(var i=0;i<btns.length;i++){
+      btns[i].className = (btns[i].getAttribute("data-account") === id) ? "on" : "";
+    }
+    var panes = document.querySelectorAll("#viewAccount .settings-content [data-account-pane]");
+    for(var j=0;j<panes.length;j++){
+      panes[j].hidden = panes[j].getAttribute("data-account-pane") !== id;
+    }
+  }
+  // default market
+  var dmSel = document.getElementById("defMarket");
+  if(dmSel){
+    if(typeof currentEx !== 'undefined' && currentEx) dmSel.value = currentEx;
+    dmSel.addEventListener("change", function(){
+      try{ localStorage.setItem("mt_ex", dmSel.value); }catch(e){}
+      toast("Default market set to " + dmSel.value);
+    });
   }
   var menuEl = document.getElementById("settingsMenu");
   if(menuEl) menuEl.addEventListener("click", function(e){
@@ -2840,9 +2978,21 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     while(go && go !== menuEl && !(go.getAttribute && go.getAttribute("data-go"))) go = go.parentNode;
     if(go && go !== menuEl && go.getAttribute && go.getAttribute("data-go")){
       var id = go.getAttribute("data-go");
-      if(id === "account"){ renderAccount(); showView("viewAccount"); }
-      else if(id === "settings"){ renderToggles(); showView("viewSettings"); }
+      if(id === "account"){ renderAccount(); showView("viewAccount"); switchAccountPane("profile"); }
+      else if(id === "settings"){ renderToggles(); showView("viewSettings"); switchSect("theme"); }
       return;
+    }
+    // section navigation (settings sidebar)
+    var sec = el;
+    while(sec && sec !== menuEl && !(sec.getAttribute && sec.getAttribute("data-sect"))) sec = sec.parentNode;
+    if(sec && sec !== menuEl && sec.getAttribute && sec.getAttribute("data-sect")){
+      switchSect(sec.getAttribute("data-sect")); return;
+    }
+    // account pane navigation
+    var ac = el;
+    while(ac && ac !== menuEl && !(ac.getAttribute && ac.getAttribute("data-account"))) ac = ac.parentNode;
+    if(ac && ac !== menuEl && ac.getAttribute && ac.getAttribute("data-account")){
+      switchAccountPane(ac.getAttribute("data-account")); return;
     }
     // back
     var bk = el;
@@ -2883,9 +3033,13 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     if(key === "mt_tblAnim"){ document.documentElement.setAttribute("data-tbl-anim", on ? "on" : "off"); }
     else if(key === "mt_winShadow"){ document.documentElement.setAttribute("data-win-shadow", on ? "on" : "off"); }
     else if(key === "mt_winAnim"){ document.documentElement.setAttribute("data-win-anim", on ? "on" : "off"); }
+    else if(key === "mt_breakingNews"){
+      var tape = document.querySelector(".tape");
+      if(tape) tape.style.display = on ? "" : "none";
+    }
     renderToggles();
   }
-  var toggleMap = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim" };
+  var toggleMap = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim", breakingNews:"mt_breakingNews", tickerClick:"mt_tickerClick", pinnedCommands:"mt_pinnedCommands" };
   for(var tg in toggleMap){
     (function(id, key){
       var el = document.getElementById(id);
@@ -2899,6 +3053,10 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     document.documentElement.setAttribute("data-tbl-anim", localStorage.getItem("mt_tblAnim") === "off" ? "off" : "on");
     document.documentElement.setAttribute("data-win-shadow", localStorage.getItem("mt_winShadow") === "off" ? "off" : "on");
     document.documentElement.setAttribute("data-win-anim", localStorage.getItem("mt_winAnim") === "on" ? "on" : "off");
+  }catch(e){}
+  try{
+    var _tape = document.querySelector(".tape");
+    if(_tape && localStorage.getItem("mt_breakingNews") === "off") _tape.style.display = "none";
   }catch(e){}
   renderAcct();
   renderThemeOpts();
