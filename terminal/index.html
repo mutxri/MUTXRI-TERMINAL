@@ -1192,6 +1192,14 @@ function renderTabs(){
         const w = spaces[active].wins[k];
         if(w && w.z > zTop) zTop = w.z;
       });
+      // Securities must always be visible. A persisted "closed" state on the
+      // WATCH rail (or the center PANEL) is what makes the terminal look empty
+      // ("securities shows nothing") across sessions, with no obvious way back.
+      // Force the two core windows open on every restore so a returning user
+      // can never land on an empty market screen.
+      ['watch', 'center'].forEach(function(k){
+        spaces.forEach(function(sp){ if(sp.wins[k]) sp.wins[k].open = true; });
+      });
     })();
 
     function cur(){ return spaces[active]; }
