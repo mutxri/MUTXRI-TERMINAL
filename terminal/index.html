@@ -158,6 +158,8 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .finder .fi.mkt .t{color:var(--acc)}
 .finder .hint{padding:6px 8px;color:var(--tx3);font-size:10px;font-family:var(--mono);
   border-top:1px solid var(--line);margin-top:2px}
+.finder .recent-head{padding:6px 8px 4px;color:var(--acc);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.08em;font-weight:700}
 
 /* ---------- tape ---------- */
 .tape{display:flex;align-items:center;height:34px;border-bottom:1px solid var(--line2);
@@ -1711,6 +1713,20 @@ function buildTapeFromListing(ex){
 // ===== the finder: every security on every market, plus the markets =====
 // This replaces the exchange tabs. Securities are matched across all boards at
 // once, so which market you are "on" stops being a mode you have to set first.
+window.__pushRecent = function(v){
+  v = String(v || '').trim();
+  if(!v) return;
+  try{
+    var rec = JSON.parse(localStorage.getItem('mt_recent') || '[]');
+    rec = rec.filter(function(x){ return String(x).toLowerCase() !== v.toLowerCase(); });
+    rec.unshift(v);
+    rec = rec.slice(0, 6);
+    localStorage.setItem('mt_recent', JSON.stringify(rec));
+  }catch(e){}
+};
+window.__getRecents = function(){
+  try{ return JSON.parse(localStorage.getItem('mt_recent') || '[]'); }catch(e){ return []; }
+};
 (function(){
   const box = $('q');
   if(!box) return;
@@ -1792,9 +1808,10 @@ function buildTapeFromListing(ex){
     box.value = '';
     close();
     renderWatchlist('');
-    if(r.kind === 'mkt'){ if(r.ex !== currentEx) switchExchange(r.ex); return; }
+    if(r.kind === 'mkt'){ if(r.ex !== currentEx) switchExchange(r.ex); if(typeof window.__pushRecent === 'function') window.__pushRecent(r.ex); return; }
     if(r.ex !== currentEx) switchExchange(r.ex);
     curSec = r.row.sym || r.tkr;
+    if(typeof window.__pushRecent === 'function') window.__pushRecent(r.tkr);
     if(typeof openStock === 'function') openStock(curSec);
   }
 
@@ -1817,10 +1834,34 @@ function buildTapeFromListing(ex){
     if(!v) return;
     close();
     runCommand(v);                        // "MTN JSE", "SCOM FA", "HEATMAP" ...
+    if(typeof window.__pushRecent === 'function') window.__pushRecent(v);
     box.value = '';
     renderWatchlist('');
   });
   box.addEventListener('blur', function(){ setTimeout(close, 120); });
+  box.addEventListener('focus', function(){
+    if(String(box.value || '').trim()) return;
+    try{ if(localStorage.getItem('mt_pinnedCommands') !== 'on') return; }catch(e){ return; }
+    var rec = window.__getRecents ? window.__getRecents() : [];
+    if(!rec.length) return;
+    close();
+    var f = document.createElement('div');
+    f.className = 'finder';
+    f.innerHTML = '<div class="recent-head">RECENT COMMANDS</div>' + rec.map(function(r, i){
+      return '<div class="fi" data-i="' + i + '"><span class="t">' + esc(r) +
+             '</span><span class="n">pinned</span><span class="px"></span></div>';
+    }).join('') + '<div class="hint">click to recall · enter opens · backtick focuses this bar</div>';
+    box.parentNode.appendChild(f);
+    f.querySelectorAll('.fi').forEach(function(el){
+      el.addEventListener('mousedown', function(e){
+        e.preventDefault();
+        var t = el.querySelector('.t').textContent;
+        box.value = t;
+        close();
+        draw(t);
+      });
+    });
+  });
 })();
 
 // ===== Command bar =====
@@ -2232,6 +2273,7 @@ function openChartModal(sym){
 let __activePanelIdx = -1;
 function openStock(sym){
   if(!sym) return;
+  try{ if(localStorage.getItem('mt_tickerClick') === 'off') return; }catch(e){}
   curSec = sym;
   if(__activePanelIdx >= 0 && PANELS[__activePanelIdx] && PANELS[__activePanelIdx].id === 'financials'){
     var _f = document.getElementById('stageFrame');
