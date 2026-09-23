@@ -584,7 +584,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
     fetch(AUTH_API + "/api/auth/oauth/exchange", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({code: oauthCode})})
       .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
       .then(function(d){
-        if(d && d.ok){ try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); }catch(e){} }
+        if(d && d.ok){ try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); localStorage.setItem("mt_username", d.username || ""); localStorage.setItem("mt_name", d.name || ""); }catch(e){} }
         var sp = new URLSearchParams(location.search); sp.delete("oauth"); sp.delete("code");
         try{ history.replaceState({}, "", location.pathname + (sp.toString() ? "?" + sp.toString() : "")); }catch(e){}
         check();
@@ -615,7 +615,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
     msg("Verifying session…");
     fetch(AUTH_API + "/api/auth/me", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t})})
       .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
-      .then(function(d){ if(d && d.ok){ hide(); } else { show(); msg("Session expired. Sign in to continue."); } })
+      .then(function(d){ if(d && d.ok){ hide(); try{ localStorage.setItem("mt_username", d.username || ""); localStorage.setItem("mt_name", d.name || ""); }catch(e){} } else { show(); msg("Session expired. Sign in to continue."); } })
       .catch(function(){ show(); msg("Could not reach the sign-in server. Check your connection and try again."); });
   }
   window.gateSubmit = function(){
@@ -632,7 +632,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
       .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
       .then(function(d){
         if(d && d.ok){
-          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); }catch(e){}
+          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); localStorage.setItem("mt_username", d.username || ""); localStorage.setItem("mt_name", d.name || ""); }catch(e){}
           msg("Welcome. Loading the terminal…", true);
           setTimeout(hide, 600);
         } else {
@@ -2708,6 +2708,17 @@ function renderStockInfo(d, sym){
     gate();
   }
 
+  // Re-render the whole room from the backend. Called after a username change:
+  // the normal poll is incremental (after: lastTs) and never revisits messages
+  // already in the DOM, so without this an existing message keeps its old handle
+  // and the change looks like it never took.
+  window.__mtChatReset = function(){
+    Object.keys(seen).forEach(function(k){ delete seen[k]; });
+    lastTs = 0; drew = false;
+    if(roomLog) roomLog.innerHTML = '';
+    refresh();
+  };
+
   // ---------------- ASK (local, offline) ----------------
   let hist = [];
   try{ hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]') || []; }catch(e){ hist = []; }
@@ -3174,6 +3185,8 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
           try{ localStorage.setItem("mt_username", d.username || v); }catch(e){}
           renderAcct();
           renderAccount();
+          // re-render the room so already-drawn messages pick up the new handle
+          try{ if(window.__mtChatReset) window.__mtChatReset(); }catch(e){}
           toast("Name saved - shows in chat");
         } else {
           toast((d && d.error) || "Could not save name");
