@@ -107,7 +107,35 @@ def history(room, after, limit):
     limit = max(1, min(int(limit or 60), 200))
     out = [m for m in _all() if m.get("room") == room and m.get("ts", 0) > after]
     out.sort(key=lambda m: m.get("ts", 0))          # oldest first
-    return {"ok": True, "messages": out[-limit:]}
+    out = out[-limit:]
+    _resolve_handles(out)
+    return {"ok": True, "messages": out}
+
+
+def _resolve_handles(msgs):
+    """Re-resolve stored display handles to each author's current username.
+
+    Messages store the handle as it was at post time. Once a user sets a
+    username, their existing messages should show it too (not their real name),
+    so history re-derives the handle from the users table on every read.
+    """
+    if not _USE_MONGO:
+        return msgs
+    cache = {}
+    for m in msgs:
+        email = (m.get("email") or "").lower().strip()
+        if not email or email in cache:
+            continue
+        try:
+            u = _DB["users"].find_one({"email": email}, {"username": 1})
+            cache[email] = (u or {}).get("username", "")
+        except Exception:
+            cache[email] = ""
+    for m in msgs:
+        uname = cache.get((m.get("email") or "").lower().strip(), "")
+        if uname:
+            m["name"] = uname
+    return msgs
 
 
 def delete(id, email, owner):
