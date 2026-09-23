@@ -179,15 +179,15 @@
   // files use issuer-varied labels ("Turnover", "Net Interest Income", "Insurance
   // Revenue", "Profit for the year", ...); map them onto the canonical display keys.
   var KEY_ALIASES={
-  revenue:["revenue","total operating income","total operating income (revenue)","total insurance revenue","insurance revenue","turnover","net revenue","gross sales","net sales","sales","revenue from contracts with customers","revenues from contracts with customers","revenue (operating income)","rental and related income","rental income","total income","gross written premium","gross written premiums","net earned premium","net earned premiums","net interest income","total interest income","electricity revenue","trading revenue","trading income","interest revenue calculated using the effective interest method"],
+  revenue:["revenue","total revenue","revenue total","total operating income","total operating income (revenue)","total insurance revenue","insurance revenue","turnover","net revenue","gross sales","net sales","sales","revenue from contracts with customers","revenues from contracts with customers","revenue (operating income)","rental and related income","rental income","total income","gross written premium","gross written premiums","net earned premium","net earned premiums","net interest income","total interest income","electricity revenue","trading revenue","trading income","interest revenue calculated using the effective interest method"],
   costOfSales:["cost of sales","cost of revenue","cost of operations","cost of production","cost of services"],
   grossProfit:["gross profit","gross profit total"],
-  operatingExpenses:["operating expenses","operating expenses total","total operating expenses","total operating costs","administration and other expenses","administrative expenses","administration and general expenses","selling and distribution expenses","selling and distribution costs","distribution costs","general and administrative expenses","operating and administrative expenses","administrative costs","administration costs","administration","establishment expenses","administration and establishment expenses"],
+  operatingExpenses:["operating expenses","operating expenses total","total operating expenses","total operating costs","administration and other expenses","administrative expenses","administration and general expenses","selling and distribution expenses","selling and distribution costs","selling and administrative expenses","distribution costs","general and administrative expenses","operating and administrative expenses","administrative costs","administration costs","administration","establishment expenses","administration and establishment expenses"],
   operatingProfit:["operating profit (ebit)","operating profit","operating loss","results from operating activities"],
-  netFinanceCosts:["net finance costs","finance costs","finance cost","net finance income","finance costs (net)","finance income/(cost)","finance (cost)/income"],
+  netFinanceCosts:["net finance costs","finance costs","finance cost","net finance income","finance costs (net)","finance income/(cost)","finance (cost)/income","interest expense","total interest expenses"],
   profitBeforeTax:["profit before tax","profit before income tax","loss before tax","loss before income tax","profit before taxation","profit before tax and exceptional items","profit before income tax total"],
   taxExpense:["income tax","income tax expense","income tax credit","income tax charge","tax expense","tax charge","taxation","tax","income tax (expense)/credit","income tax expense/credit","income tax credit/(expense)","income tax credit/(charge)","income tax (charge)/credit","tax (charge)/credit","taxation charge","taxation charge/ credit","taxation (credit)","tax credit","tax income (expense)","taxation credit"],
-  netProfit:["net profit","net income","profit for the year","profit after tax","profit attributable to owners of the company","profit attributable to equity holders","loss for the year","(loss)/profit for the year","profit/(loss) for the year","profit/(loss) for the period","profit/(loss) after taxation","profit from continuing operations","total comprehensive income","total comprehensive profit/(loss) for the year"],
+  netProfit:["net profit","net income","profit for the year","profit after tax","profit attributable to owners of the company","profit attributable to equity holders","loss for the year","(loss)/profit for the year","profit/(loss) for the year","profit/(loss) for the period","profit/(loss) after taxation","profit from continuing operations","total comprehensive income","total comprehensive profit/(loss) for the year","total profit/loss","profit/loss"],
   eps:["eps","earnings per share","basic earnings per share (shs)","basic and diluted earnings per share (kshs)","earnings per share (kshs)","loss per share (ksh)","basic eps","diluted eps"],
   roe:["roe (%)","roe"],roa:["roa (%)","roa"],
   netMargin:["net margin (%)","net margin"],grossMargin:["gross margin (%)","gross margin"],
@@ -291,11 +291,18 @@
     h+='</tbody></table>';
 
     // real filings list (primary-source PDFs)
+    var srcUrl=(rec&&(rec.source_url||rec.ir_url||rec.ir))||null;
     var reps=(rec&&rec.reports)||[];
-    if(reps.length){
+    var links=[];
+    if(srcUrl) links.push({label:"Source document (exchange filing)",url:srcUrl});
+    (reps||[]).forEach(function(rp){ if(rp&&rp.url) links.push({label:rp.label||"Filing",url:rp.url}); });
+    if(links.length){
       h+='<div style="padding:10px 14px;border-top:1px solid var(--line2)">'+
-         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>'+
-         '<div style="color:var(--tx3);font-size:10px;line-height:1.5">Open the company investor-relations page for official filings.</div></div>';
+         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>';
+      links.forEach(function(lk){
+        h+='<a class="filing" href="'+esc(lk.url)+'" target="_blank" rel="noopener" style="display:inline-block;margin:2px 8px 2px 0">'+esc(lk.label)+'</a>';
+      });
+      h+='</div>';
     } else {
       h+='<div class="empty">No verified filing links on file for '+esc(state.ticker)+'.</div>';
     }
