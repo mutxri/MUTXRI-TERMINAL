@@ -3018,8 +3018,10 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     try{ email = localStorage.getItem("mt_email") || ""; }catch(e){}
     var name = "";
     try{ name = localStorage.getItem("mt_name") || ""; }catch(e){}
+    var uname = "";
+    try{ uname = localStorage.getItem("mt_username") || ""; }catch(e){}
     var u = document.getElementById("acctUsername");
-    if(u) u.value = name || (email ? email.split("@")[0] : "");
+    if(u) u.value = uname || name || (email ? email.split("@")[0] : "");
     var e2 = document.getElementById("acctEmail2");
     if(e2) e2.textContent = email || "—";
     var v = document.getElementById("acctVerified");
@@ -3125,13 +3127,25 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     if(act !== "billing") closeMenu();
   });
 
-  // username input
+  // username input -> chat display handle (persisted to the backend)
   var uIn = document.getElementById("acctUsername");
   if(uIn) uIn.addEventListener("change", function(){
     var v = uIn.value.trim();
-    try{ if(v){ localStorage.setItem("mt_name", v); } else { localStorage.removeItem("mt_name"); } }catch(e){}
-    renderAcct();
-    toast(v ? "Username saved" : "Username cleared");
+    if(!v){ toast("Enter a username first"); return; }
+    var apiBase = window.API_BASE || window.AUTH_API || "https://mutxri-terminal.onrender.com";
+    var t = ""; try{ t = localStorage.getItem("mt_token") || ""; }catch(e){}
+    fetch(apiBase + "/api/auth/username", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t, username: v})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(d){
+        if(d && d.ok){
+          try{ localStorage.setItem("mt_username", d.username || v); }catch(e){}
+          renderAcct();
+          toast("Username saved - shows in chat");
+        } else {
+          toast((d && d.error) || "Could not save username");
+        }
+      })
+      .catch(function(){ toast("Could not reach the server - username not saved"); });
   });
 
   // toggles
