@@ -115,6 +115,9 @@ body{
 .settings-field small{display:block;color:var(--tx3);font-size:9px;letter-spacing:.02em;margin:2px 0 6px}
 .settings-field input{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:4px;color:var(--tx);font-family:var(--mono);font-size:11px;padding:7px 10px;outline:none}
 .settings-field input:focus{border-color:var(--acc)}
+.settings-save{margin-top:6px;padding:6px 14px;background:var(--acc);color:#03200f;border:0;border-radius:4px;cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.03em}
+.settings-save:hover{filter:brightness(1.1)}
+.settings-save:disabled{opacity:.5;cursor:default}
 .settings-emailrow{display:flex;align-items:center;gap:8px;color:var(--tx);font-size:11px}
 .settings-badge{background:var(--mint-dim);border:1px solid var(--mint-line);color:var(--acc);font-size:9px;letter-spacing:.04em;padding:1px 6px;border-radius:2px;white-space:nowrap}
 .settings-planrow{color:var(--tx);font-size:11px}
@@ -698,6 +701,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
                   <label for="acctUsername">Username</label>
                   <small>How you appear in chat</small>
                   <input id="acctUsername" type="text" placeholder="username" autocomplete="off">
+                  <button type="button" class="settings-save" data-save="acctUsername">Save</button>
                 </div>
                 <div class="settings-field">
                   <label>Primary email</label>
@@ -718,6 +722,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
                   <label for="acctFullName">Name</label>
                   <small>How you appear in chat</small>
                   <input id="acctFullName" type="text" placeholder="Your name" autocomplete="off">
+                  <button type="button" class="settings-save" data-save="acctFullName">Save</button>
                 </div>
                 <div class="settings-field">
                   <label>Email</label>
@@ -3180,6 +3185,15 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
   if(uIn) uIn.addEventListener("change", function(){ saveHandle(uIn.value); });
   var fnIn = document.getElementById("acctFullName");
   if(fnIn) fnIn.addEventListener("change", function(){ saveHandle(fnIn.value); });
+  // explicit Save buttons - the change event is easy to miss (blur timing), so
+  // every account field has a real button that always persists to the backend
+  var svBtns = document.querySelectorAll("[data-save]");
+  for(var i = 0; i < svBtns.length; i++){
+    svBtns[i].addEventListener("click", function(){
+      var el = document.getElementById(this.getAttribute("data-save"));
+      if(el) saveHandle(el.value);
+    });
+  }
 
   // toggles
   function applyToggle(id, key){
