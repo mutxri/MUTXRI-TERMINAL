@@ -312,7 +312,9 @@ def oauth_exchange(one_time_code):
     if not rec or rec.get("exp", 0) < time.time():
         return {"ok": False, "error": "Sign-in link expired. Please try again."}
     token = _issue_token(rec["email"])
-    return {"ok": True, "token": token, "email": rec["email"], "name": rec.get("name", ""), "owner": _is_owner(rec["email"])}
+    u = _find_user(rec["email"])
+    return {"ok": True, "token": token, "email": rec["email"], "name": rec.get("name", ""),
+            "username": (u or {}).get("username", ""), "owner": _is_owner(rec["email"])}
 
 def signup(email, password, name="", username="", ip="", user_agent=""):
     email = (email or "").lower().strip()
@@ -366,7 +368,8 @@ def login(email, password, ip="", user_agent=""):
         return {"ok": False, "error": "User not found"}
     _record_signin(email, u.get("name", ""), "password", "signin", ip, user_agent)
     token = _issue_token(email)
-    return {"ok": True, "token": token, "email": email, "name": u.get("name", ""), "owner": _is_owner(email)}
+    return {"ok": True, "token": token, "email": email, "name": u.get("name", ""),
+            "username": u.get("username", ""), "owner": _is_owner(email)}
 
 def set_password(token, password):
     """Give a signed-in account a password it can actually log in with.
