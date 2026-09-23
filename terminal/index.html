@@ -1199,14 +1199,13 @@ function renderTabs(){
         const w = spaces[active].wins[k];
         if(w && w.z > zTop) zTop = w.z;
       });
-      // Securities must always be visible. A persisted "closed" state on the
-      // WATCH rail (or the center PANEL) is what makes the terminal look empty
-      // ("securities shows nothing") across sessions, with no obvious way back.
-      // Force the two core windows open on every restore so a returning user
-      // can never land on an empty market screen.
-      ['watch', 'center'].forEach(function(k){
+      // The default MAIN workspace is all four windows open. A persisted
+      // "closed" state (most often the WATCH rail, which makes the terminal
+      // look empty with no way back) otherwise survives reloads. Force every
+      // window open on restore so the default is always the full 4-panel layout.
+      KEYS.forEach(function(k){
         spaces.forEach(function(sp){
-          if(!sp.wins[k]) sp.wins[k] = tiled()[k];   // old schema: recreate a missing rail
+          if(!sp.wins[k]) sp.wins[k] = tiled()[k];   // old schema: recreate a missing panel
           sp.wins[k].open = true;
         });
       });
