@@ -13,4 +13,4 @@ it does not update in real time.
 - Live endpoints (chart/metrics/quotes) are NOT available in this static build;
   the UI shows an honest notice when clicked.
 
-Data snapshot: 2026-09-22 21:09
+Data snapshot: 2026-09-23 05:21
