@@ -485,12 +485,13 @@ def admin_list(key, delete_email=None, token=""):
     users = []
     try:
         if _USE_MONGO:
-            for u in _DB["users"].find({}, {"_id": 0, "email": 1, "name": 1, "created": 1, "oauth": 1}):
+            for u in _DB["users"].find({}, {"_id": 0, "email": 1, "name": 1, "username": 1, "created": 1, "oauth": 1}):
                 users.append(u)
         else:
             data = _load_json()
             for email, rec in data.items():
                 users.append({"email": email, "name": rec.get("name", ""),
+                              "username": rec.get("username", ""),
                               "created": rec.get("created"), "oauth": rec.get("oauth", "")})
     except Exception as e:
         return {"ok": False, "error": "db error: %s" % str(e)[:80]}
