@@ -1111,6 +1111,13 @@ function renderTabs(){
 }
 // ===== workspace: floating windows, saved per workspace =====
 (function(){
+  // If the browser restores this tab from its back-forward cache (session
+  // restore, a relaunch after crash/update, or a pinned tab), the stale page
+  // can come back with the securities rail still hidden. Force one clean
+  // reload when that happens so the current layout logic always runs.
+  window.addEventListener('pageshow', function(e){
+    if(e.persisted){ try{ location.reload(); }catch(_){} }
+  });
   window.MTWin = (function(){
     const main = document.querySelector('.main');
     const KEYS = ['watch', 'center', 'info', 'chat'];
@@ -1198,7 +1205,10 @@ function renderTabs(){
       // Force the two core windows open on every restore so a returning user
       // can never land on an empty market screen.
       ['watch', 'center'].forEach(function(k){
-        spaces.forEach(function(sp){ if(sp.wins[k]) sp.wins[k].open = true; });
+        spaces.forEach(function(sp){
+          if(!sp.wins[k]) sp.wins[k] = tiled()[k];   // old schema: recreate a missing rail
+          sp.wins[k].open = true;
+        });
       });
     })();
 
