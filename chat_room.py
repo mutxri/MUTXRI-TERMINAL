@@ -32,11 +32,13 @@ def store_mode():
 
 
 def _handle(email, name, username=None):
-    """Display handle: the username when present, else the name, else email prefix."""
+    """Display handle: the username when present, else the email prefix.
+
+    The real name is deliberately never used for the chat handle, so a user
+    without a username shows as their email prefix, not their real name.
+    """
     if username:
         return str(username)[:80]
-    if name:
-        return str(name)[:80]
     if email:
         return str(email).split("@")[0]
     return "trader"
@@ -139,8 +141,7 @@ def _resolve_handles(msgs):
             except Exception:
                 uname = ""
             _RESOLVE_CACHE[email] = (uname, now)
-        if uname:
-            m["name"] = uname
+        m["name"] = uname if uname else email.split("@")[0]
     return msgs
 
 
