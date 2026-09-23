@@ -1490,19 +1490,22 @@ class Handler(SimpleHTTPRequestHandler):
             if not who.get("ok"):
                 self.json({"ok": False, "error": who.get("error") or "sign in to post", "auth": False})
                 return
-            if action == "chat_send":
-                self.json(chat_room.post(who.get("email"), who.get("name"), data.get("text", ""),
-                                         data.get("room", chat_room.DEFAULT_ROOM), data.get("ctx", ""),
-                                         who.get("username")))
-            elif action == "chat_history":
-                # POST, not GET: a session token in a query string ends up in
-                # every proxy and access log between here and the browser
-                out = chat_room.history(data.get("room", chat_room.DEFAULT_ROOM),
-                                        data.get("after", 0), data.get("limit", 60))
-                out["me"] = chat_room._handle(who.get("email"), who.get("name"), who.get("username"))
-                self.json(out)
-            else:
-                self.json(chat_room.delete(data.get("id", ""), who.get("email"), who.get("owner")))
+            try:
+                if action == "chat_send":
+                    self.json(chat_room.post(who.get("email"), who.get("name"), data.get("text", ""),
+                                             data.get("room", chat_room.DEFAULT_ROOM), data.get("ctx", ""),
+                                             who.get("username")))
+                elif action == "chat_history":
+                    # POST, not GET: a session token in a query string ends up in
+                    # every proxy and access log between here and the browser
+                    out = chat_room.history(data.get("room", chat_room.DEFAULT_ROOM),
+                                            data.get("after", 0), data.get("limit", 60))
+                    out["me"] = chat_room._handle(who.get("email"), who.get("name"), who.get("username"))
+                    self.json(out)
+                else:
+                    self.json(chat_room.delete(data.get("id", ""), who.get("email"), who.get("owner")))
+            except Exception as _e:
+                self.json({"ok": False, "error": "chat error: %s" % str(_e)[:200]})
             return
         if path.path.startswith("/api/auth/"):
             action = path.path.split("/")[-1]
