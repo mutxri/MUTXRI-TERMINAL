@@ -188,10 +188,15 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .main{display:flex;flex-direction:row;min-height:0;min-width:0;position:relative;overflow:hidden}
 .wrow{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);
   min-height:0;min-width:0;position:relative;flex:1 1 auto}
-/* small screens: the four floating panels stack full-width; the row scrolls so
-   WATCH, PANEL, MARKET and CHAT all stay reachable */
+/* small screens: one floating panel at a time (full screen) with a bottom
+   tab bar to switch WATCH / PANEL / MARKET / CHAT */
+.mob-tabs{display:none;position:fixed;left:0;right:0;bottom:0;z-index:99990;
+  background:var(--bg2);border-top:1px solid var(--line2);padding-bottom:env(safe-area-inset-bottom);}
+.mob-tabs button{flex:1;background:none;border:0;color:var(--tx3);font-family:var(--mono);
+  font-size:10px;letter-spacing:.06em;padding:12px 0;cursor:pointer;}
+.mob-tabs button.on{color:var(--acc);}
 @media (max-width:820px){
-  .floating #rowTop{overflow-y:auto;overflow-x:hidden;}
+  .floating .mob-tabs{display:flex;}
 }
 #rowBot:empty{display:none}
 .floating .rail,.floating .panel{position:absolute;border:1px solid var(--win-outline,var(--line2));border-radius:3px;
@@ -924,6 +929,14 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
 
   </div>
 
+  <!-- mobile panel switcher (one panel at a time on small screens) -->
+  <nav class="mob-tabs" id="mobTabs" aria-label="Panels">
+    <button type="button" data-k="watch">WATCH</button>
+    <button type="button" data-k="center" class="on">PANEL</button>
+    <button type="button" data-k="info">MARKET</button>
+    <button type="button" data-k="chat">CHAT</button>
+  </nav>
+
 </div>
 
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
@@ -1146,23 +1159,22 @@ function renderTabs(){
     const NODE = {};
     KEYS.forEach(function(k){ NODE[k] = document.getElementById(META[k].el); });
 
-    let spaces = [], active = 0, zTop = 10;
+    let spaces = [], active = 0, zTop = 10, mobActive = 'center';
 
     function box(){ return main.getBoundingClientRect(); }
     function tiled(){
       // the first workspace mirrors the tiled layout people already know
       const b = box(), W = b.width || 1280, H = b.height || 700;
-      // phone / small screen: the four-column desktop layout cannot fit, so
-      // stack the four panels full-width. #rowTop scrolls on these widths so
-      // every panel (including MARKET and CHAT) stays reachable.
+      // phone / small screen: the four-column desktop layout cannot fit. Show
+      // one panel at a time, full screen, with a bottom tab bar to switch.
       if(W < 820){
-        const gap = 10;
-        const hh = Math.max(220, Math.round((H - 4 * gap) / 4));
+        const TABH = 44;
+        const hh = Math.max(120, H - TABH - 8);
         return {
           watch:  {x: 4, y: 4, w: W - 8, h: hh, open: true, z: 11},
-          center: {x: 4, y: 4 + (hh + gap), w: W - 8, h: hh, open: true, z: 12},
-          info:   {x: 4, y: 4 + 2 * (hh + gap), w: W - 8, h: hh, open: true, z: 13},
-          chat:   {x: 4, y: 4 + 3 * (hh + gap), w: W - 8, h: hh, open: true, z: 14}
+          center: {x: 4, y: 4, w: W - 8, h: hh, open: true, z: 12},
+          info:   {x: 4, y: 4, w: W - 8, h: hh, open: true, z: 13},
+          chat:   {x: 4, y: 4, w: W - 8, h: hh, open: true, z: 14}
         };
       }
       const railW = Math.min(280, Math.max(MIN_W, Math.round(W * 0.2)));
@@ -1253,6 +1265,8 @@ function renderTabs(){
     function place(k){
       const n = NODE[k], w = win(k);
       if(!n) return;
+      // mobile: only the tab-selected panel is shown, full screen
+      if(box().width < 820 && k !== mobActive){ n.style.display = 'none'; return; }
       if(!w.open){ n.style.display = 'none'; return; }
       clampWin(k);
       n.style.display = '';
@@ -1281,6 +1295,16 @@ function renderTabs(){
       w.z = ++zTop;
       NODE[k].style.zIndex = String(w.z);
       front();
+    }
+    // mobile bottom tab bar: switch which single panel fills the screen
+    function setMob(k){
+      if(KEYS.indexOf(k) < 0 || mobActive === k) return;
+      mobActive = k;
+      KEYS.forEach(place);
+      const tb = document.getElementById('mobTabs');
+      if(tb) tb.querySelectorAll('button').forEach(function(b){
+        b.classList.toggle('on', b.getAttribute('data-k') === k);
+      });
     }
 
     // ---- workspaces ----
@@ -1433,6 +1457,10 @@ function renderTabs(){
           }
           raise(k); place(k); save();
         });
+      });
+      const mt = document.getElementById('mobTabs');
+      if(mt) mt.querySelectorAll('button').forEach(function(b){
+        b.addEventListener('click', function(){ setMob(b.getAttribute('data-k')); });
       });
       window.addEventListener('resize', function(){ retile(); KEYS.forEach(place); });
     }
