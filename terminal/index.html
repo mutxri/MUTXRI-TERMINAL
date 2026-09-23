@@ -636,7 +636,11 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
           msg("Welcome. Loading the terminal…", true);
           setTimeout(hide, 600);
         } else {
-          msg((d && d.error) ? d.error : "Sign in failed. Try again.");
+          var _err = (d && d.error) ? d.error : "Sign in failed. Try again.";
+          if(d && d.oauth){
+            _err += " After signing in with " + (d.oauth === "google" ? "Google" : d.oauth) + ", set a password under Profile > My Information.";
+          }
+          msg(_err);
         }
       })
       .catch(function(){ msg("Could not reach the sign-in server. Try again shortly."); });
@@ -728,6 +732,12 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
                   <label>Email</label>
                   <small>Sign-in and notification rollups</small>
                   <div class="settings-emailrow"><span id="acctEmail3">—</span></div>
+                </div>
+                <div class="settings-field">
+                  <label for="acctPwd">Password</label>
+                  <small>Set a password so you can sign in without Google</small>
+                  <input id="acctPwd" type="password" placeholder="New password (8+ characters)" autocomplete="new-password">
+                  <button type="button" class="settings-save" data-setpwd="acctPwd">Set password</button>
                 </div>
                 <div class="settings-div"></div>
                 <div class="settings-head">Privacy</div>
@@ -3207,6 +3217,30 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
       if(el) saveHandle(el.value);
     });
   }
+  // set a password for a Google-created account so it can sign in with
+  // email + password instead of being stuck on "Continue with Google"
+  function setPassword(v){
+    v = (v || "").trim();
+    if(!v || v.length < 8){ toast("Password must be at least 8 characters"); return; }
+    var apiBase = window.API_BASE || window.AUTH_API || "https://mutxri-terminal.onrender.com";
+    var t = ""; try{ t = localStorage.getItem("mt_token") || ""; }catch(e){}
+    fetch(apiBase + "/api/auth/set_password", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t, password: v})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(d){
+        if(d && d.ok){
+          var el = document.getElementById("acctPwd"); if(el) el.value = "";
+          toast("Password set - sign in with it anytime");
+        } else {
+          toast((d && d.error) || "Could not set password");
+        }
+      })
+      .catch(function(){ toast("Could not reach the server - password not set"); });
+  }
+  var pwBtn = document.querySelector("[data-setpwd]");
+  if(pwBtn) pwBtn.addEventListener("click", function(){
+    var el = document.getElementById(this.getAttribute("data-setpwd"));
+    if(el) setPassword(el.value);
+  });
 
   // toggles
   function applyToggle(id, key){
