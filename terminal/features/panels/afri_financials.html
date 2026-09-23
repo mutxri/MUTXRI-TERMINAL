@@ -291,18 +291,11 @@
     h+='</tbody></table>';
 
     // real filings list (primary-source PDFs)
-    var srcUrl=(rec&&(rec.source_url||rec.ir_url||rec.ir))||null;
     var reps=(rec&&rec.reports)||[];
-    var links=[];
-    if(srcUrl) links.push({label:"Source document (exchange filing)",url:srcUrl});
-    (reps||[]).forEach(function(rp){ if(rp&&rp.url) links.push({label:rp.label||"Filing",url:rp.url}); });
-    if(links.length){
+    if(reps.length){
       h+='<div style="padding:10px 14px;border-top:1px solid var(--line2)">'+
-         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>';
-      links.forEach(function(lk){
-        h+='<a class="filing" href="'+esc(lk.url)+'" target="_blank" rel="noopener" style="display:inline-block;margin:2px 8px 2px 0">'+esc(lk.label)+'</a>';
-      });
-      h+='</div>';
+         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>'+
+         '<div style="color:var(--tx3);font-size:10px;line-height:1.5">Open the company investor-relations page for official filings.</div></div>';
     } else {
       h+='<div class="empty">No verified filing links on file for '+esc(state.ticker)+'.</div>';
     }
