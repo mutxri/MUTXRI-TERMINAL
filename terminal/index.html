@@ -2595,6 +2595,21 @@ function renderStockInfo(d, sym){
     if(atBottom || mine) roomLog.scrollTop = roomLog.scrollHeight;
     if(m.ts > lastTs) lastTs = m.ts;
   }
+  function drawMine(text, ctx, ts){
+    // Optimistic echo: render the sender's own message instantly (mine=true)
+    // without touching the poll cursor (lastTs) or the seen-dedup map. The
+    // caller removes it once the backend confirms (or on failure).
+    const el = document.createElement('div');
+    el.className = 'room-msg mine';
+    el.setAttribute('data-id', 'tmp-' + Date.now() + '-' + Math.floor(Math.random() * 100000));
+    el.innerHTML = '<div class="rm-h"><span class="rm-n">' + esc(me || 'you') + '</span>' +
+      (ctx ? '<span class="rm-ctx">' + esc(ctx) + '</span>' : '') +
+      '<span>' + stamp(ts) + '</span>' +
+      '</div><div class="rm-t">' + esc(text || '') + '</div>';
+    roomLog.appendChild(el);
+    roomLog.scrollTop = roomLog.scrollHeight;
+    return el;
+  }
   function empty(html){
     if(drew) return;
     roomLog.innerHTML = '<div class="room-empty">' + html + '</div>';
@@ -2662,18 +2677,28 @@ function renderStockInfo(d, sym){
   async function sendRoom(text){
     if(!token()){ setNote('Sign in to post to the room.', true); return; }
     sendBtn.disabled = true;
+    const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
+    // optimistic echo: show the message immediately, then reconcile with the
+    // backend response - removes the visible delay between Enter and the message
+    // appearing (previously it waited on the full round-trip).
+    const tmpEl = drawMine(text, ctx, Math.floor(Date.now() / 1000));
+    input.value = '';
+    setNote('');
     try{
-      const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
       const d = await api('/api/chat/send', {text: text, ctx: ctx, room: activeRoom});
+      if(tmpEl) tmpEl.remove();
       if(d && d.ok && d.message){
         if(!drew){ roomLog.innerHTML = ''; drew = true; }
         drawMsg(d.message);
-        input.value = '';
-        setNote('');
       }else{
+        input.value = text;
         setNote(esc((d && d.error) || 'message not sent'), true);
       }
-    }catch(e){ setNote('Could not reach the room - your message was not sent.', true); }
+    }catch(e){
+      if(tmpEl) tmpEl.remove();
+      input.value = text;
+      setNote('Could not reach the room - your message was not sent.', true);
+    }
     sendBtn.disabled = false;
     gate();
   }
