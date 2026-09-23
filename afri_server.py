@@ -1521,7 +1521,10 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception:
                 data = {}
             q = {k: [str(v)] for k, v in data.items() if v is not None}
-            self.json(auth_api.handle_auth(path.path, q))
+            result = auth_api.handle_auth(path.path, q)
+            if action == "username" and result.get("ok"):
+                chat_room.invalidate_handle(result.get("email", ""))
+            self.json(result)
             return
         self.send_error(404)
 

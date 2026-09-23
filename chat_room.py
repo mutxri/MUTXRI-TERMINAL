@@ -145,6 +145,16 @@ def _resolve_handles(msgs):
     return msgs
 
 
+def invalidate_handle(email):
+    """Drop the cached handle for one user so the next history read re-resolves
+    it immediately. Called right after a username change, otherwise the room
+    keeps showing the old handle for up to _RESOLVE_TTL seconds and the change
+    looks like it never reached the database."""
+    email = (email or "").lower().strip()
+    if email:
+        _RESOLVE_CACHE.pop(email, None)
+
+
 def delete(id, email, owner):
     email = (email or "").lower().strip()
     with _LOCK:
