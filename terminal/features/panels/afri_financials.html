@@ -253,6 +253,7 @@
     var sch=SCHEMA[state.statement];
     var per=(rec&&rec.periods&&rec.periods.length)?rec.periods:["Latest"];
     var vals=(rec&&rec.values)||{};
+    var derivedSet={}, derivedFrom={};
     // normalize: files store rows as [{label,values:[...]}] - map by label (with
     // issuer-varied aliases) to schema keys, in priority order (first match wins)
     if(!Object.keys(vals).length && rec && rec.rows && rec.rows.length){
@@ -260,22 +261,25 @@
       var lmap = {};
       (rec.rows||[]).forEach(function(rw){
         var l = normL(rw.label);
-        if(!(l in lmap)) lmap[l] = rw.values || [];
+        if(!(l in lmap)){ lmap[l] = rw.values || []; if(rw.derived){ derivedSet[l]=true; derivedFrom[l]=rw.derived_from||rw.derivedFrom||rw.formula||"computed"; } }
       });
       sch.forEach(function(p){
         var key = p[0], aliases = KEY_ALIASES[key] || [normL(p[1])];
         for(var i=0;i<aliases.length;i++){
           var a = normL(aliases[i]);
-          if(a in lmap){ vals[key] = lmap[a]; break; }
+          if(a in lmap){ vals[key] = lmap[a]; if(derivedSet[a]){ derivedSet[key]=true; derivedFrom[key]=derivedFrom[a]; } break; }
         }
       });
     }
     var h='<table><thead><tr><th>'+STMT_TITLE()+'</th>';
     for(var i=0;i<per.length;i++)h+='<th>'+esc(per[i])+'</th>';
     h+='</tr></thead><tbody>';
+    var anyDerived=false;
     for(var r=0;r<sch.length;r++){
       var key=sch[r][0],lbl=sch[r][1],series=vals[key]||[],isTot=TOTAL_KEYS[key];
-      h+='<tr class="'+(isTot?'total':'')+'"><td class="item">'+esc(lbl)+'</td>';
+      if(derivedSet[key]) anyDerived=true;
+      var dv = derivedSet[key] ? '<span title="'+esc('derived: '+(derivedFrom[key]||'computed from filed values'))+'" style="color:var(--tx3);font-style:italic">&#8776;</span> ' : '';
+      h+='<tr class="'+(isTot?'total':'')+'"><td class="item">'+dv+esc(lbl)+'</td>';
       for(var c=0;c<per.length;c++){
         var v=series[c];
         var disp;
@@ -289,6 +293,10 @@
       h+='</tr>';
     }
     h+='</tbody></table>';
+
+    if(anyDerived){
+      h+='<div style="padding:6px 14px;color:var(--tx3);font-size:10px">&#8776; computed from filed values (arithmetic), not a reported figure.</div>';
+    }
 
     // real filings list (primary-source PDFs)
     var srcUrl=(rec&&(rec.source_url||rec.ir_url||rec.ir))||null;
