@@ -2961,8 +2961,10 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     try{ email = localStorage.getItem("mt_email") || ""; }catch(err){}
     var name = "";
     try{ name = localStorage.getItem("mt_name") || ""; }catch(err){}
+    var uname = "";
+    try{ uname = localStorage.getItem("mt_username") || ""; }catch(err){}
     if(email){
-      if(n) n.textContent = name || email.split('@')[0];
+      if(n) n.textContent = uname || name || email.split('@')[0];
       if(e) e.textContent = email;
     } else {
       if(n) n.textContent = 'Not signed in';
@@ -3054,7 +3056,7 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     var p = document.getElementById("acctPlan");
     if(p) p.textContent = email ? "Free" : "No subscription";
     var fn = document.getElementById("acctFullName");
-    if(fn) fn.value = name || "";
+    if(fn) fn.value = uname || name || "";
     var e3 = document.getElementById("acctEmail3");
     if(e3) e3.textContent = email || "\u2014";
     var se = document.getElementById("secEmail");
@@ -3152,11 +3154,12 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     if(act !== "billing") closeMenu();
   });
 
-  // username input -> chat display handle (persisted to the backend)
-  var uIn = document.getElementById("acctUsername");
-  if(uIn) uIn.addEventListener("change", function(){
-    var v = uIn.value.trim();
-    if(!v){ toast("Enter a username first"); return; }
+  // username/name input -> chat display handle (persisted to the backend).
+  // Both "Username" and "Name" say "How you appear in chat" and edit the SAME
+  // handle, so changing either saves the backend username and keeps them in sync.
+  function saveHandle(v){
+    v = (v || "").trim();
+    if(!v){ toast("Enter a name first"); return; }
     var apiBase = window.API_BASE || window.AUTH_API || "https://mutxri-terminal.onrender.com";
     var t = ""; try{ t = localStorage.getItem("mt_token") || ""; }catch(e){}
     fetch(apiBase + "/api/auth/username", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t, username: v})})
@@ -3165,13 +3168,18 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
         if(d && d.ok){
           try{ localStorage.setItem("mt_username", d.username || v); }catch(e){}
           renderAcct();
-          toast("Username saved - shows in chat");
+          renderAccount();
+          toast("Name saved - shows in chat");
         } else {
-          toast((d && d.error) || "Could not save username");
+          toast((d && d.error) || "Could not save name");
         }
       })
-      .catch(function(){ toast("Could not reach the server - username not saved"); });
-  });
+      .catch(function(){ toast("Could not reach the server - name not saved"); });
+  }
+  var uIn = document.getElementById("acctUsername");
+  if(uIn) uIn.addEventListener("change", function(){ saveHandle(uIn.value); });
+  var fnIn = document.getElementById("acctFullName");
+  if(fnIn) fnIn.addEventListener("change", function(){ saveHandle(fnIn.value); });
 
   // toggles
   function applyToggle(id, key){
