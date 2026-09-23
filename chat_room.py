@@ -16,6 +16,8 @@ DEFAULT_ROOM = "main"
 _MAX_TEXT = 500          # frontend maxlength is 500
 _MAX_KEEP = 500          # cap stored messages per room to bound the JSON file
 _LOCK = threading.Lock()
+_RESOLVE_CACHE = {}      # email -> (username, fetched_ts)
+_RESOLVE_TTL = 60        # seconds before re-checking a user's current username
 
 
 def init(db, mongo_ok):
@@ -116,23 +118,27 @@ def _resolve_handles(msgs):
     """Re-resolve stored display handles to each author's current username.
 
     Messages store the handle as it was at post time. Once a user sets a
-    username, their existing messages should show it too (not their real name),
-    so history re-derives the handle from the users table on every read.
+    username, their existing messages should show it too (not their real name).
+    The email -> username lookup is cached for _RESOLVE_TTL so the 5s room poll
+    does not re-query the users table for every message on every read.
     """
     if not _USE_MONGO:
         return msgs
-    cache = {}
+    now = time.time()
     for m in msgs:
         email = (m.get("email") or "").lower().strip()
-        if not email or email in cache:
+        if not email:
             continue
-        try:
-            u = _DB["users"].find_one({"email": email}, {"username": 1})
-            cache[email] = (u or {}).get("username", "")
-        except Exception:
-            cache[email] = ""
-    for m in msgs:
-        uname = cache.get((m.get("email") or "").lower().strip(), "")
+        hit = _RESOLVE_CACHE.get(email)
+        if hit and now - hit[1] < _RESOLVE_TTL:
+            uname = hit[0]
+        else:
+            try:
+                u = _DB["users"].find_one({"email": email}, {"username": 1})
+                uname = (u or {}).get("username", "")
+            except Exception:
+                uname = ""
+            _RESOLVE_CACHE[email] = (uname, now)
         if uname:
             m["name"] = uname
     return msgs

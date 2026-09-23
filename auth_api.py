@@ -334,6 +334,7 @@ def signup(email, password, name="", username="", ip="", user_agent=""):
         "email": email,
         "name": (name or "").strip()[:80],
         "username": (username or "").strip()[:30],
+        "username_history": [],
         "pw": _hash_password(password),
         "created": time.time(),
     }
@@ -407,6 +408,11 @@ def set_username(token, username):
     u = _find_user(s["email"])
     if not u:
         return {"ok": False, "error": "account not found"}
+    old = u.get("username", "")
+    if old != username:
+        hist = u.get("username_history") or []
+        hist.append({"username": username, "previous": old, "ts": time.time()})
+        u["username_history"] = hist[-50:]   # keep every change, capped at 50
     u["username"] = username
     _save_user(u)
     return {"ok": True, "username": username, "email": s["email"]}
