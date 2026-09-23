@@ -188,6 +188,11 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .main{display:flex;flex-direction:row;min-height:0;min-width:0;position:relative;overflow:hidden}
 .wrow{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);
   min-height:0;min-width:0;position:relative;flex:1 1 auto}
+/* small screens: the four floating panels stack full-width; the row scrolls so
+   WATCH, PANEL, MARKET and CHAT all stay reachable */
+@media (max-width:820px){
+  .floating #rowTop{overflow-y:auto;overflow-x:hidden;}
+}
 #rowBot:empty{display:none}
 .floating .rail,.floating .panel{position:absolute;border:1px solid var(--win-outline,var(--line2));border-radius:3px;
   box-shadow:0 10px 30px rgba(0,0,0,.55);overflow:hidden;min-width:0;min-height:0}
@@ -1147,6 +1152,19 @@ function renderTabs(){
     function tiled(){
       // the first workspace mirrors the tiled layout people already know
       const b = box(), W = b.width || 1280, H = b.height || 700;
+      // phone / small screen: the four-column desktop layout cannot fit, so
+      // stack the four panels full-width. #rowTop scrolls on these widths so
+      // every panel (including MARKET and CHAT) stays reachable.
+      if(W < 820){
+        const gap = 10;
+        const hh = Math.max(220, Math.round((H - 4 * gap) / 4));
+        return {
+          watch:  {x: 4, y: 4, w: W - 8, h: hh, open: true, z: 11},
+          center: {x: 4, y: 4 + (hh + gap), w: W - 8, h: hh, open: true, z: 12},
+          info:   {x: 4, y: 4 + 2 * (hh + gap), w: W - 8, h: hh, open: true, z: 13},
+          chat:   {x: 4, y: 4 + 3 * (hh + gap), w: W - 8, h: hh, open: true, z: 14}
+        };
+      }
       const railW = Math.min(280, Math.max(MIN_W, Math.round(W * 0.2)));
       const chatW = Math.min(320, Math.max(MIN_W, Math.round(W * 0.24)));
       const midW = Math.max(MIN_W, W - railW - chatW - 24);
@@ -1224,6 +1242,10 @@ function renderTabs(){
       const b = box(), w = win(k);
       w.w = Math.max(MIN_W, Math.min(w.w, Math.max(MIN_W, b.width - 8)));
       w.h = Math.max(MIN_H, Math.min(w.h, Math.max(MIN_H, b.height - 8)));
+      // stacked mobile layout: windows sit full-width below the fold and the
+      // row scrolls, so leave x/y alone (the desktop clamp would drag the
+      // MARKET and CHAT panels back up over the others)
+      if(b.width < 820){ w.x = 4; return; }
       // never let a window's title bar leave the workspace, or it cannot be grabbed back
       w.x = Math.max(-(w.w - 80), Math.min(w.x, b.width - 80));
       w.y = Math.max(0, Math.min(w.y, Math.max(0, b.height - BAR)));
@@ -1412,7 +1434,7 @@ function renderTabs(){
           raise(k); place(k); save();
         });
       });
-      window.addEventListener('resize', function(){ KEYS.forEach(place); });
+      window.addEventListener('resize', function(){ retile(); KEYS.forEach(place); });
     }
     render();
 
