@@ -95,6 +95,10 @@ def post(email, name, text, room, ctx, username=""):
         if _USE_MONGO:
             try:
                 _DB["chat_messages"].insert_one(msg)
+                # insert_one adds an _id (ObjectId) to msg in place; ObjectId is
+                # not JSON-serializable, which made the send response crash (502)
+                # after the message had already been saved. Drop it before returning.
+                msg.pop("_id", None)
             except Exception:
                 return {"ok": False, "error": "could not save message"}
         else:
