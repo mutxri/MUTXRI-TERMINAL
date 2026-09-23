@@ -29,8 +29,10 @@ def store_mode():
     return "mongo" if _USE_MONGO else "json"
 
 
-def _handle(email, name):
-    """Display handle: the name when present, else the email prefix."""
+def _handle(email, name, username=None):
+    """Display handle: the username when present, else the name, else email prefix."""
+    if username:
+        return str(username)[:80]
     if name:
         return str(name)[:80]
     if email:
@@ -69,7 +71,7 @@ def _all():
     return _load_json()
 
 
-def post(email, name, text, room, ctx):
+def post(email, name, text, room, ctx, username=""):
     text = (text or "").strip()
     if not text:
         return {"ok": False, "error": "message is empty"}
@@ -80,7 +82,7 @@ def post(email, name, text, room, ctx):
         "id": secrets.token_hex(8),
         "room": room,
         "email": (email or "").lower().strip(),
-        "name": _handle(email, name),
+        "name": _handle(email, name, username),
         "text": text[:500],
         "ctx": (ctx or "").strip()[:60],
         "ts": int(time.time()),

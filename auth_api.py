@@ -314,7 +314,7 @@ def oauth_exchange(one_time_code):
     token = _issue_token(rec["email"])
     return {"ok": True, "token": token, "email": rec["email"], "name": rec.get("name", ""), "owner": _is_owner(rec["email"])}
 
-def signup(email, password, name="", ip="", user_agent=""):
+def signup(email, password, name="", username="", ip="", user_agent=""):
     email = (email or "").lower().strip()
     if not _EMAIL_RE.match(email):
         return {"ok": False, "error": "valid email required"}
@@ -333,13 +333,15 @@ def signup(email, password, name="", ip="", user_agent=""):
     record = {
         "email": email,
         "name": (name or "").strip()[:80],
+        "username": (username or "").strip()[:30],
         "pw": _hash_password(password),
         "created": time.time(),
     }
     _save_user(record)
     _record_signin(email, record["name"], "password", "signup", ip, user_agent)
     token = _issue_token(email)
-    return {"ok": True, "token": token, "email": email, "name": record["name"], "owner": _is_owner(email)}
+    return {"ok": True, "token": token, "email": email, "name": record["name"],
+            "username": record["username"], "owner": _is_owner(email)}
 
 def login(email, password, ip="", user_agent=""):
     email = (email or "").lower().strip()
@@ -386,6 +388,30 @@ def set_password(token, password):
     return {"ok": True, "email": s["email"]}
 
 
+def set_username(token, username):
+    """Set the chat display handle (username) for the signed-in account.
+
+    This is what shows in the shared chat room instead of the account's real
+    name. Falls back to name (or the email prefix) until one is set.
+    """
+    s = _live(token)
+    if not s:
+        return {"ok": False, "error": "session expired"}
+    username = (username or "").strip()
+    if not username:
+        return {"ok": False, "error": "username required"}
+    if len(username) > 30:
+        return {"ok": False, "error": "username too long (30 max)"}
+    if any(ord(c) < 32 for c in username):
+        return {"ok": False, "error": "invalid username"}
+    u = _find_user(s["email"])
+    if not u:
+        return {"ok": False, "error": "account not found"}
+    u["username"] = username
+    _save_user(u)
+    return {"ok": True, "username": username, "email": s["email"]}
+
+
 def logout(token):
     if token:
         _session_del(token)
@@ -399,7 +425,8 @@ def me(token):
         return {"ok": False, "error": "session expired"}
     u = _find_user(s["email"])
     owner = _is_owner(s["email"])
-    return {"ok": True, "email": s["email"], "name": (u or {}).get("name", ""), "owner": owner,
+    return {"ok": True, "email": s["email"], "name": (u or {}).get("name", ""),
+            "username": (u or {}).get("username", ""), "owner": owner,
             "access": "lifetime" if owner else "standard",
             "idle_seconds": None if owner else IDLE_SECONDS}
 
@@ -501,7 +528,8 @@ def handle_auth(path, q):
     ua = (q.get("_ua") or [""])[0]
     if action == "signup":
         return signup((q.get("email") or [""])[0], (q.get("password") or [""])[0],
-                      (q.get("name") or [""])[0], ip=ip, user_agent=ua)
+                      (q.get("name") or [""])[0], (q.get("username") or [""])[0],
+                      ip=ip, user_agent=ua)
     if action == "login":
         return login((q.get("email") or [""])[0], (q.get("password") or [""])[0],
                      ip=ip, user_agent=ua)
@@ -509,6 +537,8 @@ def handle_auth(path, q):
         return set_password((q.get("token") or [""])[0], (q.get("password") or [""])[0])
     if action == "logout":
         return logout((q.get("token") or [""])[0])
+    if action == "username":
+        return set_username((q.get("token") or [""])[0], (q.get("username") or [""])[0])
     if action == "me":
         return me((q.get("token") or [""])[0])
     return {"ok": False, "error": "unknown auth action"}
