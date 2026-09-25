@@ -74,7 +74,7 @@ def fetch_symbol(ticker, months):
                 continue
             merged[day] = b
         bars = [merged[k] for k in sorted(merged.keys())]
-        json.dump({"bars": bars[-1500:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
+        json.dump({"bars": bars[-5000:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
         return ticker, len(bars)
     return ticker, 0
 
