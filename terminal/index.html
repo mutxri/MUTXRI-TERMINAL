@@ -561,7 +561,20 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
   var gate = document.getElementById("authGate");
   var q = new URLSearchParams(location.search);
   // landing previews (view= modes) and embedded iframes are not gated
-  if(q.get("view") || window.self !== window.top){ if(gate) gate.remove(); return; }
+  if(q.get("view") || window.self !== window.top){
+    if(gate) gate.remove();
+    if(window.self !== window.top){
+      // embedded preview: lock to the iframe height and pin to the top so the
+      // header + ticker tape always show (100vh can resolve against the parent
+      // page viewport in some browsers, which leaves the iframe scrolled low)
+      try{
+        var _termEl = document.querySelector('.term');
+        if(_termEl) _termEl.style.height = '100%';
+        window.scrollTo(0, 0);
+      }catch(_e){}
+    }
+    return;
+  }
   var mode = "login";
   function show(){
     if(!gate) return;
