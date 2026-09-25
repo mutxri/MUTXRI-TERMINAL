@@ -187,7 +187,8 @@ def load_targets():
                 if not code:
                     continue
             elif ex == "EGX":
-                code = s.get("ticker") or s.get("short")
+                # EGX frontend fetches by ISIN (sym = EGS...CA), not ticker.
+                code = (s.get("sym") or "").split(".")[0] or s.get("ticker") or s.get("short")
                 if not code:
                     continue
             else:
