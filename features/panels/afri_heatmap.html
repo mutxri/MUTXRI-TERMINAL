@@ -102,6 +102,14 @@
   .cp-type.on,.cp-range.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700;}
   .cp-type:hover,.cp-range:hover{border-color:var(--acc);color:var(--acc);}
   .cp-type.on:hover,.cp-range.on:hover{color:#00160e;}
+  .cp-inds{display:flex;gap:4px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding:8px 18px;margin:0 18px;width:calc(100% - 36px);box-sizing:border-box;}
+  .cp-ind{font-family:var(--mono);font-size:9px;color:var(--tx3);background:transparent;border:1px solid var(--line2);border-radius:2px;padding:3px 8px;cursor:pointer;letter-spacing:.05em;transition:all .12s;}
+  .cp-ind:hover{border-color:var(--acc);color:var(--acc);}
+  .cp-ind.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700;}
+  .cp-ind.dim{opacity:.35;pointer-events:none;}
+  .cp-reset{font-family:var(--mono);font-size:9px;color:var(--tx2);background:var(--bg3);border:1px solid var(--line2);border-radius:2px;padding:3px 8px;cursor:pointer;letter-spacing:.05em;margin-left:auto;}
+  .cp-reset:hover{border-color:var(--acc);color:var(--acc);}
+  .cp-legend{font-family:var(--mono);font-size:9px;color:var(--tx3);display:flex;gap:10px;flex-wrap:wrap;padding:0 18px 8px;}
   .cp-stat{font-family:var(--mono);font-size:11px;color:var(--tx2);margin-left:auto;}
   .cp-chart{height:420px;position:relative;margin:10px 18px 18px;}
   @media(max-width:700px){.cp-chart{height:300px;}}
@@ -160,12 +168,26 @@
       </div>
       <div class="cp-ranges" id="cpRanges">
         <button class="cp-range on" data-rng="1D" onclick="cpSetRange('1D')">1D</button>
+        <button class="cp-range" data-rng="1W" onclick="cpSetRange('1W')">1W</button>
         <button class="cp-range" data-rng="1M" onclick="cpSetRange('1M')">1M</button>
+        <button class="cp-range" data-rng="3M" onclick="cpSetRange('3M')">3M</button>
+        <button class="cp-range" data-rng="6M" onclick="cpSetRange('6M')">6M</button>
         <button class="cp-range" data-rng="1Y" onclick="cpSetRange('1Y')">1Y</button>
         <button class="cp-range" data-rng="10Y" onclick="cpSetRange('10Y')">10Y</button>
         <button class="cp-range" data-rng="ALL" onclick="cpSetRange('ALL')">ALL</button>
       </div>
       <div class="cp-stat" id="cpStat">-</div>
+    </div>
+    <div class="cp-inds" id="cpInds">
+      <button class="cp-ind" data-ind="sma20" onclick="cpToggleInd('sma20')">SMA20</button>
+      <button class="cp-ind" data-ind="sma50" onclick="cpToggleInd('sma50')">SMA50</button>
+      <button class="cp-ind" data-ind="sma200" onclick="cpToggleInd('sma200')">SMA200</button>
+      <button class="cp-ind" data-ind="ema20" onclick="cpToggleInd('ema20')">EMA20</button>
+      <button class="cp-ind" data-ind="bb" onclick="cpToggleInd('bb')">BBANDS</button>
+      <button class="cp-ind" data-ind="vol" onclick="cpToggleInd('vol')">VOL</button>
+      <button class="cp-ind" data-ind="rsi" onclick="cpToggleInd('rsi')">RSI</button>
+      <button class="cp-ind" data-ind="macd" onclick="cpToggleInd('macd')">MACD</button>
+      <button class="cp-reset" onclick="cpResetZoom()">RESET ZOOM</button>
     </div>
     <div class="cp-chart" id="cpChart"></div>
   </div>
@@ -183,7 +205,7 @@
     <div class="sp-list" id="spList"></div>
   </div>
 </div>
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <script src="../../static_data/nse_heatmap_charts.js"></script>
 <script src="../../static_data/nse_ir_adapter.js"></script>
 <script>
@@ -505,7 +527,8 @@
 
     // ===== Security chart (candles/line, 1D/1M/1Y/ALL) - reliable in-house
   // renderer using static_data/history (no third-party iframe) =====
-  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpName="", cpTkr="", cpCellPrice=null, cpCellChg=null, cpCellCur="", cpCellVol=null, cpBothDone=false;
+  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpName="", cpTkr="", cpCellPrice=null, cpCellChg=null, cpCellCur="", cpCellVol=null, cpBothDone=false,
+      cpInds={sma20:false,sma50:false,sma200:false,ema20:false,bb:false,vol:false,rsi:false,macd:false};
   function openChart(c){
     if(!c) return;
     cpName = c.name || c.ticker || "";
@@ -560,8 +583,80 @@
       return d.length >= 1 ? d : cpBarsMax.slice(-maxN);
     }
     if(cpRange === "1Y") return pick(260, 12);
-    if(cpRange === "1M") return pick(24, 3);
-    return pick(6, 2); // 1D (last week of daily bars = EOD view)
+    if(cpRange === "6M") return pick(130, 6);
+    if(cpRange === "3M") return pick(66, 3);
+    if(cpRange === "1M") return pick(22, 2);
+    if(cpRange === "1W") return pick(7, 1);
+    return pick(5, 1); // 1D - last week of EOD bars (no free intraday feed)
+  }
+  // ===== Technical-analysis indicator helpers (computed over the visible bars) =====
+  function smaOf(vals, n){
+    var out = new Array(vals.length).fill(null), sum = 0;
+    for(var i = 0; i < vals.length; i++){
+      sum += vals[i];
+      if(i >= n) sum -= vals[i - n];
+      if(i >= n - 1) out[i] = sum / n;
+    }
+    return out;
+  }
+  function emaOf(vals, n){
+    var out = new Array(vals.length).fill(null), k = 2 / (n + 1), prev = null;
+    for(var i = 0; i < vals.length; i++){
+      prev = (prev == null) ? vals[i] : (vals[i] * k + prev * (1 - k));
+      out[i] = prev;
+    }
+    return out;
+  }
+  function rsiOf(vals, n){
+    var out = new Array(vals.length).fill(null), g = 0, l = 0;
+    for(var i = 1; i < vals.length; i++){
+      var ch = vals[i] - vals[i-1];
+      var up = ch > 0 ? ch : 0, dn = ch < 0 ? -ch : 0;
+      if(i <= n){
+        g += up; l += dn;
+        if(i === n){ var rs = (l === 0) ? 100 : (g / l); out[i] = (l === 0) ? 100 : (100 - 100 / (1 + rs)); }
+      } else {
+        g = (g * (n - 1) + up) / n; l = (l * (n - 1) + dn) / n;
+        var rs2 = (l === 0) ? 100 : (g / l); out[i] = (l === 0) ? 100 : (100 - 100 / (1 + rs2));
+      }
+    }
+    return out;
+  }
+  function macdOf(vals, fast, slow, sig){
+    var emaF = emaOf(vals, fast), emaS = emaOf(vals, slow);
+    var line = vals.map(function(_, i){ return (emaF[i] != null && emaS[i] != null) ? (emaF[i] - emaS[i]) : null; });
+    var clean = line.filter(function(v){ return v != null; });
+    var signalClean = emaOf(clean, sig);
+    var signal = new Array(vals.length).fill(null), hist = new Array(vals.length).fill(null);
+    var si = 0;
+    for(var i = 0; i < vals.length; i++){
+      if(line[i] != null){
+        signal[i] = signalClean[si];
+        hist[i] = line[i] - signal[i];
+        si++;
+      }
+    }
+    return {line: line, signal: signal, hist: hist};
+  }
+  function bbOf(vals, n, k){
+    var mid = smaOf(vals, n);
+    var up = new Array(vals.length).fill(null), lo = new Array(vals.length).fill(null);
+    for(var i = n - 1; i < vals.length; i++){
+      var s = 0;
+      for(var j = i - n + 1; j <= i; j++) s += Math.pow(vals[j] - mid[i], 2);
+      var sd = Math.sqrt(s / n);
+      up[i] = mid[i] + k * sd; lo[i] = mid[i] - k * sd;
+    }
+    return {upper: up, middle: mid, lower: lo};
+  }
+  function fmt(v){ return v >= 1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : (v >= 100 ? v.toFixed(1) : v.toFixed(2)); }
+  function cpToggleInd(name){
+    cpInds[name] = !cpInds[name];
+    Array.prototype.forEach.call(document.querySelectorAll(".cp-ind"), function(b){ b.classList.toggle("on", !!cpInds[b.getAttribute("data-ind")]); });
+    cpRender();
+  }
+  function cpResetZoom(){
+    if(cpChart){ try{ cpChart.timeScale().fitContent(); }catch(e){} }
   }
   function cpRender(){
     var bars = cpBarsForRange();
@@ -618,7 +713,9 @@
     }
     if(cpChart){ try{cpChart.remove();}catch(e){} cpChart = null; }
     box.innerHTML = ''; // clear any EOD/loading placeholder before drawing
-    var mapped = bars.map(function(b){ return {time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, value: b.c}; });
+    var mapped = bars.map(function(b){ return {time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, value: b.c, volume: b.v}; });
+    var closes = bars.map(function(b){ return Number(b.c) || 0; });
+    var hasVol = bars.some(function(b){ return b.v != null && Number(b.v) > 0; });
     var MINT = "#33e29a", RED = "#f87171";
     var w = Math.max(box.clientWidth || 800, 200);
     var h = Math.max(box.clientHeight || 400, 200);
@@ -626,34 +723,95 @@
       layout:{background:{color:"transparent"},textColor:"#9a9a9a",fontFamily:"Oxygen Mono, monospace",fontSize:10},
       grid:{vertLines:{color:"rgba(38,38,38,.5)"},horzLines:{color:"rgba(38,38,38,.5)"}},
       rightPriceScale:{borderColor:"#262626"},
-      timeScale:{borderColor:"#262626",timeVisible:false,rightOffset:4},
+      timeScale:{borderColor:"#262626",timeVisible:false,rightOffset:4,barSpacing:9},
       crosshair:{mode:1},
-      handleScroll:false,
-      handleScale:false,
+      handleScroll:true,
+      handleScale:true,
       localization:{priceFormatter:function(p){ return p>=1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2); }},
       width:w, height:h,
     });
     if(cpType === "candle"){
-      cpSeries = cpChart.addCandlestickSeries({
+      cpSeries = cpChart.addSeries(LightweightCharts.CandlestickSeries, {
         upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
         wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
       });
       cpSeries.setData(mapped.map(function(b){ return {time:b.time, open:b.open, high:b.high, low:b.low, close:b.close}; }));
     } else if(cpType === "area"){
-      cpSeries = cpChart.addAreaSeries({
+      cpSeries = cpChart.addSeries(LightweightCharts.AreaSeries, {
         lineColor:MINT, topColor:"rgba(51,226,154,.25)", bottomColor:"rgba(51,226,154,0)",
         lineWidth:2, priceLineColor:MINT,
       });
       cpSeries.setData(mapped.map(function(b){ return {time:b.time, value:b.close}; }));
     } else {
-      cpSeries = cpChart.addLineSeries({color:MINT, lineWidth:2, priceLineColor:MINT});
+      cpSeries = cpChart.addSeries(LightweightCharts.LineSeries, {color:MINT, lineWidth:2, priceLineColor:MINT});
       cpSeries.setData(mapped.map(function(b){ return {time:b.time, value:b.close}; }));
     }
+    // ---- overlay indicators (drawn on the price pane, above the candles) ----
+    function addLine(valsArr, color, width, style){
+      var s = cpChart.addSeries(LightweightCharts.LineSeries, {color:color, lineWidth:width||1, lineStyle:style||0, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false});
+      s.setData(mapped.map(function(b, i){ return {time:b.time, value: valsArr[i]}; }).filter(function(p){ return p.value != null; }));
+      return s;
+    }
+    if(cpInds.sma20) addLine(smaOf(closes, 20), "#4da6ff", 1);
+    if(cpInds.sma50) addLine(smaOf(closes, 50), "#e6a23c", 1);
+    if(cpInds.sma200) addLine(smaOf(closes, 200), "#d967ff", 1);
+    if(cpInds.ema20) addLine(emaOf(closes, 20), "#2ee6a8", 1, 2);
+    if(cpInds.bb){
+      var bb = bbOf(closes, 20, 2);
+      addLine(bb.upper, "#4da6ff", 1, 2);
+      addLine(bb.middle, "#9a9a9a", 1);
+      addLine(bb.lower, "#4da6ff", 1, 2);
+    }
+    // ---- subchart indicators (each in its own pane below the price) ----
+    var paneIdx = 1;
+    if(cpInds.vol && hasVol){
+      var vp = cpChart.addSeries(LightweightCharts.HistogramSeries, {priceFormat:{type:"volume"}}, paneIdx++);
+      vp.setData(mapped.map(function(b, i){
+        var up = (bars[i].c >= bars[i].o);
+        return {time:b.time, value: Number(b.volume) || 0, color: up ? "rgba(51,226,154,.45)" : "rgba(248,113,113,.45)"};
+      }));
+    }
+    if(cpInds.rsi){
+      var r = rsiOf(closes, 14);
+      var rp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#4da6ff", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, paneIdx++);
+      rp.setData(mapped.map(function(b, i){ return {time:b.time, value: r[i]}; }).filter(function(p){ return p.value != null; }));
+    }
+    if(cpInds.macd){
+      var m = macdOf(closes, 12, 26, 9);
+      var macdPane = paneIdx++;
+      var hp = cpChart.addSeries(LightweightCharts.HistogramSeries, {}, macdPane);
+      hp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.hist[i], color: (m.hist[i] != null && m.hist[i] >= 0) ? "rgba(51,226,154,.5)" : "rgba(248,113,113,.5)"}; }).filter(function(p){ return p.value != null; }));
+      var mp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#4da6ff", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, macdPane);
+      mp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.line[i]}; }).filter(function(p){ return p.value != null; }));
+      var sp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#e6a23c", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, macdPane);
+      sp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.signal[i]}; }).filter(function(p){ return p.value != null; }));
+    }
+    // give the price pane the most height; share the rest among subcharts
+    try{
+      var panes = cpChart.panes();
+      if(panes.length > 1){
+        var priceH = Math.round(h * 0.6);
+        var rest = Math.max(44, Math.round((h - priceH) / (panes.length - 1)));
+        panes[0].setHeight(priceH);
+        for(var pi = 1; pi < panes.length; pi++) panes[pi].setHeight(rest);
+      }
+    }catch(e){}
     cpChart.timeScale().fitContent();
     var first = mapped[0].close, last = mapped[mapped.length-1].close;
     var pct = first ? ((last - first) / first * 100) : 0;
     var sign = pct >= 0 ? "+" : "";
-    $("cpStat").textContent = bars.length + " bars · " + sign + pct.toFixed(2) + "% · " + (cpRange === "ALL" ? "since IPO" : cpRange);
+    // live indicator values in the status line
+    var legendParts = [];
+    if(cpInds.sma20){ var a20 = smaOf(closes,20), v = a20[a20.length-1]; if(v != null) legendParts.push("SMA20 "+fmt(v)); }
+    if(cpInds.sma50){ var a50 = smaOf(closes,50); v = a50[a50.length-1]; if(v != null) legendParts.push("SMA50 "+fmt(v)); }
+    if(cpInds.sma200){ var a200 = smaOf(closes,200); v = a200[a200.length-1]; if(v != null) legendParts.push("SMA200 "+fmt(v)); }
+    if(cpInds.ema20){ var e20 = emaOf(closes,20); v = e20[e20.length-1]; if(v != null) legendParts.push("EMA20 "+fmt(v)); }
+    if(cpInds.bb){ var bbb = bbOf(closes,20,2); var lu = bbb.lower[bbb.lower.length-1], uu = bbb.upper[bbb.upper.length-1]; if(lu != null) legendParts.push("BB "+fmt(lu)+"/"+fmt(uu)); }
+    if(cpInds.rsi){ var rr = rsiOf(closes,14); v = rr[rr.length-1]; if(v != null) legendParts.push("RSI14 "+v.toFixed(1)); }
+    if(cpInds.macd){ var mm = macdOf(closes,12,26,9); v = mm.line[mm.line.length-1]; if(v != null) legendParts.push("MACD "+fmt(v)); }
+    var statText = bars.length + " bars · " + sign + pct.toFixed(2) + "% · " + (cpRange === "ALL" ? "since IPO" : cpRange);
+    if(legendParts.length) statText += "  |  " + legendParts.join(" · ");
+    $("cpStat").textContent = statText;
     var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(function(){ try{ if(cpChart) cpChart.applyOptions({width: Math.max(box.clientWidth||800,200)}); }catch(e){} }, 150); });
   }
 
@@ -665,6 +823,8 @@
   window.cpSetType = cpSetType;
   window.cpSetRange = cpSetRange;
   window.cpRender = cpRender;
+  window.cpToggleInd = cpToggleInd;
+  window.cpResetZoom = cpResetZoom;
   window.hmSetView = hmSetView;
 })();
 </script>
