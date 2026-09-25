@@ -421,6 +421,31 @@ def set_username(token, username):
     return {"ok": True, "username": username, "email": s["email"]}
 
 
+def set_name(token, name):
+    """Set the account's real name (separate from the chat username).
+
+    The chat room shows the username, never the real name. These were one
+    field until users edited "Name" and watched their "Username" overwrite
+    it (or vice versa), so a change looked like it never stuck. Split them.
+    """
+    s = _live(token)
+    if not s:
+        return {"ok": False, "error": "session expired"}
+    name = (name or "").strip()
+    if not name:
+        return {"ok": False, "error": "name required"}
+    if len(name) > 80:
+        return {"ok": False, "error": "name too long (80 max)"}
+    if any(ord(c) < 32 for c in name):
+        return {"ok": False, "error": "invalid name"}
+    u = _find_user(s["email"])
+    if not u:
+        return {"ok": False, "error": "account not found"}
+    u["name"] = name[:80]
+    _save_user(u)
+    return {"ok": True, "name": name, "email": s["email"]}
+
+
 def logout(token):
     if token:
         _session_del(token)
@@ -549,6 +574,8 @@ def handle_auth(path, q):
         return logout((q.get("token") or [""])[0])
     if action == "username":
         return set_username((q.get("token") or [""])[0], (q.get("username") or [""])[0])
+    if action == "name":
+        return set_name((q.get("token") or [""])[0], (q.get("name") or [""])[0])
     if action == "me":
         return me((q.get("token") or [""])[0])
     return {"ok": False, "error": "unknown auth action"}
