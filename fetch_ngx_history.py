@@ -230,7 +230,7 @@ def flush(all_bars):
             merged[iso] = bar
         bars = [merged[k] for k in sorted(merged.keys())]
         if len(bars) >= 2:
-            json.dump({"bars": bars[-1500:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
+            json.dump({"bars": bars[-5000:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
             saved += 1
     return saved
 
