@@ -78,10 +78,54 @@ def _trim_title(t):
     return cut + "…"
 
 
+# ---------------------------------------------------------------------------
+# English only.
+# The wire queries are English, but they still surface foreign-language
+# outlets: a Saudi bonds story arrived with its publisher written in Arabic and
+# printed that way on the BND panel. Google News also appends the publisher's
+# own name to the title, so that arrived in its own script as well. A name
+# known in English is translated; anything else is dropped rather than shown in
+# a language the reader cannot use.
+# ---------------------------------------------------------------------------
+_NON_LATIN = re.compile(
+    "[\u0400-\u04FF\u0370-\u03FF\u0590-\u05FF\u0600-\u06FF\u0750-\u077F"
+    "\u0900-\u097F\u0980-\u09FF\u0B80-\u0BFF\u0E00-\u0E7F\u1000-\u109F"
+    "\u10A0-\u10FF\u1200-\u137F\u1780-\u17FF"
+    "\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF"
+    "\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]")
+_LATIN = re.compile(r"[A-Za-z]")
+# Publisher names seen on the wire, in English.
+_PUBLISHER_EN = {
+    "\u0635\u062d\u064a\u0641\u0629 \u0645\u0627\u0644": "Mal Newspaper",
+}
+
+
+def _english_publisher(pub):
+    """Publisher name in English; "" when it has no English form."""
+    p = (pub or "").strip()
+    if not p:
+        return ""
+    if p in _PUBLISHER_EN:
+        return _PUBLISHER_EN[p]
+    return "" if _NON_LATIN.search(p) else p
+
+
+def _english_title(t):
+    """Drop a foreign-language publisher suffix Google News appends."""
+    if not _NON_LATIN.search(t or ""):
+        return t
+    h = _NON_LATIN.sub(" ", t)
+    h = re.sub(r"\s*[\u2013\u2014]\s*", " - ", h)
+    h = re.sub(r"(?:\s+-\s*)+", " - ", h)
+    h = re.sub(r"\s{2,}", " ", h)
+    return h.strip().strip(" -\u2013\u2014\t").strip()
+
+
 def _row(title, url, publisher, ts, tickers=None, rank=0.0):
     return {
         "id": abs(hash((url or title))) % 10 ** 9,
-        "title": _trim_title(title), "publisher": publisher or "",
+        "title": _english_title(_trim_title(title)),
+        "publisher": _english_publisher(publisher),
         "date": _fmt_date(ts), "url": url or "",
         "ts": int(ts or 0),
         "tickers": tickers or [],
@@ -263,11 +307,15 @@ def write(items, signals, sd=None):
     built = build(items, signals)
     written = {}
     for ex, rows in built.items():
+        # A headline with no Latin text is unreadable to the audience this
+        # terminal is for; it is dropped rather than published.
+        rows = [r for r in rows if _LATIN.search(r.get("title") or "")]
         path = os.path.join(sd, "bot_news_%s.json" % ex)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(rows, f, ensure_ascii=False, indent=1)
         written[ex] = len(rows)
     bonds = build_bonds(items, signals)
+    bonds = [r for r in bonds if _LATIN.search(r.get("title") or "")]
     with open(os.path.join(sd, "bot_news_bonds.json"), "w", encoding="utf-8") as f:
         json.dump(bonds, f, ensure_ascii=False, indent=1)
     written["BONDS"] = len(bonds)

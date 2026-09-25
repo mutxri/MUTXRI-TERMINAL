@@ -2,6 +2,7 @@
 """bulk_push.py - push every file in gh_pages_deploy2 whose content differs from
 the live gh-pages branch (tree-compare, one GET, then PUT only changed files)."""
 import urllib.request, json, base64, os, hashlib, sys, time
+from urllib.parse import quote
 
 sec = json.load(open(r"D:\mutxri-terminal\secrets_local.json", encoding="utf-8"))
 gh_token = sec["github_pat"]
@@ -54,6 +55,18 @@ def main():
                 changed.append((rel, content))
     print(f"changed files to push: {len(changed)}")
 
+    # REFUSE a mass change. One commit per file means one Pages build per file,
+    # and GitHub rate-limits them: a 578-file change fired ~578 builds that
+    # cancelled each other, kept the live site on an old build for 20 minutes,
+    # and had to be killed. Anything past a handful of files belongs in
+    # push_single_commit.py, which does the whole change as ONE commit.
+    if len(changed) > 25:
+        print(f"\nSTOPPING: {len(changed)} changed files is too many for this tool.")
+        print("Each file would be its own commit and its own Pages build, and the")
+        print("burst cancels itself while the live site stays stale. Use instead:\n")
+        print(f'  python3 push_single_commit.py "{(sys.argv[1] if len(sys.argv) > 1 else "commit message")}"')
+        return
+
     # commit message: pass one as argv[1], else fall back to the old default
     msg = sys.argv[1] if len(sys.argv) > 1 else \
         "Price refresh + screener rebuild + logo globe fix (runbook fixes 3-5)"
@@ -64,11 +77,29 @@ def main():
                 data = {"message": msg, "content": base64.b64encode(content).decode(), "branch": "gh-pages"}
                 if rel in live:
                     data["sha"] = live[rel]
-                api(f"contents/{rel}", data)
+                # quote the path: Python's http.client rejects a bare space in a
+                # URL, so any file whose name contains one (e.g. "MOFI REIF.png")
+                # failed every push with "URL can't contain control characters".
+                api(f"contents/{quote(rel, safe='/')}", data)
                 ok += 1
                 break
             except Exception as e:
-                print(f"retry {rel}: {str(e)[:60]}")
+                m = str(e)
+                print(f"retry {rel}: {m[:60]}")
+                # A 422 "sha wasn't supplied" means the path ALREADY EXISTS on the
+                # branch while the prefetched tree did not list it. That happens on
+                # a rename (the clean path was created by an earlier push) and when
+                # a concurrent push lands after this tree read. Without resolving
+                # the sha here the create can never succeed, and the file is left
+                # silently unpushed - 8 of 13 files were lost this way once.
+                if "422" in m:
+                    try:
+                        cur = api(f"contents/{quote(rel, safe='/')}?ref=gh-pages")
+                        if isinstance(cur, dict) and cur.get("sha"):
+                            live[rel] = cur["sha"]
+                            print(f"        path exists on branch, reusing sha {cur['sha'][:10]}")
+                    except Exception:
+                        pass
                 time.sleep(5)
         time.sleep(1.1)  # contents API: ~1 write/sec
         if ok % 50 == 0:

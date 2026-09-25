@@ -32,6 +32,7 @@ files = {
     "afri_server.py": r"D:\mutxri-terminal\backend_render\afri_server.py",
     "auth_api.py": r"D:\mutxri-terminal\backend_render\auth_api.py",
     "chat_room.py": r"D:\mutxri-terminal\backend_render\chat_room.py",
+    "admin.html": r"D:\mutxri-terminal\backend_render\admin.html",
 }
 for rel, local in files.items():
     content = open(local, "rb").read()

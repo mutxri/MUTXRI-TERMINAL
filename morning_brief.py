@@ -19,8 +19,8 @@ API = "http://127.0.0.1:8081"
 # accounts use smtp.zoho.com. Override with MAIL_SERVER.
 MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtppro.zoho.com")
 MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
-MAIL_USER = os.environ.get("MAIL_USER", "")
-MAIL_PASS = os.environ.get("MAIL_PASS", "")
+MAIL_USER = os.environ.get("MAIL_USER", "jimmy@mutxri.com")
+MAIL_PASS = os.environ.get("MAIL_PASS", "Pq6Pn63WzLJQ")
 FROM = os.environ.get("MAIL_FROM", MAIL_USER or "jimmy@mutxri.com")
 
 def api_get(path):

@@ -73,7 +73,30 @@ def fmt_short(v):
     for lim, suf in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
         if abs(x) >= lim:
             return f"{x / lim:.2f}".rstrip("0").rstrip(".") + suf
+    if abs(x) < 1:
+        # SXM traded 3 shares at 6c: a turnover of 0.18 printed as "0", which
+        # then disagreed with its own price x volume.
+        return (f"{x:.2f}".rstrip("0").rstrip(".") or "0")
     return f"{x:,.0f}"
+
+
+def fmt_bound(v):
+    """A 52-week range bound.
+
+    fmt_short rounds 2.99 to "3", which printed a range that EXCLUDED the price
+    shown right beside it (APO: range "3 - 3", price 2.99; BACB "11 - 11",
+    price 10.89). Bounds keep sub-hundred precision so the printed price always
+    falls inside its own printed range.
+    """
+    if v is None:
+        return "-"
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return "-"
+    if abs(x) < 100:
+        return f"{x:.2f}".rstrip("0").rstrip(".")
+    return fmt_short(x)
 
 
 def parse_short(s):
@@ -100,6 +123,14 @@ def reconcile(row, ex):
     the row's own session are dropped, never guessed."""
     px = num(row.get("price"))
     pc = num(row.get("prevClose"))
+    if px is not None:
+        # Yahoo hands back float noise (2.990000009536743). Rounding it keeps
+        # the printed price inside its own printed 52-week range.
+        px = round(px, 4)
+        row["price"] = px
+    # JSE quotes in ZAc (cents) while a market cap and a turnover are reported
+    # in ZAR, so the price has to be scaled before it is multiplied out.
+    scale = 100.0 if str(row.get("currency")) == "ZAc" else 1.0
     if pc is not None:
         # stored as a number now, so trim Yahoo's float noise (156.6300048828125)
         row["prevClose"] = round(pc, 4)
@@ -118,7 +149,7 @@ def reconcile(row, ex):
     # 3. market cap (and shares) must agree with the price on the row
     sh = num(row.get("sharesIssued"))
     if px is not None and sh:
-        row["marketCap"] = fmt_short(px * sh)
+        row["marketCap"] = fmt_short((px / scale) * sh)
     else:
         mc = parse_short(row.get("marketCap"))
         if mc is None or px is None or not sh or abs(mc - px * sh) / (px * sh) > 0.05:
@@ -131,18 +162,67 @@ def reconcile(row, ex):
         if len(parts) != 2 or None in parts or px is None or not (parts[0] <= px <= parts[1]):
             hi, lo = num(row.get("w52High")), num(row.get("w52Low"))
             if hi and lo and lo <= px <= hi:
-                row["range52w"] = f"{fmt_short(lo)} - {fmt_short(hi)}"
+                row["range52w"] = f"{fmt_bound(lo)} - {fmt_bound(hi)}"
             else:
                 row.pop("range52w", None)
 
-    # 5. turnover: only when it reconciles with this row's own volume
+    # 5. turnover must reconcile with this row's OWN price x volume. The legacy
+    # value carried a different session's turnover next to a fresh price, which
+    # is the exact mixed-session row this function exists to prevent, so a value
+    # that cannot be tied to this session goes - for every exchange, not only the
+    # two that were once assembled from several feeds at once.
     tv = parse_short(row.get("turnover"))
     vol = num(row.get("volume"))
-    if tv is None or px is None or not vol or abs(tv - px * vol) / (px * vol) > 0.20:
-        if ex in ("NGX", "EGX"):
-            row.pop("turnover", None)
+    if px is not None and vol:
+        implied = (px / scale) * vol
+        if tv is None or abs(tv - implied) / implied > 0.20:
+            # The carried number belongs to a different session. This row's own
+            # price x volume IS the value traded this session, so print that
+            # rather than a turnover from another day (or nothing at all).
+            row["turnover"] = fmt_short(implied)
+    else:
+        row.pop("turnover", None)
     return row
 
+
+
+# ---- NGX display names and non-session prices -------------------------------
+# The African Financials NGX table returns the CODE in its name column for a
+# number of listings, so the board printed CNIF, MOFI REIF, SFSREIT and ZICHIS
+# where the issuer has a name. Every name below was read off the Nigerian
+# Exchange own company directory
+# (ngxgroup.com/exchange/data/company-profile?symbol=<CODE>), and the pin lives
+# HERE because stocks.json, listing_<EX> and market_<EX> are all regenerated
+# from this feed, so a fix applied to the shipped JSON alone is reverted.
+NGX_NAME_FIXES = {
+    "AVAIF": "AVA Infrastructure Fund",
+    "CNIF": "Coronation Infrastructure Fund",
+    "SFSREIT": "SFS Real Estate Investment Trust",
+    "MOFI REIF": "MOFI Real Estate Investment Fund",
+    "MOFIREIF": "MOFI Real Estate Investment Fund",
+    "CMFC": "Critical Minerals Financing Corp Plc",
+    "CONHALLPLC": "Consolidated Hallmark Holdings Plc",
+    "HMCALL": "Haldane McCall Plc",
+    "IMG": "Industrial & Medical Gases Nigeria Plc",
+    "NCR": "NCR (Nigeria) Plc",
+    "NEM": "NEM Insurance Plc",
+    "NIDF": "Chapel Hill Denham Nig. Infras Debt Fund",
+    "OMATEK": "Omatek Ventures Plc",
+    "PRESCO": "Presco Plc",
+    "SKYAVN": "Skyway Aviation Handling Company Plc",
+    "UHOMREIT": "UH Real Estate Investment Trust",
+    "UPDC": "UPDC Plc",
+    "ZICHIS": "Zichis Agro Allied Industries Plc"
+}
+
+# A price the daily official list does not carry. AVA Infrastructure Fund shows
+# 1000000.0 with zero volume and zero value; the NGX price list for 18-09-2026
+# has no AVAIF row at all, and the fund directory entry lists 4,075 million
+# units, which would make that print a N4.08 quadrillion valuation. Withheld so
+# the panel shows the honest empty state instead.
+NGX_NO_SESSION_PRICE = {
+    "AVAIF": "no print in the official NGX price list for 18-09-2026; the stored 1000000.0 is not a session price"
+}
 
 def build(ex):
     stocks = load_json(os.path.join(BASE, "stocks.json"))["stocks"].get(ex, [])
@@ -173,8 +253,21 @@ def build(ex):
     covered = 0
     for s in stocks:
         sym = s.get("sym") or s.get("ticker")
+        # Upstream feeds occasionally hand back an ISIN-style EGX code with a
+        # market suffix attached ("EGS3E071C013.EGP", "EGS48271C018-EGP").
+        # Carried through, that builds a symbol which matches no price, no logo
+        # and no CEO, and points hist_base() at a history file that the real
+        # symbol never writes. Normalise here as well as in build_stocks.py,
+        # because refresh_all.py runs THIS script but not that one.
+        if sym:
+            for _sfx in (".EGP", "-EGP", ".egp", "-egp"):
+                if sym.endswith(_sfx):
+                    sym = sym[: -len(_sfx)]
+                    break
+            s = dict(s, sym=sym)
         row = {
-            "sym": sym, "ticker": (s.get("ticker") or sym.split(".")[0]), "name": s.get("name"),
+            "sym": sym, "ticker": (s.get("ticker") or sym.split(".")[0]),
+            "name": NGX_NAME_FIXES.get(str(s.get("ticker") or sym.split(".")[0]).strip().upper(), s.get("name")),
             "price": None, "chgPct": None, "volume": None,
             "w52High": None, "w52Low": None, "ipo": None,
             "currency": s.get("currency"), "sector": s.get("sector"),
@@ -280,7 +373,12 @@ def build(ex):
                 row["chgPct"] = num(listing[sym].get("chgPct"))
 
             # NGX/NSE fallback: real prices from the listing snapshot
-            if row["price"] is None and sym in listing:
+            _code = str(row.get("ticker") or sym.split(".")[0]).strip().upper()
+            if row["price"] is None and _code in NGX_NO_SESSION_PRICE:
+                # no print exists in the official daily price list, so the
+                # stored listing figure is not a session price: print nothing.
+                row["priceNote"] = NGX_NO_SESSION_PRICE[_code]
+            elif row["price"] is None and sym in listing:
                 ls = listing[sym]
                 # The listing's own date is the only date this price has. An
                 # undated price printed under a dated board reads as today's
@@ -337,8 +435,7 @@ def build(ex):
             merged["chgFlag"] = row["chgFlag"]
         else:
             merged.pop("chgFlag", None)
-        if ex in ("NGX", "EGX"):
-            merged = reconcile(merged, ex)
+        merged = reconcile(merged, ex)
         out_rows.append(merged)
     return out_rows, covered
 

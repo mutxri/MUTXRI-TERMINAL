@@ -160,7 +160,10 @@
     income:[["revenue","Revenue"],["costOfSales","Cost of Sales"],["grossProfit","Gross Profit"],
       ["operatingExpenses","Operating Expenses"],["operatingProfit","Operating Profit (EBIT)"],
       ["netFinanceCosts","Net Finance Costs"],["profitBeforeTax","Profit Before Tax"],
-      ["taxExpense","Income Tax"],["netProfit","Net Profit"],["eps","EPS"]],
+      ["taxExpense","Income Tax"],["netProfit","Net Profit"],["eps","EPS"],
+      ["roe","ROE (%)"],["roa","ROA (%)"],["netMargin","Net Margin (%)"],
+      ["grossMargin","Gross Margin (%)"],["opMargin","Operating Margin (%)"],
+      ["debtToEquity","Debt to Equity"]],
     balance:[["nonCurrentAssets","Non-current Assets"],["currentAssets","Current Assets"],
       ["cashAndEquivalents","Cash & Equivalents"],["totalAssets","Total Assets"],
       ["nonCurrentLiabilities","Non-current Liabilities"],["currentLiabilities","Current Liabilities"],
@@ -171,6 +174,39 @@
   };
   var TOTAL_KEYS={grossProfit:1,operatingProfit:1,netProfit:1,totalAssets:1,totalLiabilities:1,
     totalEquity:1,freeCashFlow:1,netChangeInCash:1};
+
+  // Label -> schema-key aliases, in PRIORITY order (first match wins). Statement
+  // files use issuer-varied labels ("Turnover", "Net Interest Income", "Insurance
+  // Revenue", "Profit for the year", ...); map them onto the canonical display keys.
+  var KEY_ALIASES={
+  revenue:["revenue","total revenue","revenue total","total operating income","total operating income (revenue)","total insurance revenue","insurance revenue","turnover","net revenue","gross sales","net sales","sales","revenue from contracts with customers","revenues from contracts with customers","revenue (operating income)","rental and related income","rental income","total income","gross written premium","gross written premiums","net earned premium","net earned premiums","net interest income","total interest income","electricity revenue","trading revenue","trading income","interest revenue calculated using the effective interest method"],
+  costOfSales:["cost of sales","cost of revenue","cost of operations","cost of production","cost of services"],
+  grossProfit:["gross profit","gross profit total"],
+  operatingExpenses:["operating expenses","operating expenses total","total operating expenses","total operating costs","administration and other expenses","administrative expenses","administration and general expenses","selling and distribution expenses","selling and distribution costs","selling and administrative expenses","distribution costs","general and administrative expenses","operating and administrative expenses","administrative costs","administration costs","administration","establishment expenses","administration and establishment expenses"],
+  operatingProfit:["operating profit (ebit)","operating profit","operating loss","results from operating activities"],
+  netFinanceCosts:["net finance costs","finance costs","finance cost","net finance income","finance costs (net)","finance income/(cost)","finance (cost)/income","interest expense","total interest expenses"],
+  profitBeforeTax:["profit before tax","profit before income tax","loss before tax","loss before income tax","profit before taxation","profit before tax and exceptional items","profit before income tax total"],
+  taxExpense:["income tax","income tax expense","income tax credit","income tax charge","tax expense","tax charge","taxation","tax","income tax (expense)/credit","income tax expense/credit","income tax credit/(expense)","income tax credit/(charge)","income tax (charge)/credit","tax (charge)/credit","taxation charge","taxation charge/ credit","taxation (credit)","tax credit","tax income (expense)","taxation credit"],
+  netProfit:["net profit","net income","profit for the year","profit after tax","profit attributable to owners of the company","profit attributable to equity holders","loss for the year","(loss)/profit for the year","profit/(loss) for the year","profit/(loss) for the period","profit/(loss) after taxation","profit from continuing operations","total comprehensive income","total comprehensive profit/(loss) for the year","total profit/loss","profit/loss"],
+  eps:["eps","earnings per share","basic earnings per share (shs)","basic and diluted earnings per share (kshs)","earnings per share (kshs)","loss per share (ksh)","basic eps","diluted eps"],
+  roe:["roe (%)","roe"],roa:["roa (%)","roa"],
+  netMargin:["net margin (%)","net margin"],grossMargin:["gross margin (%)","gross margin"],
+  opMargin:["operating margin (%)","operating margin"],debtToEquity:["debt to equity"],
+  nonCurrentAssets:["non-current assets","non current assets","noncurrent assets","total non-current assets"],
+  currentAssets:["current assets","total current assets"],
+  cashAndEquivalents:["cash & equivalents","cash and cash equivalents","cash and bank balances","cash & bank balances","cash and balances with central banks","cash and balances with banking institutions","cash & cash equivalents"],
+  totalAssets:["total assets"],
+  nonCurrentLiabilities:["non-current liabilities","non current liabilities","noncurrent liabilities","total non-current liabilities"],
+  currentLiabilities:["current liabilities","total current liabilities"],
+  totalLiabilities:["total liabilities"],
+  totalEquity:["total equity","total shareholders' equity","total shareholders equity","shareholders' equity","total stockholders' equity","capital and reserves"],
+  operatingCashFlow:["operating cash flow","net cash from operating activities","net cash generated from operating activities","net cash flows from operating activities","net cash provided by operating activities","cash generated from operations","net cash generated from/(used in) operating activities","net cash flows used in operating activities","net cash from operations","cash generated from operating activities (total)"],
+  investingCashFlow:["investing cash flow","net cash from investing activities","net cash generated from investing activities","net cash flows from investing activities","net cash used in investing activities","net cash generated from/(used in) investing activities","cash used in investing activities (total)"],
+  financingCashFlow:["financing cash flow","net cash from financing activities","net cash generated from financing activities","net cash flows from financing activities","net cash used in financing activities","net cash generated from/(used in) financing activities","cash used in financing activities (total)"],
+  capex:["capital expenditure","capex","purchase of property, plant and equipment","purchase of property and equipment","acquisition of property, plant and equipment","purchase of property plant and equipment","additions to property, plant and equipment","purchase of pp&e","purchase of property, plant & equipment","purchase of intangible assets","acquisition of intangible assets"],
+  freeCashFlow:["free cash flow"],
+  netChangeInCash:["net change in cash","net increase in cash","net decrease in cash","net increase/(decrease) in cash","net (decrease)/increase in cash","net increase/(decrease) in cash and cash equivalents","increase/(decrease) in cash and cash equivalents","net movement in cash and cash equivalents"]
+  };
 
   var DASH="\u2014";
   function fmtMoney(v,cur){
@@ -217,24 +253,40 @@
     var sch=SCHEMA[state.statement];
     var per=(rec&&rec.periods&&rec.periods.length)?rec.periods:["Latest"];
     var vals=(rec&&rec.values)||{};
-    // normalize: files store rows as [{label,values:[...]}] - map by label to schema keys
+    var derivedSet={}, derivedFrom={};
+    // normalize: files store rows as [{label,values:[...]}] - map by label (with
+    // issuer-varied aliases) to schema keys, in priority order (first match wins)
     if(!Object.keys(vals).length && rec && rec.rows && rec.rows.length){
-      var labelToKey = {};
-      sch.forEach(function(p){ labelToKey[p[1].toLowerCase()] = p[0]; });
+      var normL = function(s){return String(s==null?"":s).trim().toLowerCase().replace(/\s+/g," ");};
+      var lmap = {};
       (rec.rows||[]).forEach(function(rw){
-        var k = labelToKey[String(rw.label||"").toLowerCase()];
-        if(k) vals[k] = rw.values || [];
+        var l = normL(rw.label);
+        if(!(l in lmap)){ lmap[l] = rw.values || []; if(rw.derived){ derivedSet[l]=true; derivedFrom[l]=rw.derived_from||rw.derivedFrom||rw.formula||"computed"; } }
+      });
+      sch.forEach(function(p){
+        var key = p[0], aliases = KEY_ALIASES[key] || [normL(p[1])];
+        for(var i=0;i<aliases.length;i++){
+          var a = normL(aliases[i]);
+          if(a in lmap){ vals[key] = lmap[a]; if(derivedSet[a]){ derivedSet[key]=true; derivedFrom[key]=derivedFrom[a]; } break; }
+        }
       });
     }
     var h='<table><thead><tr><th>'+STMT_TITLE()+'</th>';
     for(var i=0;i<per.length;i++)h+='<th>'+esc(per[i])+'</th>';
     h+='</tr></thead><tbody>';
+    var anyDerived=false;
     for(var r=0;r<sch.length;r++){
       var key=sch[r][0],lbl=sch[r][1],series=vals[key]||[],isTot=TOTAL_KEYS[key];
-      h+='<tr class="'+(isTot?'total':'')+'"><td class="item">'+esc(lbl)+'</td>';
+      if(derivedSet[key]) anyDerived=true;
+      var dv = derivedSet[key] ? '<span title="'+esc('derived: '+(derivedFrom[key]||'computed from filed values'))+'" style="color:var(--tx3);font-style:italic">&#8776;</span> ' : '';
+      h+='<tr class="'+(isTot?'total':'')+'"><td class="item">'+dv+esc(lbl)+'</td>';
       for(var c=0;c<per.length;c++){
         var v=series[c];
-        var disp=(key==="eps")?(v==null||isNaN(v)?DASH:(+v).toFixed(2)):fmtMoney(v,cur);
+        var disp;
+        if(key==="eps"){ disp=(v==null||isNaN(v)?DASH:(+v).toFixed(2)); }
+        else if(key==="roe"||key==="roa"||key==="netMargin"||key==="grossMargin"||key==="opMargin"){ disp=(v==null||isNaN(v)?DASH:(+v).toFixed(1)+"%"); }
+        else if(key==="debtToEquity"){ disp=(v==null||isNaN(v)?DASH:(+v).toFixed(2)+"x"); }
+        else { disp=fmtMoney(v,cur); }
         var neg=(typeof v==="number"&&v<0)?' class="neg"':'';
         h+='<td'+neg+'>'+esc(disp)+'</td>';
       }
@@ -242,12 +294,23 @@
     }
     h+='</tbody></table>';
 
+    if(anyDerived){
+      h+='<div style="padding:6px 14px;color:var(--tx3);font-size:10px">&#8776; computed from filed values (arithmetic), not a reported figure.</div>';
+    }
+
     // real filings list (primary-source PDFs)
+    var srcUrl=(rec&&(rec.source_url||rec.ir_url||rec.ir))||null;
     var reps=(rec&&rec.reports)||[];
-    if(reps.length){
+    var links=[];
+    if(srcUrl) links.push({label:"Source document (exchange filing)",url:srcUrl});
+    (reps||[]).forEach(function(rp){ if(rp&&rp.url) links.push({label:rp.label||"Filing",url:rp.url}); });
+    if(links.length){
       h+='<div style="padding:10px 14px;border-top:1px solid var(--line2)">'+
-         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>'+
-         '<div style="color:var(--tx3);font-size:10px;line-height:1.5">Open the company investor-relations page for official filings.</div></div>';
+         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>';
+      links.forEach(function(lk){
+        h+='<a class="filing" href="'+esc(lk.url)+'" target="_blank" rel="noopener" style="display:inline-block;margin:2px 8px 2px 0">'+esc(lk.label)+'</a>';
+      });
+      h+='</div>';
     } else {
       h+='<div class="empty">No verified filing links on file for '+esc(state.ticker)+'.</div>';
     }

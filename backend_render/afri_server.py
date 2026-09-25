@@ -1456,7 +1456,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urllib.parse.urlparse(self.path)
-        if path.path == "/api/admin/users":
+        if path.path in ("/api/admin/users", "/api/admin/overview"):
             data = {}
             try:
                 length = int(self.headers.get("Content-Length") or 0)
@@ -1467,7 +1467,12 @@ class Handler(SimpleHTTPRequestHandler):
                         data = {}
             except Exception:
                 data = {}
-            self.json(auth_api.admin_list((data or {}).get("key", ""), (data or {}).get("delete", "")))
+            _k = (data or {}).get("key", "")
+            _t = (data or {}).get("token", "")
+            if path.path == "/api/admin/overview":
+                self.json(auth_api.admin_overview(_k, _t))
+            else:
+                self.json(auth_api.admin_list(_k, (data or {}).get("delete", ""), _t))
             return
         if path.path.startswith("/api/chat/"):
             action = "chat_" + path.path.split("/")[-1]
@@ -1485,18 +1490,22 @@ class Handler(SimpleHTTPRequestHandler):
             if not who.get("ok"):
                 self.json({"ok": False, "error": who.get("error") or "sign in to post", "auth": False})
                 return
-            if action == "chat_send":
-                self.json(chat_room.post(who.get("email"), who.get("name"), data.get("text", ""),
-                                         data.get("room", chat_room.DEFAULT_ROOM), data.get("ctx", "")))
-            elif action == "chat_history":
-                # POST, not GET: a session token in a query string ends up in
-                # every proxy and access log between here and the browser
-                out = chat_room.history(data.get("room", chat_room.DEFAULT_ROOM),
-                                        data.get("after", 0), data.get("limit", 60))
-                out["me"] = chat_room._handle(who.get("email"), who.get("name"))
-                self.json(out)
-            else:
-                self.json(chat_room.delete(data.get("id", ""), who.get("email"), who.get("owner")))
+            try:
+                if action == "chat_send":
+                    self.json(chat_room.post(who.get("email"), who.get("name"), data.get("text", ""),
+                                             data.get("room", chat_room.DEFAULT_ROOM), data.get("ctx", ""),
+                                             who.get("username")))
+                elif action == "chat_history":
+                    # POST, not GET: a session token in a query string ends up in
+                    # every proxy and access log between here and the browser
+                    out = chat_room.history(data.get("room", chat_room.DEFAULT_ROOM),
+                                            data.get("after", 0), data.get("limit", 60))
+                    out["me"] = chat_room._handle(who.get("email"), who.get("name"), who.get("username"))
+                    self.json(out)
+                else:
+                    self.json(chat_room.delete(data.get("id", ""), who.get("email"), who.get("owner")))
+            except Exception as _e:
+                self.json({"ok": False, "error": "chat error: %s" % str(_e)[:200]})
             return
         if path.path.startswith("/api/auth/"):
             action = path.path.split("/")[-1]
@@ -1515,7 +1524,10 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception:
                 data = {}
             q = {k: [str(v)] for k, v in data.items() if v is not None}
-            self.json(auth_api.handle_auth(path.path, q))
+            result = auth_api.handle_auth(path.path, q)
+            if action == "username" and result.get("ok"):
+                chat_room.invalidate_handle(result.get("email", ""))
+            self.json(result)
             return
         self.send_error(404)
 

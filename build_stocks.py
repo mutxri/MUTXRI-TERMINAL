@@ -58,22 +58,101 @@ def build():
     print("fetching EGX list…")
     egx = fetch_twelve("XCAI")
     seen = set()
+
+    # Upstream company names that are WRONG for the listed security, usually a
+    # foreign company sharing part of the name. Applied at construction because
+    # the listing is regenerated from this feed every cycle, so a fix applied to
+    # the shipped JSON alone is reverted by the next run.
+    EGX_NAME_FIXES = {
+        "EGS38161C013": ("Universal for Paper and Packaging Materials (Unipack)", "Paper & Packaging"),
+        "EGS38171C012": ("GlaxoSmithKline Egypt S.A.E. (BIOC)", "Pharmaceuticals"),
+        "EGS23141C012": ("Creast Mark for Real Estate Investment (CRST)", "Real Estate"),
+        "EGS78021C010": ("Egyptian Media Production City (MPRC)", "Real Estate"),
+    }
+
+    def normalize_code(code):
+        """Strip a stray market suffix from an upstream symbol.
+
+        The upstream feed sometimes returns ISIN-style codes with a market
+        suffix attached ("EGS3E071C013.EGP", "EGS48271C018-EGP"). Appending
+        ".CA" to one of those produced a symbol like EGS3E071C013.EGP.CA that
+        never matched a price, a logo or a CEO, and split its own price history
+        across two filenames. Normalise here so it can never be constructed.
+        """
+        s = str(code).strip()
+        for suffix in (".EGP", "-EGP", ".egp", "-egp"):
+            if s.endswith(suffix):
+                s = s[: -len(suffix)]
+        return s
+
     for x in egx:
-        s = x["symbol"]
+        s = normalize_code(x["symbol"])
         if s in seen: continue
         seen.add(s)
-        stocks["EGX"].append({"sym": s + ".CA", "code": s, "name": x["name"],
-                              "currency": "EGP", "country": "Egypt"})
+        # The upstream feed carries a WRONG company name for some EGX securities,
+        # usually a foreign company that shares part of the name: GSK plc for the
+        # listed Egyptian entity, "Universal Electronics Inc" for a paper
+        # company. The correction must live HERE rather than in the shipped JSON,
+        # because the listing is regenerated from this feed every cycle and any
+        # fix applied downstream is reverted by the next run.
+        nm, sec = EGX_NAME_FIXES.get(s, (x["name"], None))
+        row = {"sym": s + ".CA", "code": s, "name": nm,
+               "currency": "EGP", "country": "Egypt"}
+        if sec: row["sector"] = sec
+        stocks["EGX"].append(row)
     print(f"  EGX: {len(stocks['EGX'])} stocks")
 
     # ---- NGX (Nigeria) — EOD from African Financials ----
     print("fetching NGX table…")
     ng = parse_af_table(get("https://africanfinancials.com/nigerian-stock-exchange-share-prices/"))
+
+    # ---- NGX display names and non-session prices -------------------------------
+    # The African Financials NGX table returns the CODE in its name column for a
+    # number of listings, so the board printed CNIF, MOFI REIF, SFSREIT and ZICHIS
+    # where the issuer has a name. Every name below was read off the Nigerian
+    # Exchange own company directory
+    # (ngxgroup.com/exchange/data/company-profile?symbol=<CODE>), and the pin lives
+    # HERE because stocks.json, listing_<EX> and market_<EX> are all regenerated
+    # from this feed, so a fix applied to the shipped JSON alone is reverted.
+    NGX_NAME_FIXES = {
+        "AVAIF": "AVA Infrastructure Fund",
+        "CNIF": "Coronation Infrastructure Fund",
+        "SFSREIT": "SFS Real Estate Investment Trust",
+        "MOFI REIF": "MOFI Real Estate Investment Fund",
+        "MOFIREIF": "MOFI Real Estate Investment Fund",
+        "CMFC": "Critical Minerals Financing Corp Plc",
+        "CONHALLPLC": "Consolidated Hallmark Holdings Plc",
+        "HMCALL": "Haldane McCall Plc",
+        "IMG": "Industrial & Medical Gases Nigeria Plc",
+        "NCR": "NCR (Nigeria) Plc",
+        "NEM": "NEM Insurance Plc",
+        "NIDF": "Chapel Hill Denham Nig. Infras Debt Fund",
+        "OMATEK": "Omatek Ventures Plc",
+        "PRESCO": "Presco Plc",
+        "SKYAVN": "Skyway Aviation Handling Company Plc",
+        "UHOMREIT": "UH Real Estate Investment Trust",
+        "UPDC": "UPDC Plc",
+        "ZICHIS": "Zichis Agro Allied Industries Plc"
+    }
+
+    # A price the daily official list does not carry. AVA Infrastructure Fund shows
+    # 1000000.0 with zero volume and zero value; the NGX price list for 18-09-2026
+    # has no AVAIF row at all, and the fund directory entry lists 4,075 million
+    # units, which would make that print a N4.08 quadrillion valuation. Withheld so
+    # the panel shows the honest empty state instead.
+    NGX_NO_SESSION_PRICE = {
+        "AVAIF": "no print in the official NGX price list for 18-09-2026; the stored 1000000.0 is not a session price"
+    }
     for r in ng:
-        stocks["NGX"].append({"name": r["name"], "price": r["price"], "chgPct": r["chgPct"],
+        _code = str(r["name"]).strip().upper()
+        _row = {"name": NGX_NAME_FIXES.get(_code, r["name"]), "price": r["price"], "chgPct": r["chgPct"],
                               "value": r["value"], "volume": r["volume"], "ytd": r["ytd"],
                               "sector": r["sector"], "date": r["date"],
-                              "currency": "NGN", "country": "Nigeria"})
+                              "currency": "NGN", "country": "Nigeria"}
+        if _code in NGX_NO_SESSION_PRICE:
+            _row["price"] = None
+            _row["priceNote"] = NGX_NO_SESSION_PRICE[_code]
+        stocks["NGX"].append(_row)
     print(f"  NGX: {len(stocks['NGX'])} stocks (EOD {ng[0]['date'] if ng else '?'})")
 
     # ---- NSE (Kenya) — EOD from African Financials ----

@@ -75,7 +75,14 @@ def rebuild(ex):
             "sym": sym,
             "code": code,
             "name": s.get("name"),
-            "short": m.get("short") or s.get("ticker"),
+            # The label the tile PRINTS (afri_heatmap.html maps
+            # ticker: x.short || x.ticker, then writes it into the cell). `meta`
+            # here is seeded from the PREVIOUS heatmap file, so a wrong short is
+            # copied forward for ever: 13 EGX and 3 NGX tiles were printing
+            # another company code (E-Finance as BIGP, HBM Nigeria as WAPCO) and
+            # two carried a malformed .EGP symbol. The market row ticker is the
+            # authoritative per-exchange code, so it wins.
+            "short": s.get("ticker") or m.get("short") or code,
             "price": price,
             "chgPct": chg,
             "volume": vol,

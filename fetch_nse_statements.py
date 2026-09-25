@@ -111,6 +111,32 @@ def main():
                     "rows": rows,
                 }
                 fname = os.path.join(OUT, f"{tkr}__{st}.json")
+                # GUARD. This extractor reads dense multi-column layouts, and
+                # against a filing whose columns differ from the ones it expects
+                # it returns plausible-looking nonsense: ABSA came out as
+                # Revenue [10, 5, 21, 7], SCBK as Income Tax [3, 590, 16282,
+                # 224816], and an EQTY balance 1000x too small.
+                #
+                # A count-based guard is NOT enough: the garbage parse produced
+                # MORE values than the good file, so "fewer values" never fired
+                # and ABSA was overwritten twice. Until this extractor is
+                # rewritten per filing layout, it DOES NOT OVERWRITE ANYTHING. It
+                # writes only files that do not yet exist, and reports what it
+                # skipped. The published figures on disk are the authority here.
+                if os.path.exists(fname):
+                    try:
+                        with open(fname, encoding="utf-8") as fh:
+                            old = json.load(fh)
+                        old_n = sum(1 for r in (old.get("rows") or [])
+                                    for v in (r.get("values") or []) if v is not None)
+                    except Exception:
+                        old_n = 0
+                    print(f"  SKIP {tkr} {st}: file exists ({old_n} values kept). "
+                          f"This extractor is not trusted to overwrite.")
+                    continue
+                if not out["periods"] or len(out["periods"]) != len(rows[0]["values"]):
+                    print(f"  SKIP {tkr} {st}: parse has no usable period axis")
+                    continue
                 json.dump(out, open(fname, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
                 print(f"  {tkr} {st}: {len(rows)} rows")
     print("DONE")

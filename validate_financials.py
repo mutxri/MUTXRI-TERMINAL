@@ -47,7 +47,7 @@ def check(rows):
     """Return {period_index: [(label_a, label_b, reason)]} for impossible pairs."""
     hits = {}
 
-    def pair(a, b, test, reason):
+    def pair(a, b, test, reason, skip=None):
         ra, rb = row(rows, a), row(rows, b)
         if not ra or not rb:
             return
@@ -55,6 +55,8 @@ def check(rows):
         for i in range(min(len(va), len(vb))):
             x, y = va[i], vb[i]
             if x is None or y is None:
+                continue
+            if skip is not None and skip(i, x, y):
                 continue
             if test(x, y):
                 hits.setdefault(i, []).append((a, b, reason))
@@ -69,9 +71,29 @@ def check(rows):
     pair("Revenue", "Gross Profit",
          lambda rev, gp: bool(rev) and bool(gp) and gp > rev + abs(rev) * 0.02,
          "gross profit exceeds revenue")
+    # A tax CREDIT legitimately pushes net profit ABOVE pre-tax profit, so a
+    # strict np > pbt test suppresses figures the filer actually printed. AEG.JO
+    # FY2024: pre-tax 16,083,000 with an income tax CREDIT of 9,657,000 gives
+    # net profit 25,653,000, and the three numbers tie to within 0.4%. Before
+    # this exception the pair was withheld and the ratio derived from it went
+    # with it, so a real year read as blank. The tax row decides: only when it
+    # cannot account for the gap is the pair treated as impossible.
+    tax_row = row(rows, "Income Tax")
+    tax_vals = (tax_row or {}).get("values") or []
+
+    def tax_credit_explains(i, pbt, np_):
+        if i >= len(tax_vals) or tax_vals[i] is None:
+            return False
+        t = tax_vals[i]
+        if not isinstance(t, (int, float)) or t >= 0:
+            return False          # a charge (or no figure) cannot explain it
+        expected = pbt - t        # net profit = pre-tax less the tax line
+        return abs(np_ - expected) <= max(abs(pbt) * 0.05, 1.0)
+
     pair("Profit Before Tax", "Net Profit",
          lambda pbt, np_: pbt > 0 and np_ > 0 and np_ > pbt * 1.05,
-         "net profit exceeds pre-tax profit")
+         "net profit exceeds pre-tax profit",
+         skip=tax_credit_explains)
     pair("Profit Before Tax", "Net Profit",
          lambda pbt, np_: pbt > 0 and np_ > 0 and pbt / np_ > 20,
          "pre-tax profit over 20x net profit (mixed scale columns)")

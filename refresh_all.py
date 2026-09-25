@@ -91,6 +91,11 @@ run("market snapshots", ["build_market_snapshots.py"])
 # This copies the dated figure across before anything is assembled.
 run("volume sync", ["sync_volumes.py"])
 run("screener", ["build_screener.py"])
+# Runs AFTER the market/screener builds (they read stocks.json raw and re-add
+# every legacy and junk listing) but BEFORE the heatmaps, which derive from the
+# filtered market file. Without this step the delisted and placeholder rows come
+# back on the next refresh and the board looks dirty again.
+run("delisted/junk filter", ["apply_delisted_filter.py"])
 # heatmap_<EX>.json is derived from market_<EX>.json - without this the
 # default view silently ages while every price behind it refreshes
 run("heatmaps", ["rebuild_heatmaps.py"])
@@ -114,8 +119,65 @@ except Exception as _e:
 # above revenue, net profit above pre-tax. Re-apply the accounting checks on
 # every run, immediately before assembling, or the corrupted figures go back
 # out with the next refresh.
+# Rows the filer did not print but which are pure arithmetic on the rows they
+# did (Gross Profit = Revenue - Cost of Sales, and so on) are computed here.
+# Runs BEFORE the validator so derived rows are checked the same way as filed
+# ones, and after the collectors so it works on fresh statements.
+# Balance-sheet rows the shipped files lack are merged from the Yahoo source
+# here. This must run BEFORE the derivations: it supplies Current Assets and
+# Current Liabilities, which were 0% and 10% filled because two row names in
+# the builder's map did not match the source ("Total Current Liabilities" vs
+# "Current Liabilities"), so both came back empty and were dropped.
+run_soft("merge yahoo balance", ["merge_yahoo_balance.py"])
+# Fill individual BLANK CELLS in a row that already carries figures (the
+# 5th period in most JSE files). merge_yahoo_balance only fills a wholly
+# absent row, so it cannot touch these. Runs BEFORE the derivations so a
+# filled input is available to them.
+run_soft("merge yahoo gaps", ["merge_yahoo_gaps.py"])
+# The same merge for the INCOME statement, and the same two defects: the builder
+# only writes a statement file it does not already find, so a name collected once from
+# a thin provider never gains the Cost of Sales, Gross Profit or Operating Expenses
+# rows the same security carries in yahoo_financials.json; and the shipped files are
+# keyed on the bare board symbol (SHP) while that source keys on the suffixed form
+# (SHP.JO), so a stem join found a source record for 365 of 1457 files and missed the
+# rest. The merge resolves the stem, refuses to pair a security with a different
+# issuer on another board (BAT Kenya vs BAT.JO, which is Brait), only ADDS a row that
+# is absent or wholly null, and guards each fill on the SOURCE own arithmetic. Runs
+# before the derivations so a filled input is available to them.
+run_soft("merge yahoo income", ["merge_yahoo_income.py"])
+# The dataset mixes two sign conventions for the cost lines: measured over 3,331
+# complete period triples, "Revenue - Cost of Sales = Gross Profit" holds with the
+# cost POSITIVE 3,053 times and only with it NEGATIVE 205. A file on the negative
+# convention prints "Cost of Sales -640.2M" against a positive figure on every other
+# board and fails the identity the terminal runs. Each row is negated only when its
+# own printed identity breaks as stored and ties at every complete period after the
+# flip, so a genuine tax credit is left alone. Runs BEFORE the derivations, because
+# they subtract these rows and would otherwise compute on an inverted input.
+run_soft("normalize cost signs", ["normalize_cost_signs.py"])
+run_soft("derive statement rows", ["derive_statement_rows.py"])
+# Operating Expenses and Operating Profit (EBIT) are filled from the other one plus
+# Gross Profit, only where that identity reproduces every period of the SAME file with
+# zero contradictions. Four other candidate identities (net finance costs, profit before
+# tax, net profit, income tax) contradict far more often than they agree and are NOT
+# used. A negative operating expense is refused as impossible.
+run_soft("derive opex and ebit", ["derive_opex_ebit.py"])
+# Ratios (ROE, ROA, the margins, debt to equity) are arithmetic on the same
+# figures. Must run AFTER the row derivation above, because ROE consumes the
+# net profit that step may have just filled in.
+run_soft("derive ratios", ["derive_ratios.py"])
 run("validate financials", ["validate_financials.py", "--apply"])
+# RE-DERIVE after validation. The validator WITHHOLDS an impossible figure (for
+# example a net profit larger than the pre-tax profit it came from), which can
+# blank a ratio's INPUT while the ratio derived from it stays on screen. Running
+# the derivation a second time, after the validator, recomputes each ratio from
+# the figures the panel actually prints and leaves a dash where its input is
+# gone. Without this the income tab can show a Net Margin with no Net Profit.
+run_soft("re-derive ratios after validation", ["derive_ratios.py"])
 run("assemble deploy", ["assemble_deploy.py"])
-run("push changed files", ["bulk_push.py"], timeout=3600)
+# Single-commit push. bulk_push writes ONE COMMIT PER FILE, so a refresh that
+# touches hundreds of statements fires hundreds of Pages builds, they cancel
+# each other, and the live site silently stays on an old build. This is also
+# why a 578-file change once ran for 20 minutes and never finished.
+run("push changed files", ["push_single_commit.py", "Scheduled refresh"], timeout=3600)
 
 print(f"\nALL DONE in {time.time()-t0:.0f}s")

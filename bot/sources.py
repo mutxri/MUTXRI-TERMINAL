@@ -22,6 +22,41 @@ import calendar, concurrent.futures as cf, hashlib, html, json, os, re, time
 import urllib.parse, urllib.request, urllib.error
 import xml.etree.ElementTree as ET
 
+# ---------------------------------------------------------------------------
+# English only. An English-language query still returns publishers and titles
+# in their own script, and no feed may print one. A publisher whose name has no
+# English form drops the item; a title keeps its Latin content and loses the
+# rest. Mirrors bot/terminal_news.py so every consumer of this module inherits
+# the rule, not just the news page.
+# ---------------------------------------------------------------------------
+_NON_LATIN = re.compile(
+    "[Ѐ-ӿͰ-Ͽ֐-׿؀-ۿݐ-ݿ"
+    "ऀ-ॿঀ-৿஀-௿฀-๿က-႟"
+    "Ⴀ-ჿሀ-፿ក-៿"
+    "぀-ヿ㐀-䶿一-鿿豈-﫿"
+    "가-힯ᄀ-ᇿ㄰-㆏]")
+
+
+def english_publisher(pub):
+    """Publisher name in English, or empty when the name has no English form."""
+    p = (pub or "").strip()
+    if not p:
+        return ""
+    return "" if _NON_LATIN.search(p) else p
+
+
+def english_title(t):
+    """Title with any non-Latin run removed."""
+    t = t or ""
+    if not _NON_LATIN.search(t):
+        return t
+    h = _NON_LATIN.sub(" ", t)
+    h = re.sub(r"\s*[–—]\s*", " - ", h)
+    h = re.sub(r"(?:\s+-\s*)+", " - ", h)
+    h = re.sub(r"\s{2,}", " ", h)
+    return h.strip().strip(" -–—	").strip()
+
+
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 TIMEOUT = 25
 MAX_AGE_DAYS = 7
@@ -191,7 +226,7 @@ def fetch_rss(source_id, url, weight, tier, exchange=None):
         body = r.read()
     root = ET.fromstring(body)
     nodes = list(root.iter("item")) or list(root.iter(ATOM + "entry"))
-    out, now = [], time.time()
+    out, now, dropped = [], time.time(), []
     for n in nodes:
         title = _clean(n.findtext("title") or n.findtext(ATOM + "title") or "")
         if not title:
@@ -211,9 +246,17 @@ def fetch_rss(source_id, url, weight, tier, exchange=None):
         m = re.match(r"^(.*)\s+-\s+([^-]{2,40})$", title)
         if source_id.startswith("gnews") and m:
             title, publisher = m.group(1).strip(), m.group(2).strip()
+        pub_en = english_publisher(publisher)
+        if not pub_en:
+            dropped.append((publisher, title[:60]))
+            continue
+        title = english_title(title)
+        if not title:
+            dropped.append((publisher, "no Latin title"))
+            continue
         out.append({
             "id": _iid(link, title), "title": title, "summary": summary,
-            "url": link, "publisher": publisher, "source_id": source_id,
+            "url": link, "publisher": pub_en, "source_id": source_id,
             "weight": weight, "tier": tier, "exchange": exchange,
             "ts": ts or now, "lang": "en",
         })
