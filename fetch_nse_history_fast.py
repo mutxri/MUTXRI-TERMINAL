@@ -15,9 +15,9 @@ os.makedirs(HIST, exist_ok=True)
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0'
 REF = 'https://www.nse.co.ke/share-price/'
 
-SYMS = ["SCOM", "EQTY", "EABL", "ABSA", "COOP", "KPLC", "NCBA", "SCBK", "SBIC",
-        "IMH", "KNRE", "NMG", "KEGN", "CIC", "TCL", "FMLY", "AMAC", "KPC",
-        "BKG", "BRIT", "KQ", "NSE"]
+SYMS = ["SCOM", "EABL", "COOP", "NCBA", "SCBK", "SBIC",
+        "KNRE", "NMG", "CIC", "FMLY", "AMAC", "KPC",
+        "BKG", "NSE"]
 
 ROW = re.compile(r"<td class=l>(\d{4}-\d{2}-\d{2})</td>\s*<td>([\d,.-]+)</td>\s*<td>([\d,.-]+)</td>\s*<td>([\d,.-]+)</td>\s*<td>([\d,.-]+)</td>")
 

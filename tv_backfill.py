@@ -21,7 +21,7 @@ HIST = os.path.join(BASE, "static_data", "history")
 os.makedirs(HIST, exist_ok=True)
 
 TV_EX = {"NSE": "NSEKE", "NGX": "NSENG", "JSE": "JSE", "EGX": "EGX"}
-NSE_IR_COVERED = set("SCOM EQTY EABL ABSA COOP KPLC NCBA SCBK SBIC IMH KNRE NMG KEGN CIC TCL FMLY AMAC KPC BKG BRIT KQ NSE".split())
+NSE_IR_COVERED = set("SCOM EABL COOP NCBA SCBK SBIC KNRE NMG CIC FMLY AMAC KPC BKG NSE".split())
 FORCE = "--force" in sys.argv
 ALL = "--all" in sys.argv
 
