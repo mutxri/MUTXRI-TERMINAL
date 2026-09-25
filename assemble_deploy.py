@@ -134,8 +134,8 @@ shutil.copy(os.path.join(BASE, "static_data", "afri_screener_static.html"),
             os.path.join(TERM, "features", "panels", "afri_screener.html"))
 # copy the rest of the panels (static snapshot versions where they exist,
 # otherwise originals - they degrade gracefully to SAMPLE data)
-STATIC_PANELS = ["afri_bnd.html", "afri_reg.html", "afri_fx.html", "afri_glco.html", "afri_ratings.html", "afri_tas.html", "afri_financials.html", "afri_corp.html", "afri_news.html",
-                 "afri_trade.html"]
+STATIC_PANELS = ["afri_bnd.html", "afri_reg.html", "afri_fx.html", "afri_glco.html", "afri_ratings.html", "afri_tas.html", "afri_financials.html", "afri_compare.html", "afri_corp.html", "afri_news.html",
+                 "afri_ann.html", "afri_trade.html"]
 # (all panels now have static snapshot versions; nothing extra to copy)
 # static snapshot panels read static_data/*.json
 for p in STATIC_PANELS:
@@ -163,6 +163,10 @@ shutil.copytree(os.path.join(BASE, "static_data"),
                 ignore=shutil.ignore_patterns("afri_heatmap_static.html",
                                               "ngx_pdfs", "nse_pdfs", "jse_pdfs",
                                               "financials_all.json",
+                                              # 8 MB raw doclib filing index built by the
+                                              # NGX archive scripts. Nothing on the site
+                                              # requests it; it is a fetch intermediate.
+                                              "ngx_filings_raw.json", "ngx_missing_codes.json",
                                               # 8 MB fetch intermediate. The panel reads
                                               # financials/<TKR>__<type>.json and
                                               # financials_index.json; nothing on the site
@@ -173,7 +177,14 @@ shutil.copytree(os.path.join(BASE, "static_data"),
                                               # are ~1.1 MB. market_bot.py still writes them locally
                                               # for the mutxri_ai.py commands.
                                               "bot_signals.json", "bot_market_state.json",
-                                              "bot_flags.json", "statement_corpus.json"))
+                                              "bot_flags.json", "statement_corpus.json",
+                                              # Underscore-prefixed files are working notes:
+                                              # CEO/logo research dumps, pre-change backups,
+                                              # task lists. Nothing on the site fetches any of
+                                              # them, and shipping them published ~1.6 MB of
+                                              # scratch data to the public site (one dump even
+                                              # carried foreign-language search results).
+                                              "_*"))
 
 # ================= LANDING PAGE (served at /) =================
 # landing/index.html -> root index.html
@@ -189,18 +200,33 @@ if os.path.isdir(LANDING):
 # .nojekyll (critical - prevents Jekyll stripping)
 open(os.path.join(DEPLOY, ".nojekyll"), "w").write("")
 
+# Google Search Console verification file.
+# It lives at the site root and Google re-fetches it to prove ownership, so it
+# must survive every rebuild. It was previously only present on the gh-pages
+# branch, which meant any rebuild dropped it and un-verified the property.
+_gv = "google8ac2c76e6c8ae371.html"
+_gv_src = os.path.join(BASE, _gv)
+if os.path.exists(_gv_src):
+    shutil.copy(_gv_src, os.path.join(DEPLOY, _gv))
+    print("  google site verification file kept at the site root")
+else:
+    print("  WARNING: %s missing - Search Console ownership will break" % _gv)
+
 # README
-readme = """# MUTXRI TERMINAL (static build)
+readme = """# MUTXRI TERMINAL
 
-Static snapshot of the MUTXRI TERMINAL African markets terminal, deployed to
-GitHub Pages. Data is a **snapshot** (EOD listings, heatmaps, indices) captured
-from the live server - it does not update in real time.
+African markets terminal: NSE Nairobi, NGX Lagos, JSE Johannesburg, EGX Cairo.
 
-- Live terminal: local server (python afri_server.py) at http://127.0.0.1:8081/
-- Live endpoints (chart/metrics/quotes) are NOT available in this static build;
-  the UI shows an honest notice when clicked.
+**Live site: https://mutxriterminal.com/**
+
+This repository holds the static build served by GitHub Pages. Data is a
+**snapshot** (EOD listings, heatmaps, indices) captured from the live server -
+it does not update in real time.
+
 - Per-security candlestick history: static_data/history/<SYM>.json (JSE/EGX,
   Yahoo EOD 1y daily bars). NGX/NSE have no free historical feed.
+- Live endpoints (chart/metrics/quotes) are NOT available in this static build;
+  the UI shows an honest notice when clicked.
 
 Data snapshot: {date}
 """

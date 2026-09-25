@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MUTXRI TERMINAL — African Markets Terminal</title>
+<title>MUTXRI TERMINAL - African Markets Terminal</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://mutxriterminal.com/">
 <link rel="icon" type="image/svg+xml" href="/mutxri_logo.svg">
@@ -25,6 +25,14 @@
   --mono:'Oxygen Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --ui:'Inter',system-ui,sans-serif;
   --brand:'Sofia Sans Semi Condensed','Inter',sans-serif;
+}
+/* light theme — same Godel tokens, restruck for a light canvas */
+html[data-theme="light"]{
+  --bg:#f5f5f6; --bg2:#ededef; --bg3:#e4e4e7; --bg4:#d7d7db;
+  --line:#e0e0e3; --line2:#c9c9cd;
+  --tx:#15171a; --tx2:#56585e; --tx3:#86888f;
+  --acc:#0b8a5c; --acc2:#0aa06a; --up:#0b8a5c; --down:#d02f2a; --warn:#b07a15;
+  --mint-dim:rgba(11,138,92,.10); --mint-line:rgba(11,138,92,.4);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -55,14 +63,93 @@ body{
 .search input{background:none;border:0;outline:0;color:var(--tx);font-family:var(--mono);
   font-size:12px;width:100%}
 .search input::placeholder{color:var(--tx3)}
+.acct{display:flex;align-items:center;gap:6px}
 .acct button{background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
   font-family:inherit;font-size:10px;padding:var(--s1) 10px;border-radius:2px;cursor:pointer;
   transition:border-color .15s,color .15s}
 .acct button:hover{border-color:var(--mint-line)}
+.settings{position:relative;display:flex;align-items:center}
+.settings>button{background:var(--bg3);border:1px solid var(--line2);color:var(--tx2);
+  width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  border-radius:4px;cursor:pointer;transition:border-color .15s,color .15s}
+.settings>button:hover{border-color:var(--mint-line)}
+.settings-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:300px;max-width:calc(100vw - 20px);
+  max-height:calc(100vh - 76px);overflow:hidden;
+  background:var(--bg2);border:1px solid var(--line2);border-radius:8px;
+  padding:16px;z-index:400;box-shadow:0 24px 80px rgba(0,0,0,.6);
+  font-family:var(--mono)}
+.settings-head{font-size:10px;letter-spacing:.15em;color:var(--tx3);text-transform:uppercase;margin:0 0 6px}
+.settings-sec+.settings-sec{margin-top:14px}
+.settings-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.settings-k{color:var(--tx2);font-size:11px;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-k small{display:block;color:var(--tx3);font-size:9px;letter-spacing:.03em;margin-top:2px}
+.settings-seg{display:flex;border:1px solid var(--line2);border-radius:4px;overflow:hidden}
+.settings-seg button{flex:1;background:none;border:0;color:var(--tx3);font-family:var(--mono);
+  font-size:10px;letter-spacing:.05em;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.settings-seg button.on{background:var(--acc);color:#000;font-weight:700}
+.settings-swatches{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:150px}
+.settings-swatch{width:20px;height:20px;border-radius:4px;border:1px solid var(--line2);cursor:pointer;padding:0;flex:0 0 auto}
+.settings-swatch:hover{border-color:var(--tx2)}
+.settings-swatch.on{outline:2px solid var(--tx);outline-offset:1px;border-color:transparent}
+.settings-profile{display:flex;align-items:center;gap:10px;padding-bottom:2px}
+.settings-avatar{width:30px;height:30px;border-radius:4px;background:var(--bg3);border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;color:var(--tx2);flex:0 0 auto}
+.settings-id{min-width:0;flex:1}
+.settings-name{color:var(--tx);font-size:12px;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-email{color:var(--tx3);font-size:10px;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.settings-div{height:1px;background:var(--line2);margin:10px 0}
+.settings-item{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:var(--tx2);font-family:var(--mono);font-size:11px;letter-spacing:.02em;padding:7px 8px;border-radius:4px;cursor:pointer;text-align:left}
+.settings-item svg{flex:0 0 auto;color:var(--tx3)}
+.settings-item:hover{background:var(--bg3);color:var(--tx)}
+.settings-item:hover svg{color:var(--acc)}
+.settings-item.danger{color:var(--down)}
+.settings-item.danger svg{color:var(--down)}
+.settings-item.danger:hover{background:var(--bg3);color:var(--down)}
+.settings-toast{position:fixed;bottom:16px;right:16px;background:var(--bg3);border:1px solid var(--acc);color:var(--tx);font-family:var(--mono);font-size:10px;letter-spacing:.02em;padding:7px 12px;border-radius:4px;white-space:nowrap;z-index:9500}
+.settings-view{min-width:300px}
+.settings-backbar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.settings-back{width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--line2);border-radius:4px;color:var(--tx2);cursor:pointer}
+.settings-back:hover{border-color:var(--acc);color:var(--acc)}
+.settings-title{color:var(--tx);font-size:12px;letter-spacing:.06em;font-weight:700}
+.settings-field{margin-bottom:12px}
+.settings-field label{display:block;color:var(--tx2);font-size:11px;letter-spacing:.03em}
+.settings-field small{display:block;color:var(--tx3);font-size:9px;letter-spacing:.02em;margin:2px 0 6px}
+.settings-field input{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:4px;color:var(--tx);font-family:var(--mono);font-size:11px;padding:7px 10px;outline:none}
+.settings-field input:focus{border-color:var(--acc)}
+.settings-save{margin-top:6px;padding:6px 14px;background:var(--acc);color:#03200f;border:0;border-radius:4px;cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.03em}
+.settings-save:hover{filter:brightness(1.1)}
+.settings-save:disabled{opacity:.5;cursor:default}
+.settings-emailrow{display:flex;align-items:center;gap:8px;color:var(--tx);font-size:11px}
+.settings-badge{background:var(--mint-dim);border:1px solid var(--mint-line);color:var(--acc);font-size:9px;letter-spacing:.04em;padding:1px 6px;border-radius:2px;white-space:nowrap}
+.settings-planrow{color:var(--tx);font-size:11px}
+.settings-toggle{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:4px 10px;border-radius:4px;cursor:pointer;min-width:44px}
+.settings-toggle.on{background:var(--acc);border-color:var(--acc);color:#000;font-weight:700}
+html[data-tbl-anim="on"] .wl-row{animation:tblfade .45s ease}
+@keyframes tblfade{from{opacity:0}to{opacity:1}}
+html[data-win-shadow="off"] .rail,html[data-win-shadow="off"] .panel{box-shadow:none}
+html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
+@keyframes winpulse{0%{outline:1px solid var(--mint-line)}100%{outline:1px solid transparent}}
+.settings-pane{display:flex;min-width:430px;max-width:560px;min-height:300px;max-height:min(70vh,600px)}
+.settings-side{width:120px;flex:none;border-right:1px solid var(--line2);padding:8px 0;overflow-y:auto;min-height:0}
+.settings-side-head{padding:2px 12px 5px;color:var(--tx3);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase}
+.settings-side button{display:block;width:100%;text-align:left;background:none;border:0;border-left:2px solid transparent;color:var(--tx2);font-family:var(--mono);font-size:10px;letter-spacing:.02em;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.settings-side button:hover{color:var(--tx)}
+.settings-side button.on{border-left-color:var(--acc);color:var(--acc);background:var(--mint-dim)}
+.settings-content{flex:1;min-width:0;min-height:0;padding:12px 14px;overflow-y:auto}
+.settings-content .settings-head:first-child{margin-top:0}
+.settings-subhead{color:var(--tx3);font-size:9px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 2px}
+.settings-field select{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:4px;color:var(--tx);font-family:var(--mono);font-size:11px;padding:7px 10px;outline:none}
+.settings-row select{background:var(--bg3);border:1px solid var(--line2);border-radius:4px;color:var(--tx);font-family:var(--mono);font-size:10px;padding:5px 8px;outline:none;min-width:110px;cursor:pointer}
+.settings-row select:focus{border-color:var(--acc)}
+.settings-btn{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
+  font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:6px 12px;
+  border-radius:4px;cursor:pointer;white-space:nowrap}
+.settings-btn:hover{border-color:var(--acc);color:var(--acc)}
+.settings-btn.primary{background:var(--acc);border:1px solid var(--acc);color:#000;font-weight:700}
+.settings-btn.primary:hover{background:var(--acc2);border-color:var(--acc2);color:#000}
 .clock{display:flex;align-items:center;gap:var(--s2);color:var(--tx2);font-size:11px}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);
-  box-shadow:0 0 0 0 rgba(51,226,154,.5);animation:pulse 2.4s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(51,226,154,.45)}70%{box-shadow:0 0 0 5px rgba(51,226,154,0)}100%{box-shadow:0 0 0 0 rgba(51,226,154,0)}}
+  box-shadow:0 0 0 0 var(--mint-line);animation:pulse 2.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--mint-line)}70%{box-shadow:0 0 0 5px transparent}100%{box-shadow:0 0 0 0 transparent}}
 .mkt-code{display:inline-block;border:1px solid var(--line2);border-radius:2px;padding:0 4px;
   font-size:9px;letter-spacing:.06em;color:var(--tx3)}
 .finder{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:9000;
@@ -78,6 +165,8 @@ body{
 .finder .fi.mkt .t{color:var(--acc)}
 .finder .hint{padding:6px 8px;color:var(--tx3);font-size:10px;font-family:var(--mono);
   border-top:1px solid var(--line);margin-top:2px}
+.finder .recent-head{padding:6px 8px 4px;color:var(--acc);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.08em;font-weight:700}
 
 /* ---------- tape ---------- */
 .tape{display:flex;align-items:center;height:34px;border-bottom:1px solid var(--line2);
@@ -102,12 +191,38 @@ body{
 .main{display:flex;flex-direction:row;min-height:0;min-width:0;position:relative;overflow:hidden}
 .wrow{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);
   min-height:0;min-width:0;position:relative;flex:1 1 auto}
+/* small screens: stack the four panels in-flow (full width, ~70vh each) and
+   scroll the row, so WATCH, MARKET, CHAT and HEATMAP read one after another */
+@media (max-width:820px){
+  .floating #rowTop{
+    display:flex !important;
+    flex-direction:column;
+    gap:10px;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:4px;
+  }
+  .floating .rail, .floating .panel{
+    position:relative !important;
+    left:0 !important;
+    top:0 !important;
+    width:auto !important;
+    height:70vh !important;
+    min-height:320px !important;
+    flex:0 0 auto;
+    margin:0 !important;
+  }
+  .floating #colWatch{order:1;}
+  .floating #colInfo{order:2;}
+  .floating #colChat{order:3;}
+  .floating #colCenter{order:4;}
+}
 #rowBot:empty{display:none}
-.floating .rail,.floating .panel{position:absolute;border:1px solid var(--line2);border-radius:3px;
+.floating .rail,.floating .panel{position:absolute;border:1px solid var(--win-outline,var(--line2));border-radius:3px;
   box-shadow:0 10px 30px rgba(0,0,0,.55);overflow:hidden;min-width:0;min-height:0}
 .floating .rail{border-right:1px solid var(--line2)}
 .floating .rail.right{border-left:1px solid var(--line2)}
-.win-front{border-color:rgba(51,226,154,.45)!important;box-shadow:0 12px 34px rgba(0,0,0,.7)}
+.win-front{border-color:var(--mint-line)!important;box-shadow:0 12px 34px rgba(0,0,0,.7)}
 /* eight grab zones per window: four edges, four corners */
 .wrs{position:absolute;z-index:5}
 .wrs-n{top:-3px;left:8px;right:8px;height:7px;cursor:ns-resize}
@@ -178,8 +293,14 @@ body{
 #wlChart .wc-body{height:380px;}
 #wlChart .wc-load{color:var(--tx3);font-size:12px;padding:24px;text-align:center;}
 /* auth gate (sign in required) */
-.auth-gate-holder #authGate, #authGate{position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;font-family:var(--mono);}
-#authGate .gate-card{width:340px;border:1px solid var(--line2);border-radius:8px;padding:28px;background:var(--bg2);box-shadow:0 24px 80px rgba(0,0,0,.6);}
+.auth-gate-holder #authGate, #authGate{position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;font-family:var(--mono);padding:16px;box-sizing:border-box;overflow-y:auto;}
+#authGate .gate-card{width:340px;max-width:calc(100vw - 32px);border:1px solid var(--line2);border-radius:8px;padding:28px;background:var(--bg2);box-shadow:0 24px 80px rgba(0,0,0,.6);}
+@media (max-width:400px){
+  #authGate .gate-card{padding:20px 16px;}
+  #authGate .gate-field input{font-size:16px;}
+  #authGate .gate-btn{padding:12px;}
+  #authGate .gate-social-btn{padding:12px;}
+}
 #authGate .gate-brand{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
 #authGate .gate-mark{width:30px;height:30px;background:var(--acc);color:#000;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:13px;}
 #authGate .gate-name{font-size:15px;letter-spacing:.08em;color:var(--tx);}
@@ -199,7 +320,7 @@ body{
 #authGate .gate-msg{min-height:16px;font-size:11px;color:#ff5f56;margin-bottom:10px;}
 #authGate .gate-msg.ok{color:var(--acc);}
 #authGate .gate-btn{width:100%;background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.1em;padding:11px;border-radius:4px;cursor:pointer;}
-#authGate .gate-btn:hover{background:#26c98a;}
+#authGate .gate-btn:hover{background:var(--acc2);}
 #authGate .gate-back{margin-top:14px;text-align:center;color:var(--tx3);font-size:11px;cursor:pointer;}
 #authGate .gate-back:hover{color:var(--acc);}
 /* workspace drag handles (Godel-style panel arrangement) */
@@ -210,11 +331,11 @@ body{
 [data-drag]:hover .dgrip{opacity:1;color:var(--acc);}
 [data-drag] button,[data-drag] input,[data-drag] .ctab{cursor:pointer;}
 .win-dragging{opacity:.45;}
-.wrow.drop-row{outline:1px solid rgba(51,226,154,.35);outline-offset:-1px;}
+.wrow.drop-row{outline:1px solid var(--mint-line);outline-offset:-1px;}
 /* where the window will land */
 .drop-ind{position:fixed;z-index:99998;background:var(--acc);pointer-events:none;
-  box-shadow:0 0 10px rgba(51,226,154,.7);border-radius:2px;}
-.drop-ind.band{background:rgba(51,226,154,.14);border:1px solid var(--acc);box-shadow:none;}
+  box-shadow:0 0 10px var(--mint-line);border-radius:2px;}
+.drop-ind.band{background:var(--mint-dim);border:1px solid var(--acc);box-shadow:none;}
 .drop-ghost{position:fixed;z-index:99999;pointer-events:none;background:var(--bg3);
   border:1px solid var(--acc);color:var(--acc);font-family:var(--mono);font-size:10px;
   letter-spacing:.12em;padding:4px 10px;border-radius:3px;transform:translate(12px,12px);}
@@ -276,7 +397,7 @@ html{scrollbar-width:none;}
 .chat-tab{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:9.5px;
   letter-spacing:.16em;padding:3px 6px;cursor:pointer;border-radius:2px}
 .chat-tab:hover{color:var(--tx2)}
-.chat-tab.on{color:var(--acc);background:rgba(51,226,154,.08)}
+.chat-tab.on{color:var(--acc);background:var(--mint-dim)}
 .chat-head .chat-act{margin-left:auto;display:flex;align-items:center;gap:4px}
 .chat-head .chat-act button{background:none;border:1px solid var(--line2);color:var(--tx3);
   font-family:var(--mono);font-size:9px;letter-spacing:.08em;padding:2px 6px;border-radius:2px;cursor:pointer}
@@ -321,6 +442,12 @@ html{scrollbar-width:none;}
 .chat-form button{background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;
   font-size:10px;letter-spacing:.08em;padding:0 12px;border-radius:2px;cursor:pointer}
 .chat-form button:disabled{opacity:.45;cursor:default}
+.chat-rooms{display:flex;gap:3px;overflow-x:auto;padding:6px var(--s4);border-bottom:1px solid var(--line2);flex:none}
+.chat-rooms::-webkit-scrollbar{height:0}
+.room-chip{flex:none;background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);
+  font-family:var(--mono);font-size:9px;letter-spacing:.03em;padding:3px 7px;border-radius:2px;cursor:pointer;white-space:nowrap}
+.room-chip:hover{color:var(--tx2);border-color:var(--tx3)}
+.room-chip.on{color:var(--acc);border-color:var(--acc);background:var(--mint-dim)}
 .no-rails #colChat,.no-rails #rszC{display:none}
 .view-panel #colChat,.view-watchlist #colChat,.view-info #colChat,.hide-panel #colChat{display:none}
 .view-panel #rszC,.view-watchlist #rszC,.view-info #rszC,.hide-panel #rszC{display:none}
@@ -347,6 +474,47 @@ html{scrollbar-width:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
 
 </style>
+<script>
+/* apply saved theme + accent before paint to avoid a flash */
+window.__ACCENTS = {
+  mint:  ['#33e29a','#1ecfb0','#0b8a5c','#0aa06a'],
+  teal:  ['#2dd4bf','#14b8a6','#0d9488','#0f766e'],
+  blue:  ['#4aa8ff','#7cc0ff','#1d6fd6','#3b82f6'],
+  amber: ['#e0a340','#f0b95a','#b07a15','#c8902a'],
+  rose:  ['#f472b6','#f9a8d4','#db2777','#ec4899'],
+  violet:['#a78bfa','#c4b5fd','#7c3aed','#8b5cf6'],
+  red:   ['#f87171','#fca5a5','#d02f2a','#ef4444'],
+  cyan:  ['#22d3ee','#67e8f9','#0e7490','#06b6d4']
+};
+window.__UPS = { green:['#33e29a','#0b8a5c'], teal:['#2dd4bf','#0d9488'], blue:['#4aa8ff','#1d6fd6'], cyan:['#22d3ee','#0e7490'], lime:['#a3e635','#65a30d'] };
+window.__DOWNS = { red:['#f87171','#d02f2a'], rose:['#f472b6','#db2777'], orange:['#fb923c','#ea580c'], amber:['#e0a340','#b07a15'], violet:['#a78bfa','#7c3aed'] };
+window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'#e0a340', rose:'#f472b6' };
+(function(){
+  try{
+    var t = localStorage.getItem('mt_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+    var an = localStorage.getItem('mt_accent') || 'mint';
+    var a = window.__ACCENTS[an] || window.__ACCENTS.mint;
+    var light = (t === 'light');
+    var acc = light ? a[2] : a[0], acc2 = light ? a[3] : a[1];
+    function hx(h, al){ var m=/^#?([0-9a-f]{6})$/i.exec(h); if(!m) return 'rgba(51,226,154,'+al+')'; var n=parseInt(m[1],16); return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+al+')'; }
+    document.documentElement.style.setProperty('--acc', acc);
+    document.documentElement.style.setProperty('--acc2', acc2);
+    document.documentElement.style.setProperty('--mint-dim', hx(acc,'.10'));
+    document.documentElement.style.setProperty('--mint-line', hx(acc,'.35'));
+    var _upn = localStorage.getItem('mt_up') || 'green';
+    var _dnn = localStorage.getItem('mt_down') || 'red';
+    var _ups = window.__UPS[_upn] || window.__UPS.green;
+    var _dns = window.__DOWNS[_dnn] || window.__DOWNS.red;
+    document.documentElement.style.setProperty('--up', light ? _ups[1] : _ups[0]);
+    document.documentElement.style.setProperty('--down', light ? _dns[1] : _dns[0]);
+    var _f = localStorage.getItem('mt_font') || 'mono';
+    document.documentElement.style.setProperty('--mono', _f === 'system' ? 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace' : "'Oxygen Mono',ui-monospace,SFMono-Regular,Menlo,monospace");
+    var _o = localStorage.getItem('mt_outline') || 'default';
+    document.documentElement.style.setProperty('--win-outline', (window.__OUTLINES && window.__OUTLINES[_o]) || '#4a4a4a');
+  }catch(e){}
+})();
+</script>
 </head>
 <body>
 <!-- ===== auth gate: sign in required to enter the terminal ===== -->
@@ -407,7 +575,7 @@ html{scrollbar-width:none;}
       setTimeout(function(){ var t = (em && em.value && pw) ? pw : em; if(t) t.focus(); }, 60);
     }catch(e){}
   }
-  function hide(){ if(gate) gate.remove(); }
+  function hide(){ if(gate) gate.remove(); try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){} }
   function msg(t, ok){ var m = document.getElementById("gateMsg"); if(!m) return; m.textContent = t || ""; m.className = "gate-msg" + (ok ? " ok" : ""); }
   // OAuth callback: ?oauth=<provider>&code=<one-time> -> trade for a session token
   var oauthP = q.get("oauth"), oauthCode = q.get("code");
@@ -416,7 +584,7 @@ html{scrollbar-width:none;}
     fetch(AUTH_API + "/api/auth/oauth/exchange", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({code: oauthCode})})
       .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
       .then(function(d){
-        if(d && d.ok){ try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); }catch(e){} }
+        if(d && d.ok){ try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || ""); localStorage.setItem("mt_username", d.username || ""); localStorage.setItem("mt_name", d.name || ""); }catch(e){} }
         var sp = new URLSearchParams(location.search); sp.delete("oauth"); sp.delete("code");
         try{ history.replaceState({}, "", location.pathname + (sp.toString() ? "?" + sp.toString() : "")); }catch(e){}
         check();
@@ -447,7 +615,7 @@ html{scrollbar-width:none;}
     msg("Verifying session…");
     fetch(AUTH_API + "/api/auth/me", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t})})
       .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
-      .then(function(d){ if(d && d.ok){ hide(); } else { show(); msg("Session expired. Sign in to continue."); } })
+      .then(function(d){ if(d && d.ok){ hide(); try{ localStorage.setItem("mt_username", d.username || ""); localStorage.setItem("mt_name", d.name || ""); }catch(e){} } else { show(); msg("Session expired. Sign in to continue."); } })
       .catch(function(){ show(); msg("Could not reach the sign-in server. Check your connection and try again."); });
   }
   window.gateSubmit = function(){
@@ -464,11 +632,15 @@ html{scrollbar-width:none;}
       .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
       .then(function(d){
         if(d && d.ok){
-          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); }catch(e){}
+          try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); localStorage.setItem("mt_username", d.username || ""); localStorage.setItem("mt_name", d.name || ""); }catch(e){}
           msg("Welcome. Loading the terminal…", true);
           setTimeout(hide, 600);
         } else {
-          msg((d && d.error) ? d.error : "Sign in failed. Try again.");
+          var _err = (d && d.error) ? d.error : "Sign in failed. Try again.";
+          if(d && d.oauth){
+            _err += " After signing in with " + (d.oauth === "google" ? "Google" : d.oauth) + ", set a password under Profile > My Information.";
+          }
+          msg(_err);
         }
       })
       .catch(function(){ msg("Could not reach the sign-in server. Try again shortly."); });
@@ -490,6 +662,247 @@ html{scrollbar-width:none;}
     </label>
     <span class="wstabs" id="wsTabs" title="Workspaces"></span>
     <div class="clock"><span class="dot"></span><span id="clock">—</span></div>
+    <div class="settings" id="settings">
+      <button id="settingsBtn" type="button" title="Account" aria-label="Account" aria-haspopup="true" aria-expanded="false">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </button>
+      <div class="settings-menu" id="settingsMenu" hidden>
+        <!-- MAIN -->
+        <div class="settings-view" id="viewMain">
+          <div class="settings-profile">
+            <div class="settings-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div class="settings-id">
+              <div class="settings-name" id="acctName">Not signed in</div>
+              <div class="settings-email" id="acctEmail">Sign in to use the terminal</div>
+            </div>
+          </div>
+          <div class="settings-div"></div>
+          <button type="button" class="settings-item" data-go="account"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></button>
+          <button type="button" class="settings-item" data-act="invite"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg><span>Invite a friend</span></button>
+          <button type="button" class="settings-item" data-act="refer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg><span>Refer + Earn</span></button>
+          <button type="button" class="settings-item" data-act="billing"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span>Team Billing</span></button>
+          <div class="settings-div"></div>
+          <button type="button" class="settings-item" data-go="settings"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
+          <button type="button" class="settings-item danger" data-act="logout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>Logout</span></button>
+        </div>
+
+        <!-- ACCOUNT MANAGEMENT -->
+        <div class="settings-view" id="viewAccount" hidden>
+          <div class="settings-backbar">
+            <button type="button" class="settings-back" data-back aria-label="Back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <div class="settings-title">Account Management</div>
+          </div>
+          <div class="settings-pane">
+            <div class="settings-side">
+              <div class="settings-side-head">Account</div>
+              <button type="button" class="on" data-account="profile">Profile</button>
+              <button type="button" data-account="info">My Information</button>
+            </div>
+            <div class="settings-content">
+              <div data-account-pane="profile">
+                <div class="settings-head">Account</div>
+                <div class="settings-field">
+                  <label for="acctUsername">Username</label>
+                  <small>How you appear in chat</small>
+                  <input id="acctUsername" type="text" placeholder="username" autocomplete="off">
+                  <button type="button" class="settings-save" data-save="acctUsername">Save</button>
+                </div>
+                <div class="settings-field">
+                  <label>Primary email</label>
+                  <small>Sign-in and notification rollups</small>
+                  <div class="settings-emailrow"><span id="acctEmail2">—</span> <span class="settings-badge" id="acctVerified" hidden>Verified</span></div>
+                </div>
+                <div class="settings-div"></div>
+                <div class="settings-head">Subscription</div>
+                <div class="settings-field">
+                  <label>Plan</label>
+                  <div class="settings-planrow" id="acctPlan">No subscription</div>
+                  <small>Talk to sales about licensing a desk, or moving an organization onto MUTXRI.</small>
+                </div>
+              </div>
+              <div data-account-pane="info" hidden>
+                <div class="settings-head">My Information</div>
+                <div class="settings-field">
+                  <label for="acctFullName">Name</label>
+                  <small>How you appear in chat</small>
+                  <input id="acctFullName" type="text" placeholder="Your name" autocomplete="off">
+                  <button type="button" class="settings-save" data-save="acctFullName">Save</button>
+                </div>
+                <div class="settings-field">
+                  <label>Email</label>
+                  <small>Sign-in and notification rollups</small>
+                  <div class="settings-emailrow"><span id="acctEmail3">—</span></div>
+                </div>
+                <div class="settings-field">
+                  <label for="acctPwd">Password</label>
+                  <small>Set a password so you can sign in without Google</small>
+                  <input id="acctPwd" type="password" placeholder="New password (8+ characters)" autocomplete="new-password">
+                  <button type="button" class="settings-save" data-setpwd="acctPwd">Set password</button>
+                </div>
+                <div class="settings-div"></div>
+                <div class="settings-head">Privacy</div>
+                <div class="settings-field"><small>Only your name and email are stored. Nothing else is collected.</small></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SETTINGS -->
+        <div class="settings-view" id="viewSettings" hidden>
+          <div class="settings-backbar">
+            <button type="button" class="settings-back" data-back aria-label="Back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <div class="settings-title">Settings</div>
+          </div>
+          <div class="settings-pane">
+            <div class="settings-side">
+              <button type="button" class="on" data-sect="theme">Theme</button>
+              <button type="button" data-sect="terminal">Terminal</button>
+              <button type="button" data-sect="commands">Command Settings</button>
+              <button type="button" data-sect="notifications">Notifications</button>
+              <button type="button" data-sect="integrations">Integrations</button>
+              <button type="button" data-sect="security">Security</button>
+            </div>
+            <div class="settings-content">
+              <div data-sect-pane="theme">
+          <div class="settings-head">Theme</div>
+          <div class="settings-head">Color</div>
+          <div class="settings-subhead">presets</div>
+          <div class="settings-row" style="margin-top:8px">
+            <span class="settings-k">Primary color</span>
+            <select id="accentSel" aria-label="Primary color">
+              <option value="mint">Mint</option>
+              <option value="teal">Teal</option>
+              <option value="blue">Blue</option>
+              <option value="amber">Amber</option>
+              <option value="rose">Rose</option>
+              <option value="violet">Violet</option>
+              <option value="red">Red</option>
+              <option value="cyan">Cyan</option>
+            </select>
+          </div>
+          <div class="settings-row" style="margin-top:10px">
+            <span class="settings-k">Positive color</span>
+            <select id="upSel" aria-label="Positive color">
+              <option value="green">Green</option>
+              <option value="teal">Teal</option>
+              <option value="blue">Blue</option>
+              <option value="cyan">Cyan</option>
+              <option value="lime">Lime</option>
+            </select>
+          </div>
+          <div class="settings-row" style="margin-top:10px">
+            <span class="settings-k">Negative color</span>
+            <select id="downSel" aria-label="Negative color">
+              <option value="red">Red</option>
+              <option value="rose">Rose</option>
+              <option value="orange">Orange</option>
+              <option value="amber">Amber</option>
+              <option value="violet">Violet</option>
+            </select>
+          </div>
+          <div class="settings-row" style="margin-top:10px">
+            <span class="settings-k">Background color</span>
+            <select id="bgSel" aria-label="Background color">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+          <div class="settings-div"></div>
+          <div class="settings-head">Font</div>
+          <div class="settings-row">
+            <span class="settings-k">Interface font</span>
+            <select id="fontSel" aria-label="Interface font">
+              <option value="system">Default</option>
+              <option value="mono">Oxygen Mono</option>
+            </select>
+          </div>
+          <div class="settings-div"></div>
+          <div class="settings-head">Table</div>
+          <div class="settings-subhead">animation</div>
+          <div class="settings-row" style="margin-top:8px">
+            <span class="settings-k">Fade<small>Highlights new entries in tables</small></span>
+            <button type="button" class="settings-toggle on" id="tblAnim" data-tog="tblAnim">ON</button>
+          </div>
+          <div class="settings-div"></div>
+          <div class="settings-head">Window Appearance</div>
+          <div class="settings-row">
+            <span class="settings-k">Window open animation<small>Pulse a window's outline once when it opens</small></span>
+            <button type="button" class="settings-toggle" id="winAnim" data-tog="winAnim">OFF</button>
+          </div>
+          <div class="settings-row" style="margin-top:10px">
+            <span class="settings-k">Window shadow<small>Drop shadow behind each window</small></span>
+            <button type="button" class="settings-toggle on" id="winShadow" data-tog="winShadow">ON</button>
+          </div>
+          <div class="settings-row" style="margin-top:10px">
+            <span class="settings-k">Inactive window outline color</span>
+            <select id="outlineSel" aria-label="Inactive window outline color">
+              <option value="default">Gray</option>
+              <option value="mint">Mint</option>
+              <option value="blue">Blue</option>
+              <option value="amber">Amber</option>
+              <option value="rose">Rose</option>
+            </select>
+          </div>
+              </div>
+<div data-sect-pane="terminal" hidden>
+                <div class="settings-head">Market</div>
+                <div class="settings-field">
+                  <label for="defMarket">Default market</label>
+                  <small>The board you land on when the terminal opens</small>
+                  <select id="defMarket">
+                    <option value="JSE">JSE (Johannesburg)</option>
+                    <option value="NGX">NGX (Lagos)</option>
+                    <option value="NSE">NSE (Nairobi)</option>
+                    <option value="EGX">EGX (Cairo)</option>
+                  </select>
+                </div>
+              </div>
+              <div data-sect-pane="commands" hidden>
+                <div class="settings-head">Command Bar</div>
+                <div class="settings-row">
+                  <span class="settings-k">Open with backtick<small>Press ` to focus the command bar</small></span>
+                  <button type="button" class="settings-toggle on" id="cmdBacktick">ON</button>
+                </div>
+                <div class="settings-field" style="margin-top:10px"><small>Type a ticker, company or market, then Enter to open it. Matches all four boards at once.</small></div>
+              </div>
+              <div data-sect-pane="notifications" hidden>
+                <div class="settings-head">Notifications</div>
+                <div class="settings-row">
+                  <span class="settings-k">Breaking News<small>Show the market tape</small></span>
+                  <button type="button" class="settings-toggle on" id="breakingNews">ON</button>
+                </div>
+                <div class="settings-row" style="margin-top:10px">
+                  <span class="settings-k">Ticker Click<small>Open a security when you click its ticker</small></span>
+                  <button type="button" class="settings-toggle on" id="tickerClick">ON</button>
+                </div>
+                <div class="settings-row" style="margin-top:10px">
+                  <span class="settings-k">Pinned Commands<small>Pin your recent commands in the command bar</small></span>
+                  <button type="button" class="settings-toggle" id="pinnedCommands">OFF</button>
+                </div>
+              </div>
+              <div data-sect-pane="integrations" hidden>
+                <div class="settings-head">Mail</div>
+                <div class="settings-field">
+                  <label>Notification email</label>
+                  <small>Alerts and rollups go to your primary email</small>
+                  <div class="settings-emailrow"><span id="intEmail">—</span></div>
+                </div>
+              </div>
+              <div data-sect-pane="security" hidden>
+                <div class="settings-head">Security</div>
+                <div class="settings-field">
+                  <label>Signed in as</label>
+                  <div class="settings-emailrow"><span id="secEmail">—</span></div>
+                </div>
+                <div class="settings-div"></div>
+                <button type="button" class="settings-item danger" data-act="logout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>Sign out everywhere</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-toast" id="settingsToast" hidden></div>
+    </div>
   </header>
 
   <!-- TAPE -->
@@ -532,6 +945,7 @@ html{scrollbar-width:none;}
           
         </span>
       </div>
+      <div class="chat-rooms" id="chatRooms" role="tablist" aria-label="Sector rooms"></div>
       <div class="chat-log" id="roomLog" aria-live="polite"></div>
       <div class="chat-log" id="chatLog" aria-live="polite" style="display:none"></div>
       <div class="chat-note" id="chatNote" hidden></div>
@@ -695,9 +1109,11 @@ let PANELS = [
   {id:'heatmap', label:'HEATMAP', url:'features/panels/afri_heatmap.html'},
   {id:'screener',label:'SCREENER', url:'features/panels/afri_screener.html'},
   {id:'financials',label:'FINANCIALS', url:'features/panels/afri_financials.html'},
+  {id:'compare',   label:'COMPARE',    url:'features/panels/afri_compare.html'},
   // REG and CORP are folded into NEWS: the news panel merges press headlines,
   // the regulatory wire (reg.json) and corporate actions (dividends / closures).
   {id:'news',    label:'NEWS',     url:'features/panels/afri_news.html'},
+  {id:'ann',     label:'ANNOUNCEMENTS', url:'features/panels/afri_ann.html'},
   {id:'glco',    label:'GLCO',     url:'features/panels/afri_glco.html'},
   {id:'bnd',     label:'BND',      url:'features/panels/afri_bnd.html'},
   {id:'fx',      label:'FX',       url:'features/panels/afri_fx.html'},
@@ -743,6 +1159,13 @@ function renderTabs(){
 }
 // ===== workspace: floating windows, saved per workspace =====
 (function(){
+  // If the browser restores this tab from its back-forward cache (session
+  // restore, a relaunch after crash/update, or a pinned tab), the stale page
+  // can come back with the securities rail still hidden. Force one clean
+  // reload when that happens so the current layout logic always runs.
+  window.addEventListener('pageshow', function(e){
+    if(e.persisted){ try{ location.reload(); }catch(_){} }
+  });
   window.MTWin = (function(){
     const main = document.querySelector('.main');
     const KEYS = ['watch', 'center', 'info', 'chat'];
@@ -823,6 +1246,16 @@ function renderTabs(){
       KEYS.forEach(function(k){
         const w = spaces[active].wins[k];
         if(w && w.z > zTop) zTop = w.z;
+      });
+      // The default MAIN workspace is all four windows open. A persisted
+      // "closed" state (most often the WATCH rail, which makes the terminal
+      // look empty with no way back) otherwise survives reloads. Force every
+      // window open on restore so the default is always the full 4-panel layout.
+      KEYS.forEach(function(k){
+        spaces.forEach(function(sp){
+          if(!sp.wins[k]) sp.wins[k] = tiled()[k];   // old schema: recreate a missing panel
+          sp.wins[k].open = true;
+        });
       });
     })();
 
@@ -989,6 +1422,13 @@ function renderTabs(){
       render();
       save();
       window.dispatchEvent(new Event('mt:layout'));
+      if(on && document.documentElement.getAttribute("data-win-anim") === "on"){
+        var _n = NODE[k];
+        if(_n && _n.classList){
+          _n.classList.add("pulse");
+          setTimeout(function(){ _n.classList.remove("pulse"); }, 550);
+        }
+      }
     }
 
     if(!EMBED){
@@ -1014,7 +1454,7 @@ function renderTabs(){
           raise(k); place(k); save();
         });
       });
-      window.addEventListener('resize', function(){ KEYS.forEach(place); });
+      window.addEventListener('resize', function(){ retile(); KEYS.forEach(place); });
     }
     render();
 
@@ -1345,6 +1785,20 @@ function buildTapeFromListing(ex){
 // ===== the finder: every security on every market, plus the markets =====
 // This replaces the exchange tabs. Securities are matched across all boards at
 // once, so which market you are "on" stops being a mode you have to set first.
+window.__pushRecent = function(v){
+  v = String(v || '').trim();
+  if(!v) return;
+  try{
+    var rec = JSON.parse(localStorage.getItem('mt_recent') || '[]');
+    rec = rec.filter(function(x){ return String(x).toLowerCase() !== v.toLowerCase(); });
+    rec.unshift(v);
+    rec = rec.slice(0, 6);
+    localStorage.setItem('mt_recent', JSON.stringify(rec));
+  }catch(e){}
+};
+window.__getRecents = function(){
+  try{ return JSON.parse(localStorage.getItem('mt_recent') || '[]'); }catch(e){ return []; }
+};
 (function(){
   const box = $('q');
   if(!box) return;
@@ -1426,9 +1880,10 @@ function buildTapeFromListing(ex){
     box.value = '';
     close();
     renderWatchlist('');
-    if(r.kind === 'mkt'){ if(r.ex !== currentEx) switchExchange(r.ex); return; }
+    if(r.kind === 'mkt'){ if(r.ex !== currentEx) switchExchange(r.ex); if(typeof window.__pushRecent === 'function') window.__pushRecent(r.ex); return; }
     if(r.ex !== currentEx) switchExchange(r.ex);
     curSec = r.row.sym || r.tkr;
+    if(typeof window.__pushRecent === 'function') window.__pushRecent(r.tkr);
     if(typeof openStock === 'function') openStock(curSec);
   }
 
@@ -1451,16 +1906,40 @@ function buildTapeFromListing(ex){
     if(!v) return;
     close();
     runCommand(v);                        // "MTN JSE", "SCOM FA", "HEATMAP" ...
+    if(typeof window.__pushRecent === 'function') window.__pushRecent(v);
     box.value = '';
     renderWatchlist('');
   });
   box.addEventListener('blur', function(){ setTimeout(close, 120); });
+  box.addEventListener('focus', function(){
+    if(String(box.value || '').trim()) return;
+    try{ if(localStorage.getItem('mt_pinnedCommands') !== 'on') return; }catch(e){ return; }
+    var rec = window.__getRecents ? window.__getRecents() : [];
+    if(!rec.length) return;
+    close();
+    var f = document.createElement('div');
+    f.className = 'finder';
+    f.innerHTML = '<div class="recent-head">RECENT COMMANDS</div>' + rec.map(function(r, i){
+      return '<div class="fi" data-i="' + i + '"><span class="t">' + esc(r) +
+             '</span><span class="n">pinned</span><span class="px"></span></div>';
+    }).join('') + '<div class="hint">click to recall · enter opens · backtick focuses this bar</div>';
+    box.parentNode.appendChild(f);
+    f.querySelectorAll('.fi').forEach(function(el){
+      el.addEventListener('mousedown', function(e){
+        e.preventDefault();
+        var t = el.querySelector('.t').textContent;
+        box.value = t;
+        close();
+        draw(t);
+      });
+    });
+  });
 })();
 
 // ===== Command bar =====
 // ===== Command bar: Bloomberg-style "TICKER FUNCTION" =====
 const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'chart', CN:'wire', NEWS:'wire', REG:'wire',
-                     HP:'chart', EQS:'screener', RV:'financials', SPLC:'info'};
+                     HP:'chart', EQS:'screener', RV:'financials', SPLC:'info', CMP:'compare', CMPR:'compare'};
 // Every market's tickers, fetched once at boot (39 KB gzipped for all four) so
 // a ticker resolves no matter which board is on screen. Before this, typing a
 // Nairobi ticker while on the JSE board just answered "unknown".
@@ -1541,6 +2020,28 @@ function runCommand(raw){
     // a command for a window you are already looking at means "close it"
     window.MTWin.set(k, !window.MTWin.isOpen(k));
     return;
+  }
+  // COMPARE EQTY KCB / CMP A B / A VS B -> side-by-side comparison panel
+  if(/^(COMPARE|CMP|CMPR)\b/.test(v) || /\bVS\b/.test(v)){
+    let ctoks;
+    if(/\bVS\b/.test(v)) ctoks = v.split(/\s*VS\s*/).map(function(t){return t.trim();}).filter(Boolean);
+    else ctoks = v.replace(/^(COMPARE|CMP|CMPR)\s+/,'').split(/\s+/).filter(Boolean);
+    const cp = PANELS.find(function(x){return x.id==='compare';});
+    if(cp && ctoks.length){
+      const sa = resolveSec(ctoks[0]);
+      const cex = (sa && sa.ex) || currentEx;
+      const curl = cp.url + '?a=' + encodeURIComponent(ctoks[0])
+        + (ctoks[1] ? '&b=' + encodeURIComponent(ctoks[1]) : '') + '&ex=' + cex + '&v=' + Date.now();
+      $('stageFrame').src = curl;
+      const ci = PANELS.indexOf(cp);
+      if(ci >= 0){
+        document.querySelectorAll('.ctab').forEach(function(x){x.classList.remove('active');});
+        const els = document.querySelectorAll('.ctab');
+        if(els[ci]) els[ci].classList.add('active');
+        __activePanelIdx = ci;
+      }
+      return;
+    }
   }
   let parts = v.split(/\s+/);
   // "SCOM KE", "MTN JSE", "DANGCEM NG FA" - the market is named in the command
@@ -1866,6 +2367,7 @@ function openChartModal(sym){
 let __activePanelIdx = -1;
 function openStock(sym){
   if(!sym) return;
+  try{ if(localStorage.getItem('mt_tickerClick') === 'off') return; }catch(e){}
   curSec = sym;
   if(__activePanelIdx >= 0 && PANELS[__activePanelIdx] && PANELS[__activePanelIdx].id === 'financials'){
     var _f = document.getElementById('stageFrame');
@@ -2047,6 +2549,49 @@ function renderStockInfo(d, sym){
   const CHAT_API = (window.API_BASE || 'https://mutxri-terminal.onrender.com').replace(/\/$/, '');
   const HIST_KEY = 'mt_chat', MAX_HIST = 40;
   let mode = 'room';
+  // sector channels - African market sectors instead of one shared room
+  const ROOMS = [
+    {slug:'general',    label:'#general'},
+    {slug:'banking',    label:'#banking'},
+    {slug:'telecom',    label:'#telecom'},
+    {slug:'energy',     label:'#energy'},
+    {slug:'mining',     label:'#mining'},
+    {slug:'industrials',label:'#industrials'},
+    {slug:'consumer',   label:'#consumer'},
+    {slug:'agriculture',label:'#agriculture'},
+    {slug:'property',   label:'#property'},
+    {slug:'funds',      label:'#funds'},
+  ];
+  let activeRoom = 'general';
+  function roomsHost(){ return $('chatRooms'); }
+  function roomLabel(slug){
+    for(var i=0;i<ROOMS.length;i++){ if(ROOMS[i].slug === slug) return ROOMS[i].label; }
+    return '#general';
+  }
+  function renderRooms(){
+    const h = roomsHost();
+    if(!h) return;
+    h.innerHTML = '';
+    ROOMS.forEach(function(r){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'room-chip' + (r.slug === activeRoom ? ' on' : '');
+      b.textContent = r.label;
+      b.title = r.slug + ' room';
+      b.setAttribute('data-room', r.slug);
+      b.addEventListener('click', function(){ setRoom(r.slug); });
+      h.appendChild(b);
+    });
+  }
+  function setRoom(slug){
+    if(slug === activeRoom) return;
+    activeRoom = slug;
+    Object.keys(seen).forEach(function(k){ delete seen[k]; });
+    lastTs = 0; drew = false;
+    if(roomLog) roomLog.innerHTML = '';
+    renderRooms();
+    refresh();
+  }
 
   function token(){ try{ return localStorage.getItem('mt_token') || ''; }catch(e){ return ''; } }
   async function api(path, body){
@@ -2088,6 +2633,21 @@ function renderStockInfo(d, sym){
     if(atBottom || mine) roomLog.scrollTop = roomLog.scrollHeight;
     if(m.ts > lastTs) lastTs = m.ts;
   }
+  function drawMine(text, ctx, ts){
+    // Optimistic echo: render the sender's own message instantly (mine=true)
+    // without touching the poll cursor (lastTs) or the seen-dedup map. The
+    // caller removes it once the backend confirms (or on failure).
+    const el = document.createElement('div');
+    el.className = 'room-msg mine';
+    el.setAttribute('data-id', 'tmp-' + Date.now() + '-' + Math.floor(Math.random() * 100000));
+    el.innerHTML = '<div class="rm-h"><span class="rm-n">' + esc(me || 'you') + '</span>' +
+      (ctx ? '<span class="rm-ctx">' + esc(ctx) + '</span>' : '') +
+      '<span>' + stamp(ts) + '</span>' +
+      '</div><div class="rm-t">' + esc(text || '') + '</div>';
+    roomLog.appendChild(el);
+    roomLog.scrollTop = roomLog.scrollHeight;
+    return el;
+  }
   function empty(html){
     if(drew) return;
     roomLog.innerHTML = '<div class="room-empty">' + html + '</div>';
@@ -2100,7 +2660,7 @@ function renderStockInfo(d, sym){
       return;
     }
     try{
-      const d = await api('/api/chat/history', {after: lastTs, limit: 60});
+      const d = await api('/api/chat/history', {after: lastTs, limit: 60, room: activeRoom});
       if(!d || !d.ok){
         if(d && d.auth === false){
           empty('Sign in to join the room.');
@@ -2155,21 +2715,42 @@ function renderStockInfo(d, sym){
   async function sendRoom(text){
     if(!token()){ setNote('Sign in to post to the room.', true); return; }
     sendBtn.disabled = true;
+    const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
+    // optimistic echo: show the message immediately, then reconcile with the
+    // backend response - removes the visible delay between Enter and the message
+    // appearing (previously it waited on the full round-trip).
+    const tmpEl = drawMine(text, ctx, Math.floor(Date.now() / 1000));
+    input.value = '';
+    setNote('');
     try{
-      const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
-      const d = await api('/api/chat/send', {text: text, ctx: ctx});
+      const d = await api('/api/chat/send', {text: text, ctx: ctx, room: activeRoom});
+      if(tmpEl) tmpEl.remove();
       if(d && d.ok && d.message){
         if(!drew){ roomLog.innerHTML = ''; drew = true; }
         drawMsg(d.message);
-        input.value = '';
-        setNote('');
       }else{
+        input.value = text;
         setNote(esc((d && d.error) || 'message not sent'), true);
       }
-    }catch(e){ setNote('Could not reach the room - your message was not sent.', true); }
+    }catch(e){
+      if(tmpEl) tmpEl.remove();
+      input.value = text;
+      setNote('Could not reach the room - your message was not sent.', true);
+    }
     sendBtn.disabled = false;
     gate();
   }
+
+  // Re-render the whole room from the backend. Called after a username change:
+  // the normal poll is incremental (after: lastTs) and never revisits messages
+  // already in the DOM, so without this an existing message keeps its old handle
+  // and the change looks like it never took.
+  window.__mtChatReset = function(){
+    Object.keys(seen).forEach(function(k){ delete seen[k]; });
+    lastTs = 0; drew = false;
+    if(roomLog) roomLog.innerHTML = '';
+    refresh();
+  };
 
   // ---------------- ASK (local, offline) ----------------
   let hist = [];
@@ -2285,7 +2866,7 @@ function renderStockInfo(d, sym){
     input.disabled = block;
     sendBtn.disabled = block;
     input.placeholder = mode === 'room'
-      ? (signedIn ? 'Message the room...' : 'Sign in to post')
+      ? (signedIn ? ('Message ' + roomLabel(activeRoom) + '...') : 'Sign in to post')
       : 'Ask about a ticker or market...';
   }
   function setMode(m){
@@ -2295,6 +2876,7 @@ function renderStockInfo(d, sym){
     });
     roomLog.style.display = m === 'room' ? '' : 'none';
     askLog.style.display = m === 'ask' ? '' : 'none';
+    if(roomsHost()) roomsHost().style.display = m === 'room' ? '' : 'none';
     setNote('');
     gate();
     if(m === 'room'){ refresh(); roomLog.scrollTop = roomLog.scrollHeight; }
@@ -2315,6 +2897,7 @@ function renderStockInfo(d, sym){
   }else{
     bubble('bot', HELP, false);
   }
+  renderRooms();
   setMode('room');
   refresh();
   loop();
@@ -2325,6 +2908,419 @@ function renderStockInfo(d, sym){
 loadListing(currentEx);  // honor ?ex= deep-link, else remembered/inferred market
 loadSearchIndex();       // every other market's tickers, so search spans all four
 
+</script>
+
+<script>
+// ---- settings button: account + theme ----
+(function(){
+  var LIGHT = "html[data-theme=light]{--bg:#f5f5f6;--bg2:#ededef;--bg3:#e4e4e7;--bg4:#d7d7db;--line:#e0e0e3;--line2:#c9c9cd;--tx:#15171a;--tx2:#56585e;--tx3:#86888f;--acc:#0b8a5c;--acc2:#0aa06a;--up:#0b8a5c;--down:#d02f2a;--warn:#b07a15;--mint-dim:rgba(11,138,92,.10);--mint-line:rgba(11,138,92,.4);}";
+  function theme(){ try{ return localStorage.getItem("mt_theme") || "dark"; }catch(e){ return "dark"; } }
+  function accentName(){ try{ return localStorage.getItem("mt_accent") || "mint"; }catch(e){ return "mint"; } }
+  function hexRgba(h, al){ var m=/^#?([0-9a-f]{6})$/i.exec(h); if(!m) return 'rgba(51,226,154,'+al+')'; var n=parseInt(m[1],16); return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+al+')'; }
+  function accentVals(name, t){
+    var a = (window.__ACCENTS && window.__ACCENTS[name]) || (window.__ACCENTS && window.__ACCENTS.mint) || ['#33e29a','#1ecfb0','#0b8a5c','#0aa06a'];
+    var light = (t === 'light');
+    var acc = light ? a[2] : a[0], acc2 = light ? a[3] : a[1];
+    return { acc:acc, acc2:acc2, dim:hexRgba(acc,'.10'), line:hexRgba(acc,'.35') };
+  }
+  function applyAccentVars(target, name, t){
+    if(!target || !target.style) return;
+    var v = accentVals(name, t);
+    target.style.setProperty('--acc', v.acc);
+    target.style.setProperty('--acc2', v.acc2);
+    target.style.setProperty('--mint-dim', v.dim);
+    target.style.setProperty('--mint-line', v.line);
+  }
+  function upName(){ try{ return localStorage.getItem("mt_up") || "green"; }catch(e){ return "green"; } }
+  function downName(){ try{ return localStorage.getItem("mt_down") || "red"; }catch(e){ return "red"; } }
+  function roleColor(map, name, idx){
+    var keys = Object.keys(map || {});
+    var a = (map && map[name]) || (map && map[keys[0]]) || ['#33e29a','#0b8a5c'];
+    return a[idx];
+  }
+  function applyUpDownVars(target, t){
+    if(!target || !target.style) return;
+    var light = (t === "light");
+    target.style.setProperty("--up", roleColor(window.__UPS, upName(), light ? 1 : 0));
+    target.style.setProperty("--down", roleColor(window.__DOWNS, downName(), light ? 1 : 0));
+  }
+  function fontName(){ try{ return localStorage.getItem("mt_font") || "mono"; }catch(e){ return "mono"; } }
+  function fontStack(name){
+    return name === "system" ? "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" : "'Oxygen Mono',ui-monospace,SFMono-Regular,Menlo,monospace";
+  }
+  function applyFont(name){
+    try{ localStorage.setItem("mt_font", name); }catch(e){}
+    document.documentElement.style.setProperty("--mono", fontStack(name));
+    applyFrame(document.getElementById("stageFrame"));
+  }
+  function outlineName(){ try{ return localStorage.getItem("mt_outline") || "default"; }catch(e){ return "default"; } }
+  function applyOutline(name){
+    try{ localStorage.setItem("mt_outline", name); }catch(e){}
+    var c = (window.__OUTLINES && window.__OUTLINES[name]) || '#4a4a4a';
+    document.documentElement.style.setProperty("--win-outline", c);
+    applyFrame(document.getElementById("stageFrame"));
+  }
+  function applyFrame(f){
+    if(!f) return;
+    try{
+      var d = f.contentDocument;
+      if(!d || !d.documentElement) return;
+      var t = theme();
+      d.documentElement.setAttribute("data-theme", t);
+      var st = d.getElementById("mt-theme-inject");
+        if(!st){ st = d.createElement("style"); st.id = "mt-theme-inject"; (d.head||d.documentElement).appendChild(st); }
+        var _css = (t === "light") ? LIGHT : "";
+        var _v = accentVals(accentName(), t);
+        var _up = roleColor(window.__UPS, upName(), t === "light" ? 1 : 0);
+        var _dn = roleColor(window.__DOWNS, downName(), t === "light" ? 1 : 0);
+        var _outl = (window.__OUTLINES && window.__OUTLINES[outlineName()]) || '#4a4a4a';
+        _css += 'html{--acc:'+_v.acc+';--acc2:'+_v.acc2+';--mint-dim:'+_v.dim+';--mint-line:'+_v.line+';--up:'+_up+';--down:'+_dn+';--mono:'+fontStack(fontName())+';--win-outline:'+_outl+';}';
+        st.textContent = _css;
+    }catch(e){}
+  }
+  function applyTheme(t){
+    try{ localStorage.setItem("mt_theme", t); }catch(e){}
+    document.documentElement.setAttribute("data-theme", t);
+    applyAccentVars(document.documentElement, accentName(), t);
+    applyUpDownVars(document.documentElement, t);
+    applyFrame(document.getElementById("stageFrame"));
+  }
+
+  // menu open/close
+  var btn = document.getElementById("settingsBtn");
+  var menu = document.getElementById("settingsMenu");
+  function closeMenu(){ if(menu){ menu.hidden = true; } if(btn){ btn.setAttribute("aria-expanded","false"); } }
+  if(btn && menu){
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      if(!menu.hidden) showView("viewMain");
+      btn.setAttribute("aria-expanded", String(!menu.hidden));
+    });
+    document.addEventListener("click", function(e){
+      if(!menu.hidden && e.target !== btn && !menu.contains(e.target)) closeMenu();
+    });
+  }
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function renderAcct(){
+    var n = document.getElementById("acctName");
+    var e = document.getElementById("acctEmail");
+    var email = "";
+    try{ email = localStorage.getItem("mt_email") || ""; }catch(err){}
+    var name = "";
+    try{ name = localStorage.getItem("mt_name") || ""; }catch(err){}
+    var uname = "";
+    try{ uname = localStorage.getItem("mt_username") || ""; }catch(err){}
+    if(email){
+      if(n) n.textContent = uname || name || email.split('@')[0];
+      if(e) e.textContent = email;
+    } else {
+      if(n) n.textContent = 'Not signed in';
+      if(e) e.textContent = 'Sign in to use the terminal';
+    }
+  }
+  window.__renderAcct = renderAcct;
+  window.__signOut = function(){
+    try{ localStorage.removeItem("mt_token"); localStorage.removeItem("mt_email"); }catch(e){}
+    location.reload();
+  };
+
+  var sf = document.getElementById("stageFrame");
+  if(sf){ sf.addEventListener("load", function(){ applyFrame(sf); }); applyFrame(sf); }
+
+  function applyAccent(name){
+    try{ localStorage.setItem("mt_accent", name); }catch(e){}
+    applyAccentVars(document.documentElement, name, theme());
+    applyFrame(document.getElementById("stageFrame"));
+  }
+  function applyUp(name){
+    try{ localStorage.setItem("mt_up", name); }catch(e){}
+    applyUpDownVars(document.documentElement, theme());
+    applyFrame(document.getElementById("stageFrame"));
+  }
+  function applyDown(name){
+    try{ localStorage.setItem("mt_down", name); }catch(e){}
+    applyUpDownVars(document.documentElement, theme());
+    applyFrame(document.getElementById("stageFrame"));
+  }
+  function setSel(id, val){ var el = document.getElementById(id); if(el) el.value = val; }
+  var accSel = document.getElementById("accentSel");
+  if(accSel) accSel.addEventListener("change", function(){ applyAccent(accSel.value); });
+  var upSel = document.getElementById("upSel");
+  if(upSel) upSel.addEventListener("change", function(){ applyUp(upSel.value); });
+  var downSel = document.getElementById("downSel");
+  if(downSel) downSel.addEventListener("change", function(){ applyDown(downSel.value); });
+  var bgSel = document.getElementById("bgSel");
+  if(bgSel) bgSel.addEventListener("change", function(){ applyTheme(bgSel.value); });
+  var fontSel = document.getElementById("fontSel");
+  if(fontSel) fontSel.addEventListener("change", function(){ applyFont(fontSel.value); });
+  var outlineSel = document.getElementById("outlineSel");
+  if(outlineSel) outlineSel.addEventListener("change", function(){ applyOutline(outlineSel.value); });
+
+  // toast
+  var toastEl = document.getElementById("settingsToast");
+  var toastTimer = null;
+  function toast(msg){
+    if(!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.hidden = false;
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.hidden = true; }, 2600);
+  }
+  function copyText(txt, msg){
+    function done(){ toast(msg); }
+    function fallback(){
+      var ta = document.createElement("textarea");
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand("copy"); }catch(e){}
+      document.body.removeChild(ta);
+      done();
+    }
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, fallback); }
+      else fallback();
+    }catch(e){ fallback(); }
+  }
+  function showView(id){
+    var views = ["viewMain","viewAccount","viewSettings"];
+    for(var i=0;i<views.length;i++){
+      var v = document.getElementById(views[i]);
+      if(v) v.hidden = (views[i] !== id);
+    }
+  }
+  function renderAccount(){
+    var email = "";
+    try{ email = localStorage.getItem("mt_email") || ""; }catch(e){}
+    var name = "";
+    try{ name = localStorage.getItem("mt_name") || ""; }catch(e){}
+    var uname = "";
+    try{ uname = localStorage.getItem("mt_username") || ""; }catch(e){}
+    var u = document.getElementById("acctUsername");
+    if(u) u.value = uname || name || (email ? email.split("@")[0] : "");
+    var e2 = document.getElementById("acctEmail2");
+    if(e2) e2.textContent = email || "—";
+    var v = document.getElementById("acctVerified");
+    if(v) v.hidden = !email;
+    var p = document.getElementById("acctPlan");
+    if(p) p.textContent = email ? "Free" : "No subscription";
+    var fn = document.getElementById("acctFullName");
+    if(fn) fn.value = uname || name || "";
+    var e3 = document.getElementById("acctEmail3");
+    if(e3) e3.textContent = email || "\u2014";
+    var se = document.getElementById("secEmail");
+    if(se) se.textContent = email || "Not signed in";
+    var ie = document.getElementById("intEmail");
+    if(ie) ie.textContent = email || "\u2014";
+  }
+  function toggleDefaults(){ return { mt_tblAnim:"on", mt_winShadow:"on", mt_winAnim:"off", mt_breakingNews:"on", mt_tickerClick:"on", mt_pinnedCommands:"off", mt_cmdBacktick:"on" }; }
+  function toggleIsOn(key){
+    var v = null;
+    try{ v = localStorage.getItem(key); }catch(e){}
+    return (v || toggleDefaults()[key]) === "on";
+  }
+  function renderToggles(){
+    var map = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim", breakingNews:"mt_breakingNews", tickerClick:"mt_tickerClick", pinnedCommands:"mt_pinnedCommands", cmdBacktick:"mt_cmdBacktick" };
+    for(var id in map){
+      var el = document.getElementById(id);
+      if(!el) continue;
+      var on = toggleIsOn(map[id]);
+      el.className = "settings-toggle" + (on ? " on" : "");
+      el.textContent = on ? "ON" : "OFF";
+    }
+  }
+  function switchSect(id){
+    var btns = document.querySelectorAll("#viewSettings .settings-side button");
+    for(var i=0;i<btns.length;i++){
+      btns[i].className = (btns[i].getAttribute("data-sect") === id) ? "on" : "";
+    }
+    var panes = document.querySelectorAll("#viewSettings .settings-content [data-sect-pane]");
+    for(var j=0;j<panes.length;j++){
+      panes[j].hidden = panes[j].getAttribute("data-sect-pane") !== id;
+    }
+  }
+  function switchAccountPane(id){
+    var btns = document.querySelectorAll("#viewAccount .settings-side button");
+    for(var i=0;i<btns.length;i++){
+      btns[i].className = (btns[i].getAttribute("data-account") === id) ? "on" : "";
+    }
+    var panes = document.querySelectorAll("#viewAccount .settings-content [data-account-pane]");
+    for(var j=0;j<panes.length;j++){
+      panes[j].hidden = panes[j].getAttribute("data-account-pane") !== id;
+    }
+  }
+  // default market
+  var dmSel = document.getElementById("defMarket");
+  if(dmSel){
+    if(typeof currentEx !== 'undefined' && currentEx) dmSel.value = currentEx;
+    dmSel.addEventListener("change", function(){
+      try{ localStorage.setItem("mt_ex", dmSel.value); }catch(e){}
+      toast("Default market set to " + dmSel.value);
+    });
+  }
+  var menuEl = document.getElementById("settingsMenu");
+  if(menuEl) menuEl.addEventListener("click", function(e){
+    var el = e.target;
+    // navigation
+    var go = el;
+    while(go && go !== menuEl && !(go.getAttribute && go.getAttribute("data-go"))) go = go.parentNode;
+    if(go && go !== menuEl && go.getAttribute && go.getAttribute("data-go")){
+      var id = go.getAttribute("data-go");
+      if(id === "account"){ renderAccount(); showView("viewAccount"); switchAccountPane("profile"); }
+      else if(id === "settings"){ renderToggles(); showView("viewSettings"); switchSect("theme"); }
+      return;
+    }
+    // section navigation (settings sidebar)
+    var sec = el;
+    while(sec && sec !== menuEl && !(sec.getAttribute && sec.getAttribute("data-sect"))) sec = sec.parentNode;
+    if(sec && sec !== menuEl && sec.getAttribute && sec.getAttribute("data-sect")){
+      switchSect(sec.getAttribute("data-sect")); return;
+    }
+    // account pane navigation
+    var ac = el;
+    while(ac && ac !== menuEl && !(ac.getAttribute && ac.getAttribute("data-account"))) ac = ac.parentNode;
+    if(ac && ac !== menuEl && ac.getAttribute && ac.getAttribute("data-account")){
+      switchAccountPane(ac.getAttribute("data-account")); return;
+    }
+    // back
+    var bk = el;
+    while(bk && bk !== menuEl && !(bk.getAttribute && bk.hasAttribute && bk.hasAttribute("data-back"))) bk = bk.parentNode;
+    if(bk && bk !== menuEl && bk.getAttribute && bk.hasAttribute && bk.hasAttribute("data-back")){
+      showView("viewMain"); return;
+    }
+    // actions
+    var it = el;
+    while(it && it !== menuEl && !(it.getAttribute && it.getAttribute("data-act"))) it = it.parentNode;
+    if(!it || it === menuEl || !it.getAttribute) return;
+    var act = it.getAttribute("data-act");
+    var email = "";
+    try{ email = localStorage.getItem("mt_email") || ""; }catch(err){}
+    var base = "https://mutxriterminal.com/terminal/";
+    if(act === "invite"){ copyText(base, "Invite link copied"); }
+    else if(act === "refer"){ copyText(email ? (base + "?ref=" + encodeURIComponent(email)) : base, "Referral link copied"); }
+    else if(act === "billing"){ renderAccount(); showView("viewAccount"); }
+    else if(act === "logout"){ if(email){ window.__signOut(); } else { toast("Not signed in"); } }
+    if(act !== "billing") closeMenu();
+  });
+
+  // username/name input -> chat display handle (persisted to the backend).
+  // Both "Username" and "Name" say "How you appear in chat" and edit the SAME
+  // handle, so changing either saves the backend username and keeps them in sync.
+  function saveHandle(v){
+    v = (v || "").trim();
+    if(!v){ toast("Enter a name first"); return; }
+    var apiBase = window.API_BASE || window.AUTH_API || "https://mutxri-terminal.onrender.com";
+    var t = ""; try{ t = localStorage.getItem("mt_token") || ""; }catch(e){}
+    fetch(apiBase + "/api/auth/username", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t, username: v})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(d){
+        if(d && d.ok){
+          try{ localStorage.setItem("mt_username", d.username || v); }catch(e){}
+          renderAcct();
+          renderAccount();
+          // re-render the room so already-drawn messages pick up the new handle
+          try{ if(window.__mtChatReset) window.__mtChatReset(); }catch(e){}
+          toast("Name saved - shows in chat");
+        } else {
+          toast((d && d.error) || "Could not save name");
+        }
+      })
+      .catch(function(){ toast("Could not reach the server - name not saved"); });
+  }
+  var uIn = document.getElementById("acctUsername");
+  if(uIn) uIn.addEventListener("change", function(){ saveHandle(uIn.value); });
+  var fnIn = document.getElementById("acctFullName");
+  if(fnIn) fnIn.addEventListener("change", function(){ saveHandle(fnIn.value); });
+  // explicit Save buttons - the change event is easy to miss (blur timing), so
+  // every account field has a real button that always persists to the backend
+  var svBtns = document.querySelectorAll("[data-save]");
+  for(var i = 0; i < svBtns.length; i++){
+    svBtns[i].addEventListener("click", function(){
+      var el = document.getElementById(this.getAttribute("data-save"));
+      if(el) saveHandle(el.value);
+    });
+  }
+  // set a password for a Google-created account so it can sign in with
+  // email + password instead of being stuck on "Continue with Google"
+  function setPassword(v){
+    v = (v || "").trim();
+    if(!v || v.length < 8){ toast("Password must be at least 8 characters"); return; }
+    var apiBase = window.API_BASE || window.AUTH_API || "https://mutxri-terminal.onrender.com";
+    var t = ""; try{ t = localStorage.getItem("mt_token") || ""; }catch(e){}
+    fetch(apiBase + "/api/auth/set_password", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t, password: v})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(d){
+        if(d && d.ok){
+          var el = document.getElementById("acctPwd"); if(el) el.value = "";
+          toast("Password set - sign in with it anytime");
+        } else {
+          toast((d && d.error) || "Could not set password");
+        }
+      })
+      .catch(function(){ toast("Could not reach the server - password not set"); });
+  }
+  var pwBtn = document.querySelector("[data-setpwd]");
+  if(pwBtn) pwBtn.addEventListener("click", function(){
+    var el = document.getElementById(this.getAttribute("data-setpwd"));
+    if(el) setPassword(el.value);
+  });
+
+  // toggles
+  function applyToggle(id, key){
+    var el = document.getElementById(id);
+    if(!el) return;
+    var on = !toggleIsOn(key);
+    try{ localStorage.setItem(key, on ? "on" : "off"); }catch(e){}
+    if(key === "mt_tblAnim"){
+      document.documentElement.setAttribute("data-tbl-anim", on ? "on" : "off");
+      try{ if(typeof renderWatchlist === "function") renderWatchlist(""); }catch(e){}
+    }
+    else if(key === "mt_winShadow"){ document.documentElement.setAttribute("data-win-shadow", on ? "on" : "off"); }
+    else if(key === "mt_winAnim"){ document.documentElement.setAttribute("data-win-anim", on ? "on" : "off"); }
+    else if(key === "mt_breakingNews"){
+      var tape = document.querySelector(".tape");
+      if(tape) tape.style.display = on ? "" : "none";
+    }
+    renderToggles();
+  }
+  var toggleMap = { tblAnim:"mt_tblAnim", winShadow:"mt_winShadow", winAnim:"mt_winAnim", breakingNews:"mt_breakingNews", tickerClick:"mt_tickerClick", pinnedCommands:"mt_pinnedCommands", cmdBacktick:"mt_cmdBacktick" };
+  for(var tg in toggleMap){
+    (function(id, key){
+      var el = document.getElementById(id);
+      if(el) el.addEventListener("click", function(){ applyToggle(id, key); });
+    })(tg, toggleMap[tg]);
+  }
+  // backtick opens the command bar (the top search box)
+  document.addEventListener("keydown", function(e){
+    if(e.key !== "`") return;
+    if(!toggleIsOn("mt_cmdBacktick")) return;
+    var t = e.target;
+    if(t && t.tagName && /INPUT|TEXTAREA|SELECT/.test(t.tagName)) return;
+    e.preventDefault();
+    var q = document.getElementById("q");
+    if(q) q.focus();
+  });
+
+  applyAccentVars(document.documentElement, accentName(), theme());
+  applyUpDownVars(document.documentElement, theme());
+  try{
+    document.documentElement.setAttribute("data-tbl-anim", localStorage.getItem("mt_tblAnim") === "off" ? "off" : "on");
+    document.documentElement.setAttribute("data-win-shadow", localStorage.getItem("mt_winShadow") === "off" ? "off" : "on");
+    document.documentElement.setAttribute("data-win-anim", localStorage.getItem("mt_winAnim") === "on" ? "on" : "off");
+  }catch(e){}
+  try{
+    var _tape = document.querySelector(".tape");
+    if(_tape && localStorage.getItem("mt_breakingNews") === "off") _tape.style.display = "none";
+  }catch(e){}
+  renderAcct();
+  setSel("accentSel", accentName());
+  setSel("upSel", upName());
+  setSel("downSel", downName());
+  setSel("bgSel", theme());
+  setSel("fontSel", fontName());
+  setSel("outlineSel", outlineName());
+  renderToggles();
+})();
 </script>
 
 </body>

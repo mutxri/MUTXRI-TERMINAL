@@ -28,10 +28,36 @@ def fetch_board(ex):
             pass
     return out
 
+
+def fetch_nse_nsenairobi():
+    """Official NSE ticker snapshot (nsenairobi.nse.co.ke). The kwayisi mirror
+    goes stale for some symbols (EQTY sat at 93.25 while the exchange printed
+    107.75), so NSE prices come straight from the exchange's own feed."""
+    url = "https://nsenairobi.nse.co.ke/nseticker/api/v1/ticker"
+    body = json.dumps({"nopage": "true", "isinno": "KE3000009674"}).encode()
+    req = urllib.request.Request(url, data=body, headers={
+        "User-Agent": "Mozilla/5.0",
+        "Content-Type": "application/json",
+        "Origin": "https://nsenairobi.nse.co.ke",
+        "Referer": "https://nsenairobi.nse.co.ke/"}, method="POST")
+    d = json.loads(urllib.request.urlopen(req, timeout=30).read().decode())
+    items = (d.get("message") or [{}])[0].get("snapshot") or []
+    out = {}
+    for it in items:
+        iss = (it.get("issuer") or "").upper()
+        px = it.get("price")
+        out[iss] = {
+            "price": float(px) if isinstance(px, (int, float)) else None,
+            "chgPct": float(it["change"]) if isinstance(it.get("change"), (int, float)) else None,
+            "volume": it.get("volume"),
+        }
+    return out
+
+
 def main():
     db = json.load(open(STOCKS, encoding="utf-8"))
     print("fetching boards...")
-    nse_board = fetch_board("nse")
+    nse_board = fetch_nse_nsenairobi()
     ngx_board = fetch_board("ngx")
     print(f"NSE board: {len(nse_board)} | NGX board: {len(ngx_board)}")
 
