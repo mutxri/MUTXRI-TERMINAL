@@ -59,7 +59,7 @@ def main():
         merged = [by_day[k] for k in sorted(by_day.keys())]
         json.dump({"sym": tkr, "currency": s.get("currency", "KES"),
                    "source": "NSE official board snapshot",
-                   "bars": merged[-1500:]},
+                   "bars": merged[-10000:]},
                   open(path, "w", encoding="utf-8"), ensure_ascii=False)
         if existed:
             updated += 1

@@ -87,7 +87,7 @@ def main():
             bars = [all_bars[k] for k in sorted(all_bars.keys())]
             # merge volume from the full-row regex if present (parse again with volume)
             path = os.path.join(HIST, f"NSE_{tkr}.json")
-            json.dump({"bars": bars[-1500:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
+            json.dump({"bars": bars[-10000:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
             saved += 1
             print(f"  {tkr}: {len(bars)} bars ({ok_months} months)")
         else:

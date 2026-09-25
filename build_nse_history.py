@@ -122,7 +122,7 @@ def main():
             bars[-1] = bar
         else:
             bars.append(bar)
-        data["bars"] = bars[-1500:]  # cap at 1500 bars
+        data["bars"] = bars[-10000:]  # cap at 10000 bars (~40y) for full since-IPO
         json.dump(data, open(path, "w", encoding="utf-8"), ensure_ascii=False)
         seen.add(tkr)
         saved += 1
