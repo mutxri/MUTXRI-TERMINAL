@@ -26,6 +26,7 @@ with open(os.path.join(DEPLOY, "CNAME"), "w", encoding="utf-8") as _c:
 
 # documentation page (root-level, linked from landing)
 shutil.copy(os.path.join(BASE, "docs.html"), os.path.join(DEPLOY, "docs.html"))
+shutil.copy(os.path.join(BASE, "methodology.html"), os.path.join(DEPLOY, "methodology.html"))
 
 # user guide (root-level, linked from the landing nav) + the tour video it embeds.
 # The 4K master ships as-is: it is stills and narration, so it compresses to
