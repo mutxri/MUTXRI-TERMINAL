@@ -14,6 +14,9 @@
 
     * positions are marked to the latest price: day P&L against the previous
       close, unrealised against average cost, realised on every sale
+    * positions can be LONG or SHORT. SHORT sells shares you do not own and
+      keeps the proceeds as cash; a later BUY covers the short (realising
+      (entry - exit) x shares). No borrow cost or margin is modelled.
     * market orders (and limits already at the price) fill at the latest price
     * limit, stop and stop-limit orders rest, and are checked only against
       sessions AFTER the one they were placed in - never against a high or low
@@ -70,6 +73,7 @@
                font-family:var(--mono);font-size:11px;letter-spacing:.08em;cursor:pointer;}
   .side button.on[data-side=BUY]{background:var(--up);color:#00160e;}
   .side button.on[data-side=SELL]{background:var(--down);color:#1a0000;}
+  .side button.on[data-side=SHORT]{background:#a78bfa;color:#14072a;}
   input,select{background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
         font-family:var(--mono);font-size:12px;padding:7px 10px;border-radius:2px;}
   select{padding:7px 8px;cursor:pointer;}
@@ -141,7 +145,8 @@
       <b>PAPER</b>
       <span>Simulated orders at real exchange prices. Nothing is sent to a broker and no money moves.
             Prices refresh about every 3 hours; positions revalue and working orders are checked each time.
-            No fees or taxes are modelled.</span>
+            No fees or taxes are modelled. You can sell short (SHORT sells shares you do not own and keeps
+            the proceeds as cash); borrowing and margin are not modelled.</span>
     </div>
 
     <div class="bar">
@@ -159,6 +164,7 @@
       <div class="side">
         <button type="button" data-side="BUY" class="on">BUY</button>
         <button type="button" data-side="SELL">SELL</button>
+        <button type="button" data-side="SHORT">SHORT</button>
       </div>
       <input id="sym" list="tickers" placeholder="TICKER" autocomplete="off" aria-label="Ticker" />
       <datalist id="tickers"></datalist>
@@ -381,20 +387,44 @@
 
   function fill(a, o, px, date){
     var val = o.qty * px, pos = a.positions[o.sym] || {qty: 0, avg: 0};
+    var q = pos.qty, avg = pos.avg, n = o.qty;
     if(o.side === "BUY"){
       if(val > a.cash + 1e-9) return "not enough cash: " + money(val) + " needed, " + money(a.cash) + " available";
       a.cash -= val;
-      pos.avg = (pos.avg * pos.qty + val) / (pos.qty + o.qty);
-      pos.qty += o.qty;
+      if(q < 0){                                  // buying back a short (buy to cover)
+        var cover = Math.min(n, -q);
+        o.realised = (avg - px) * cover;          // sold at avg, bought back at px
+        a.realised += o.realised;
+        q += cover; n -= cover;
+      }
+      if(n > 0){                                  // opens or adds to a long
+        pos.avg = (avg * q + px * n) / (q + n);
+        pos.qty = q + n;
+        pos.lastBuy = date;
+        a.positions[o.sym] = pos;
+      }else if(q === 0){
+        delete a.positions[o.sym];                // short fully covered
+      }else{
+        pos.qty = q; a.positions[o.sym] = pos;    // still short, entry price unchanged
+      }
+    }else if(o.side === "SELL"){
+      if(q < n){
+        if(q < 0) return "you are short " + fmt(-q, 0) + " " + o.sym + " - buy to cover, or SHORT more";
+        return "you hold " + fmt(q, 0) + " " + o.sym + ", not " + fmt(n, 0);
+      }
+      a.cash += val;
+      o.realised = (px - avg) * n;
+      a.realised += o.realised;
+      q -= n;
+      if(q === 0) delete a.positions[o.sym]; else { pos.qty = q; a.positions[o.sym] = pos; }
+    }else{                                        // SHORT: sell shares you do not own
+      if(q > 0) return "you are long " + fmt(q, 0) + " " + o.sym + " - SELL to close first";
+      a.cash += val;                              // keep the sale proceeds
+      var shortQ = -q;                            // shares already short (>= 0)
+      pos.avg = (avg * shortQ + px * n) / (shortQ + n);
+      pos.qty = q - n;
       pos.lastBuy = date;
       a.positions[o.sym] = pos;
-    }else{
-      if(pos.qty < o.qty) return "you hold " + fmt(pos.qty, 0) + " " + o.sym + ", not " + fmt(o.qty, 0);
-      a.cash += val;
-      o.realised = (px - pos.avg) * o.qty;
-      a.realised += o.realised;
-      pos.qty -= o.qty;
-      if(pos.qty === 0) delete a.positions[o.sym]; else a.positions[o.sym] = pos;
     }
     o.status = "FILLED"; o.px = px; o.close = date; o.done = Date.now();
     a.orders.unshift(o);
@@ -492,7 +522,7 @@
     var body = keys.map(function(t){
       var p = a.positions[t], r = quote(t), px = lastOf(t);
       var val = px == null ? null : px * p.qty, book = p.avg * p.qty, pl = val == null ? null : val - book;
-      var plp = (pl == null || !book) ? null : pl / book * 100, dp = null;
+      var plp = (pl == null || !book) ? null : pl / Math.abs(book) * 100, dp = null;
       if(px != null && r){
         if(p.lastBuy && r.date && p.lastBuy >= r.date) dp = (px - p.avg) * p.qty;   // bought in this session
         else if(r.prev != null) dp = (px - r.prev) * p.qty;
@@ -500,16 +530,17 @@
       mv += val != null ? val : book;
       if(pl != null) unr += pl;
       if(dp != null){ day += dp; dayKnown = true; }
-      return "<tr><td>" + esc(t) + " <span class='dim'>" + esc(((r && r.name) || "").slice(0, 24)) + "</span></td>" +
-             "<td>" + fmt(p.qty, 0) + "</td><td>" + fmt(p.avg) + "</td><td>" + fmt(px) + "</td>" +
-             "<td>" + fmt(val) + "</td>" +
+      return "<tr><td>" + esc(t) + (p.qty < 0 ? " <span class='tag'>SHORT</span>" : "") +
+             " <span class='dim'>" + esc(((r && r.name) || "").slice(0, 24)) + "</span></td>" +
+             "<td class='" + (p.qty < 0 ? "down" : "") + "'>" + fmt(p.qty, 0) + "</td><td>" + fmt(p.avg) + "</td><td>" + fmt(px) + "</td>" +
+             "<td class='" + (p.qty < 0 ? "down" : "") + "'>" + fmt(val) + "</td>" +
              "<td class='" + tone(dp) + "'>" + signed(dp) + "</td>" +
              "<td class='" + tone(pl) + "'>" + signed(pl) + "</td>" +
              "<td class='" + tone(plp) + "'>" + (plp == null ? "-" : signed(plp) + "%") + "</td>" +
              "<td class='dim'>" + esc((r && r.date) || "") + "</td></tr>";
     }).join("");
     $("positions").innerHTML = keys.length
-      ? "<div class='tablewrap'><table><tr><th>SECURITY</th><th>QTY</th><th>AVG COST</th><th>LAST</th><th>VALUE</th>" +
+      ? "<div class='tablewrap'><table><tr><th>SECURITY</th><th>QTY</th><th>AVG</th><th>LAST</th><th>VALUE</th>" +
         "<th>DAY P&amp;L</th><th>UNREALISED</th><th>%</th><th>SESSION</th></tr>" + body + "</table></div>"
       : "<div class='empty'>No positions yet. Place a paper order above.</div>";
 
@@ -635,6 +666,10 @@
       if(free < n) return say("You have " + fmt(Math.max(free, 0), 0) + " " + t + " free to sell" +
                               (reservedQty(a, t) ? " (" + fmt(reservedQty(a, t), 0) + " already on working sell orders)" : "") + ".", true);
     }
+    if(side === "SHORT"){
+      var held = ((a.positions[t] || {}).qty || 0);
+      if(held > 0) return say("You are long " + fmt(held, 0) + " " + t + ". SELL to close your long before shorting.", true);
+    }
     function now(p){
       var err = fill(a, o, p, date);
       if(err) return say("Rejected: " + err + ".", true);
@@ -748,7 +783,7 @@
     if(PRESET && quote(PRESET)) $("sym").value = PRESET;
     if(ORDER){
       var p = ORDER.split(":");
-      if(p.length === 3 && (p[0] === "BUY" || p[0] === "SELL")){
+      if(p.length === 3 && (p[0] === "BUY" || p[0] === "SELL" || p[0] === "SHORT")){
         side = p[0];
         Array.prototype.forEach.call(document.querySelectorAll(".side button"), function(x){
           x.classList.toggle("on", x.getAttribute("data-side") === side); });
