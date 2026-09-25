@@ -1109,6 +1109,7 @@ let PANELS = [
   {id:'heatmap', label:'HEATMAP', url:'features/panels/afri_heatmap.html'},
   {id:'screener',label:'SCREENER', url:'features/panels/afri_screener.html'},
   {id:'financials',label:'FINANCIALS', url:'features/panels/afri_financials.html'},
+  {id:'compare',   label:'COMPARE',    url:'features/panels/afri_compare.html'},
   // REG and CORP are folded into NEWS: the news panel merges press headlines,
   // the regulatory wire (reg.json) and corporate actions (dividends / closures).
   {id:'news',    label:'NEWS',     url:'features/panels/afri_news.html'},
@@ -1938,7 +1939,7 @@ window.__getRecents = function(){
 // ===== Command bar =====
 // ===== Command bar: Bloomberg-style "TICKER FUNCTION" =====
 const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'chart', CN:'wire', NEWS:'wire', REG:'wire',
-                     HP:'chart', EQS:'screener', RV:'financials', SPLC:'info'};
+                     HP:'chart', EQS:'screener', RV:'financials', SPLC:'info', CMP:'compare', CMPR:'compare'};
 // Every market's tickers, fetched once at boot (39 KB gzipped for all four) so
 // a ticker resolves no matter which board is on screen. Before this, typing a
 // Nairobi ticker while on the JSE board just answered "unknown".
@@ -2019,6 +2020,28 @@ function runCommand(raw){
     // a command for a window you are already looking at means "close it"
     window.MTWin.set(k, !window.MTWin.isOpen(k));
     return;
+  }
+  // COMPARE EQTY KCB / CMP A B / A VS B -> side-by-side comparison panel
+  if(/^(COMPARE|CMP|CMPR)\b/.test(v) || /\bVS\b/.test(v)){
+    let ctoks;
+    if(/\bVS\b/.test(v)) ctoks = v.split(/\s*VS\s*/).map(function(t){return t.trim();}).filter(Boolean);
+    else ctoks = v.replace(/^(COMPARE|CMP|CMPR)\s+/,'').split(/\s+/).filter(Boolean);
+    const cp = PANELS.find(function(x){return x.id==='compare';});
+    if(cp && ctoks.length){
+      const sa = resolveSec(ctoks[0]);
+      const cex = (sa && sa.ex) || currentEx;
+      const curl = cp.url + '?a=' + encodeURIComponent(ctoks[0])
+        + (ctoks[1] ? '&b=' + encodeURIComponent(ctoks[1]) : '') + '&ex=' + cex + '&v=' + Date.now();
+      $('stageFrame').src = curl;
+      const ci = PANELS.indexOf(cp);
+      if(ci >= 0){
+        document.querySelectorAll('.ctab').forEach(function(x){x.classList.remove('active');});
+        const els = document.querySelectorAll('.ctab');
+        if(els[ci]) els[ci].classList.add('active');
+        __activePanelIdx = ci;
+      }
+      return;
+    }
   }
   let parts = v.split(/\s+/);
   // "SCOM KE", "MTN JSE", "DANGCEM NG FA" - the market is named in the command
