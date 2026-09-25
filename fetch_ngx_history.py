@@ -172,23 +172,32 @@ def main():
     all_bars = {}  # sym -> {date: bar}
     fetched = 0
     for i, date_str in enumerate(dates):
-        try:
-            leaf = find_price_list(date_str)
-            if not leaf:
-                print(f"  {date_str}: no file")
-                continue
-            zf = download_zip(leaf)
-            rows = parse_prices(zf, "PRICES")
-            iso = f"{date_str[6:]}-{date_str[3:5]}-{date_str[0:2]}"
-            for sym, bar in rows.items():
-                all_bars.setdefault(sym, {})[iso] = bar
-            fetched += 1
-            print(f"  {date_str}: {len(rows)} securities")
-        except Exception as e:
-            print(f"  {date_str}: ERR {str(e)[:60]}")
+        done_day = False
+        for attempt in range(3):
+            try:
+                leaf = find_price_list(date_str)
+                if not leaf:
+                    print(f"  {date_str}: no file")
+                    done_day = True
+                    break
+                zf = download_zip(leaf)
+                rows = parse_prices(zf, "PRICES")
+                iso = f"{date_str[6:]}-{date_str[3:5]}-{date_str[0:2]}"
+                for sym, bar in rows.items():
+                    all_bars.setdefault(sym, {})[iso] = bar
+                fetched += 1
+                print(f"  {date_str}: {len(rows)} securities")
+                done_day = True
+                break
+            except Exception as e:
+                if attempt < 2:
+                    print(f"  {date_str}: ERR {str(e)[:50]} (retry {attempt+1}/2)")
+                    time.sleep(2 + attempt * 3)
+                else:
+                    print(f"  {date_str}: ERR {str(e)[:60]}")
         if fetched and fetched % 10 == 0:
             print(f"    ... checkpoint: {flush(all_bars)} symbols written", flush=True)
-        time.sleep(0.4)
+        time.sleep(0.6)
 
     saved = flush(all_bars)
     print("")
