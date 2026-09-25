@@ -154,7 +154,7 @@ def main():
             for b in bars:
                 merged[b["t"]] = b
             final = [merged[k] for k in sorted(merged.keys())]
-            json.dump({"bars": final[-1500:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
+            json.dump({"bars": final[-10000:]}, open(path, "w", encoding="utf-8"), ensure_ascii=False)
             saved += 1
     print(f"DONE: {fetched} days, {saved} symbols rebuilt")
 
