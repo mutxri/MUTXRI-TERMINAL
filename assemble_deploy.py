@@ -45,7 +45,7 @@ for _m in ("mx_terminal_tour_4k.mp4", "mx_terminal_tour_poster.jpg",
 # favicon + og:image targets - referenced by index.html and terminal/index.html.
 # These lived only in the repo root, so a clean rebuild dropped the favicon
 # and the social preview image.
-for _logo in ("mutxri_logo.png", "mutxri_logo.svg", "mutxri_logo_256.png"):
+for _logo in ("mutxri_logo.png", "mutxri_logo.svg", "mutxri_logo_256.png", "favicon.ico"):
     _src = os.path.join(BASE, _logo)
     if os.path.exists(_src):
         shutil.copy(_src, os.path.join(DEPLOY, _logo))
