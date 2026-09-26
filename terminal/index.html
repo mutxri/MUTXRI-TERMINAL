@@ -1226,7 +1226,7 @@ function renderTabs(){
     // it re-tiles to the window you actually have. That is why a workspace made
     // later looked right and MAIN did not - MAIN was laid out once, against
     // whatever viewport existed the first time it was created, and kept.
-    function fresh(name){ return {name: name, wins: tiled(), auto: true, saved: false}; }
+    function fresh(name){ return {name: name, wins: tiled(), auto: true}; }
     function touched(){
       const sp = cur();
       if(sp && sp.auto){ sp.auto = false; }
@@ -1243,7 +1243,7 @@ function renderTabs(){
     function save(){
       try{
         localStorage.setItem('mt_ws', JSON.stringify({active: active,
-          spaces: spaces.map(function(sp){ return {name: sp.name, wins: sp.wins, auto: !!sp.auto, saved: !!sp.saved}; })}));
+          spaces: spaces.map(function(sp){ return {name: sp.name, wins: sp.wins, auto: !!sp.auto}; })}));
       }catch(e){}
     }
     (function restore(){
@@ -1252,21 +1252,13 @@ function renderTabs(){
       if(s && s.spaces && s.spaces.length){
         spaces = s.spaces.map(function(sp, i){
           const nm = String(sp.name || ('WS ' + (i + 1))).slice(0, 18);
-          // Join on the DEFAULT layout unless this workspace was deliberately
-          // saved. Previously ANY drag made a layout stick: `touched()` cleared
-          // auto the first time a window moved, the geometry was persisted, and
-          // it came back on every later visit - so a layout arranged once against
-          // a different viewport (or half-dragged) was permanent, leaving gaps
-          // with no way back to the tile that fits the screen you are on.
-          if(sp.saved !== true) return fresh(nm);
-          const wins = {};
-          KEYS.forEach(function(k){
-            const w = (sp.wins || {})[k] || {};
-            wins[k] = {x: +w.x || 4, y: +w.y || 4,
-                       w: Math.max(MIN_W, +w.w || META[k].w), h: Math.max(MIN_H, +w.h || META[k].h),
-                       open: w.open !== false, z: +w.z || 10 + i};
-          });
-          return {name: nm, wins: wins, auto: sp.auto !== false, saved: true};
+          // Every workspace joins on the DEFAULT tiled layout, whatever geometry
+          // happens to be stored. Dragging still holds within the session, but no
+          // private arrangement carries across visits: a layout arranged once
+          // against a different viewport (or left half-dragged) used to come back
+          // on every visit, leaving dead space and no way back to a tile that
+          // fits the screen. Workspace NAMES are preserved.
+          return fresh(nm);
         });
         active = Math.min(Math.max(0, s.active | 0), spaces.length - 1);
       }else{
@@ -1374,42 +1366,6 @@ function renderTabs(){
         switchTo(spaces.length - 1);
       };
       host.appendChild(add);
-      // Explicit save. Joining the terminal always gives the default layout now,
-      // so this is the one way to say "keep this arrangement" - without it there
-      // would be no way to make a custom layout survive a reload.
-      const sv = document.createElement('button');
-      sv.type = 'button';
-      sv.className = 'ws-add' + (cur().saved ? ' on' : '');
-      sv.textContent = cur().saved ? 'SAVED' : 'SAVE';
-      sv.title = cur().saved
-        ? 'This layout is restored when you rejoin - click to go back to the default on join'
-        : 'Save this layout so it is restored when you rejoin the terminal';
-      // This block is its own script scope: the shell's toast() is NOT reachable
-      // from here (calling it throws ReferenceError), so write the shell's toast
-      // element directly instead of depending on a function we cannot see.
-      function note(msg){
-        const t = document.getElementById('settingsToast');
-        if(!t) return;
-        t.textContent = msg;
-        t.hidden = false;
-        if(note._t) clearTimeout(note._t);
-        note._t = setTimeout(function(){ t.hidden = true; }, 2600);
-      }
-      sv.onclick = function(){
-        const sp = cur();
-        if(sp.saved){
-          sp.saved = false;
-          sp.auto = true;                 // straight back to the default tile
-          save(); render(); tabs();
-          note('Layout cleared - the default layout loads on join');
-        } else {
-          sp.saved = true;
-          sp.auto = false;
-          save(); tabs();
-          note('Layout saved - restored when you rejoin the terminal');
-        }
-      };
-      host.appendChild(sv);
     }
     function switchTo(i){
       if(i < 0 || i >= spaces.length || i === active) return;
