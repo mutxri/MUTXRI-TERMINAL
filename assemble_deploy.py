@@ -58,6 +58,12 @@ if os.path.exists(os.path.join(BASE, "404.html")):
 # without a 404 page would have shipped neither.
 shutil.copy(os.path.join(BASE, "robots.txt"), os.path.join(DEPLOY, "robots.txt"))
 shutil.copy(os.path.join(BASE, "sitemap.xml"), os.path.join(DEPLOY, "sitemap.xml"))
+# llms.txt: the markdown guide for AI crawlers, a separate thing from the sitemap
+# (which only lists indexable URLs). Served at the site root, per llmstxt.org.
+if os.path.exists(os.path.join(BASE, "llms.txt")):
+    shutil.copy(os.path.join(BASE, "llms.txt"), os.path.join(DEPLOY, "llms.txt"))
+else:
+    print("  WARNING: llms.txt missing from the source tree - not deployed")
 
 # IndexNow key: the protocol requires it served at /<key>.txt (see speed_index.py).
 # Public by design - it proves the submitter controls the site, nothing more.
