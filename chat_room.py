@@ -165,8 +165,9 @@ def _resolve_handles(msgs):
             _RESOLVE_CACHE[email] = (uname, now, real)
         # A stored handle that IS the account email is not a chosen handle (the
         # account panel once invited people to type one into its Name field), so
-        # fall back to the name they did choose, then to the email prefix.
-        m["name"] = _no_email(uname or real, email)
+        # prefer the name they did choose over an email-shaped username.
+        handle = uname if (uname and "@" not in uname) else real
+        m["name"] = _no_email(handle, email)
     return msgs
 
 
