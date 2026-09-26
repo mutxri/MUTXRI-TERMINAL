@@ -3037,12 +3037,14 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     var uname = "";
     try{ uname = localStorage.getItem("mt_username") || ""; }catch(err){}
     if(email || name || uname){
-      // A handle that is just the account email is not a name, and it must never
-      // outrank the name the user actually set. The backend seeds the chat handle
-      // from the email at signup, so preferring `uname` here made the menu display
-      // the raw address even after the user set their name.
+      // A handle OR a name that is just the account email is not a display name.
+      // The backend seeds the chat handle from the email at signup, and an account
+      // created without a name (Google sign-in with no profile name, or a signup
+      // with the name field left blank) has nothing else to show - so whichever
+      // field holds the address, it must never be rendered as the person's name.
       var handle = (uname && !looksLikeEmail(uname)) ? uname : "";
-      if(n) n.textContent = handle || name || (email ? email.split('@')[0] : 'Not signed in');
+      var realName = (name && !looksLikeEmail(name)) ? name : "";
+      if(n) n.textContent = handle || realName || (email ? email.split('@')[0] : 'Not signed in');
       if(e) e.textContent = email || '—';
     } else {
       if(n) n.textContent = 'Not signed in';
