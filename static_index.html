@@ -628,7 +628,18 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
     msg("Verifying session…");
     fetch(AUTH_API + "/api/auth/me", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t})})
       .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
-      .then(function(d){ if(d && d.ok){ hide(); try{ localStorage.setItem("mt_username", d.username || ""); localStorage.setItem("mt_name", d.name || ""); }catch(e){} } else { show(); msg("Session expired. Sign in to continue."); } })
+      .then(function(d){ if(d && d.ok){ hide(); try{
+          // /api/auth/me is authoritative, so persist the CURRENT email too. It was
+          // previously dropped while username/name were refreshed, which left
+          // mt_email frozen at the value cached at sign-in: an email changed on the
+          // server kept rendering the old address in the account menu forever.
+          if(d.email) localStorage.setItem("mt_email", d.email);
+          localStorage.setItem("mt_username", d.username || "");
+          localStorage.setItem("mt_name", d.name || "");
+        }catch(e){}
+        try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){}
+        try{ if(window.__renderAccount) window.__renderAccount(); }catch(e){}
+      } else { show(); msg("Session expired. Sign in to continue."); } })
       .catch(function(){ show(); msg("Could not reach the sign-in server. Check your connection and try again."); });
   }
   window.gateSubmit = function(){
@@ -3015,6 +3026,7 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
   }
 
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function looksLikeEmail(s){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(s == null ? "" : s)); }
   function renderAcct(){
     var n = document.getElementById("acctName");
     var e = document.getElementById("acctEmail");
@@ -3024,9 +3036,14 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     try{ name = localStorage.getItem("mt_name") || ""; }catch(err){}
     var uname = "";
     try{ uname = localStorage.getItem("mt_username") || ""; }catch(err){}
-    if(email){
-      if(n) n.textContent = uname || name || email.split('@')[0];
-      if(e) e.textContent = email;
+    if(email || name || uname){
+      // A handle that is just the account email is not a name, and it must never
+      // outrank the name the user actually set. The backend seeds the chat handle
+      // from the email at signup, so preferring `uname` here made the menu display
+      // the raw address even after the user set their name.
+      var handle = (uname && !looksLikeEmail(uname)) ? uname : "";
+      if(n) n.textContent = handle || name || (email ? email.split('@')[0] : 'Not signed in');
+      if(e) e.textContent = email || '—';
     } else {
       if(n) n.textContent = 'Not signed in';
       if(e) e.textContent = 'Sign in to use the terminal';
@@ -3125,6 +3142,9 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     var ie = document.getElementById("intEmail");
     if(ie) ie.textContent = email || "\u2014";
   }
+  // exposed so the session check can repaint the account panes once /api/auth/me
+  // has refreshed the cached identity
+  window.__renderAccount = renderAccount;
   function toggleDefaults(){ return { mt_tblAnim:"on", mt_winShadow:"on", mt_winAnim:"off", mt_breakingNews:"on", mt_tickerClick:"on", mt_pinnedCommands:"off", mt_cmdBacktick:"on" }; }
   function toggleIsOn(key){
     var v = null;
