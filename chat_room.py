@@ -31,6 +31,23 @@ def store_mode():
     return "mongo" if _USE_MONGO else "json"
 
 
+def _no_email(handle, email=""):
+    """A chat handle is public, so it is never a raw email address.
+
+    An account's email can end up as the username (the account panel used to
+    label the Name field "how you appear in chat", so people typed one there),
+    which publishes the address to everyone in the room. Anything carrying an
+    '@' is reduced to its local part; nothing usable falls back to the email
+    prefix, then to 'trader'.
+    """
+    h = str(handle or "").strip()
+    if "@" in h:
+        h = h.split("@")[0].strip()
+    if not h and email:
+        h = str(email).split("@")[0].strip()
+    return h or "trader"
+
+
 def _handle(email, name, username=None):
     """Display handle: the username when present, else the email prefix.
 
@@ -38,7 +55,7 @@ def _handle(email, name, username=None):
     without a username shows as their email prefix, not their real name.
     """
     if username:
-        return str(username)[:80]
+        return _no_email(username, email)[:80]
     if email:
         return str(email).split("@")[0]
     return "trader"
@@ -137,15 +154,19 @@ def _resolve_handles(msgs):
             continue
         hit = _RESOLVE_CACHE.get(email)
         if hit and now - hit[1] < _RESOLVE_TTL:
-            uname = hit[0]
+            uname, real = hit[0], hit[2]
         else:
             try:
-                u = _DB["users"].find_one({"email": email}, {"username": 1})
+                u = _DB["users"].find_one({"email": email}, {"username": 1, "name": 1})
                 uname = (u or {}).get("username", "")
+                real = (u or {}).get("name", "")
             except Exception:
-                uname = ""
-            _RESOLVE_CACHE[email] = (uname, now)
-        m["name"] = uname if uname else email.split("@")[0]
+                uname, real = "", ""
+            _RESOLVE_CACHE[email] = (uname, now, real)
+        # A stored handle that IS the account email is not a chosen handle (the
+        # account panel once invited people to type one into its Name field), so
+        # fall back to the name they did choose, then to the email prefix.
+        m["name"] = _no_email(uname or real, email)
     return msgs
 
 

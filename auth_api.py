@@ -422,11 +422,15 @@ def set_username(token, username):
 
 
 def set_name(token, name):
-    """Set the account's real name (separate from the chat username).
+    """Set the account's real name, and keep the public chat handle honest.
 
-    The chat room shows the username, never the real name. These were one
-    field until users edited "Name" and watched their "Username" overwrite
-    it (or vice versa), so a change looked like it never stuck. Split them.
+    The account panel labels this field "how you appear in chat", so someone who
+    types a handle here expects the room to show it - but the room only ever
+    reads `username`, so the save looked like it never stuck. A save therefore
+    also sets the chat handle when the stored handle is empty or is the raw
+    account email (never a deliberate handle, and it published the address to
+    the whole room). A handle chosen explicitly in the Username field is left
+    exactly as it is.
     """
     s = _live(token)
     if not s:
@@ -442,8 +446,17 @@ def set_name(token, name):
     if not u:
         return {"ok": False, "error": "account not found"}
     u["name"] = name[:80]
+    cur = (u.get("username") or "").strip()
+    if (not cur) or ("@" in cur):
+        new_handle = name[:30]
+        if new_handle and new_handle != cur:
+            hist = u.get("username_history") or []
+            hist.append({"username": new_handle, "previous": cur, "ts": time.time()})
+            u["username_history"] = hist[-50:]
+        u["username"] = new_handle
     _save_user(u)
-    return {"ok": True, "name": name, "email": s["email"]}
+    return {"ok": True, "name": name, "username": u.get("username", ""),
+            "email": s["email"]}
 
 
 def logout(token):
