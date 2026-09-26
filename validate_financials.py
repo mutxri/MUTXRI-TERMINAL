@@ -37,8 +37,13 @@ APPLY = "--apply" in sys.argv
 
 
 def row(rows, label):
+    # prefer an exact label match, then fall back to case-insensitive so a
+    # source that prints "Gross profit" or "Cost Of Sales" is still caught.
     for r in rows:
         if r.get("label") == label:
+            return r
+    for r in rows:
+        if str(r.get("label", "")).strip().lower() == label.lower():
             return r
     return None
 

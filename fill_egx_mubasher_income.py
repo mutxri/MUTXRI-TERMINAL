@@ -16,7 +16,7 @@ thousands and stored in absolute EGP (x 1000), matching existing files.
 Only MISSING statement types are written - a fuller existing file is never
 overwritten.
 """
-import json, os, re, time, requests
+import json, os, re, time, sys, requests
 
 BASE = 'static_data'
 FIN = os.path.join(BASE, 'financials')
@@ -187,8 +187,16 @@ def rec_for(tk):
             return r
     return {}
 
+SKIPF = '_mub_skip.json'
+
 def main():
-    todo = targets()
+    LIMIT = int(sys.argv[1]) if len(sys.argv) > 1 else 999
+    skipped_before = set()
+    if os.path.exists(SKIPF):
+        try: skipped_before = set(json.load(open(SKIPF, encoding='utf-8')))
+        except Exception: skipped_before = set()
+    todo = [t for t in targets() if t[0] not in skipped_before][:LIMIT]
+    print('skipping %d already-failed, processing %d' % (len(skipped_before), len(todo)), flush=True)
     print('ACTIVE EGX targets missing a statement:', len(todo), flush=True)
     wrote = skipped = 0
     result = {'wrote': [], 'skipped': []}
@@ -197,23 +205,23 @@ def main():
         md = None
         for attempt in range(3):
             try:
-                r = requests.get(url, headers=H, timeout=70)
+                r = requests.get(url, headers=H, timeout=30)
             except Exception:
-                time.sleep(8)
+                time.sleep(2)
                 continue
             if r.status_code == 200 and len(r.text) > 6000 and 'Warning: Target URL returned error' not in r.text[:800]:
                 md = r.text
                 break
-            time.sleep(10)
+            time.sleep(3)
         if not md:
-            skipped += 1
+            skipped += 1; skipped_before.add(tk)
             result['skipped'].append([tk, 'no page'])
             print('%-10s NO PAGE' % tk, flush=True)
             time.sleep(2)
             continue
         years, bal, cas, inc = parse(md)
         if not years:
-            skipped += 1
+            skipped += 1; skipped_before.add(tk)
             result['skipped'].append([tk, 'no table'])
             print('%-10s NO TABLE' % tk, flush=True)
             time.sleep(2)
@@ -287,10 +295,11 @@ def main():
             result['wrote'].append([tk, made])
             print('%-10s filled %s (years %s)' % (tk, made, years), flush=True)
         else:
-            skipped += 1
+            skipped += 1; skipped_before.add(tk)
             result['skipped'].append([tk, 'identity failed or rows absent (bal=%s cas=%s inc=%s)' % (missb, missc, missi)])
             print('%-10s SKIP' % tk, flush=True)
-        time.sleep(3)
+        time.sleep(1.5)
+    json.dump(sorted(skipped_before), open(SKIPF, 'w'), indent=1)
     json.dump(result, open('_mubasher_income_result.json', 'w'), indent=1)
     print('DONE: wrote %d, skipped %d' % (wrote, skipped), flush=True)
 

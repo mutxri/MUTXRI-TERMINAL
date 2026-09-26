@@ -154,6 +154,12 @@ run_soft("merge yahoo income", ["merge_yahoo_income.py"])
 # flip, so a genuine tax credit is left alone. Runs BEFORE the derivations, because
 # they subtract these rows and would otherwise compute on an inverted input.
 run_soft("normalize cost signs", ["normalize_cost_signs.py"])
+# Blank derived cells that no longer reproduce their formula from the CURRENT
+# filed inputs (a derivation left behind by an earlier data change) or that are
+# arithmetically impossible (negative magnitude, net change in cash that does
+# not equal the three sections). The derivation steps below then recompute them.
+run_soft("recheck derived", ["recheck_derived.py", "--apply"])
+run_soft("cleanup impossible derived", ["cleanup_derived.py", "--apply"])
 run_soft("derive statement rows", ["derive_statement_rows.py"])
 # Operating Expenses and Operating Profit (EBIT) are filled from the other one plus
 # Gross Profit, only where that identity reproduces every period of the SAME file with
@@ -164,6 +170,17 @@ run_soft("derive opex and ebit", ["derive_opex_ebit.py"])
 # Ratios (ROE, ROA, the margins, debt to equity) are arithmetic on the same
 # figures. Must run AFTER the row derivation above, because ROE consumes the
 # net profit that step may have just filled in.
+# Individual blank CELLS, not whole rows. The two derivation steps above fill a row
+# only when EVERY period carries all of its inputs, so they report nothing to do
+# while hundreds of single cells remain derivable. Measured on the shipped set: 446
+# such cells across 243 files (Cost of Sales 64, Net Change in Cash 206, Free Cash
+# Flow 6, Gross Profit 57, Operating Expenses 49, Revenue 32, EBIT 20, Total Equity
+# 5, Total Liabilities 2). Every identity used was tested against the stored data
+# first and only those where agreement beats contradiction are applied; Profit Before
+# Tax minus Income Tax = Net Profit is REFUSED (1649 agree against 2053 contradict).
+# A cell is filled only when it is blank, a derived zero from non-zero inputs is
+# skipped, and the row is tagged derived true with its formula and agreement rate.
+run_soft("derive statement cells", ["derive_statement_cells.py"])
 run_soft("derive ratios", ["derive_ratios.py"])
 run("validate financials", ["validate_financials.py", "--apply"])
 # RE-DERIVE after validation. The validator WITHHOLDS an impossible figure (for
