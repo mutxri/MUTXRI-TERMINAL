@@ -253,7 +253,11 @@
     var sch=SCHEMA[state.statement];
     var per=(rec&&rec.periods&&rec.periods.length)?rec.periods:["Latest"];
     var vals=(rec&&rec.values)||{};
-    var derivedSet={}, derivedFrom={};
+    var derivedSet={}, derivedFrom={}, dcell={}, dform={};
+    // per-CELL derived markers: a row can carry filed values for some
+    // periods and a computed value for others, so mark the cell, not the
+    // row, and never label a filed figure as computed.
+
     // normalize: files store rows as [{label,values:[...]}] - map by label (with
     // issuer-varied aliases) to schema keys, in priority order (first match wins)
     if(!Object.keys(vals).length && rec && rec.rows && rec.rows.length){
@@ -261,13 +265,15 @@
       var lmap = {};
       (rec.rows||[]).forEach(function(rw){
         var l = normL(rw.label);
-        if(!(l in lmap)){ lmap[l] = rw.values || []; if(rw.derived){ derivedSet[l]=true; derivedFrom[l]=rw.derived_from||rw.derivedFrom||rw.formula||"computed"; } }
+        if(!(l in lmap)){ lmap[l] = rw.values || []; if(rw.derived){ derivedSet[l]=true; derivedFrom[l]=rw.derived_from||rw.derivedFrom||rw.formula||"computed"; }
+          if(rw.derivedCells && rw.derivedCells.length){ dcell[l]=rw.derivedCells; dform[l]=rw.derivedCellFormula||rw.derivedFrom||"computed from filed values"; } }
       });
       sch.forEach(function(p){
         var key = p[0], aliases = KEY_ALIASES[key] || [normL(p[1])];
         for(var i=0;i<aliases.length;i++){
           var a = normL(aliases[i]);
-          if(a in lmap){ vals[key] = lmap[a]; if(derivedSet[a]){ derivedSet[key]=true; derivedFrom[key]=derivedFrom[a]; } break; }
+          if(a in lmap){ vals[key] = lmap[a]; if(derivedSet[a]){ derivedSet[key]=true; derivedFrom[key]=derivedFrom[a]; }
+            if(dcell[a]){ dcell[key]=dcell[a]; dform[key]=dform[a]; } break; }
         }
       });
     }
@@ -288,7 +294,9 @@
         else if(key==="debtToEquity"){ disp=(v==null||isNaN(v)?DASH:(+v).toFixed(2)+"x"); }
         else { disp=fmtMoney(v,cur); }
         var neg=(typeof v==="number"&&v<0)?' class="neg"':'';
-        h+='<td'+neg+'>'+esc(disp)+'</td>';
+        var dc=dcell[key], isDCell=(dc&&dc.indexOf&&dc.indexOf(c)>=0);
+        var dm=isDCell?(' <span title="'+esc(dform[key]||"computed from filed values")+'" style="color:var(--tx3);font-style:italic">&#8776;</span>'):'';
+        h+='<td'+neg+'>'+esc(disp)+dm+'</td>';
       }
       h+='</tr>';
     }
@@ -299,11 +307,18 @@
     }
 
     // real filings list (primary-source PDFs)
+    var srcUrl=(rec&&(rec.source_url||rec.ir_url||rec.ir))||null;
     var reps=(rec&&rec.reports)||[];
-    if(reps.length){
+    var links=[];
+    if(srcUrl) links.push({label:"Source document (exchange filing)",url:srcUrl});
+    (reps||[]).forEach(function(rp){ if(rp&&rp.url) links.push({label:rp.label||"Filing",url:rp.url}); });
+    if(links.length){
       h+='<div style="padding:10px 14px;border-top:1px solid var(--line2)">'+
-         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>'+
-         '<div style="color:var(--tx3);font-size:10px;line-height:1.5">Open the company investor-relations page for official filings.</div></div>';
+         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>';
+      links.forEach(function(lk){
+        h+='<a class="filing" href="'+esc(lk.url)+'" target="_blank" rel="noopener" style="display:inline-block;margin:2px 8px 2px 0">'+esc(lk.label)+'</a>';
+      });
+      h+='</div>';
     } else {
       h+='<div class="empty">No verified filing links on file for '+esc(state.ticker)+'.</div>';
     }
@@ -367,6 +382,8 @@
     if(d.capitalEmployedBasis) notes.push('capital employed: ' + d.capitalEmployedBasis);
     if(m.altmanZ == null && m.altmanMissing && m.altmanMissing.length)
       notes.push('Altman Z&Prime; not computable: missing ' + m.altmanMissing.slice(0,3).join(', '));
+    if(v.peCrossCheck && v.peCrossCheck !== 'agree') notes.push('P/E cross-check: ' + v.peCrossCheck);
+    if(v.note) notes.push(v.note);
     if(notes.length) h += '<div class="an-note">' + notes.join(' &middot; ') + '</div>';
     h += '</div>';
     body.insertAdjacentHTML('beforeend', h);
