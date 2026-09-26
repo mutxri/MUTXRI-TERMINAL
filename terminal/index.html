@@ -716,7 +716,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
                 <div class="settings-head">Account</div>
                 <div class="settings-field">
                   <label for="acctUsername">Username</label>
-                  <small>How you appear in chat</small>
+                  <small>How you appear in the chat room</small>
                   <input id="acctUsername" type="text" placeholder="username" autocomplete="off">
                   <button type="button" class="settings-save" data-save="acctUsername">Save</button>
                 </div>
@@ -737,7 +737,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
                 <div class="settings-head">My Information</div>
                 <div class="settings-field">
                   <label for="acctFullName">Name</label>
-                  <small>How you appear in chat</small>
+                  <small>Your full name. Also sets your chat name until you pick a username.</small>
                   <input id="acctFullName" type="text" placeholder="Your name" autocomplete="off">
                   <button type="button" class="settings-save" data-save="acctFullName">Save</button>
                 </div>
@@ -3248,10 +3248,17 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
       .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
       .then(function(d){
         if(d && d.ok){
-          try{ localStorage.setItem("mt_name", d.name || v); }catch(e){}
+          try{
+            localStorage.setItem("mt_name", d.name || v);
+            // the backend also adopts this as the chat handle when none was
+            // chosen (or the stored one was the account email), so keep the
+            // local copy in step and redraw the room
+            if(d.username) localStorage.setItem("mt_username", d.username);
+          }catch(e){}
           renderAcct();
           renderAccount();
-          toast("Full name saved");
+          try{ if(window.__mtChatReset) window.__mtChatReset(); }catch(e){}
+          toast("Name saved");
         } else {
           toast((d && d.error) || "Could not save name");
         }
