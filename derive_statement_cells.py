@@ -61,13 +61,26 @@ RULES = [
      lambda v: v[0] + v[1], "Operating Cash Flow", "Capex", "3888 agree / 33 contradict"),
 ]
 THIRD = {"Net Change in Cash": "Financing Cash Flow"}
-ALIAS = {"Capex": ("Capex", "Capital Expenditure")}
+ALIAS = {"Capex": ("Capex", "Capital Expenditure"),
+         "Revenue": ("Revenue", "Total Revenue", "Revenue From Operations", "Net Revenue"),
+         "Cost of Sales": ("Cost of Sales", "Cost Of Sales", "Cost of Revenue",
+                           "Cost of Goods Sold"),
+         "Gross Profit": ("Gross Profit", "Gross profit", "Gross Profit (Loss)",
+                          "Gross Income"),
+         "Operating Expenses": ("Operating Expenses", "Total Operating Expenses",
+                                "Operating Expense"),
+         "Operating Profit (EBIT)": ("Operating Profit (EBIT)", "Operating Profit",
+                                     "Operating Income", "EBIT")}
 LIMIT = 1e15
 MAGNITUDES = ("Revenue", "Cost of Sales", "Operating Expenses")
 
 
 def val(rows, label, i):
     row = rows.get(label)
+    if row is None:
+        # issuer casing varies ("Gross profit", "Cost Of Sales"): fall back to the
+        # normalised key the loader also registers, so the rule still resolves.
+        row = rows.get(str(label).strip().lower())
     if row is None:
         return None
     v = row.get("values")
@@ -97,6 +110,14 @@ def main():
         rows = {}
         for r in (d.get("rows") or []):
             rows[r.get("label")] = r
+        # Second pass adds a normalised key for every row, WITHOUT displacing an
+        # exact label. A file whose row reads "Gross profit" or "Cost Of Sales"
+        # (issuer casing varies) previously missed every rule that names the line
+        # canonically, so a derivable cell stayed a dash.
+        for r in (d.get("rows") or []):
+            lab = r.get("label")
+            if lab is not None:
+                rows.setdefault(str(lab).strip().lower(), r)
         n = len(periods)
         changed = False
         for kind_, tgt, formula, fn, in1, in2, agree in rules:
