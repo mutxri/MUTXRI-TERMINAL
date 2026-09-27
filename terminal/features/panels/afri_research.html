@@ -140,7 +140,7 @@
     return [s, s.replace(/\.(JO|CA)$/, "")];
   }
 
-  function get(u){ return fetch(u, {cache:"no-store"}).then(function(r){
+  function get(u){ return fetch(u, {cache:"default"}).then(function(r){
     if (!r.ok) throw new Error(r.status); return r.json(); }); }
 
   // ---- charts -------------------------------------------------------------
@@ -305,7 +305,7 @@
       document.getElementById("rsHistNote").textContent =
         shown.length + " bars, " + String(a.t).slice(0, 10) + " to " + String(b.t).slice(0, 10);
     } else {
-      fetch(base + "history/" + keyFor(EX, SYM) + ".max.json", {cache:"no-store"})
+      fetch(base + "history/" + keyFor(EX, SYM) + ".max.json", {cache:"default"})
         .then(function(r){ return r.ok ? r.json() : null; })
         .then(function(maxH){
           if (maxH && maxH.bars && maxH.bars.length > 1){
