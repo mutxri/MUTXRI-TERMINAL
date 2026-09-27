@@ -1,6 +1,6 @@
 # MUTXRI TERMINAL
 
-African markets terminal: NSE Nairobi, NGX Lagos, JSE Johannesburg, EGX Cairo.
+Market terminal: NSE Nairobi, NGX Lagos, JSE Johannesburg, EGX Cairo.
 
 **Live site: https://mutxriterminal.com/**
 
@@ -13,4 +13,4 @@ it does not update in real time.
 - Live endpoints (chart/metrics/quotes) are NOT available in this static build;
   the UI shows an honest notice when clicked.
 
-Data snapshot: 2026-09-27 06:36
+Data snapshot: 2026-09-27 06:55
