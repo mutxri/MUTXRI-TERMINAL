@@ -2346,18 +2346,33 @@ function renderMarketStatic(rec, info){
   try{
     var _rsym = String(rec.sym || rec.ticker || '').replace(/\//g, '_');
     var _rex = String(rec.ex || rec.exchange || localStorage.getItem('mt_ex') || 'NSE').toUpperCase();
-    var _hold = document.getElementById('riResearch');
-    if(_hold && _hold.parentNode) _hold.parentNode.removeChild(_hold);
-    if(_rsym){
-      var _fr = document.createElement('iframe');
-      _fr.id = 'riResearch';
-      _fr.setAttribute('title', 'Research for ' + _rsym);
-      _fr.src = 'features/panels/afri_research.html?ex=' + encodeURIComponent(_rex) +
-                '&sym=' + encodeURIComponent(_rsym);
-      _fr.style.cssText = 'width:100%;height:1020px;border:0;border-top:1px solid var(--line);' +
-                          'margin-top:8px;display:block;background:transparent';
-      $('rightInfo').appendChild(_fr);
-    }
+    window.__riResearch = { sym: _rsym, ex: _rex };
+    // The market window is written more than once per click - renderMarketStatic
+    // draws the fundamentals, then the financials pass rewrites the same element
+    // and takes anything appended with it. So the mount is deferred past every
+    // writer and re-asserted, instead of being appended into a write that is
+    // about to be replaced.
+    window.__riMountResearch = function(){
+      var want = window.__riResearch;
+      if(!want || !want.sym) return;
+      var host = document.getElementById('rightInfo');
+      if(!host) return;
+      var have = document.getElementById('riResearch');
+      if(have && have.getAttribute('data-sym') === want.sym + '|' + want.ex) return;
+      if(have && have.parentNode) have.parentNode.removeChild(have);
+      var fr = document.createElement('iframe');
+      fr.id = 'riResearch';
+      fr.setAttribute('data-sym', want.sym + '|' + want.ex);
+      fr.setAttribute('title', 'Research for ' + want.sym);
+      fr.src = 'features/panels/afri_research.html?ex=' + encodeURIComponent(want.ex) +
+               '&sym=' + encodeURIComponent(want.sym);
+      fr.style.cssText = 'width:100%;height:1020px;border:0;border-top:1px solid var(--line);' +
+                         'margin-top:8px;display:block;background:transparent';
+      host.appendChild(fr);
+    };
+    [0, 250, 700, 1500].forEach(function(ms){
+      setTimeout(function(){ try{ window.__riMountResearch(); }catch(e){} }, ms);
+    });
   }catch(e){}
   // financials summary from the collected statement files (static, honest)
   try{
