@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - RESEARCH panel: the equity research view for one security.
+
+  Everything here is drawn from data that already exists and is already audited
+  in this repo:
+    static_data/market_<EX>.json        price, market cap, 52w range, sector, IPO
+    static_data/analytics/<key>.json    valuation, growth, ratios, models, flags
+    static_data/history/<key>.json      daily OHLC bars (real exchange history)
+
+  Every figure is drawn as a chart. Nothing is estimated, interpolated or
+  rounded from a headline: a value that is not in the source is shown as an
+  honest gap, and a section with no data says so rather than drawing an empty
+  frame. Ownership is deliberately absent - the only shareholder file in the
+  repo is approximately-staked and was withheld for that reason.
+
+  Vanilla JS + inline SVG, no chart library, no build step.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - Equity Research</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+  :root {
+    --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
+    --line:#1a1a1a; --line2:#262626;
+    --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
+    --up:#33e29a; --down:#ff5c5c; --acc:#33e29a; --warn:#e2b433;
+    --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--ui);font-size:13px;}
+  .rs-wrap{max-width:900px;margin:20px auto;}
+  .rs-head{display:flex;align-items:flex-end;gap:14px;padding:0 2px 12px;border-bottom:1px solid var(--line2);flex-wrap:wrap;}
+  .rs-sym{font-family:var(--mono);font-size:20px;color:var(--acc);font-weight:700;}
+  .rs-name{color:var(--tx);font-weight:600;}
+  .rs-meta{color:var(--tx3);font-family:var(--mono);font-size:11px;margin-left:auto;text-align:right;line-height:1.6;}
+  .rs-px{font-family:var(--mono);font-size:18px;color:var(--tx);}
+  .rs-chg{font-family:var(--mono);font-size:12px;}
+  .up{color:var(--up);} .down{color:var(--down);} .mut{color:var(--tx3);}
+
+  .rs-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;}
+  .rs-card{border:1px solid var(--line2);border-radius:2px;background:var(--bg2);}
+  .rs-card.wide{grid-column:1 / -1;}
+  .rs-ch{padding:8px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
+  .rs-t{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase;font-weight:700;}
+  .rs-note{font-family:var(--mono);font-size:10px;color:var(--tx3);}
+  .rs-b{padding:10px 12px;}
+  .rs-empty{padding:16px 12px;color:var(--tx3);font-family:var(--mono);font-size:10px;line-height:1.7;}
+
+  table.rs-stats{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;}
+  table.rs-stats td{padding:4px 0;border-bottom:1px solid var(--line);}
+  table.rs-stats td:first-child{color:var(--tx3);}
+  table.rs-stats td:last-child{text-align:right;color:var(--tx);}
+
+  .rs-flags{display:flex;flex-direction:column;gap:5px;}
+  .rs-flag{display:flex;gap:7px;align-items:flex-start;font-size:11px;line-height:1.5;}
+  .rs-dot{width:6px;height:6px;border-radius:50%;margin-top:5px;flex:0 0 6px;}
+  .rs-flag.high .rs-dot{background:var(--down);} .rs-flag.medium .rs-dot{background:var(--warn);}
+  .rs-flag.low .rs-dot{background:var(--tx3);}
+  .rs-flag b{color:var(--tx);font-weight:600;} .rs-flag span{color:var(--tx3);}
+  svg{display:block;width:100%;height:auto;}
+</style>
+</head>
+<body>
+<div class="rs-wrap" id="rs">
+  <div class="rs-head">
+    <div>
+      <div><span class="rs-sym" id="rsSym">--</span> <span class="rs-name" id="rsName"></span></div>
+      <div style="margin-top:4px"><span class="rs-px" id="rsPx">--</span> <span class="rs-chg" id="rsChg"></span></div>
+    </div>
+    <div class="rs-meta" id="rsMeta"></div>
+  </div>
+
+  <div class="rs-grid">
+    <div class="rs-card wide">
+      <div class="rs-ch"><span class="rs-t">Price history</span><span class="rs-note" id="rsHistNote"></span></div>
+      <div class="rs-b" id="rsPrice"><div class="rs-empty">Loading&hellip;</div></div>
+    </div>
+
+    <div class="rs-card">
+      <div class="rs-ch"><span class="rs-t">Valuation</span><span class="rs-note" id="rsValPeriod"></span></div>
+      <div class="rs-b" id="rsVal"></div>
+    </div>
+
+    <div class="rs-card">
+      <div class="rs-ch"><span class="rs-t">Growth</span><span class="rs-note" id="rsGrowthSpan"></span></div>
+      <div class="rs-b" id="rsGrowth"></div>
+    </div>
+
+    <div class="rs-card">
+      <div class="rs-ch"><span class="rs-t">Quality and risk</span></div>
+      <div class="rs-b" id="rsModels"></div>
+    </div>
+
+    <div class="rs-card">
+      <div class="rs-ch"><span class="rs-t">Key statistics</span><span class="rs-note" id="rsAsOf"></span></div>
+      <div class="rs-b" id="rsStats"></div>
+    </div>
+
+    <div class="rs-card wide">
+      <div class="rs-ch"><span class="rs-t">Ratios</span><span class="rs-note">filed figures, calculated</span></div>
+      <div class="rs-b" id="rsRatios"></div>
+    </div>
+
+    <div class="rs-card">
+      <div class="rs-ch"><span class="rs-t">Audit flags</span></div>
+      <div class="rs-b" id="rsFlags"></div>
+    </div>
+
+    <div class="rs-card">
+      <div class="rs-ch"><span class="rs-t">Major shareholders</span></div>
+      <div class="rs-b" id="rsHold"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var EX = "JSE", SYM = null;
+  try {
+    var m1 = /[?&]ex=([A-Za-z]+)/.exec(location.search); if (m1) EX = m1[1].toUpperCase();
+    var m2 = /[?&]sym=([^&]+)/.exec(location.search); if (m2) SYM = decodeURIComponent(m2[1]);
+  } catch(e){}
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+  function num(v){ return v === null || v === undefined || v === "" || isNaN(v) ? null : Number(v); }
+  function f2(v, suf){ return v === null ? "not available" : (Math.round(v * 100) / 100) + (suf || ""); }
+  function keyFor(ex, sym){ return (ex === "NSE" || ex === "NGX") ? ex + "_" + String(sym).split(".")[0] : sym; }
+  // analytics files are keyed by the listing code without the exchange suffix on some markets
+  function analyticsKeys(sym){
+    var s = String(sym);
+    return [s, s.replace(/\.(JO|CA)$/, "")];
+  }
+
+  function get(u){ return fetch(u, {cache:"no-store"}).then(function(r){
+    if (!r.ok) throw new Error(r.status); return r.json(); }); }
+
+  // ---- charts -------------------------------------------------------------
+  function lineChart(bars, opts){
+    opts = opts || {};
+    var W = 860, H = opts.h || 220, PL = 58, PR = 14, PT = 12, PB = 22;
+    var pts = bars.filter(function(b){ return num(b.c) !== null; });
+    if (pts.length < 2) return '<div class="rs-empty">Not enough price history to draw a chart. The gap is left as a gap.</div>';
+    var lo = Math.min.apply(null, pts.map(function(b){ return num(b.c); }));
+    var hi = Math.max.apply(null, pts.map(function(b){ return num(b.c); }));
+    if (lo === hi){ lo -= 1; hi += 1; }
+    var pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+    var x = function(i){ return PL + (W - PL - PR) * (i / (pts.length - 1)); };
+    var y = function(v){ return PT + (H - PT - PB) * (1 - (v - lo) / (hi - lo)); };
+    var d = pts.map(function(b, i){ return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(num(b.c)).toFixed(1); }).join(" ");
+    var area = d + " L" + x(pts.length - 1).toFixed(1) + " " + (H - PB) + " L" + PL + " " + (H - PB) + " Z";
+    var g = "";
+    for (var k = 0; k <= 4; k++){
+      var v = lo + (hi - lo) * (k / 4), yy = y(v);
+      g += '<line x1="' + PL + '" y1="' + yy.toFixed(1) + '" x2="' + (W - PR) + '" y2="' + yy.toFixed(1) +
+           '" stroke="#1a1a1a" stroke-width="1"/>' +
+           '<text x="' + (PL - 6) + '" y="' + (yy + 3).toFixed(1) + '" fill="#6a6a6a" font-size="9" font-family="Oxygen Mono, monospace" text-anchor="end">' +
+           (Math.round(v * 100) / 100) + '</text>';
+    }
+    var first = pts[0], last = pts[pts.length - 1];
+    var up = num(last.c) >= num(first.c);
+    var col = up ? "#33e29a" : "#ff5c5c";
+    var ticks = "";
+    [0, Math.floor(pts.length / 2), pts.length - 1].forEach(function(i){
+      if (!pts[i]) return;
+      ticks += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" fill="#6a6a6a" font-size="9" font-family="Oxygen Mono, monospace" text-anchor="middle">' +
+               esc(String(pts[i].t).slice(0, 7)) + '</text>';
+    });
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Price history">' +
+      '<defs><linearGradient id="rsFill" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="' + col + '" stop-opacity="0.20"/>' +
+      '<stop offset="100%" stop-color="' + col + '" stop-opacity="0"/></linearGradient></defs>' + g +
+      '<path d="' + area + '" fill="url(#rsFill)"/>' +
+      '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.6"/>' +
+      '<circle cx="' + x(pts.length - 1).toFixed(1) + '" cy="' + y(num(last.c)).toFixed(1) + '" r="2.6" fill="' + col + '"/>' + ticks + '</svg>';
+  }
+
+  // horizontal bars, one per metric: length is proportional to the max shown.
+  // A null value draws NO bar and says so: an absent figure is not a zero.
+  function bars(items, opts){
+    opts = opts || {};
+    var real = items.filter(function(i){ return i.value !== null; });
+    if (!real.length) return '<div class="rs-empty">' + esc(opts.empty || "No figure available for this security.") + '</div>';
+    var maxAbs = Math.max.apply(null, real.map(function(i){ return Math.abs(i.value); })) || 1;
+    var rows = items.map(function(i){
+      if (i.value === null){
+        return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0">' +
+          '<span style="width:112px;color:var(--tx3);font-family:var(--mono);font-size:10px">' + esc(i.label) + '</span>' +
+          '<span style="color:var(--tx3);font-family:var(--mono);font-size:11px">' + esc(i.note || "not available") + '</span></div>';
+      }
+      var w = Math.max(2, Math.round(Math.abs(i.value) / maxAbs * 100));
+      var col = i.tone ? ("var(--" + i.tone + ")") : ((i.value < 0) ? "var(--down)" : "var(--acc)");
+      return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0">' +
+        '<span style="width:112px;color:var(--tx3);font-family:var(--mono);font-size:10px">' + esc(i.label) + '</span>' +
+        '<span style="flex:1;background:var(--bg3);height:9px;border-radius:1px;position:relative">' +
+        '<span style="position:absolute;left:0;top:0;bottom:0;width:' + w + '%;background:' + col + '"></span></span>' +
+        '<span style="width:74px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--tx)">' +
+        esc(f2(i.value, i.suffix || "")) + '</span></div>';
+    }).join("");
+    return '<div>' + rows + (opts.foot ? '<div style="color:var(--tx3);font-family:var(--mono);font-size:10px;padding-top:6px">' + esc(opts.foot) + '</div>' : "") + '</div>';
+  }
+
+  // a meter for a score with a known maximum
+  function meter(value, max, label, reading){
+    if (value === null) return '<div class="rs-empty">' + esc(label) + ': not available.</div>';
+    var w = Math.max(2, Math.round(value / max * 100));
+    var col = value >= max * 0.66 ? "var(--up)" : (value >= max * 0.34 ? "var(--warn)" : "var(--down)");
+    return '<div style="padding:5px 0">' +
+      '<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--tx3)">' +
+      '<span>' + esc(label) + '</span><span style="color:var(--tx)">' + esc(value) + ' / ' + esc(max) +
+      (reading ? ' <span style="color:var(--tx3)">' + esc(reading) + '</span>' : "") + '</span></div>' +
+      '<div style="margin-top:5px;background:var(--bg3);height:8px;border-radius:1px">' +
+      '<div style="width:' + w + '%;height:100%;background:' + col + ';border-radius:1px"></div></div></div>';
+  }
+
+  function rng(a, b){
+    var x = num(a), y = num(b);
+    if (x === null || y === null) return null;
+    return Math.min(x, y) + " - " + Math.max(x, y);
+  }
+  function statTable(pairs){
+    return '<table class="rs-stats">' + pairs.map(function(p){
+      return '<tr><td>' + esc(p[0]) + '</td><td>' + esc(p[1] === null || p[1] === undefined || p[1] === "" ? "--" : p[1]) + '</td></tr>';
+    }).join("") + '</table>';
+  }
+
+  // ---- load ---------------------------------------------------------------
+  var base = "../../static_data/";
+  var stock = null;
+
+  function fail(where, reason){
+    var el = document.getElementById(where);
+    if (el) el.innerHTML = '<div class="rs-empty">' + esc(reason) + '</div>';
+  }
+
+  if (!SYM){
+    document.getElementById("rsSym").textContent = "NO SECURITY";
+    document.getElementById("rsPrice").innerHTML =
+      '<div class="rs-empty">Pick a security first: click a row in the watchlist or type a ticker in the command line. ' +
+      'This panel researches one listed company at a time.</div>';
+    ["rsVal","rsGrowth","rsModels","rsStats","rsRatios","rsFlags","rsHold"].forEach(function(id){
+      document.getElementById(id).innerHTML = "";
+    });
+    return;
+  }
+
+  document.getElementById("rsSym").textContent = SYM;
+
+  Promise.all([
+    get(base + "market_" + EX + ".json").catch(function(){ return null; }),
+    get(base + "analytics/" + analyticsKeys(SYM)[0] + ".json")
+      .catch(function(){ return get(base + "analytics/" + analyticsKeys(SYM)[1] + ".json"); })
+      .catch(function(){ return null; }),
+    get(base + "history/" + keyFor(EX, SYM) + ".json").catch(function(){ return null; })
+  ]).then(function(res){
+    var mkt = res[0], an = res[1], hist = res[2];
+
+    if (mkt && mkt.stocks){
+      stock = mkt.stocks.find(function(s){ return s.sym === SYM || s.ticker === SYM; }) || null;
+    }
+    if (stock){
+      document.getElementById("rsName").textContent = stock.name || "";
+      var px = num(stock.price), ch = num(stock.chgPct);
+      document.getElementById("rsPx").textContent = px === null ? "--" : (px + " " + (stock.currency || ""));
+      var ce = document.getElementById("rsChg");
+      if (ch !== null){ ce.textContent = (ch > 0 ? "+" : "") + ch.toFixed(2) + "%"; ce.className = "rs-chg " + (ch >= 0 ? "up" : "down"); }
+      document.getElementById("rsMeta").innerHTML =
+        esc(EX) + " &middot; " + esc(stock.sector || "sector not available") + " &middot; " + esc(stock.currency || "") +
+        (stock.asOf ? "<br>as of " + esc(stock.asOf) : "");
+      document.getElementById("rsAsOf").textContent = stock.asOf ? ("as of " + stock.asOf) : "";
+
+      var shares = num(stock.sharesIssued);
+      document.getElementById("rsStats").innerHTML = statTable([
+        ["Market cap", stock.marketCap || null],
+        ["Shares issued", shares === null ? null : shares.toLocaleString("en-US")],
+        // sorted low-high: the market file does not guarantee the order, and
+        // "78227 - 75428" reads as broken to anyone looking at it
+        ["52 week range", rng(stock.w52Low, stock.w52High) || stock.range52w || null],
+        ["Day range", rng(stock.low, stock.high)],
+        ["Previous close", stock.prevClose !== undefined ? stock.prevClose : null],
+        ["Year end", stock.yearEnd || null],
+        ["Listed", stock.ipo || null],
+        ["Instrument", stock.instrument || null]
+      ]);
+    } else {
+      document.getElementById("rsName").textContent = "(not in the " + EX + " market file)";
+      document.getElementById("rsStats").innerHTML = '<div class="rs-empty">No market record for this security in ' + esc(EX) + '.</div>';
+      document.getElementById("rsMeta").textContent = EX;
+    }
+
+    // price history
+    var barsArr = (hist && hist.bars) ? hist.bars : null;
+    if (barsArr && barsArr.length > 1){
+      var shown = barsArr.slice(-Math.min(barsArr.length, 1260));   // about five years of sessions
+      document.getElementById("rsPrice").innerHTML = lineChart(shown);
+      var a = shown[0], b = shown[shown.length - 1];
+      document.getElementById("rsHistNote").textContent =
+        shown.length + " bars, " + String(a.t).slice(0, 10) + " to " + String(b.t).slice(0, 10);
+    } else {
+      fetch(base + "history/" + keyFor(EX, SYM) + ".max.json", {cache:"no-store"})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(maxH){
+          if (maxH && maxH.bars && maxH.bars.length > 1){
+            document.getElementById("rsPrice").innerHTML = lineChart(maxH.bars);
+            document.getElementById("rsHistNote").textContent = maxH.bars.length + " monthly bars";
+          } else {
+            fail("rsPrice", "No price history file for this security, so no chart is drawn rather than a flat line that would imply prices did not move.");
+          }
+        })
+        .catch(function(){
+          fail("rsPrice", "No price history file for this security, so no chart is drawn rather than a flat line that would imply prices did not move.");
+        });
+    }
+
+    if (!an){
+      ["rsVal","rsGrowth","rsModels","rsRatios","rsFlags"].forEach(function(id){
+        fail(id, "No analytics file for this security. The figures are left out rather than estimated.");
+      });
+      document.getElementById("rsGrowthSpan").textContent = "";
+      document.getElementById("rsValPeriod").textContent = "";
+    } else {
+      var v = an.valuation || {}, gr = an.growth || {}, md = an.models || {};
+      document.getElementById("rsValPeriod").textContent = v.asOfPeriod || "";
+      document.getElementById("rsVal").innerHTML = bars([
+        {label: "P/E", value: num(v.pe), suffix: "x"},
+        {label: "P/B", value: num(v.pb), suffix: "x"},
+        {label: "P/S", value: num(v.ps), suffix: "x"},
+        {label: "Earnings yield", value: num(v.earnings_yield), suffix: "%"},
+        {label: "EV/EBIT", value: num(v.ev_ebit), suffix: "x"}
+      ], {empty: "No valuation multiples for this security."});
+
+      document.getElementById("rsGrowthSpan").textContent =
+        (gr.from && gr.to) ? (gr.from + " to " + gr.to + (gr.contiguousYears ? ", " + gr.contiguousYears + " yrs" : "")) : "";
+      document.getElementById("rsGrowth").innerHTML = bars([
+        {label: "Revenue CAGR", value: num(gr.revenue_cagr), suffix: "%"},
+        {label: "Net profit CAGR", value: num(gr.net_profit_cagr), suffix: "%"}
+      ], {empty: "No multi-year growth series for this security."});
+
+      var mh = "";
+      mh += meter(num(md.fscore), num(md.fscoreOutOf) || 9, "Piotroski F-score", md.fscoreReading || "");
+      if (num(md.altmanZ) !== null){
+        mh += '<div style="padding:5px 0"><div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--tx3)">' +
+          '<span>Altman Z</span><span style="color:var(--tx)">' + f2(num(md.altmanZ)) +
+          (md.altmanBand ? ' <span style="color:var(--tx3)">' + esc(md.altmanBand) + '</span>' : "") + '</span></div></div>';
+      } else {
+        mh += '<div class="rs-empty">Altman Z: not available' + (md.altmanMissing ? ' (' + esc(String(md.altmanMissing).slice(0, 90)) + ')' : "") + '.</div>';
+      }
+      mh += statTable([
+        ["Accruals", md.accrualsReading || null],
+        ["Cost to income", num(md.costToIncome) === null ? null : f2(num(md.costToIncome), "%")]
+      ]);
+      document.getElementById("rsModels").innerHTML = mh;
+
+      var rs = an.ratios || [];
+      document.getElementById("rsRatios").innerHTML = bars(rs.map(function(r){
+        return {label: r.label || r.key, value: num(r.value), suffix: (r.unit === "%" ? "%" : "")};
+      }), {empty: "No ratios for this security.", foot: an.period ? ("Statement period " + an.period + (an.currency ? ", " + an.currency : "")) : ""});
+
+      var fl = an.flags || [];
+      document.getElementById("rsFlags").innerHTML = fl.length
+        ? '<div class="rs-flags">' + fl.map(function(x){
+            return '<div class="rs-flag ' + esc(x.severity || "low") + '"><span class="rs-dot"></span><div><b>' +
+              esc(x.label || x.id) + '</b> <span>' + esc(String(x.detail || "").slice(0, 130)) + '</span></div></div>';
+          }).join("") + '</div>'
+        : '<div class="rs-empty">No audit flags raised against this security.</div>';
+    }
+
+    document.getElementById("rsHold").innerHTML =
+      '<div class="rs-empty">Not published. The only shareholder record in this repo carries approximate stakes ' +
+      '("~60%") rather than filed percentages, so it is withheld instead of shown as fact. ' +
+      'Exact holdings need the annual report or the exchange filing for each company.</div>';
+  }).catch(function(e){
+    fail("rsPrice", "Research data could not be loaded (" + (e && e.message ? e.message : "error") + "). Nothing is shown rather than an invented figure.");
+  });
+})();
+</script>
+</body>
+</html>
