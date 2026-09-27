@@ -242,7 +242,7 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
   font-size:9.5px;letter-spacing:.08em;padding:3px 8px;border-radius:2px;cursor:pointer;max-width:120px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wstabs button:hover{border-color:var(--acc);color:var(--acc)}
-.wstabs button.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700}
+.wstabs button.on{color:#00160e;background:var(--acc);border-color:#7ef0c0;font-weight:700}
 .wstabs .ws-add{padding:3px 7px}
 .wstabs .ws-x{margin-left:6px;padding:0 3px;color:var(--tx3);font-weight:700;border-radius:2px;font-size:11px}
 .wstabs .ws-x:hover{color:#ff5f56;background:rgba(255,95,86,.12)}
@@ -1783,7 +1783,7 @@ function renderMarketOverview(ex){
   };
   el.innerHTML =
     '<div style="padding:10px 12px;border-bottom:1px solid var(--line)">' +
-      '<div style="color:var(--acc);font-weight:700;font-size:13px;letter-spacing:.02em">' + esc(ex) + ' <span style="color:var(--tx3);font-weight:400">· ' + esc(mFull.name || '') + '</span></div>' +
+      '<div style="color:#7ef0c0;font-weight:700;font-size:13px;letter-spacing:.02em">' + esc(ex) + ' <span style="color:var(--tx3);font-weight:400">· ' + esc(mFull.name || '') + '</span></div>' +
       '<div style="color:var(--tx3);font-size:10px;padding:2px 0">' + esc(mFull.country || '') + ' · ' + priced.length + ' priced' + (cur ? ' · ' + esc(cur) : '') + (function(){ var a = (window.__MKASOF && window.__MKASOF[ex]) || ''; return a ? ' · EOD ' + esc(a) : ''; })() + '</div>' +
       '<div style="display:flex;gap:12px;padding:6px 0 2px;font-family:var(--mono);font-size:11px">' +
         '<span style="color:var(--up)">▲ ' + adv + '</span>' +
@@ -2531,7 +2531,7 @@ function openStock(sym){
   try{ if(new URLSearchParams(location.search).get('view') === 'watchlist'){ openChartModal(sym); return; } }catch(e){}
   const ex = currentEx;
   const stock = (listing[ex]||[]).find(s => (s.sym||s.ticker||s.name) === sym || (s.sym||'') === sym);
-  $('rightInfo').innerHTML = `<div style="padding:6px 0;color:var(--acc);font-weight:700">${esc(sym)}</div>
+  $('rightInfo').innerHTML = `<div style="padding:6px 0;color:#7ef0c0;font-weight:700">${esc(sym)}</div>
     <div style="padding:4px 0;color:var(--tx3)">Loading…</div>`;
   if(!window.API_BASE){
     fetch('static_data/market_' + ex + '.json').then(r => { if(!r.ok) throw 0; return r.json(); })
@@ -2560,7 +2560,7 @@ function openStock(sym){
     .then(d => {
       if(d.error){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--down);font-family:var(--mono);font-size:11px">${esc(d.error)}</div>`; return; }
       if(d.noData){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx2);font-family:var(--mono);font-size:11px">
-        <div style="color:var(--acc);font-weight:700;margin-bottom:6px">${esc(sym)} · ${esc(d.name||'')}</div>
+        <div style="color:#7ef0c0;font-weight:700;margin-bottom:6px">${esc(sym)} · ${esc(d.name||'')}</div>
         <div style="color:var(--tx3);line-height:1.6">${esc(d.message||'No market data available for this security.')}</div></div>`; return; }
       try{ renderStockInfo(d, sym); }catch(e){ console.error('info fail', e); }
       try{ loadMetrics(sym, ex, stock && stock.name); }catch(e){ console.error('metrics fail', e); }
@@ -2575,7 +2575,7 @@ function loadMetrics(sym, ex, name){
     .then(d => {
       if(d.error || !d.stock_price) return;
       let html = '<div style="padding:10px 12px;border-top:1px solid var(--line)">';
-      html += `<div style="color:var(--acc);font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">FULL METRICS</div>`;
+      html += `<div style="color:#7ef0c0;font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">FULL METRICS</div>`;
 
       // --- company description ---
       if(d.description){
@@ -2671,7 +2671,7 @@ function renderStockInfo(d, sym){
   const last = bars.length ? bars[bars.length-1] : null;
   const html = `
     <div style="padding:8px 12px;border-bottom:1px solid var(--line)">
-      <div style="color:var(--acc);font-weight:700;font-size:15px">${esc(sym)}</div>
+      <div style="color:#7ef0c0;font-weight:700;font-size:15px">${esc(sym)}</div>
       <div style="color:var(--tx2);font-size:11px;padding:2px 0">${esc(d.name||'')}</div>
       <div style="font-size:20px;font-weight:700;padding:4px 0">${price} <span style="font-size:11px;color:var(--tx3)">${esc(d.currency||'')}</span></div>
       <div class="chg ${chgCls}" style="font-size:12px">${chgTxt}</div>
