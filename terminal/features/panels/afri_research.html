@@ -264,7 +264,20 @@
     var mkt = res[0], an = res[1], hist = res[2];
 
     if (mkt && mkt.stocks){
-      stock = mkt.stocks.find(function(s){ return s.sym === SYM || s.ticker === SYM; }) || null;
+      // Not every exchange keys a security the same way. EGX carries the bare
+      // ticker (COMI) while the request may arrive suffixed (COMI.CA), and the
+      // JSE is the other way round (NPN.JO). Match exactly first, then fall back
+      // to the bare ticker on either side so a correct security is never reported
+      // as missing from its own market file.
+      var _bare = String(SYM).split(".")[0];
+      function _same(s){
+        var a = String(s.sym || ""), b = String(s.ticker || "");
+        return a === SYM || b === SYM;
+      }
+      function _bareSame(s){
+        return String(s.sym || "").split(".")[0] === _bare || String(s.ticker || "").split(".")[0] === _bare;
+      }
+      stock = mkt.stocks.find(_same) || mkt.stocks.find(_bareSame) || null;
     }
     if (stock){
       document.getElementById("rsName").textContent = stock.name || "";
