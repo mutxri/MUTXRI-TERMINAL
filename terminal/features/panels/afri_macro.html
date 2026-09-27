@@ -56,6 +56,16 @@
   table.mc tr.cur td.country { color:var(--acc); }
   table.mc td.hist { color:var(--tx2); font-size:10px; }
 
+  .mc-chart { padding:16px 14px 6px; border-top:1px solid var(--line); }
+  .mc-chart svg { display:block; width:100%; height:auto; }
+  .mc-chart .ax { fill:var(--tx3); font-family:var(--mono); font-size:9px; }
+  .mc-chart .grid { stroke:var(--line); stroke-width:1; }
+  .mc-chart .zero { stroke:var(--line2); stroke-width:1; stroke-dasharray:3 3; }
+  .mc-chart .lbl { fill:var(--tx); font-family:var(--mono); font-size:9px; }
+  .mc-legend { display:flex; gap:16px; flex-wrap:wrap; padding:0 14px 12px; font-family:var(--mono); font-size:10px; color:var(--tx2); }
+  .mc-legend span { display:flex; align-items:center; }
+  .mc-legend i { display:inline-block; width:16px; height:2px; margin-right:6px; }
+
   .mc-note { padding:10px 14px; color:var(--tx3); font-family:var(--mono); font-size:10px; line-height:1.7; border-top:1px solid var(--line); }
   .mc-warn { padding:8px 14px; color:var(--down); font-family:var(--mono); font-size:10px; }
 </style>
@@ -93,6 +103,9 @@
     </table>
   </div>
 
+  <div class="mc-chart" id="mcChart"></div>
+  <div class="mc-legend" id="mcLegend"></div>
+
   <div class="mc-note" id="mcNote">&nbsp;</div>
 </div>
 
@@ -124,6 +137,7 @@
       return;
     }
     body.innerHTML = "";
+    document.getElementById("mcLegend").innerHTML = "";
     rows.forEach(function(c){
       var tr = document.createElement("tr");
       if (String(c.exchange).toUpperCase() === ex) tr.className = "cur";
@@ -151,6 +165,8 @@
       body.appendChild(tr);
     });
 
+    drawChart(rows);
+
     var yh = document.getElementById("mcYearH");
     if (rows[0] && rows[0].inflation_year) yh.textContent = String(rows[0].inflation_year);
 
@@ -162,6 +178,72 @@
       '<br>' + esc(d.indicator || "") + " &middot; " +
       '<a href="' + esc(d.source_url || "#") + '" target="_blank" rel="noopener" style="color:var(--acc)">' +
       esc(d.source_url || "") + '</a>';
+  }
+
+  // Four countries over the same six published years, drawn from the history
+  // array exactly as stored. Nothing is interpolated: the line joins published
+  // annual averages and stops at the last one the source reports.
+  var SERIES = ["#33e29a", "#7ef0c0", "#2aa9a0", "#c9d94a"];
+
+  function drawChart(rows){
+    var host = document.getElementById("mcChart");
+    var leg  = document.getElementById("mcLegend");
+    if (!rows.length){ host.innerHTML = ""; leg.innerHTML = ""; return; }
+
+    var years = [], seen = {};
+    rows.forEach(function(c){
+      (c.history || []).forEach(function(h){
+        if (!seen[h.year]){ seen[h.year] = 1; years.push(h.year); }
+      });
+    });
+    years.sort(function(a,b){ return a - b; });
+    if (years.length < 2){ host.innerHTML = '<div style="color:var(--tx3);font-family:var(--mono);font-size:10px">Too few published years to draw a trend. The gap is shown rather than filled.</div>'; leg.innerHTML = ""; return; }
+
+    var maxV = 0;
+    rows.forEach(function(c){ (c.history || []).forEach(function(h){ if (h.value > maxV) maxV = h.value; }); });
+    var top = Math.ceil(maxV / 5) * 5;
+    if (top <= 0) top = 5;
+
+    var W = 700, H = 250, L = 46, R = 88, T = 14, B = 26;
+    var iw = W - L - R, ih = H - T - B;
+    var xi = function(i){ return L + (years.length === 1 ? iw/2 : iw * i / (years.length - 1)); };
+    var yv = function(v){ return T + ih - (ih * (v / top)); };
+
+    var s = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Annual consumer price inflation by country">'];
+
+    var steps = 5;
+    for (var g = 0; g <= steps; g++){
+      var val = top * g / steps, y = yv(val);
+      s.push('<line class="' + (g === 0 ? "zero" : "grid") + '" x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W - R) + '" y2="' + y.toFixed(1) + '"/>');
+      s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end">' + val.toFixed(val % 1 ? 1 : 0) + '%</text>');
+    }
+    years.forEach(function(yr, i){
+      s.push('<text class="ax" x="' + xi(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + yr + '</text>');
+    });
+
+    var drawn = 0;
+    rows.forEach(function(c, idx){
+      var hs = (c.history || []).slice().sort(function(a,b){ return a.year - b.year; });
+      if (hs.length < 2) return;
+      var col = SERIES[idx % SERIES.length];
+      var pts = hs.map(function(h){
+        var gi = years.indexOf(h.year);
+        return xi(gi).toFixed(1) + "," + yv(h.value).toFixed(1);
+      });
+      s.push('<polyline fill="none" stroke="' + col + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" points="' + pts.join(" ") + '"/>');
+      hs.forEach(function(h){
+        var gi = years.indexOf(h.year);
+        s.push('<circle cx="' + xi(gi).toFixed(1) + '" cy="' + yv(h.value).toFixed(1) + '" r="2.4" fill="' + col + '"/>');
+      });
+      var last = hs[hs.length - 1];
+      s.push('<text class="lbl" x="' + (W - R + 8) + '" y="' + (yv(last.value) + 3).toFixed(1) + '" fill="' + col + '">' + esc(c.iso2 || c.country) + ' ' + last.value.toFixed(2) + '%</text>');
+      leg.innerHTML += '<span><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
+      drawn++;
+    });
+
+    s.push('</svg>');
+    host.innerHTML = s.join("");
+    if (!drawn){ host.innerHTML = ""; leg.innerHTML = ""; }
   }
 
   function load(){
