@@ -223,7 +223,7 @@ else:
 # README
 readme = """# MUTXRI TERMINAL
 
-African markets terminal: NSE Nairobi, NGX Lagos, JSE Johannesburg, EGX Cairo.
+Market terminal: NSE Nairobi, NGX Lagos, JSE Johannesburg, EGX Cairo.
 
 **Live site: https://mutxriterminal.com/**
 

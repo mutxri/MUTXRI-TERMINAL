@@ -83,12 +83,12 @@ def _send_confirmation_email(email, name):
         html = f"""<div style="background:#000;color:#f0f0f0;font-family:monospace;padding:32px">
   <h2 style="color:#33e29a">MUTXRI TERMINAL</h2>
   <p>Hi {first},</p>
-  <p>Your MUTXRI TERMINAL account has been created. Welcome to African markets intelligence.</p>
-  <p style="color:#9a9a9a">You can now log in at <a href="https://mutxriterminal.com" style="color:#33e29a">mutxriterminal.com</a> and start exploring 1,021 securities across the JSE, NGX, NSE and EGX.</p>
-  <p style="color:#6a6a6a;font-size:12px">This is a confirmation email for your account — no action needed. If you did not create this account, reply and we will remove it.</p>
+  <p>Your MUTXRI TERMINAL account has been created. Welcome.</p>
+  <p style="color:#9a9a9a">You can now log in at <a href="https://mutxriterminal.com" style="color:#33e29a">mutxriterminal.com</a> and start exploring 938 securities across the NSE, NGX, JSE and EGX.</p>
+  <p style="color:#6a6a6a;font-size:12px">This is a confirmation email for your account. No action needed. If you did not create this account, reply and we will remove it.</p>
 </div>"""
         msg = MIMEText(html, "html")
-        msg["Subject"] = "Welcome to MUTXRI TERMINAL — account confirmed"
+        msg["Subject"] = "Welcome to MUTXRI TERMINAL - account confirmed"
         msg["From"] = sender
         msg["To"] = email
         ctx = ssl.create_default_context()
