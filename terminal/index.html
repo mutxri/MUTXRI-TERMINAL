@@ -2338,6 +2338,27 @@ function renderMarketStatic(rec, info){
     });
   }
   $('rightInfo').innerHTML = html;
+  // The research stack for the same security, mounted in this window. Market and
+  // research are one view now: clicking a security draws the charts here instead
+  // of sending you to the RESEARCH tab, which sat off the end of the tab row.
+  // The active exchange comes from where the shell already keeps it, so the
+  // panel finds the right market file.
+  try{
+    var _rsym = String(rec.sym || rec.ticker || '').replace(/\//g, '_');
+    var _rex = String(rec.ex || rec.exchange || localStorage.getItem('mt_ex') || 'NSE').toUpperCase();
+    var _hold = document.getElementById('riResearch');
+    if(_hold && _hold.parentNode) _hold.parentNode.removeChild(_hold);
+    if(_rsym){
+      var _fr = document.createElement('iframe');
+      _fr.id = 'riResearch';
+      _fr.setAttribute('title', 'Research for ' + _rsym);
+      _fr.src = 'features/panels/afri_research.html?ex=' + encodeURIComponent(_rex) +
+                '&sym=' + encodeURIComponent(_rsym);
+      _fr.style.cssText = 'width:100%;height:1020px;border:0;border-top:1px solid var(--line);' +
+                          'margin-top:8px;display:block;background:transparent';
+      $('rightInfo').appendChild(_fr);
+    }
+  }catch(e){}
   // financials summary from the collected statement files (static, honest)
   try{
     var _fsym = String(rec.sym || rec.ticker || '').replace(/\//g, '_');
