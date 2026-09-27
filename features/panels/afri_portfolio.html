@@ -115,26 +115,36 @@
     try { all = JSON.parse(raw); } catch(e){ return { err:"corrupt" }; }
     if (!all || typeof all !== "object") return { empty:true };
 
-    var email = null;
-    try { email = localStorage.getItem("mt_email"); } catch(e){}
+    // The book is keyed by EXCHANGE (NSE, JSE, ...), each entry holding cash,
+    // positions, orders and an equity history. Older variants keyed it by
+    // account email, so both shapes are accepted. Every entry contributes:
+    // a portfolio spanning two exchanges must not be counted once.
+    var out = [], books = [], cash = 0, realised = 0, equity = [], hasCash = false;
     var keys = Object.keys(all);
-    var key = null;
-    if (email && all[email]) key = email;
-    else if (keys.length === 1) key = keys[0];
-    else if (keys.length) key = keys[0];
-
-    var pos = {};
-    if (key && all[key] && all[key].positions) pos = all[key].positions;
-    else if (key && all[key] && typeof all[key] === "object" && !all[key].positions) pos = all[key];
-
-    var out = [];
-    Object.keys(pos || {}).forEach(function(sym){
-      var p = pos[sym] || {};
-      var q = num(p.qty), a = num(p.avg);
-      if (q === null || q === 0) return;                 // an empty slot is not a position
-      out.push({ sym: String(sym), qty: q, avg: a });
+    keys.forEach(function(k){
+      var b = all[k];
+      if (!b || typeof b !== "object") return;
+      var isBook = b.positions || b.cash !== undefined || b.orders;
+      if (!isBook){
+        // an account-keyed wrapper: {email:{positions:{...}}}
+        if (b.positions === undefined) return;
+      }
+      var ex = /^[A-Z]{2,4}$/.test(k) ? k : null;
+      if (num(b.cash) !== null){ cash += num(b.cash); hasCash = true; }
+      if (num(b.realised) !== null) realised += num(b.realised);
+      if (b.equity && b.equity.length) equity.push({ ex: ex, series: b.equity });
+      var pos = b.positions || {};
+      Object.keys(pos).forEach(function(sym){
+        var p = pos[sym] || {};
+        var q = num(p.qty), a = num(p.avg);
+        if (q === null || q === 0) return;               // an empty slot is not a position
+        out.push({ sym: String(sym), qty: q, avg: a, book: k, ex: ex });
+      });
+      books.push({ key: k, ex: ex, cash: num(b.cash), realised: num(b.realised),
+                   positions: Object.keys(pos).length, orders: (b.orders || []).length });
     });
-    return { positions: out, user: key, accountCount: keys.length };
+    return { positions: out, books: books, cash: hasCash ? cash : null, realised: realised,
+             equity: equity, accountCount: keys.length };
   }
 
   // ---- price index over every exchange --------------------------------
@@ -245,7 +255,10 @@
       return;
     }
     if (book.empty || !book.positions || !book.positions.length){
-      host.innerHTML = '<div class="empty">No paper positions in this browser.<br><br>' +
+      var cashLine = (book.cash !== null && book.cash !== undefined)
+        ? '<br>This book holds ' + money(book.cash, "") + ' in cash and no open positions, so there is nothing to allocate or value yet.'
+        : '';
+      host.innerHTML = '<div class="empty">No paper positions in this browser.' + cashLine + '<br><br>' +
         'Add them in the TRADE panel: enter the quantity you would hold and the average price you paid, and they appear here with allocation, profit and loss, a value curve and per-position risk.<br><br>' +
         'This panel reads only what the book actually holds. It will not show a portfolio it cannot read.</div>';
       who.textContent = "";
@@ -279,6 +292,7 @@
     });
     var tPL = tCost ? tVal - tCost : null;
     var tPLpc = (tPL !== null && tCost) ? (tPL / Math.abs(tCost)) * 100 : null;
+    var cash = book.cash, equityTotal = (cash !== null ? cash : 0) + tVal;
 
     var html = "";
     html += '<div class="cards">' +
@@ -286,6 +300,9 @@
       '<div class="card"><div class="k">Market value</div><div class="v">' + money(tVal, mixed ? "" : cur) + '</div></div>' +
       '<div class="card"><div class="k">Cost</div><div class="v">' + money(tCost, mixed ? "" : cur) + '</div></div>' +
       '<div class="card"><div class="k">Profit / loss</div><div class="v ' + cls(tPL) + '">' + money(tPL, mixed ? "" : cur) + '</div></div>' +
+      (cash !== null ? '<div class="card"><div class="k">Cash</div><div class="v">' + money(cash, mixed ? "" : cur) + '</div></div>' : '') +
+      (cash !== null ? '<div class="card"><div class="k">Account value</div><div class="v">' + money(equityTotal, mixed ? "" : cur) + '</div></div>' : '') +
+      (book.realised ? '<div class="card"><div class="k">Realised</div><div class="v ' + cls(book.realised) + '">' + money(book.realised, mixed ? "" : cur) + '</div></div>' : '') +
       '<div class="card"><div class="k">Return</div><div class="v ' + cls(tPLpc) + '">' + pct(tPLpc) + '</div></div>' +
       '</div>';
 
