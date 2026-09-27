@@ -387,6 +387,13 @@ html{scrollbar-width:none;}
 .win-dock:hover{color:var(--acc);opacity:1}
 .panel-head{display:flex;align-items:center;border-bottom:1px solid var(--line2);padding-right:var(--s3)}
 .panel-head .tabs{flex:1;min-width:0;border-bottom:0}
+.pop-label{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--acc);padding:0 10px;white-space:nowrap}
+.pop-pick{background:var(--bg3);border:1px solid var(--line2);border-radius:2px;color:var(--tx2);
+  font-family:var(--mono);font-size:11px;padding:3px 6px;margin-left:auto;outline:none;max-width:170px}
+.pop-pick:focus{border-color:var(--acc)}
+.pop-close{background:transparent;border:1px solid var(--line2);border-radius:2px;color:var(--tx3);
+  font-family:var(--mono);font-size:10px;padding:3px 9px;margin-left:8px;cursor:pointer}
+.pop-close:hover{border-color:var(--acc);color:var(--acc)}
 .eyebrow{display:flex;align-items:center;gap:var(--s2)}
 .wl-head .win-dock,.eyebrow .win-dock{margin-left:auto}
 
@@ -952,6 +959,21 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
       <div class="stage"><iframe id="stageFrame" src="features/panels/afri_heatmap.html"></iframe></div>
     </section>
 
+    <!-- POPUP (5th window): a second panel viewer, closed until the POP command
+         asks for it. The center stage is intentionally narrow, which is what
+         makes the heatmap crowded there; this carries the same panel at a size
+         you set, floating over the workspace, with its own panel picker so you
+         can look through panels without disturbing the center tabs. -->
+    <section class="panel" id="colPop">
+      <div class="panel-head" data-drag="pop" title="Drag to move this window">
+        <span class="dgrip">&#10287;</span>
+        <span class="pop-label" id="popLabel">POPUP</span>
+        <select id="popPick" class="pop-pick" title="Panel shown in this window"></select>
+        <button class="pop-close" id="popClose" type="button" title="Close this window">CLOSE</button>
+      </div>
+      <div class="stage"><iframe id="popFrame" src="about:blank" title="Popup panel"></iframe></div>
+    </section>
+
     <!-- RIGHT RAIL -->
     <aside class="rail right" id="colInfo">
       <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market</div>
@@ -1195,12 +1217,14 @@ function renderTabs(){
   });
   window.MTWin = (function(){
     const main = document.querySelector('.main');
-    const KEYS = ['watch', 'center', 'info', 'chat'];
+    const KEYS = ['watch', 'center', 'info', 'chat', 'pop'];
     const META = {
       watch:  {el: 'colWatch',  label: 'WATCH',  w: 260, h: 520},
       center: {el: 'colCenter', label: 'PANEL',  w: 740, h: 560},
       info:   {el: 'colInfo',   label: 'MARKET', w: 320, h: 520},
-      chat:   {el: 'colChat',   label: 'CHAT',   w: 340, h: 440}
+      chat:   {el: 'colChat',   label: 'CHAT',   w: 340, h: 440},
+      // opens large: room is the entire point of a popup
+      pop:    {el: 'colPop',    label: 'POPUP',  w: 900, h: 620}
     };
     const MIN_W = 220, MIN_H = 120, BAR = 26;
     // embed modes (?view=, ?rails=0) lay themselves out in CSS - stay out of it
@@ -1223,7 +1247,12 @@ function renderTabs(){
         watch:  {x: 4, y: 4, w: railW, h: H - 8, open: true, z: 11},
         center: {x: railW + 12, y: 4, w: midW, h: H - 8, open: true, z: 12},
         info:   {x: railW + midW + 20, y: 4, w: chatW, h: Math.round(H / 2) - 8, open: true, z: 13},
-        chat:   {x: railW + midW + 20, y: Math.round(H / 2) + 6, w: chatW, h: Math.round(H / 2) - 12, open: true, z: 14}
+        chat:   {x: railW + midW + 20, y: Math.round(H / 2) + 6, w: chatW, h: Math.round(H / 2) - 12, open: true, z: 14},
+        // the popup is NOT part of the default tile: it starts closed and is
+        // opened by command, sized to most of the workspace.
+        pop:    {x: Math.max(4, Math.round(W * 0.1)), y: Math.max(4, Math.round(H * 0.06)),
+                 w: Math.max(MIN_W, Math.round(W * 0.8)), h: Math.max(MIN_H, Math.round(H * 0.86)),
+                 open: false, z: 60}
       };
     }
     // A workspace stays "auto" until you move something in it: while it is,
@@ -1277,10 +1306,12 @@ function renderTabs(){
       // "closed" state (most often the WATCH rail, which makes the terminal
       // look empty with no way back) otherwise survives reloads. Force every
       // window open on restore so the default is always the full 4-panel layout.
+      // The popup is the exception: it is a command surface rather than a pane
+      // of that layout, so it always joins closed and POP opens it.
       KEYS.forEach(function(k){
         spaces.forEach(function(sp){
           if(!sp.wins[k]) sp.wins[k] = tiled()[k];   // old schema: recreate a missing panel
-          sp.wins[k].open = true;
+          sp.wins[k].open = (k === 'pop') ? false : true;
         });
       });
     })();
@@ -2024,13 +2055,71 @@ function showUnknown(msg){
 // an X would be permanent.
 const WINDOW_CMDS = {WATCH: 'watch', WATCHLIST: 'watch', PANEL: 'center', CENTER: 'center',
                      MARKET: 'info', INFO: 'info', CHAT: 'chat', ROOM: 'chat'};
+// ---- POPUP window ----------------------------------------------------------
+// One panel, full size, opened on demand. Panel-switchable from its own picker
+// so looking through panels does not disturb the center tabs.
+function setPopPanel(p){
+  if(!p) return;
+  const f = $('popFrame');
+  if(f) f.src = panelUrl(p);
+  const pk = $('popPick');
+  if(pk && pk.value !== p.id) pk.value = p.id;
+  const lb = $('popLabel');
+  if(lb) lb.textContent = 'POPUP - ' + p.label;
+  try{ localStorage.setItem('mt_pop_panel', p.id); }catch(e){}
+}
+(function initPop(){
+  const pick = $('popPick'), close = $('popClose');
+  if(!pick) return;
+  pick.innerHTML = PANELS.map(function(p){
+    return '<option value="' + p.id + '">' + p.label + '</option>';
+  }).join('');
+  pick.addEventListener('change', function(){
+    const p = PANELS.find(function(x){ return x.id === pick.value; });
+    if(p) setPopPanel(p);
+  });
+  if(close) close.addEventListener('click', function(){
+    if(window.MTWin && window.MTWin.isOpen('pop')) window.MTWin.set('pop', false);
+  });
+  // remember which panel the popup last carried, and show it in the picker.
+  // The frame itself stays on about:blank: a closed window should not pull a
+  // panel (and its data) at startup. The first POP loads it.
+  let last = 'heatmap';
+  try{ last = localStorage.getItem('mt_pop_panel') || last; }catch(e){}
+  const p = PANELS.find(function(x){ return x.id === last; }) || PANELS[0];
+  if(p){
+    pick.value = p.id;
+    const lb = $('popLabel');
+    if(lb) lb.textContent = 'POPUP - ' + p.label;
+  }
+})();
+
 function runCommand(raw){
   let v = String(raw || '').trim().toUpperCase();
   if(!v) return;
+  // POP: the popup panel window. Bare POP toggles it carrying whatever the
+  // center stage is showing; "POP FINANCIALS" opens that panel in it instead.
+  if(v === 'POP' || /^POP\s+\S/.test(v)){
+    if(!window.MTWin) return;
+    const tok = v.replace(/^POP\s*/, '').trim();
+    const opened = window.MTWin.isOpen('pop');
+    let p = null;
+    if(tok){
+      p = panelFor(tok);
+      if(!p){ showUnknown('no panel called "' + tok + '" — try POP ' + (PANELS[__activePanelIdx] || PANELS[0]).label); return; }
+    } else {
+      p = PANELS[__activePanelIdx] || PANELS[0];
+    }
+    if(p) setPopPanel(p);
+    if(!tok) window.MTWin.set('pop', !opened);         // bare POP toggles
+    else if(!opened) window.MTWin.set('pop', true);    // POP <panel> always opens
+    return;
+  }
   if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
       '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both — e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>';
+      '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>' +
+      '<div style="padding:4px 0;color:var(--tx3)">Popup: <b style="color:var(--acc)">POP</b> opens a panel full size in a floating window (again to close), or <b style="color:var(--acc)">POP HEATMAP</b> / <b style="color:var(--acc)">POP FINANCIALS</b> for a specific one.</div>';
     return;
   }
   if(v === 'RESET' || v === 'TILE'){
