@@ -248,6 +248,42 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .wstabs .ws-x:hover{color:#ff5f56;background:rgba(255,95,86,.12)}
 .wstabs .ws-name{pointer-events:none}
 
+/* ---------- per-panel windows (desktop only) ---------- */
+/* Every panel can live in its own window, so several are on screen at once and
+   all of them follow the same symbol. The layer is absolutely positioned inside
+   .main, so a panel iframe is never re-parented (re-parenting reloads it). The
+   narrow-screen rule below turns the whole layer off, which is what keeps the
+   mobile flow (stacked scroll-through panels, no tabs) exactly as it was. */
+.pwlayer{position:absolute;left:0;top:0;right:0;bottom:0;z-index:45;display:none;pointer-events:none}
+.pwlayer.on{display:block}
+.pwin{position:absolute;display:flex;flex-direction:column;pointer-events:auto;
+  background:var(--bg2);border:1px solid var(--win-outline,var(--line2));border-radius:3px;
+  box-shadow:0 12px 34px rgba(0,0,0,.62);overflow:hidden;min-width:0;min-height:0}
+.pwin-front{border-color:var(--mint-line)!important}
+.pwin-hd{display:flex;align-items:center;gap:6px;height:22px;flex:0 0 22px;padding:0 4px 0 7px;
+  background:var(--bg3);border-bottom:1px solid var(--line2);cursor:grab;
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--tx3);
+  -webkit-user-select:none;user-select:none;white-space:nowrap;overflow:hidden}
+.pwin-hd .pw-t{color:var(--tx);font-weight:700;letter-spacing:.1em}
+.pwin-hd .pw-sym{color:var(--acc)}
+.pwin-hd .pw-sp{flex:1 1 auto}
+.pwin-hd .pw-x{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:11px;
+  line-height:1;padding:0 5px;cursor:pointer;border-radius:2px}
+.pwin-hd .pw-x:hover{color:#ff5f56;background:rgba(255,95,86,.14)}
+.pwin-body{flex:1 1 auto;min-height:0;position:relative}
+.pwin-body iframe{width:100%;height:100%;border:0;display:block;background:var(--bg)}
+/* eight grab zones per panel window: four edges, four corners */
+.pwrs{position:absolute;z-index:6}
+.pwrs-n{top:-3px;left:8px;right:8px;height:7px;cursor:ns-resize}
+.pwrs-s{bottom:-3px;left:8px;right:8px;height:7px;cursor:ns-resize}
+.pwrs-w{left:-3px;top:8px;bottom:8px;width:7px;cursor:ew-resize}
+.pwrs-e{right:-3px;top:8px;bottom:8px;width:7px;cursor:ew-resize}
+.pwrs-nw{top:-3px;left:-3px;width:12px;height:12px;cursor:nwse-resize}
+.pwrs-ne{top:-3px;right:-3px;width:12px;height:12px;cursor:nesw-resize}
+.pwrs-sw{bottom:-3px;left:-3px;width:12px;height:12px;cursor:nesw-resize}
+.pwrs-se{bottom:-3px;right:-3px;width:14px;height:14px;cursor:nwse-resize}
+@media (max-width:820px){ .pwlayer{display:none!important} }
+
 .view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
@@ -1002,6 +1038,10 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
     </aside>
 
    </div><!-- /rowTop -->
+    <!-- PANEL WINDOWS (desktop): one draggable frame per panel, filled on
+         demand. Empty and display:none until a panel window is opened, so a
+         normal load looks exactly as it did before. -->
+    <div class="pwlayer" id="pwLayer" aria-label="Panel windows"></div>
     <div class="wrow" id="rowBot"></div>
 
   </div>
@@ -1184,11 +1224,14 @@ try{
   }
 }catch(e){}
 // panel URL with the current exchange appended (?ex=NGX) so EVERY panel
-// loads that exchange's data when opened
+// loads that exchange's data when opened. The second argument is the symbol to
+// scope the panel to; callers that omit it keep the old behaviour exactly (the
+// live symbol, or none at all).
 let curSec = '';
-function panelUrl(p){
+function panelUrl(p, symArg){
+  const s = (symArg === undefined) ? curSec : symArg;
   return p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 'ex=' + currentEx
-    + (curSec ? '&sym=' + encodeURIComponent(curSec) : '') + '&v=' + Date.now();
+    + (s ? '&sym=' + encodeURIComponent(s) : '') + '&v=' + Date.now();
 }
 // render the center panel tabs (rebuilt when the user drags them into a new order)
 function renderTabs(){
@@ -1553,6 +1596,404 @@ function renderTabs(){
   });
   document.addEventListener('dragend', () => { dragTab = null; });
 })();
+
+// ===== per-panel windows (desktop only) =====
+// The center stage can only ever hold ONE panel, which is why two panels side by
+// side was impossible. Each PANELS entry therefore gets its own window here: a
+// draggable, resizable frame carrying that panel's iframe, all of them following
+// one symbol. The old stage path (stageFrame + openPanelTab + panelUrl) is left
+// alone and is still what mobile and the embed views use.
+// State: mt_panelwins (which windows are open + their geometry) and mt_sym (the
+// shared symbol). Both are merged additively on load and a malformed value is
+// ignored rather than thrown.
+window.MTPanelWins = (function(){
+  const KEY = 'mt_panelwins';
+  const SYM_KEY = 'mt_sym';
+  const MIN_W = 240, MIN_H = 140, BAR = 24, GAP = 4;
+
+  const layer = document.getElementById('pwLayer');
+  const WINS = {};                 // id -> {label, url}
+  PANELS.forEach(function(p){ WINS[p.id] = {label: p.label, url: p.url}; });
+  const state = {};                // id -> {open, x, y, w, h, z, geom}
+  const nodes = {};                // id -> section element
+  const frames = {};               // id -> iframe element
+  let zTop = 20;
+
+  function desktop(){
+    try{ return window.matchMedia('(min-width: 821px)').matches; }catch(e){ return true; }
+  }
+  // The embed views (?view=watchlist|panel|info, ?rails=0) lay themselves out in
+  // CSS and must stay untouched. ?view=tour is NOT one of them: it is the full
+  // shell with the tour's own class, and panel windows work there.
+  function embed(){
+    try{
+      return /(^|\s)(no-rails|hide-panel|hide-chrome|view-watchlist|view-panel|view-info)(\s|$)/.test(document.documentElement.className);
+    }catch(e){ return true; }
+  }
+  function active(){ return !!layer && desktop() && !embed(); }
+  function bbox(){
+    let b = null;
+    try{ b = layer && layer.parentNode ? layer.parentNode.getBoundingClientRect() : null; }catch(e){ b = null; }
+    const W = (b && b.width) || window.innerWidth || 1280;
+    const H = (b && b.height) || ((window.innerHeight || 700) - 120);
+    return {width: Math.max(320, Math.round(W)), height: Math.max(200, Math.round(H))};
+  }
+  function savedSym(){
+    try{ return localStorage.getItem(SYM_KEY) || ''; }catch(e){ return ''; }
+  }
+  function symNow(){
+    return (typeof curSec !== 'undefined' && curSec) ? curSec : savedSym();
+  }
+  function paramOf(f, name){
+    const src = f && f.getAttribute('src');
+    if(!src) return null;
+    try{ return new URL(src, location.href).searchParams.get(name); }catch(e){ return null; }
+  }
+  function urlFor(id, sym){
+    // one URL builder for the whole terminal: panelUrl(p, sym) keeps ?ex= and
+    // ?sym= identical on the stage path and on a panel window
+    return panelUrl({url: WINS[id].url}, sym);
+  }
+  function defGeom(id){
+    const idx = Object.keys(WINS).indexOf(id);
+    const b = bbox();
+    const w = Math.max(MIN_W, Math.min(Math.round(b.width * 0.52), b.width - 8));
+    const h = Math.max(MIN_H, Math.min(Math.round(b.height * 0.55), b.height - 8));
+    const k = Math.max(0, idx) % 6;
+    return {
+      x: Math.max(0, Math.min(12 + k * 26, Math.max(0, b.width - 120))),
+      y: Math.max(0, Math.min(12 + k * 22, Math.max(0, b.height - BAR))),
+      w: w, h: h
+    };
+  }
+
+  // ---- state ----
+  function loadState(){
+    let raw = null;
+    try{ raw = JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){ raw = null; }
+    const store = (raw && typeof raw === 'object' && raw.wins && typeof raw.wins === 'object') ? raw.wins : {};
+    zTop = 20;
+    Object.keys(WINS).forEach(function(id){
+      const w = {open: false, x: 0, y: 0, w: 0, h: 0, z: 20, geom: false};
+      state[id] = w;
+      const s = store[id];                       // a window the store knows nothing about keeps its defaults
+      if(s && typeof s === 'object'){
+        if(typeof s.open === 'boolean') w.open = s.open;
+        let nums = 0;
+        ['x', 'y', 'w', 'h', 'z'].forEach(function(k){
+          const n = Number(s[k]);
+          if(isFinite(n)){ w[k] = n; nums++; }
+        });
+        if(nums === 5) w.geom = true;             // a complete stored geometry is usable as-is
+      }
+      if(w.z > zTop) zTop = w.z;
+    });
+    Object.keys(state).forEach(function(id){
+      const w = state[id];
+      if(!w.geom){ const d = defGeom(id); w.x = d.x; w.y = d.y; w.w = d.w; w.h = d.h; w.geom = true; }
+      w.w = Math.max(MIN_W, w.w || MIN_W);
+      w.h = Math.max(MIN_H, w.h || MIN_H);
+    });
+  }
+  function save(){
+    try{
+      const out = {};
+      Object.keys(WINS).forEach(function(id){
+        const w = state[id];
+        if(!w) return;
+        out[id] = {open: !!w.open, x: Math.round(w.x), y: Math.round(w.y),
+                   w: Math.round(w.w), h: Math.round(w.h), z: w.z};
+      });
+      localStorage.setItem(KEY, JSON.stringify({v: 1, ex: currentEx, sym: symNow(), wins: out}));
+    }catch(e){}
+  }
+
+  // ---- geometry ----
+  function clampWin(id){
+    const b = bbox(), w = state[id];
+    w.w = Math.max(MIN_W, Math.min(w.w, Math.max(MIN_W, b.width - 8)));
+    w.h = Math.max(MIN_H, Math.min(w.h, Math.max(MIN_H, b.height - 8)));
+    // the title bar must stay reachable or the window cannot be grabbed back
+    w.x = Math.max(-(w.w - 80), Math.min(w.x, b.width - 80));
+    w.y = Math.max(0, Math.min(w.y, Math.max(0, b.height - BAR)));
+  }
+  function loadIfStale(id){
+    const f = frames[id];
+    if(!f) return;
+    const sym = symNow();
+    const src = f.getAttribute('src');
+    if(!src || paramOf(f, 'sym') !== sym || paramOf(f, 'ex') !== currentEx) f.src = urlFor(id, sym);
+  }
+  function place(id){
+    const w = state[id], n = nodes[id];
+    if(!n) return;
+    if(!w.open){ n.style.display = 'none'; return; }
+    clampWin(id);
+    n.style.display = '';
+    n.style.left = Math.round(w.x) + 'px';
+    n.style.top = Math.round(w.y) + 'px';
+    n.style.width = Math.round(w.w) + 'px';
+    n.style.height = Math.round(w.h) + 'px';
+    n.style.zIndex = String(w.z);
+    loadIfStale(id);
+    const lab = n.querySelector('.pw-sym');
+    if(lab) lab.textContent = symNow();
+  }
+  function front(){
+    let top = null;
+    Object.keys(WINS).forEach(function(id){
+      const w = state[id];
+      if(!w || !w.open) return;
+      if(!top || w.z > state[top].z) top = id;
+    });
+    Object.keys(WINS).forEach(function(id){
+      const n = nodes[id];
+      if(n) n.classList.toggle('pwin-front', id === top);
+    });
+  }
+  function render(){
+    if(!layer) return;
+    if(!active()){ layer.classList.remove('on'); return; }
+    layer.classList.add('on');
+    Object.keys(WINS).forEach(function(id){
+      const w = state[id];
+      if(!w) return;
+      if(w.open){ ensureNode(id); place(id); }
+      else if(nodes[id]) place(id);
+    });
+    front();
+  }
+  function raise(id){
+    const w = state[id];
+    if(!w || !w.open || w.z === zTop) return;
+    w.z = ++zTop;
+    if(nodes[id]) nodes[id].style.zIndex = String(w.z);
+    front();
+  }
+
+  // ---- DOM ----
+  function ensureNode(id){
+    if(nodes[id] || !layer) return;
+    const ent = WINS[id];
+    const sec = document.createElement('section');
+    sec.className = 'pwin';
+    sec.id = 'pw_' + id;
+    sec.setAttribute('data-panelwin', id);
+
+    const hd = document.createElement('div');
+    hd.className = 'pwin-hd';
+    const t = document.createElement('span');
+    t.className = 'pw-t';
+    t.textContent = ent.label;
+    const sy = document.createElement('span');
+    sy.className = 'pw-sym';
+    const sp = document.createElement('span');
+    sp.className = 'pw-sp';
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'pw-x';
+    x.textContent = 'X';
+    x.title = 'Close this panel window';
+    x.addEventListener('click', function(e){ e.stopPropagation(); closeWin(id); });
+    hd.appendChild(t); hd.appendChild(sy); hd.appendChild(sp); hd.appendChild(x);
+    hd.addEventListener('mousedown', function(e){ drag(id, e, 'move'); });
+
+    const body = document.createElement('div');
+    body.className = 'pwin-body';
+    const f = document.createElement('iframe');
+    f.className = 'pw-frame';
+    f.setAttribute('title', ent.label + ' panel');
+    body.appendChild(f);
+
+    sec.appendChild(hd);
+    sec.appendChild(body);
+    ['n', 's', 'w', 'e', 'nw', 'ne', 'sw', 'se'].forEach(function(d){
+      const h = document.createElement('div');
+      h.className = 'pwrs pwrs-' + d;
+      h.addEventListener('mousedown', function(e){ drag(id, e, 'resize', d); });
+      sec.appendChild(h);
+    });
+    sec.addEventListener('mousedown', function(){ raise(id); }, true);
+
+    layer.appendChild(sec);
+    nodes[id] = sec;
+    frames[id] = f;
+  }
+
+  // ---- moving and resizing ----
+  function overlay(cursor){
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;cursor:' + cursor + ';';
+    document.body.appendChild(ov);   // also swallows mouse events over the panel iframes
+    return ov;
+  }
+  function drag(id, e, mode, dir){
+    if(e.button !== 0) return;
+    if(e.target && e.target.closest && e.target.closest('button')) return;
+    e.preventDefault();
+    raise(id);
+    const w = state[id], sx = e.clientX, sy = e.clientY;
+    const o = {x: w.x, y: w.y, w: w.w, h: w.h};
+    const ov = overlay(mode === 'move' ? 'grabbing' : 'default');
+    function move(ev){
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if(mode === 'move'){ w.x = o.x + dx; w.y = o.y + dy; }
+      else{
+        if(dir.indexOf('e') >= 0) w.w = Math.max(MIN_W, o.w + dx);
+        if(dir.indexOf('s') >= 0) w.h = Math.max(MIN_H, o.h + dy);
+        if(dir.indexOf('w') >= 0){ const nw = Math.max(MIN_W, o.w - dx); w.x = o.x + (o.w - nw); w.w = nw; }
+        if(dir.indexOf('n') >= 0){ const nh = Math.max(MIN_H, o.h - dy); w.y = o.y + (o.h - nh); w.h = nh; }
+      }
+      place(id);
+    }
+    function end(){
+      ov.remove();
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', end);
+      save();
+    }
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+  }
+
+  // ---- open / close ----
+  function open(id){
+    const w = state[id];
+    if(!w) return false;
+    w.open = true;
+    w.z = ++zTop;
+    render();
+    save();
+    return true;
+  }
+  function closeWin(id){
+    const w = state[id];
+    if(!w || !w.open) return false;
+    w.open = false;
+    render();
+    save();
+    return true;
+  }
+  function toggle(id){
+    const w = state[id];
+    if(!w) return false;
+    return w.open ? closeWin(id) : open(id);
+  }
+  function openIds(){
+    return Object.keys(WINS).filter(function(id){ return state[id] && state[id].open; })
+      .sort(function(a, b){ return state[a].z - state[b].z; });
+  }
+  function tile(){
+    const ids = openIds();
+    if(!ids.length) return 0;
+    const b = bbox(), n = ids.length;
+    const cols = Math.ceil(Math.sqrt(n));
+    const rows = Math.ceil(n / cols);
+    const cw = Math.floor((b.width - GAP * (cols + 1)) / cols);
+    const ch = Math.floor((b.height - GAP * (rows + 1)) / rows);
+    ids.forEach(function(id, i){
+      const w = state[id];
+      const c = i % cols, r = Math.floor(i / cols);
+      w.x = GAP + c * (cw + GAP);
+      w.y = GAP + r * (ch + GAP);
+      w.w = Math.max(MIN_W, cw);
+      w.h = Math.max(MIN_H, ch);
+      w.geom = true;
+    });
+    render();
+    save();
+    return ids.length;
+  }
+  // the default panel window is the panel the terminal would have shown on the
+  // stage: the ?panel= deep link if there is one, else the first saved tab
+  function defaultIds(){
+    let id = null;
+    try{ id = window.__INIT_PANEL || null; }catch(e){ id = null; }
+    if(id && WINS[id]) return [id];
+    return [PANELS[0] ? PANELS[0].id : 'heatmap'];
+  }
+  function reset(){
+    const keep = defaultIds();
+    Object.keys(WINS).forEach(function(id){
+      const w = state[id];
+      if(!w) return;
+      w.open = keep.indexOf(id) >= 0;
+      const d = defGeom(id);
+      w.x = d.x; w.y = d.y; w.w = d.w; w.h = d.h; w.geom = true;
+      if(w.open) w.z = ++zTop;
+    });
+    render();
+    save();
+    return keep;
+  }
+  // ---- the one symbol every open panel follows ----
+  function setSymbol(sym){
+    sym = String(sym == null ? '' : sym).trim();
+    if(!sym) return;
+    try{ localStorage.setItem(SYM_KEY, sym); }catch(e){}
+    try{ window.dispatchEvent(new CustomEvent('mt:symbol', {detail: {sym: sym, ex: currentEx}})); }catch(e){}
+    Object.keys(WINS).forEach(function(id){
+      const w = state[id];
+      if(!w || !w.open) return;
+      loadIfStale(id);
+      const n = nodes[id];
+      const lab = n ? n.querySelector('.pw-sym') : null;
+      if(lab) lab.textContent = sym;
+    });
+    try{
+      const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if(raw && typeof raw === 'object'){ raw.sym = sym; localStorage.setItem(KEY, JSON.stringify(raw)); }
+    }catch(e){}
+  }
+
+  (function init(){
+    if(!layer) return;
+    try{ loadState(); }catch(e){}
+    try{ render(); }catch(e){}
+    try{
+      const mq = window.matchMedia('(max-width: 820px)');
+      const on = function(){ render(); };
+      if(mq.addEventListener) mq.addEventListener('change', on);
+      else if(mq.addListener) mq.addListener(on);
+    }catch(e){}
+    window.addEventListener('resize', function(){ try{ render(); }catch(e){} });
+    // a caller that only has the legacy stage can still broadcast a symbol
+    window.addEventListener('mt:symbol', function(){ try{ render(); }catch(e){} });
+  })();
+
+  return {
+    active: active,
+    ids: function(){ return Object.keys(WINS); },
+    openIds: openIds,
+    count: function(){ return openIds().length; },
+    isOpen: function(id){ return !!(state[id] && state[id].open); },
+    open: open,
+    close: closeWin,
+    toggle: toggle,
+    setSymbol: setSymbol,
+    tile: tile,
+    reset: reset,
+    syncExchange: function(){ render(); },
+    layout: render,
+    geometry: function(){
+      const o = {};
+      Object.keys(WINS).forEach(function(id){
+        const w = state[id];
+        o[id] = {open: !!w.open, x: w.x, y: w.y, w: w.w, h: w.h, z: w.z};
+      });
+      return o;
+    },
+    frames: function(){
+      const o = {};
+      Object.keys(WINS).forEach(function(id){
+        const f = frames[id];
+        o[id] = {open: !!(state[id] && state[id].open), src: f ? (f.getAttribute('src') || '') : null};
+      });
+      return o;
+    }
+  };
+})();
+
 renderTabs();
 // load the default panel WITH the current exchange
 // (?panel= deep-link support for the landing showcase; unknown panels fall back to default)
@@ -1739,6 +2180,8 @@ function switchExchange(ex){
     primeQuotes(currentEx);
     renderMarketOverview(currentEx);
   }
+  // open panel windows carry ?ex= too, so they follow the market switch
+  if(window.MTPanelWins) window.MTPanelWins.syncExchange();
 }
 renderExchTabs();
 
@@ -2044,11 +2487,31 @@ function panelFor(tok){
   return PANELS.find(x => x.id === al) || null;
 }
 function openPanelTab(p){
+  // callers may hand in the panel object or just its id/code ("financials")
+  if(typeof p === 'string') p = PANELS.find(x => x.id === String(p).toLowerCase()) || null;
+  if(!p) return null;
   const idx = PANELS.indexOf(p);
   document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
   const els = document.querySelectorAll('.ctab');
   if(idx >= 0 && els[idx]){ els[idx].classList.add('active'); __activePanelIdx = idx; }
   $('stageFrame').src = panelUrl(p);
+}
+// Where a panel is asked for, this is what decides between the two viewers.
+// On a desktop shell the panel opens in its OWN window, so several panels are on
+// screen at once; that is the whole point of the panel-window layer. Everywhere
+// else (mobile, the embed views, or a browser too narrow for windows) the legacy
+// single stage is used exactly as before, so nothing regresses there.
+// mode 'toggle' is for a bare panel code: typing it again closes that window.
+function openPanelWin(p, mode){
+  if(typeof p === 'string') p = PANELS.find(x => x.id === String(p).toLowerCase()) || null;
+  if(!p) return false;
+  if(window.MTPanelWins && window.MTPanelWins.active()){
+    if(mode === 'toggle') window.MTPanelWins.toggle(p.id);
+    else window.MTPanelWins.open(p.id);
+    return true;
+  }
+  openPanelTab(p);
+  return false;
 }
 function showUnknown(msg){
   $('rightInfo').innerHTML = `<div style="padding:4px 0;color:var(--down)">${esc(msg)}</div>` +
@@ -2119,15 +2582,32 @@ function runCommand(raw){
     else if(!opened) window.MTWin.set('pop', true);    // POP <panel> always opens
     return;
   }
+  // CLOSE <panel>: shut ONE panel window and leave the rest of the set alone
+  if(/^CLOSE\b/.test(v)){
+    const ctok = v.replace(/^CLOSE\s*/, '').trim();
+    if(!ctok){ showUnknown('CLOSE takes a panel code, e.g. CLOSE HEATMAP'); return; }
+    const cp = panelFor(ctok);
+    if(!cp){ showUnknown('no panel called "' + ctok + '"'); return; }
+    if(window.MTPanelWins && window.MTPanelWins.isOpen(cp.id)){ window.MTPanelWins.close(cp.id); return; }
+    showUnknown(cp.label + ' has no window open');
+    return;
+  }
   if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
       '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both - e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>' +
+      '<div style="padding:4px 0;color:var(--tx3)">Panel windows: a panel code opens THAT panel in its own window, and several stay open side by side, all following the same symbol. Type the code again to close it, <b style="color:var(--acc)">CLOSE FINANCIALS</b> to shut one, <b style="color:var(--acc)">TILE</b> to lay the open ones out in a grid, <b style="color:var(--acc)">RESET</b> to close the extras.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Popup: <b style="color:var(--acc)">POP</b> opens a panel full size in a floating window (again to close), or <b style="color:var(--acc)">POP HEATMAP</b> / <b style="color:var(--acc)">POP FINANCIALS</b> for a specific one.</div>';
     return;
   }
   if(v === 'RESET' || v === 'TILE'){
     if(window.MTWin && window.MTWin.reset) window.MTWin.reset();
+    // panel windows: TILE lays the open set out in a grid, RESET closes the
+    // extras and puts the default panel window back to its default geometry
+    if(window.MTPanelWins){
+      if(v === 'TILE') window.MTPanelWins.tile();
+      else window.MTPanelWins.reset();
+    }
     return;
   }
   if(v === 'WINDOWS' || v === 'ALL'){
@@ -2195,7 +2675,7 @@ function runCommand(raw){
     if(exHead && exOn(exHead)){
       if(exHead !== currentEx && typeof switchExchange === 'function') switchExchange(exHead);
       curSec = null;               // market-level view, not a specific security
-      openPanelTab(lastP);
+      openPanelWin(lastP);
       return;
     }
     // "MTN FIN" -> resolve the ticker part, open the panel scoped to it
@@ -2203,11 +2683,12 @@ function runCommand(raw){
     if(sec){
       if(sec.ex !== currentEx && typeof switchExchange === 'function') switchExchange(sec.ex);
       curSec = sec.sym;
-      openPanelTab(lastP);
+      if(window.MTPanelWins) window.MTPanelWins.setSymbol(sec.sym);
+      openPanelWin(lastP);
       return;
     }
     // ticker not resolvable: still open the panel, note it
-    openPanelTab(lastP);
+    openPanelWin(lastP);
     showUnknown('no security matches "' + tick + '" - panel opened for ' + (curSec || 'no security'));
     return;
   }
@@ -2218,7 +2699,7 @@ function runCommand(raw){
     else showUnknown('select a security first (click a row or type a ticker)');
     return;
   }
-  if(p){ openPanelTab(p); return; }
+  if(p){ openPanelWin(p, 'toggle'); return; }
   // single token that is a security? -> open its quote sheet (DES behaviour)
   const sec = resolveSec(v);
   if(sec){
@@ -2522,6 +3003,10 @@ function openChartModal(sym){
 let __activePanelIdx = -1;
 function openStock(sym){
   if(!sym) return;
+  // the typed symbol is shared state: every open panel window is re-pointed to
+  // it here, before the mt_tickerClick preference is consulted, because that
+  // setting governs the MARKET rail, not which security the panels follow
+  try{ if(window.MTPanelWins) window.MTPanelWins.setSymbol(sym); }catch(e){}
   try{ if(localStorage.getItem('mt_tickerClick') === 'off') return; }catch(e){}
   curSec = sym;
   if(__activePanelIdx >= 0 && PANELS[__activePanelIdx] && PANELS[__activePanelIdx].id === 'financials'){
@@ -2980,10 +3465,12 @@ function renderStockInfo(d, sym){
     const asked = words.filter(function(w){ return ['OPEN','SHOW','GO','TO','THE','PANEL'].indexOf(w) < 0; });
     for(let i = 0; i < asked.length; i++){
       const p = (typeof panelFor === 'function') ? panelFor(asked[i]) : null;
-      if(p && p.id !== 'info' && typeof openPanelTab === 'function'){
-        if(window.MTWin && !window.MTWin.isOpen('center')) window.MTWin.set('center', true);
-        openPanelTab(p);
-        return 'Opened the <b>' + esc(p.label) + '</b> panel in the centre window.';
+      if(p && p.id !== 'info' && typeof openPanelWin === 'function'){
+        // a panel window on desktop, the centre stage everywhere else; the
+        // answer names the one that actually happened
+        const inWin = openPanelWin(p);
+        if(!inWin && window.MTWin && !window.MTWin.isOpen('center')) window.MTWin.set('center', true);
+        return 'Opened the <b>' + esc(p.label) + '</b> panel in ' + (inWin ? 'its own window.' : 'the centre window.');
       }
     }
     for(let i = 0; i < asked.length; i++){
