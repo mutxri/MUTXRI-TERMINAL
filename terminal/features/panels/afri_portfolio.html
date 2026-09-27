@@ -68,6 +68,13 @@
   .note{padding:10px 12px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:10px;line-height:1.75;}
   .warn{padding:9px 12px;color:var(--down);font-family:var(--mono);font-size:10px;line-height:1.7;}
   .empty{padding:16px 12px;color:var(--tx3);font-family:var(--mono);font-size:11px;line-height:1.8;}
+  .pie-wrap{display:flex;gap:20px;align-items:center;flex-wrap:wrap;}
+  .pie-wrap svg{width:240px;height:240px;flex:0 0 240px;}
+  .pie-leg{flex:1;min-width:260px;}
+  .pie-row{display:flex;align-items:center;gap:9px;padding:4px 0;border-bottom:1px solid var(--line);}
+  .pie-row i{width:11px;height:11px;border-radius:2px;flex:0 0 11px;}
+  .pie-row .nm{font-family:var(--mono);font-size:10px;color:var(--tx2);flex:1;}
+  .pie-row .vl{font-family:var(--mono);font-size:10px;color:var(--tx);font-variant-numeric:tabular-nums;}
 </style>
 </head>
 <body>
@@ -187,6 +194,57 @@
   }
 
   // ---- charts ----------------------------------------------------------
+  // A donut. Slices are sized on absolute value, because a pie cannot show a
+  // negative slice - so this is exposure, and the caller labels it as gross.
+  // The percentages are of the gross total, which is why they sum to 100.
+  var PALETTE = ["#33e29a", "#7ef0c0", "#2aa9a0", "#1f7f7a", "#c9d94a",
+                 "#8fbf3f", "#5f9ea0", "#a8e6a1", "#4f8f6f", "#d9e88a"];
+
+  function pieChart(items, size){
+    var pos = items.filter(function(i){ return Math.abs(i.value) > 0; });
+    if (!pos.length) return "";
+    var gross = 0;
+    pos.forEach(function(i){ gross += Math.abs(i.value); });
+    if (!gross) return "";
+
+    var cx = 120, cy = 120, R = 104, r = 58;
+    var a0 = -Math.PI / 2;
+    var out = ['<svg viewBox="0 0 240 240" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Exposure by share">'];
+    pos.forEach(function(it, i){
+      var frac = Math.abs(it.value) / gross;
+      var a1 = a0 + frac * Math.PI * 2;
+      var big = (a1 - a0) > Math.PI ? 1 : 0;
+      var x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
+      var x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+      var x2 = cx + r * Math.cos(a1), y2 = cy + r * Math.sin(a1);
+      var x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0);
+      var c = PALETTE[i % PALETTE.length];
+      // a slice of exactly 100% cannot be drawn as an arc; draw it as a ring
+      if (frac > 0.9995){
+        out.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + ((R + r) / 2) + '" fill="none" stroke="' + c + '" stroke-width="' + (R - r) + '"/>');
+      } else {
+        out.push('<path d="M ' + x0.toFixed(2) + ' ' + y0.toFixed(2) +
+                 ' A ' + R + ' ' + R + ' 0 ' + big + ' 1 ' + x1.toFixed(2) + ' ' + y1.toFixed(2) +
+                 ' L ' + x2.toFixed(2) + ' ' + y2.toFixed(2) +
+                 ' A ' + r + ' ' + r + ' 0 ' + big + ' 0 ' + x3.toFixed(2) + ' ' + y3.toFixed(2) + ' Z" fill="' + c + '"/>');
+      }
+      it.pieColour = c;
+      it.piePct = frac * 100;
+      a0 = a1;
+    });
+    out.push('</svg>');
+    return out.join("");
+  }
+
+  function pieLegend(items, cur){
+    var pos = items.filter(function(i){ return i.pieColour; });
+    return '<div class="pie-leg">' + pos.map(function(i){
+      return '<div class="pie-row"><i style="background:' + i.pieColour + '"></i>' +
+        '<span class="nm">' + esc(i.label) + '</span>' +
+        '<span class="vl">' + money(Math.abs(i.value), cur) + ' &middot; ' + i.piePct.toFixed(1) + '%</span></div>';
+    }).join("") + '</div>';
+  }
+
   function barRows(items, colour){
     var max = 0;
     items.forEach(function(i){ if (Math.abs(i.value) > max) max = Math.abs(i.value); });
@@ -317,9 +375,11 @@
       return { label:k, value:bySec[k], text: money(bySec[k], mixed ? "" : cur) + "  " + (bySec[k] / tVal * 100).toFixed(1) + "%" };
     }).sort(function(a, b){ return b.value - a.value; });
 
-    html += '<div class="sec"><div class="sec-h"><span class="sec-t">ALLOCATION BY SECTOR</span>' +
-      '<span class="sec-s">' + secItems.length + ' sectors, priced positions only</span></div><div class="sec-b">' +
-      (secItems.length ? barRows(secItems, "var(--acc)") : '<span class="ax">No priced position to allocate.</span>') +
+    html += '<div class="sec"><div class="sec-h"><span class="sec-t">EXPOSURE BY SECTOR</span>' +
+      '<span class="sec-s">' + secItems.length + ' sectors &middot; slice sized on absolute value, shorts included</span></div><div class="sec-b">' +
+      (secItems.length
+        ? '<div class="pie-wrap">' + pieChart(secItems) + pieLegend(secItems, mixed ? "" : cur) + '</div>'
+        : '<span class="ax">No priced position to allocate.</span>') +
       '</div></div>';
 
     // by exchange
@@ -328,8 +388,12 @@
     var exItems = Object.keys(byEx).map(function(k){
       return { label:k, value:byEx[k], text: money(byEx[k], "") + "  " + (byEx[k] / tVal * 100).toFixed(1) + "%" };
     }).sort(function(a, b){ return b.value - a.value; });
-    html += '<div class="sec"><div class="sec-h"><span class="sec-t">ALLOCATION BY EXCHANGE</span>' +
-      '<span class="sec-s">' + exItems.length + ' exchanges</span></div><div class="sec-b">' + barRows(exItems, "#7ef0c0") + '</div></div>';
+    html += '<div class="sec"><div class="sec-h"><span class="sec-t">EXPOSURE BY EXCHANGE</span>' +
+      '<span class="sec-s">' + exItems.length + ' exchanges</span></div><div class="sec-b">' +
+      (exItems.length
+        ? '<div class="pie-wrap">' + pieChart(exItems) + pieLegend(exItems, "") + '</div>'
+        : '<span class="ax">No exchange exposure to show.</span>') +
+      '</div></div>';
 
     // profit and loss per position
     var plItems = rows.filter(function(r){ return r.pl !== null; }).map(function(r){
