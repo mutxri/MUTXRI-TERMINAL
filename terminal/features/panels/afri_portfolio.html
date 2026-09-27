@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - PORTFOLIO panel: the paper book, drawn.
+
+  The book is read from localStorage["mx_paper_v1"], the same key the TRADE
+  panel writes - positions as { <sym>: { qty, avg } } under a user key. This
+  panel does not invent positions and it does not invent prices: it joins what
+  the book holds against the exchange files on disk, and any position it cannot
+  price is NAMED rather than valued at zero.
+
+  Charts are inline SVG, no library, same as the RESEARCH panel.
+
+  Honest limits stated in the panel itself:
+   * the book is browser-local, so this shows only what this browser holds;
+   * a position with no price in the exchange files is listed as unpriced.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - Portfolio</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+  :root{
+    --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
+    --line:#1a1a1a; --line2:#262626;
+    --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
+    --up:#33e29a; --down:#ff5c5c; --acc:#33e29a;
+    --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--ui);font-size:13px;}
+  .pf{max-width:980px;margin:0 auto;padding:16px 14px 32px;}
+  .pf-head{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--line2);padding-bottom:9px;flex-wrap:wrap;}
+  .pf-code{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--acc);}
+  .pf-name{font-size:15px;font-weight:600;}
+  .pf-who{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-left:auto;}
+  .cards{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px;}
+  .card{border:1px solid var(--line2);border-radius:2px;background:var(--bg2);padding:9px 13px;min-width:150px;flex:1;}
+  .card .k{font-family:var(--mono);font-size:9px;letter-spacing:.07em;color:var(--tx3);text-transform:uppercase;}
+  .card .v{font-family:var(--mono);font-size:17px;margin-top:4px;font-variant-numeric:tabular-nums;}
+  .v.up{color:var(--up);} .v.down{color:var(--down);}
+  .sec{border:1px solid var(--line2);border-radius:2px;background:var(--bg2);margin-top:12px;}
+  .sec-h{display:flex;align-items:baseline;gap:9px;padding:8px 12px;border-bottom:1px solid var(--line2);}
+  .sec-t{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--tx2);}
+  .sec-s{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-left:auto;}
+  .sec-b{padding:12px;}
+  svg{display:block;width:100%;height:auto;}
+  .ax{fill:var(--tx3);font-family:var(--mono);font-size:9px;}
+  .grid{stroke:var(--line);stroke-width:1;}
+  .zero{stroke:var(--line2);stroke-width:1;stroke-dasharray:3 3;}
+  .lbl{fill:var(--tx);font-family:var(--mono);font-size:9px;}
+  .row{display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+  .row .nm{font-family:var(--mono);font-size:10px;color:var(--tx2);min-width:112px;}
+  .row .bar{flex:1;height:12px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+  .row .bar i{display:block;height:100%;}
+  .row .vl{font-family:var(--mono);font-size:10px;color:var(--tx);min-width:96px;text-align:right;font-variant-numeric:tabular-nums;}
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;}
+  th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;}
+  th{color:var(--tx3);font-weight:400;font-size:9px;text-transform:uppercase;letter-spacing:.06em;}
+  th.l,td.l{text-align:left;}
+  td.sym{color:var(--acc);}
+  td.pos{color:var(--up);} td.neg{color:var(--down);} td.mut{color:var(--tx3);}
+  .note{padding:10px 12px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:10px;line-height:1.75;}
+  .warn{padding:9px 12px;color:var(--down);font-family:var(--mono);font-size:10px;line-height:1.7;}
+  .empty{padding:16px 12px;color:var(--tx3);font-family:var(--mono);font-size:11px;line-height:1.8;}
+</style>
+</head>
+<body>
+<div class="pf">
+  <div class="pf-head">
+    <span class="pf-code">PORTFOLIO</span>
+    <span class="pf-name">Paper book</span>
+    <span class="pf-who" id="pfWho"></span>
+  </div>
+
+  <div id="pfBody"><div class="empty">Loading the book&hellip;</div></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var BOOK_KEY = "mx_paper_v1";                 // written by the TRADE panel
+  var EXES = ["NSE", "NGX", "JSE", "EGX"];
+  var FILE = { NSE:"NSE", NGX:"NGX", JSE:"JSE", EGX:"EGX" };
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+  function num(v){ return (typeof v === "number" && isFinite(v)) ? v : null; }
+  function money(v, cur){
+    if (num(v) === null) return "n/a";
+    var a = Math.abs(v), s;
+    if (a >= 1e9) s = (v/1e9).toFixed(2) + "B";
+    else if (a >= 1e6) s = (v/1e6).toFixed(2) + "M";
+    else if (a >= 1e3) s = (v/1e3).toFixed(1) + "K";
+    else s = v.toFixed(2);
+    return (cur ? cur + " " : "") + s;
+  }
+  function pct(v){
+    if (num(v) === null) return "n/a";
+    return (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+  }
+  function cls(v){ return num(v) === null ? "mut" : (v > 0 ? "pos" : (v < 0 ? "neg" : "mut")); }
+
+  // ---- the book --------------------------------------------------------
+  function readBook(){
+    var raw = null;
+    try { raw = localStorage.getItem(BOOK_KEY); } catch(e){ return { err:"unreadable" }; }
+    if (!raw) return { empty:true };
+    var all = null;
+    try { all = JSON.parse(raw); } catch(e){ return { err:"corrupt" }; }
+    if (!all || typeof all !== "object") return { empty:true };
+
+    var email = null;
+    try { email = localStorage.getItem("mt_email"); } catch(e){}
+    var keys = Object.keys(all);
+    var key = null;
+    if (email && all[email]) key = email;
+    else if (keys.length === 1) key = keys[0];
+    else if (keys.length) key = keys[0];
+
+    var pos = {};
+    if (key && all[key] && all[key].positions) pos = all[key].positions;
+    else if (key && all[key] && typeof all[key] === "object" && !all[key].positions) pos = all[key];
+
+    var out = [];
+    Object.keys(pos || {}).forEach(function(sym){
+      var p = pos[sym] || {};
+      var q = num(p.qty), a = num(p.avg);
+      if (q === null || q === 0) return;                 // an empty slot is not a position
+      out.push({ sym: String(sym), qty: q, avg: a });
+    });
+    return { positions: out, user: key, accountCount: keys.length };
+  }
+
+  // ---- price index over every exchange --------------------------------
+  function loadMarkets(){
+    return Promise.all(EXES.map(function(ex){
+      return fetch("../../static_data/market_" + ex + ".json", { cache:"force-cache" })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ return { ex: ex, d: d }; })
+        .catch(function(){ return { ex: ex, d: null }; });
+    }));
+  }
+
+  function indexOf(markets){
+    var ix = {};
+    markets.forEach(function(m){
+      var rows = (m.d && (m.d.stocks || m.d.rows || m.d.securities)) || [];
+      rows.forEach(function(s){
+        var sym = s.sym || s.ticker;
+        if (!sym) return;
+        var rec = {
+          ex: m.ex, sym: String(sym), ticker: String(s.ticker || sym),
+          name: s.name || s.company || String(sym),
+          sector: s.sector || s.industry || null,
+          price: num(s.price) !== null ? num(s.price) : num(s.last),
+          cur: s.currency || (m.ex === "NSE" ? "KES" : m.ex === "NGX" ? "NGN" : m.ex === "JSE" ? "ZAR" : "EGP")
+        };
+        ix[String(sym).toUpperCase()] = rec;
+        ix[String(sym).split(".")[0].toUpperCase()] = rec;
+        if (s.ticker) ix[String(s.ticker).toUpperCase()] = rec;
+      });
+    });
+    return ix;
+  }
+
+  function histKey(rec){
+    if (!rec) return null;
+    if (rec.ex === "NSE") return "NSE_" + rec.ticker;
+    if (rec.ex === "NGX") return "NGX_" + rec.ticker;
+    return rec.sym;                                  // JSE/EGX key by their own sym
+  }
+
+  // ---- charts ----------------------------------------------------------
+  function barRows(items, colour){
+    var max = 0;
+    items.forEach(function(i){ if (Math.abs(i.value) > max) max = Math.abs(i.value); });
+    if (!max) return "";
+    return items.map(function(i){
+      var w = Math.abs(i.value) / max * 100;
+      var c = typeof colour === "function" ? colour(i) : colour;
+      return '<div class="row"><span class="nm">' + esc(i.label) + '</span>' +
+        '<span class="bar"><i style="width:' + w.toFixed(1) + '%;background:' + c + '"></i></span>' +
+        '<span class="vl">' + esc(i.text) + '</span></div>';
+    }).join("");
+  }
+
+  function lineChart(series){
+    var pts = series.points, W = 900, H = 220, L = 68, R = 60, T = 12, B = 24;
+    var iw = W - L - R, ih = H - T - B;
+    if (pts.length < 2) return "";
+    var vals = pts.map(function(p){ return p.v; });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if (lo === hi){ lo = lo * 0.99; hi = hi * 1.01; }
+    var pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+    var x = function(i){ return L + iw * i / (pts.length - 1); };
+    var y = function(v){ return T + ih - ih * ((v - lo) / (hi - lo)); };
+    var out = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(series.label) + '">'];
+    for (var g = 0; g <= 4; g++){
+      var v = lo + (hi - lo) * g / 4, yy = y(v);
+      out.push('<line class="grid" x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + (W - R) + '" y2="' + yy.toFixed(1) + '"/>');
+      out.push('<text class="ax" x="' + (L - 6) + '" y="' + (yy + 3).toFixed(1) + '" text-anchor="end">' + money(v, "") + '</text>');
+    }
+    var step = Math.max(1, Math.floor(pts.length / 6));
+    pts.forEach(function(p, i){
+      if (i % step && i !== pts.length - 1) return;
+      out.push('<text class="ax" x="' + x(i).toFixed(1) + '" y="' + (H - 7) + '" text-anchor="middle">' + esc(p.d) + '</text>');
+    });
+    out.push('<polyline fill="none" stroke="var(--acc)" stroke-width="1.8" points="' +
+      pts.map(function(p, i){ return x(i).toFixed(1) + "," + y(p.v).toFixed(1); }).join(" ") + '"/>');
+    var last = pts[pts.length - 1];
+    out.push('<text class="lbl" x="' + (W - R + 8) + '" y="' + (y(last.v) + 3).toFixed(1) + '" fill="var(--acc)">' + money(last.v, "") + '</text>');
+    out.push('</svg>');
+    return out.join("");
+  }
+
+  // ---- risk from real closes ------------------------------------------
+  function riskOf(closes){
+    if (!closes || closes.length < 30) return null;
+    var rets = [];
+    for (var i = 1; i < closes.length; i++){
+      if (closes[i - 1] > 0) rets.push(closes[i] / closes[i - 1] - 1);
+    }
+    var n = rets.length, mean = 0;
+    rets.forEach(function(r){ mean += r; }); mean /= n;
+    var v = 0; rets.forEach(function(r){ v += (r - mean) * (r - mean); });
+    var sd = Math.sqrt(v / Math.max(1, n - 1));
+    var peak = -Infinity, mdd = 0;
+    closes.forEach(function(c){ if (c > peak) peak = c; if (peak > 0) mdd = Math.min(mdd, c / peak - 1); });
+    return { vol: sd * Math.sqrt(252) * 100, mdd: mdd * 100 };
+  }
+
+  // ---- render ----------------------------------------------------------
+  function render(book, markets){
+    var host = document.getElementById("pfBody");
+    var who = document.getElementById("pfWho");
+
+    if (book.err === "unreadable"){
+      host.innerHTML = '<div class="warn">This browser blocks local storage, so the paper book cannot be read. No figure is shown rather than a guessed one.</div>';
+      return;
+    }
+    if (book.empty || !book.positions || !book.positions.length){
+      host.innerHTML = '<div class="empty">No paper positions in this browser.<br><br>' +
+        'Add them in the TRADE panel: enter the quantity you would hold and the average price you paid, and they appear here with allocation, profit and loss, a value curve and per-position risk.<br><br>' +
+        'This panel reads only what the book actually holds. It will not show a portfolio it cannot read.</div>';
+      who.textContent = "";
+      return;
+    }
+
+    var ix = indexOf(markets);
+    var rows = [], unpriced = [];
+    book.positions.forEach(function(p){
+      var rec = ix[p.sym.toUpperCase()];
+      if (!rec){
+        unpriced.push(p.sym);
+        rows.push({ sym:p.sym, qty:p.qty, avg:p.avg, last:null, rec:null,
+                    value:null, cost:num(p.avg) !== null ? p.qty * p.avg : null, pl:null, plpc:null });
+        return;
+      }
+      var last = rec.price;
+      var cost = num(p.avg) !== null ? p.qty * p.avg : null;
+      var value = last !== null ? p.qty * last : null;
+      var pl = (value !== null && cost !== null) ? value - cost : null;
+      rows.push({ sym:p.sym, qty:p.qty, avg:p.avg, last:last, rec:rec, value:value, cost:cost, pl:pl,
+                  plpc:(pl !== null && cost) ? (pl / Math.abs(cost)) * 100 : null });
+    });
+
+    var cur = (rows[0] && rows[0].rec) ? rows[0].rec.cur : "";
+    var mixed = rows.some(function(r){ return r.rec && r.rec.cur !== cur; });
+    var tVal = 0, tCost = 0, priced = 0;
+    rows.forEach(function(r){
+      if (r.value !== null){ tVal += r.value; priced++; }
+      if (r.cost !== null) tCost += r.cost;
+    });
+    var tPL = tCost ? tVal - tCost : null;
+    var tPLpc = (tPL !== null && tCost) ? (tPL / Math.abs(tCost)) * 100 : null;
+
+    var html = "";
+    html += '<div class="cards">' +
+      '<div class="card"><div class="k">Positions</div><div class="v">' + rows.length + '</div></div>' +
+      '<div class="card"><div class="k">Market value</div><div class="v">' + money(tVal, mixed ? "" : cur) + '</div></div>' +
+      '<div class="card"><div class="k">Cost</div><div class="v">' + money(tCost, mixed ? "" : cur) + '</div></div>' +
+      '<div class="card"><div class="k">Profit / loss</div><div class="v ' + cls(tPL) + '">' + money(tPL, mixed ? "" : cur) + '</div></div>' +
+      '<div class="card"><div class="k">Return</div><div class="v ' + cls(tPLpc) + '">' + pct(tPLpc) + '</div></div>' +
+      '</div>';
+
+    // allocation by sector
+    var bySec = {};
+    rows.forEach(function(r){
+      if (r.value === null) return;
+      var k = (r.rec.sector || "Unclassified");
+      bySec[k] = (bySec[k] || 0) + r.value;
+    });
+    var secItems = Object.keys(bySec).map(function(k){
+      return { label:k, value:bySec[k], text: money(bySec[k], mixed ? "" : cur) + "  " + (bySec[k] / tVal * 100).toFixed(1) + "%" };
+    }).sort(function(a, b){ return b.value - a.value; });
+
+    html += '<div class="sec"><div class="sec-h"><span class="sec-t">ALLOCATION BY SECTOR</span>' +
+      '<span class="sec-s">' + secItems.length + ' sectors, priced positions only</span></div><div class="sec-b">' +
+      (secItems.length ? barRows(secItems, "var(--acc)") : '<span class="ax">No priced position to allocate.</span>') +
+      '</div></div>';
+
+    // by exchange
+    var byEx = {};
+    rows.forEach(function(r){ if (r.value !== null) byEx[r.rec.ex] = (byEx[r.rec.ex] || 0) + r.value; });
+    var exItems = Object.keys(byEx).map(function(k){
+      return { label:k, value:byEx[k], text: money(byEx[k], "") + "  " + (byEx[k] / tVal * 100).toFixed(1) + "%" };
+    }).sort(function(a, b){ return b.value - a.value; });
+    html += '<div class="sec"><div class="sec-h"><span class="sec-t">ALLOCATION BY EXCHANGE</span>' +
+      '<span class="sec-s">' + exItems.length + ' exchanges</span></div><div class="sec-b">' + barRows(exItems, "#7ef0c0") + '</div></div>';
+
+    // profit and loss per position
+    var plItems = rows.filter(function(r){ return r.pl !== null; }).map(function(r){
+      return { label:r.sym, value:Math.abs(r.pl), pl:r.pl, text: money(r.pl, "") + "  " + pct(r.plpc) };
+    }).sort(function(a, b){ return b.value - a.value; });
+    html += '<div class="sec"><div class="sec-h"><span class="sec-t">PROFIT AND LOSS BY POSITION</span>' +
+      '<span class="sec-s">against average cost, at last close</span></div><div class="sec-b">' +
+      (plItems.length ? barRows(plItems, function(i){ return i.pl >= 0 ? "var(--up)" : "var(--down)"; })
+                      : '<span class="ax">No position can be priced against a cost, so no profit is claimed.</span>') +
+      '</div></div>';
+
+    host.innerHTML = html;
+
+    // value curve + risk need the price history; appended when it arrives
+    var wanted = rows.filter(function(r){ return r.rec && r.qty; });
+    if (!wanted.length) return;
+
+    Promise.all(wanted.map(function(r){
+      return fetch("../../static_data/history/" + histKey(r.rec) + ".json", { cache:"force-cache" })
+        .then(function(x){ return x.ok ? x.json() : null; })
+        .then(function(d){ return { r:r, bars:(d && d.bars) || [] }; })
+        .catch(function(){ return { r:r, bars:[] }; });
+    })).then(function(got){
+      var ok = got.filter(function(g){ return g.bars.length > 1; });
+
+      // per-position risk
+      var risk = {};
+      got.forEach(function(g){
+        var cl = g.bars.map(function(b){ return b.c; });
+        var m = riskOf(cl);
+        if (m) risk[g.r.sym] = m;
+      });
+
+      // book value curve over the common recent window
+      var dates = {};
+      ok.forEach(function(g){
+        g.bars.slice(-320).forEach(function(b){ if (b && b.t) dates[String(b.t).slice(0, 10)] = 1; });
+      });
+      var ds = Object.keys(dates).sort();
+      var curve = [];
+      if (ds.length > 1){
+        ok.forEach(function(g){
+          g.bars.sort(function(a, b){ return String(a.t) < String(b.t) ? -1 : 1; });
+        });
+        ds.forEach(function(d){
+          var v = 0, any = false;
+          ok.forEach(function(g){
+            var lastc = null;
+            for (var i = 0; i < g.bars.length; i++){
+              if (String(g.bars[i].t).slice(0, 10) <= d) lastc = g.bars[i].c; else break;
+            }
+            if (lastc !== null && isFinite(lastc)){ v += g.r.qty * lastc; any = true; }
+          });
+          if (any) curve.push({ d: d.slice(5), v: v });
+        });
+      }
+      if (curve.length > 1) curve = curve.filter(function(_, i){ return i % Math.max(1, Math.floor(curve.length / 240)) === 0 || i === curve.length - 1; });
+
+      var extra = "";
+      if (curve.length > 1){
+        extra += '<div class="sec"><div class="sec-h"><span class="sec-t">BOOK VALUE OVER TIME</span>' +
+          '<span class="sec-s">quantity held today, priced at each historic close</span></div><div class="sec-b">' +
+          lineChart({ points:curve, label:"Book value over time" }) +
+          '<div class="note" style="border:0;padding:8px 0 0">Held quantity applied to each day\'s close from the exchange files, so today\'s holdings are measured through history rather than a trade-by-trade track record this book does not store.</div>' +
+          '</div></div>';
+      } else {
+        extra += '<div class="sec"><div class="sec-h"><span class="sec-t">BOOK VALUE OVER TIME</span></div>' +
+          '<div class="sec-b"><span class="ax">Not enough price history to draw a curve. The gap is shown rather than filled.</span></div></div>';
+      }
+
+      var rk = Object.keys(risk);
+      if (rk.length){
+        var ritems = rk.map(function(s){ return { k:s, v:risk[s] }; }).sort(function(a, b){ return b.v.vol - a.v.vol; });
+        extra += '<div class="sec"><div class="sec-h"><span class="sec-t">RISK PER POSITION</span>' +
+          '<span class="sec-s">annualised volatility from daily closes, and worst peak-to-trough</span></div><div class="sec-b">' +
+          barRows(ritems.map(function(i){
+            return { label:i.k, value:i.v.vol, text:"vol " + i.v.vol.toFixed(1) + "%  dd " + i.v.mdd.toFixed(1) + "%" };
+          }), "var(--down)") + '</div></div>';
+      }
+
+      host.insertAdjacentHTML("beforeend", extra);
+    });
+  }
+
+  function go(){
+    var book = readBook();
+    loadMarkets().then(function(markets){ render(book, markets); })
+      .catch(function(){
+        document.getElementById("pfBody").innerHTML =
+          '<div class="warn">The exchange files could not be loaded, so positions cannot be priced. Nothing is shown rather than an invented value.</div>';
+      });
+  }
+  go();
+})();
+</script>
+</body>
+</html>
