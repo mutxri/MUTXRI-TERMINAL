@@ -52,6 +52,22 @@
   .more{display:block;width:100%;margin-top:10px;padding:10px;background:var(--bg3);border:1px solid var(--line2);
     border-radius:3px;color:var(--tx2);font-family:var(--mono);font-size:11px;cursor:pointer}
   .more:hover{color:var(--acc);border-color:var(--acc)}
+
+  /* dividend calendar */
+  .cal { border-bottom:1px solid var(--line2); padding:10px 12px 4px; }
+  .cal-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .cal-t { font-family:var(--mono); font-size:10px; letter-spacing:.08em; color:var(--acc); }
+  .cal-s { font-family:var(--mono); font-size:9px; color:var(--tx3); }
+  .cal-btn { margin-left:auto; background:transparent; border:1px solid var(--line2); border-radius:2px;
+             color:var(--tx2); font-family:var(--mono); font-size:9px; padding:2px 8px; cursor:pointer; }
+  .cal-btn:hover { border-color:var(--acc); color:var(--acc); }
+  .cal-mon { font-family:var(--mono); font-size:9px; color:var(--tx3); letter-spacing:.06em;
+             padding:7px 0 3px; border-bottom:1px solid var(--line); margin-top:4px; }
+  .cal-row { display:flex; align-items:baseline; gap:8px; padding:4px 0; border-bottom:1px solid var(--line); }
+  .cal-d { font-family:var(--mono); font-size:10px; color:var(--tx2); min-width:58px; }
+  .cal-tk { font-family:var(--mono); font-size:10px; color:var(--acc); min-width:64px; }
+  .cal-ev { font-size:11px; color:var(--tx); flex:1; }
+  .cal-amt { font-family:var(--mono); font-size:10px; color:var(--tx2); white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -68,6 +84,15 @@
     <input class="search" id="q" placeholder="search company or filing…  (e.g. safaricom, dividend, results)" />
     <select id="yr"><option value="all">ALL YEARS</option></select>
   </div>
+  <div class="cal">
+    <div class="cal-head">
+      <span class="cal-t">DIVIDEND CALENDAR</span>
+      <span class="cal-s" id="calSrc">loading&hellip;</span>
+      <button class="cal-btn" id="calToggle">HIDE</button>
+    </div>
+    <div id="calBody"><div class="empty">loading&hellip;</div></div>
+  </div>
+
   <div class="count" id="count"></div>
   <div id="items"><div class="empty">loading…</div></div>
   <button class="more" id="more" style="display:none">SHOW MORE</button>
@@ -119,6 +144,71 @@
   qEl.addEventListener("input", render);
   yrEl.addEventListener("change", render);
   moreEl.addEventListener("click", more);
+
+  // ---- dividend calendar ------------------------------------------------
+  var MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  var EVENTISH = /dividend|book closure|closure of register|payment/i;
+
+  function parseDate(s){
+    s = String(s == null ? "" : s).trim();
+    var m = /^([A-Za-z]{3})[a-z]*\s+(\d{1,2}),?\s+(\d{4})$/.exec(s);
+    if (m) return new Date(+m[3], MONTHS[m[1].toLowerCase()], +m[2]);
+    m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+    return null;
+  }
+
+  function kindOf(o){
+    var k = (o.kind || "").toUpperCase();
+    var t = (o.text || "");
+    if (/CLOSURE/.test(k) || /book closure/i.test(t)) return "BOOK CLOSURE";
+    if (/PAYMENT/.test(k) || /payment of/i.test(t)) return "PAYMENT";
+    if (/DECLAR/i.test(k) || /declar/i.test(t)) return "DECLARATION";
+    if (/AGM/i.test(k) || /annual general meeting/i.test(t)) return "AGM";
+    return k || "NOTICE";
+  }
+
+  function renderDiv(){
+    var srcEl = document.getElementById("calSrc"), body = document.getElementById("calBody");
+    var list = DIVACT.filter(function(o){ return EVENTISH.test((o.kind || "") + " " + (o.text || "")); });
+    list = list.map(function(o){ var d = parseDate(o.date); return { o:o, d:d }; });
+    var undated = list.filter(function(x){ return !x.d; }).length;
+    list = list.filter(function(x){ return x.d; });
+    list.sort(function(a, b){ return b.d - a.d; });
+    if (!list.length){
+      body.innerHTML = '<div class="empty">No dated dividend notices in the source. The gap is shown rather than filled.</div>';
+      srcEl.textContent = ""; return;
+    }
+    srcEl.textContent = list.length + " dated notices" + (undated ? " \u00b7 " + undated + " undated" : "") + " \u00b7 nse.co.ke";
+    var out = [], cur = "";
+    list.forEach(function(x){
+      var lab = x.d.toLocaleString("en-GB", { month:"long", year:"numeric" }).toUpperCase();
+      if (lab !== cur){ cur = lab; out.push('<div class="cal-mon">' + esc(lab) + '</div>'); }
+      var dd = String(x.d.getDate()); if (dd.length < 2) dd = "0" + dd;
+      var mm = String(x.d.getMonth() + 1); if (mm.length < 2) mm = "0" + mm;
+      var tk = x.o.ticker ? '<span class="cal-tk">' + esc(x.o.ticker) + '</span>' : '<span class="cal-tk"></span>';
+      var amt = x.o.amount ? '<span class="cal-amt">' + esc(x.o.amount) + '</span>' : '<span class="cal-amt"></span>';
+      out.push('<div class="cal-row"><span class="cal-d">' + dd + '/' + mm + '/' + x.d.getFullYear() + '</span>' +
+               tk + '<span class="cal-ev">' + esc(kindOf(x.o) + " " + (x.o.name || "")) + '</span>' + amt + '</div>');
+    });
+    body.innerHTML = out.join("");
+  }
+
+  var DIVACT = [];
+  fetch("../../static_data/nse_corporate_actions.json")
+    .then(function(r){ if (!r.ok) throw 0; return r.json(); })
+    .then(function(d){ DIVACT = d || []; renderDiv(); })
+    .catch(function(){
+      document.getElementById("calBody").innerHTML =
+        '<div class="empty">Dividend notices could not be loaded. Nothing is shown rather than an invented date.</div>';
+    });
+
+  document.getElementById("calToggle").addEventListener("click", function(){
+    var b = document.getElementById("calBody");
+    var hid = b.style.display === "none";
+    b.style.display = hid ? "" : "none";
+    this.textContent = hid ? "HIDE" : "SHOW";
+  });
 
   fetch("../../static_data/nse_announcements.json")
     .then(function(r){ if(!r.ok) throw 0; return r.json(); })
