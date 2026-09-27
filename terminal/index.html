@@ -567,6 +567,14 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
   #centerTabs{display:none!important}
   .stage{border-top:0!important}
 </style>
+
+<!-- _pop_feature_removed 2026-09-27: the standalone POP / colPop viewer is retired.
+     Panels open as their own windows now, so a second single-panel viewer was a third way
+     to do one job. Hidden rather than deleted: the window registry and the command map are
+     edited above, but any late binding to the element degrades to a no-op instead of a throw. -->
+<style>
+  #colPop{display:none!important}
+</style>
 </head>
 <body>
 <!-- ===== auth gate: sign in required to enter the terminal ===== -->
@@ -1272,14 +1280,13 @@ function renderTabs(){
   });
   window.MTWin = (function(){
     const main = document.querySelector('.main');
-    const KEYS = ['watch', 'center', 'info', 'chat', 'pop'];
+    const KEYS = ['watch', 'center', 'info', 'chat'];
     const META = {
       watch:  {el: 'colWatch',  label: 'WATCH',  w: 260, h: 520},
       center: {el: 'colCenter', label: 'PANEL',  w: 740, h: 560},
       info:   {el: 'colInfo',   label: 'MARKET', w: 320, h: 520},
       chat:   {el: 'colChat',   label: 'CHAT',   w: 340, h: 440},
       // opens large: room is the entire point of a popup
-      pop:    {el: 'colPop',    label: 'POPUP',  w: 900, h: 620}
     };
     const MIN_W = 220, MIN_H = 120, BAR = 26;
     // embed modes (?view=, ?rails=0) lay themselves out in CSS - stay out of it
