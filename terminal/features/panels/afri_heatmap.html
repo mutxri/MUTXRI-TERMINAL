@@ -211,7 +211,17 @@
 <script>
 (function(){
   "use strict";
-  var ENDPOINT="/api/heatmap";
+  // API BASE (2026-09-28). This panel runs inside an iframe, so the shell's fetch
+  // wrapper - the thing that prepends API_BASE to /api/ paths - does NOT apply here.
+  // A bare "/api/heatmap" therefore resolved against mutxriterminal.com, which has no
+  // backend, so the panel fell back and its colours never came from the live board.
+  // Resolve the base the same way the shell does: the parent window, else ?api=, else none.
+  var API_BASE=(function(){
+    try{ if(window.parent && window.parent.API_BASE && String(window.parent.API_BASE).indexOf("http")===0) return window.parent.API_BASE; }catch(e){}
+    var m=location.search.match(/[?&]api=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  })();
+  var ENDPOINT=API_BASE+"/api/heatmap";
   var EXCHANGES=["JSE","EGX","NGX","NSE"];
   var EOD_MARKETS={NGX:true,NSE:true};
   var POLL_MS=15000, snapAsOf="";
