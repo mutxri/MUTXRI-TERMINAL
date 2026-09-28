@@ -1319,11 +1319,8 @@ function renderTabs(){
         center: {x: railW + 12, y: 4, w: midW, h: H - 8, open: true, z: 12},
         info:   {x: railW + midW + 20, y: 4, w: chatW, h: Math.round(H / 2) - 8, open: true, z: 13},
         chat:   {x: railW + midW + 20, y: Math.round(H / 2) + 6, w: chatW, h: Math.round(H / 2) - 12, open: true, z: 14},
-        // the popup is NOT part of the default tile: it starts closed and is
-        // opened by command, sized to most of the workspace.
-        pop:    {x: Math.max(4, Math.round(W * 0.1)), y: Math.max(4, Math.round(H * 0.06)),
-                 w: Math.max(MIN_W, Math.round(W * 0.8)), h: Math.max(MIN_H, Math.round(H * 0.86)),
-                 open: false, z: 60}
+        // POP REMOVED 2026-09-28: there was a fifth 'pop' window here, opened by
+        // the POP command. It is gone, so the default tile is the four panes.
       };
     }
     // A workspace stays "auto" until you move something in it: while it is,
@@ -1382,7 +1379,7 @@ function renderTabs(){
       KEYS.forEach(function(k){
         spaces.forEach(function(sp){
           if(!sp.wins[k]) sp.wins[k] = tiled()[k];   // old schema: recreate a missing panel
-          sp.wins[k].open = (k === 'pop') ? false : true;
+          sp.wins[k].open = true;   // POP removed: no window is exempt from opening
         });
       });
     })();
@@ -2596,24 +2593,9 @@ function setPopPanel(p){
 function runCommand(raw){
   let v = String(raw || '').trim().toUpperCase();
   if(!v) return;
-  // POP: the popup panel window. Bare POP toggles it carrying whatever the
-  // center stage is showing; "POP FINANCIALS" opens that panel in it instead.
-  if(v === 'POP' || /^POP\s+\S/.test(v)){
-    if(!window.MTWin) return;
-    const tok = v.replace(/^POP\s*/, '').trim();
-    const opened = window.MTWin.isOpen('pop');
-    let p = null;
-    if(tok){
-      p = panelFor(tok);
-      if(!p){ showUnknown('no panel called "' + tok + '" - try POP ' + (PANELS[__activePanelIdx] || PANELS[0]).label); return; }
-    } else {
-      p = PANELS[__activePanelIdx] || PANELS[0];
-    }
-    if(p) setPopPanel(p);
-    if(!tok) window.MTWin.set('pop', !opened);         // bare POP toggles
-    else if(!opened) window.MTWin.set('pop', true);    // POP <panel> always opens
-    return;
-  }
+  // POP REMOVED 2026-09-28: the popup panel window is gone, so the POP and
+  // POP <panel> commands are no longer recognised. Nothing offers them now: the
+  // help text and the default layout no longer mention it either.
   // CLOSE <panel>: shut ONE panel window and leave the rest of the set alone
   if(/^CLOSE\b/.test(v)){
     const ctok = v.replace(/^CLOSE\s*/, '').trim();
@@ -2629,7 +2611,7 @@ function runCommand(raw){
       '<div style="padding:8px 0;color:var(--tx3)">Bloomberg-style: type a ticker, a panel code, or both - e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Panel windows: a panel code opens THAT panel in its own window, and several stay open side by side, all following the same symbol. Type the code again to close it, <b style="color:var(--acc)">CLOSE FINANCIALS</b> to shut one, <b style="color:var(--acc)">TILE</b> to lay the open ones out in a grid, <b style="color:var(--acc)">RESET</b> to close the extras.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Popup: <b style="color:var(--acc)">POP</b> opens a panel full size in a floating window (again to close), or <b style="color:var(--acc)">POP HEATMAP</b> / <b style="color:var(--acc)">POP FINANCIALS</b> for a specific one.</div>';
+      '';
     return;
   }
   if(v === 'RESET' || v === 'TILE'){
