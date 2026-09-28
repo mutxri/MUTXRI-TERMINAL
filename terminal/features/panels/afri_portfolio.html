@@ -485,6 +485,11 @@
         document.getElementById("pfBody").innerHTML =
           '<div class="warn">The exchange files could not be loaded, so positions cannot be priced. Nothing is shown rather than an invented value.</div>';
       });
+    // AUTO-REVALUE (2026-09-28): re-run this panel's own cycle on a timer, so the
+    // portfolio follows published prices without a manual reload. go() re-reads the book
+    // and re-fetches the snapshots, and the cache buster inside loadMarkets() is what
+    // lets that re-fetch see new data instead of repainting a cached copy.
+    setInterval(go, 300000);
   }
   go();
 })();
