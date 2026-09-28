@@ -2068,7 +2068,14 @@ async function loadListing(ex){
           const m = byTkr[tkr] || byTkr[s.sym] || {};
           if(m.price != null){
             return Object.assign({}, s, {
-              price: m.price, chgPct: m.chgPct, volume: m.volume,
+                              // The market snapshot's chgPct is UNFILLED: it is 0.0 on every NSE row
+                // (ABSA, EQTY, SCOM, KCB all 0.0) while listing_<EX>.json carries real
+                // values (0.303, 0.7009, 0.4144). Overwriting with that zero is why the
+                // ticker tape, the watchlist and the heatmap all render +0.00 percent.
+                // Keep the listing's change whenever the snapshot has none to give.
+                price: m.price,
+                chgPct: (m.chgPct != null && m.chgPct !== 0) ? m.chgPct : s.chgPct,
+                volume: m.volume,
               currency: m.currency || s.currency,
               sym: s.sym || m.sym || tkr,
               high: m.high, low: m.low, open: m.open, prevClose: m.prevClose,

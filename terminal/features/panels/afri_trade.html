@@ -350,10 +350,17 @@
         // null and the mark used to fall through to base.price, a static figure from the
         // listing file. That is why positions did not move. The end-of-day mark below is
         // taken from the snapshot's own close, which the refresh cycle republishes.
-        var _tc = num(r.todayClose), _pc = num(r.prevClose);
-        var _eod = _tc != null ? _tc : _pc;
+        // MARK = the LATEST published price, so the book revalues as prices change.
+        // ltp is the last traded price on the NSE. The snapshot's todayClose duplicates
+        // prevClose on every NSE row, so it can never move and is therefore only a
+        // fallback. eodSrc records which source produced the mark, and live is kept so
+        // the daily archive cannot overwrite a fresher traded price.
+        var _lt = num(r.ltp), _pr = num(r.price), _tc = num(r.todayClose), _pc = num(r.prevClose);
+        var _live = _lt != null ? _lt : (_pr != null ? _pr : null);
+        var _eod = _live != null ? _live : (_tc != null ? _tc : _pc);
         var rec = {name: base.name || r.name || "", price: px != null ? px : (base.price != null ? base.price : null),
-                   eod: _eod, eodSrc: (_tc != null ? "todayClose" : (_pc != null ? "prevClose" : "")),
+                   eod: _eod, live: _live,
+                   eodSrc: (_live != null ? "last" : (_tc != null ? "todayClose" : (_pc != null ? "prevClose" : ""))),
                    prev: num(r.prevClose), high: num(r.high), low: num(r.low), open: num(r.open),
                    date: isDate(dt) ? dt : "", file: r.sym || base.file || ""};
         put(t, rec);
@@ -371,7 +378,14 @@
   var HIST = {};
   function historyOf(t){
     var r = quote(t);
-    if(!r || !r.file || (EX !== "JSE" && EX !== "EGX")) return Promise.resolve(null);
+    if(!r) return Promise.resolve(null);
+    // END OF DAY MARK (2026-09-28). The archives are named <EXCHANGE>_<ticker>.json
+    // (NSE_ABSA.json), but this used the record's file field, which is the exchange's own
+    // symbol (ABSA, ABG.JO), so the fetch 404'd and no exchange ever loaded a bar. Build
+    // the archive key here. Why the bars: the market snapshot's todayClose duplicates
+    // prevClose on every NSE row (0 of 56 rows differ), so a mark taken from it can never
+    // move. The daily bars carry a real close per session.
+    r.file = EX + "_" + String(t || "").toUpperCase().replace(/\.(JO|CA)$/, "");
     if(!HIST[r.file]){
       HIST[r.file] = fetch("../../static_data/history/" + encodeURIComponent(r.file) + ".json?t=" + Math.floor(Date.now() / 3600000))
         .then(function(res){ if(!res.ok) throw 0; return res.json(); })
@@ -799,6 +813,26 @@
 
   setMode(Q.get("mode") === "live" ? "live" : "paper");
   syncTicket();
+  // END OF DAY marks, taken from the daily bar archive rather than the snapshot.
+  // Runs after the first paint so a slow or missing archive never holds the panel up,
+  // then re-renders once the marks land. A security with no archive keeps whatever
+  // honest fallback quote() gave it, and one with neither shows as unavailable.
+  (function mountEod(){
+    var book = load();
+    var held = (book && book[EX] && book[EX].positions) || {};
+    var syms = Object.keys(held);
+    if(!syms.length) return;
+    Promise.all(syms.map(function(t){
+      return historyOf(t).then(function(bars){
+        var r = quote(t);
+        if(!r || !bars || !bars.length) return;
+        var last = bars[bars.length - 1];
+        // Only the daily archive's close may act as a mark. A security with a traded
+        // price already has one, and the archive must never overwrite it.
+        if(last && last.price != null && r.live == null){ r.eod = last.price; r.eodSrc = "bar " + (last.date || ""); }
+      }).catch(function(){});
+    })).then(function(){ render(load()); });
+  })();
   render();
   refresh().then(function(){
     if(PRESET && quote(PRESET)) $("sym").value = PRESET;
