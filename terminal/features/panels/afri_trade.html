@@ -267,6 +267,7 @@
   var START = {JSE: 10000000, NGX: 5000000, NSE: 1000000, EGX: 500000};
 
   var side = "BUY", cur = "", asOf = "", listed = 0, quotes = {}, checkedAt = 0, busy = false;
+  var mktState = "";   // the exchange's own reported state, when it publishes one (NSE)
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
@@ -331,6 +332,12 @@
         var b = k.split(".")[0];
         if(b && !next[b]) next[b] = rec;
       }
+      // the NSE feed reports its real session state inside asOf, e.g.
+      // "NSE 28/09/2026 17:03 PM GMT+3 (closed)". The slice below keeps only the
+      // date, so capture the state first rather than discarding it.
+      var rawAsOf = mkt && mkt.asOf ? String(mkt.asOf) : "";
+      var st = /\b(open|closed)\b/i.exec(rawAsOf);
+      if(st) mktState = st[1].toLowerCase();
       var when = mkt && mkt.asOf ? String(mkt.asOf).slice(0, 10) : "";
       if(isDate(when)) asOf = when;
       rows.forEach(function(r){
@@ -678,6 +685,47 @@
     estimate();
   }
 
+  // TRADING HOURS (2026-09-29). An order can only be placed while the exchange is
+  // in session. Windows are stored as minutes from midnight in the exchange's own
+  // local time, derived from UTC so the machine's clock is irrelevant, with each
+  // exchange's own week: NSE, NGX and JSE trade Monday to Friday, the EGX trades
+  // Sunday to Thursday. Hours are each exchange's published session.
+  var HOURS = {
+    NSE: {open: 9 * 60,  close: 15 * 60,      days: [1, 2, 3, 4, 5], tz: 3},  // 09:00-15:00 EAT
+    NGX: {open: 10 * 60, close: 14 * 60 + 20, days: [1, 2, 3, 4, 5], tz: 1},  // 10:00-14:20 WAT
+    JSE: {open: 9 * 60,  close: 17 * 60,      days: [1, 2, 3, 4, 5], tz: 2},  // 09:00-17:00 SAST
+    EGX: {open: 10 * 60, close: 14 * 60 + 30, days: [0, 1, 2, 3, 4], tz: 2}   // 10:00-14:30 EET, Sun-Thu
+  };
+  function exchangeTime(){
+    var off = (HOURS[EX] || {}).tz;
+    if(off == null) return null;
+    var d = new Date(), local = new Date(d.getTime() + off * 3600000);
+    return {day: local.getUTCDay(), mins: local.getUTCHours() * 60 + local.getUTCMinutes()};
+  }
+  function fmtClock(mins){
+    var hh = Math.floor(mins / 60), mm = mins % 60;
+    return (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+  }
+  function sessionOpen(){
+    var h = HOURS[EX];
+    if(!h) return true;                        // an unknown exchange is never blocked
+    if(mktState === "closed") return false;    // the exchange's own word beats our table
+    var t = exchangeTime();
+    if(!t) return true;
+    if(h.days.indexOf(t.day) < 0) return false;
+    return t.mins >= h.open && t.mins < h.close;
+  }
+  function sessionText(){
+    var h = HOURS[EX];
+    if(!h) return "";
+    if(sessionOpen()) return "OPEN";
+    var t = exchangeTime();
+    if(!t) return "CLOSED";
+    if(h.days.indexOf(t.day) < 0) return "CLOSED - not a trading day";
+    if(t.mins < h.open) return "CLOSED - opens " + fmtClock(h.open) + " exchange time";
+    return "CLOSED - session ended at " + fmtClock(h.close) + " exchange time";
+  }
+
   function place(){
     var t = ($("sym").value || "").trim().toUpperCase(), n = parseInt($("qty").value, 10);
     var type = $("otype").value, tif = type === "MKT" ? "DAY" : $("tif").value;
@@ -690,6 +738,12 @@
     if((type === "LMT" || type === "STPLMT") && !(lmt > 0)) return say("Enter a limit price above zero.", true);
     if((type === "STP" || type === "STPLMT") && !(stp > 0)) return say("Enter a stop price above zero.", true);
 
+    // The session check sits after the input checks so a bad ticker or quantity still
+    // reports itself, but before the order exists: this account fills at prices the
+    // exchange published, so an order placed at a shut market would fill against a
+    // stale session and report a P&L that never happened.
+    if(!sessionOpen()) return say(EX + " is closed. " + sessionText() +
+      ". Orders can only be placed while the exchange is in session.", true);
     var all = load(), a = all[EX], date = sessionOf(t);
     var o = {id: ++a.seq, t: Date.now(), side: side, sym: t, qty: n, type: type, tif: tif,
              lmt: (type === "LMT" || type === "STPLMT") ? lmt : null,
