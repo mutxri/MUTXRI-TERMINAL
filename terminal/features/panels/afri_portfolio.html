@@ -157,7 +157,7 @@
   // ---- price index over every exchange --------------------------------
   function loadMarkets(){
     return Promise.all(EXES.map(function(ex){
-      return fetch("../../static_data/market_" + ex + ".json", { cache:"force-cache" })
+      return fetch("../../static_data/market_" + ex + ".json?t=" + Math.floor(Date.now() / 300000))
         .then(function(r){ return r.ok ? r.json() : null; })
         .then(function(d){ return { ex: ex, d: d }; })
         .catch(function(){ return { ex: ex, d: null }; });
@@ -412,7 +412,7 @@
     if (!wanted.length) return;
 
     Promise.all(wanted.map(function(r){
-      return fetch("../../static_data/history/" + histKey(r.rec) + ".json", { cache:"force-cache" })
+      return fetch("../../static_data/history/" + histKey(r.rec) + ".json?t=" + Math.floor(Date.now() / 3600000))
         .then(function(x){ return x.ok ? x.json() : null; })
         .then(function(d){ return { r:r, bars:(d && d.bars) || [] }; })
         .catch(function(){ return { r:r, bars:[] }; });
