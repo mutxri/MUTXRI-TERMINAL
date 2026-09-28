@@ -12,8 +12,12 @@
   refreshes each exchange's published prices about every three hours; this page
   re-reads them every five minutes and whenever it comes back into view.
 
-    * positions are marked to the latest price: day P&L against the previous
-      close, unrealised against average cost, realised on every sale
+    * positions are marked at the END OF DAY price: the last close the exchange
+      actually published for a completed session (todayClose, else prevClose, which
+      is the last completed close on markets that publish only that). Day P&L is
+      against the previous close, unrealised against average cost, realised on every
+      sale. A security with no published close has no end-of-day mark and is shown
+      as unavailable rather than valued at an intraday tick.
     * positions can be LONG or SHORT. SHORT sells shares you do not own and
       keeps the proceeds as cash; a later BUY covers the short (realising
       (entry - exit) x shares). No borrow cost or margin is modelled.
@@ -303,7 +307,13 @@
 
   // ---------------- prices ----------------
   function quote(t){ t = String(t || "").toUpperCase(); return quotes[t] || quotes[t.split(".")[0]] || null; }
-  function lastOf(t){ var r = quote(t); return r && r.price != null ? r.price : null; }
+  // MARK PRICE = END OF DAY (2026-09-28). The paper book is valued at the last price
+  // the exchange actually published for a COMPLETED session, never at an intraday tick:
+  // todayClose where the exchange publishes a close (NSE), else prevClose, which IS the
+  // last completed close on the markets that publish only that. A security with neither
+  // has no honest end-of-day mark, so it values as null and the panel shows it as
+  // unavailable rather than inventing one. Order FILLS still use the live quote.
+  function lastOf(t){ var r = quote(t); return r && r.eod != null ? r.eod : null; }
   function sessionOf(t){ var r = quote(t); return (r && r.date) || asOf || ""; }
 
   function fetchData(){
@@ -336,7 +346,14 @@
         var base = next[t] || next[t.split(".")[0]] || {};
         var dt = String(r.asOf || r.date || r.session || "").slice(0, 10);
         var px = num(r.price);
+        // The market rows carry no 'price' field at all, so num(r.price) above is always
+        // null and the mark used to fall through to base.price, a static figure from the
+        // listing file. That is why positions did not move. The end-of-day mark below is
+        // taken from the snapshot's own close, which the refresh cycle republishes.
+        var _tc = num(r.todayClose), _pc = num(r.prevClose);
+        var _eod = _tc != null ? _tc : _pc;
         var rec = {name: base.name || r.name || "", price: px != null ? px : (base.price != null ? base.price : null),
+                   eod: _eod, eodSrc: (_tc != null ? "todayClose" : (_pc != null ? "prevClose" : "")),
                    prev: num(r.prevClose), high: num(r.high), low: num(r.low), open: num(r.open),
                    date: isDate(dt) ? dt : "", file: r.sym || base.file || ""};
         put(t, rec);
