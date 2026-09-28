@@ -289,8 +289,14 @@
     return "#"+c(0)+c(1)+c(2);
   }
   function color(chg){
-    if(chg==null)return "#2a2a2a";
+    if(chg==null)return "#2a2a2a";        // nothing published: grey, label shows "-"
     var c=Math.max(-CLAMP,Math.min(CLAMP,chg));
+    // ZERO IS NOT MISSING (2026-09-29). A security that traded and closed unchanged
+    // carries chgPct 0, and lerping from #141414 painted it the same near-black as
+    // the page. 49 JSE names (ACT, ADW, AOO, APH and others) read as empty tiles
+    // while the watchlist showed them priced with +0.00%. Flat now gets a visible
+    // neutral so "unchanged" looks different from "we have no figure".
+    if(c===0)return "#3f3f3f";
     return c>=0?lerp("#141414","#33e29a",c/CLAMP):lerp("#141414","#f87171",(-c)/CLAMP);
   }
   function txtColor(chg){
