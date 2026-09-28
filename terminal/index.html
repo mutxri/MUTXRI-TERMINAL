@@ -2057,7 +2057,7 @@ async function loadListing(ex){
     // throttled subset, e.g. ~80 of 431 JSE names -> most rows would render
     // "-"). Live quotes still win per row when present.
     try{
-        const mr = await fetch('static_data/market_' + ex + '.json');
+        const mr = await fetch('static_data/market_' + ex + '.json?t=' + Math.floor(Date.now() / 900000));
         const md = await mr.json();
         window.__MKASOF = window.__MKASOF || {};
         window.__MKASOF[ex] = md.asOf || md.generated || '';
