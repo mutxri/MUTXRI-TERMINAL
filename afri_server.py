@@ -20,9 +20,19 @@ except Exception as _e:
     _FEATURES_ERR = str(_e)
 
 HOST, PORT = "0.0.0.0", int(os.environ.get("PORT", "8081"))
-ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
+# CORS: only the terminal's own origin may read API responses (never wildcard —
+# auth tokens + user data are returned here, so * would let any site read them)
+ALLOWED_ORIGINS = {o.strip() for o in
+    os.environ.get("ALLOWED_ORIGINS", "https://mutxriterminal.com,https://www.mutxriterminal.com")
+    .split(",") if o.strip()}
 YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={rng}&interval={ivl}"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+# Yahoo param whitelists — rng/ivl are interpolated into the upstream URL, so
+# anything not in these lists is rejected (prevents query-param injection)
+VALID_RANGES = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"}
+VALID_INTERVALS = {"1m", "5m", "15m", "30m", "60m", "1d", "1wk", "1mo"}
+_TICKER_RE = re.compile(r"^[A-Za-z0-9.\-^=/_]{1,24}$")
 
 # ---- cache: {key: (expires_ts, payload_json_str)} ----
 _cache = {}
@@ -40,6 +50,48 @@ def cache_put(key, ttl, payload):
     with _lock:
         _cache[key] = (time.time() + ttl, payload)
 
+# ---- auth rate limiting (brute-force / signup-spam protection) ----
+_RATE = {}          # (ip, action) -> [timestamps]
+_RATE_LOCK = threading.Lock()
+RATE_LIMITS = {"login": (10, 600), "signup": (10, 600), "logout": (60, 600), "me": (120, 600),
+               # the room: generous on reading, tight on posting (spam floor)
+               "chat_history": (400, 600), "chat_send": (20, 60), "chat_delete": (30, 600)}
+
+def real_ip(handler):
+    """The caller's address, not the proxy's.
+
+    Render terminates TLS in front of this process, so client_address is the
+    proxy for every request on the internet. Keying the rate limiter on it put
+    every visitor in one bucket: at 10 logins per 10 minutes, the eleventh
+    person to sign in anywhere got a 429, and one person refreshing a login
+    form could lock out the whole site.
+    """
+    fwd = (handler.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
+    return fwd or handler.client_address[0]
+
+
+def rate_limited(ip, action):
+    maxn, window = RATE_LIMITS.get(action, (60, 600))
+    key = (ip, action)
+    now = time.time()
+    with _RATE_LOCK:
+        ts = [t for t in _RATE.get(key, []) if t > now - window]
+        if len(ts) >= maxn:
+            return True
+        ts.append(now)
+        _RATE[key] = ts
+        if len(_RATE) > 20000:  # bounded memory
+            _RATE.clear()
+    return False
+
+def valid_yahoo_params(rng, ivl, sym):
+    """Reject anything not in the whitelists (blocks URL/query injection into Yahoo)."""
+    if rng not in VALID_RANGES or ivl not in VALID_INTERVALS:
+        return False
+    if not _TICKER_RE.match(sym or ""):
+        return False
+    return True
+
 def http_get(url, timeout=15):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -47,6 +99,8 @@ def http_get(url, timeout=15):
 
 # ---------------- Yahoo chart API ----------------
 def yahoo_chart(sym, rng="1y", ivl="1d"):
+    if not valid_yahoo_params(rng, ivl, sym):
+        return {"error": "invalid parameters"}
     key = f"chart:{sym}:{rng}:{ivl}"
     hit = cache_get(key)
     if hit: return json.loads(hit)
@@ -317,6 +371,14 @@ try:
     auth_api._init(_mongo_db, _mongo_ok)
 except Exception as _ae:
     print("auth_api init failed:", str(_ae)[:60])
+
+# ---------------- Shared chat room (chat_room) ----------------
+try:
+    import chat_room
+    chat_room.init(_mongo_db, _mongo_ok)
+except Exception as _ce:
+    chat_room = None
+    print("chat_room init failed:", str(_ce)[:60])
 
 # ---------------- Full listings (stocks.json) ----------------
 try:
@@ -1255,7 +1317,8 @@ class Handler(SimpleHTTPRequestHandler):
         elif path.path == "/api/rates":
             self.json(rates())
         elif path.path == "/api/health":
-            self.json({"ok": True, "time": time.time()})
+            self.json({"ok": True, "time": time.time(), "db": auth_api.store_mode(),
+                       "chat": chat_room.store_mode() if chat_room else "off"})
         elif path.path == "/api/financials":
             # Claude's per-statement endpoint, served from OUR real AF data
             q = urllib.parse.parse_qs(path.query)
@@ -1314,8 +1377,38 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self.json({"ticker": ticker, "statement": statement, "available": False,
                            "rows": [], "note": "financials unavailable: %s" % str(e)[:60]})
+        elif path.path.startswith("/api/auth/oauth/"):
+            # /api/auth/oauth/<provider>/<start|callback>
+            parts = [pp for pp in path.path.split("/") if pp]
+            if len(parts) >= 5:
+                provider, action = parts[3], parts[4]
+                if action == "start":
+                    out = auth_api.oauth_start(provider, self.headers.get("Host", ""))
+                    self.json(out)
+                    return
+                if action == "callback":
+                    qq = urllib.parse.parse_qs(path.query)
+                    client_ip = real_ip(self)
+                    target = auth_api.oauth_callback(provider, (qq.get("code") or [""])[0],
+                                                     (qq.get("state") or [""])[0],
+                                                     self.headers.get("Host", ""),
+                                                     self.headers.get("User-Agent", ""),
+                                                     client_ip)
+                    self.send_response(302)
+                    self.send_header("Location", target)
+                    self.end_headers()
+                    return
+            self.json({"ok": False, "error": "unknown oauth route"})
         elif path.path.startswith("/api/auth/"):
             q = urllib.parse.parse_qs(path.query)
+            # the client cannot set these - they are read off the request so the
+            # login log records the real caller, not whatever was in the query
+            q["_ip"] = [real_ip(self)]
+            q["_ua"] = [self.headers.get("User-Agent", "")]
+            action = path.path.split("/")[-1]
+            if rate_limited(real_ip(self), action):
+                self.send_error(429, "too many attempts")
+                return
             self.json(auth_api.handle_auth(path.path, q))
         elif path.path == "/api/indices":
             # real market indices tape (EGX 30, JSE Top 40, JSE All-Share) +
@@ -1354,7 +1447,108 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             # static files (index.html, panels, static_data) - add CORS so the
             # GitHub Pages origin can load them cross-origin if needed
+            # SECURITY: never serve sensitive files (users.json holds password
+            # hashes; secrets/.env/.pem/.git must never be web-accessible)
+            if re.search(r"(users\.json|sessions\.json|chat_messages\.json|login_events\.json|secrets[^/]*\.json|\.env|\.pem|\.key|\.htpasswd|/\.git/|\.git$|config\.json|admin\.json)", path.path, re.I):
+                self.send_error(404)
+                return
             super().do_GET()
+
+    def do_POST(self):
+        path = urllib.parse.urlparse(self.path)
+        if path.path in ("/api/admin/users", "/api/admin/overview"):
+            data = {}
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 0 and length <= 65536:
+                    body = self.rfile.read(length).decode("utf-8", "ignore")
+                    data = json.loads(body) if body.strip() else {}
+                    if not isinstance(data, dict):
+                        data = {}
+            except Exception:
+                data = {}
+            _k = (data or {}).get("key", "")
+            _t = (data or {}).get("token", "")
+            if path.path == "/api/admin/overview":
+                self.json(auth_api.admin_overview(_k, _t))
+            else:
+                self.json(auth_api.admin_list(_k, (data or {}).get("delete", ""), _t))
+            return
+        if path.path.startswith("/api/chat/"):
+            action = "chat_" + path.path.split("/")[-1]
+            if chat_room is None:
+                self.json({"ok": False, "error": "chat unavailable"})
+                return
+            if action not in ("chat_send", "chat_history", "chat_delete"):
+                self.send_error(404)
+                return
+            if rate_limited(real_ip(self), action):
+                self.send_error(429, "too many messages")
+                return
+            data = self.body_json()
+            who = auth_api.me(data.get("token", ""))
+            if not who.get("ok"):
+                self.json({"ok": False, "error": who.get("error") or "sign in to post", "auth": False})
+                return
+            try:
+                if action == "chat_send":
+                    # reply_to and owner are passed through so the room can thread
+                    # replies and gate @everyone. owner comes from the verified
+                    # session, never from the request body - if it were read from
+                    # `data`, any caller could claim to be the owner and broadcast
+                    # to every signed-in user.
+                    self.json(chat_room.post(who.get("email"), who.get("name"), data.get("text", ""),
+                                             data.get("room", chat_room.DEFAULT_ROOM), data.get("ctx", ""),
+                                             who.get("username"),
+                                             data.get("reply_to", ""),
+                                             bool(who.get("owner"))))
+                elif action == "chat_history":
+                    # POST, not GET: a session token in a query string ends up in
+                    # every proxy and access log between here and the browser
+                    out = chat_room.history(data.get("room", chat_room.DEFAULT_ROOM),
+                                            data.get("after", 0), data.get("limit", 60))
+                    out["me"] = chat_room._handle(who.get("email"), who.get("name"), who.get("username"))
+                    self.json(out)
+                else:
+                    self.json(chat_room.delete(data.get("id", ""), who.get("email"), who.get("owner")))
+            except Exception as _e:
+                self.json({"ok": False, "error": "chat error: %s" % str(_e)[:200]})
+            return
+        if path.path.startswith("/api/auth/"):
+            action = path.path.split("/")[-1]
+            if rate_limited(real_ip(self), action):
+                self.send_error(429, "too many attempts")
+                return
+            # read JSON (or form) body — never accept credentials in URLs
+            data = {}
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 0 and length <= 65536:
+                    body = self.rfile.read(length).decode("utf-8", "ignore")
+                    data = json.loads(body) if body.strip() else {}
+                    if not isinstance(data, dict):
+                        data = {}
+            except Exception:
+                data = {}
+            q = {k: [str(v)] for k, v in data.items() if v is not None}
+            result = auth_api.handle_auth(path.path, q)
+            if action == "username" and result.get("ok"):
+                chat_room.invalidate_handle(result.get("email", ""))
+            self.json(result)
+            return
+        self.send_error(404)
+
+    def body_json(self):
+        """The request body as a dict - never larger than 64KB, never a crash."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if 0 < length <= 65536:
+                body = self.rfile.read(length).decode("utf-8", "ignore")
+                data = json.loads(body) if body.strip() else {}
+                return data if isinstance(data, dict) else {}
+        except Exception:
+            pass
+        return {}
 
     def json(self, obj):
         # strict JSON: NaN/Infinity are invalid JSON and crash the browser's
@@ -1366,17 +1560,27 @@ class Handler(SimpleHTTPRequestHandler):
             body = json.dumps(_sanitize(obj)).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
-        self.send_header("Vary", "Origin")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Cache-Control", "no-store")
+        origin = self.headers.get("Origin")
+        if origin in ALLOWED_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
     def do_OPTIONS(self):
-        # CORS preflight (browsers send this before cross-origin GETs)
+        # CORS preflight (browsers send this before cross-origin requests)
+        origin = self.headers.get("Origin")
+        if origin not in ALLOWED_ORIGINS:
+            self.send_response(403)
+            self.end_headers()
+            return
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Vary", "Origin")
         self.end_headers()
