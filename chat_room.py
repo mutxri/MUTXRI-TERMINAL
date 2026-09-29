@@ -92,13 +92,53 @@ def _all():
     return _load_json()
 
 
-def post(email, name, text, room, ctx, username=""):
+def post(email, name, text, room, ctx, username="", reply_to="", owner=False):
     text = (text or "").strip()
     if not text:
         return {"ok": False, "error": "message is empty"}
     if len(text) > _MAX_TEXT:
         return {"ok": False, "error": "message too long (500 max)"}
     room = (str(room or "").strip()[:40] or DEFAULT_ROOM)
+
+    # @everyone is a broadcast, so only the owner may raise it. The check is HERE,
+    # in the backend: a rule that lives in the panel is not a permission, because
+    # anyone can call this endpoint directly and set the flag themselves. A
+    # non-owner's mention is stripped rather than rejected, so their message still
+    # posts - it just does not notify the whole room. Case variants are handled so
+    # "@Everyone" cannot slip past a lowercase check.
+    everyone = False
+    if "@everyone" in text.lower():
+        if owner:
+            everyone = True
+        else:
+            parts, i = [], 0
+            low = text.lower()
+            while True:
+                j = low.find("@everyone", i)
+                if j < 0:
+                    parts.append(text[i:])
+                    break
+                parts.append(text[i:j])
+                i = j + len("@everyone")
+            text = "".join(parts).strip()
+            if not text:
+                return {"ok": False, "error": "only the owner can broadcast to everyone"}
+
+    # A reply must point at a real message in the SAME room, so it can neither
+    # reference nothing nor quote across rooms. Only a short quote is stored: the
+    # panel renders it straight from history, with no extra fetch.
+    reply = None
+    rid = str(reply_to or "").strip()[:32]
+    if rid:
+        for m in _all():
+            if m.get("id") == rid and m.get("room") == room:
+                reply = {"id": rid,
+                         "name": m.get("name") or "",
+                         "text": (m.get("text") or "")[:120]}
+                break
+        if reply is None:
+            return {"ok": False, "error": "the message being replied to is not in this room"}
+
     msg = {
         "id": secrets.token_hex(8),
         "room": room,
@@ -108,6 +148,10 @@ def post(email, name, text, room, ctx, username=""):
         "ctx": (ctx or "").strip()[:60],
         "ts": int(time.time()),
     }
+    if reply is not None:
+        msg["reply"] = reply
+    if everyone:
+        msg["everyone"] = True
     with _LOCK:
         if _USE_MONGO:
             try:
