@@ -1,7 +1,7 @@
 {
  "ticker": "KUKZ",
  "currency": "KES",
- "source": "kenyanstocks.com financial statements API (farmed, complete) | FY2025: Kakuzi PLC announcement of group results for the year ended 31 December 2025, condensed consolidated statement of profit or loss, audited by PricewaterhouseCoopers, report dated 24 March 2026. | kenyanstocks.com financial statements API, farmed harvest. Profit Before Tax derived as Net Profit plus Income Tax; Gross Profit as Revenue minus Cost of Sales. Cross checked: Profit Before Tax minus Income Tax equals Net Profit and Revenue minus Cost of Sales equals Gross Profit.",
+ "source": "kenyanstocks.com financial statements API (farmed, complete) | FY2025: Kakuzi PLC announcement of group results for the year ended 31 December 2025, condensed consolidated statement of profit or loss, audited by PricewaterhouseCoopers, report dated 24 March 2026. | kenyanstocks.com financial statements API, farmed harvest. Profit Before Tax derived as Net Profit plus Income Tax; Gross Profit as Revenue minus Cost of Sales. Cross checked: Profit Before Tax minus Income Tax equals Net Profit and Revenue minus Cost of Sales equals Gross Profit. | CRON 20260929_003746: Income Tax sign normalised to the dataset convention, the charge stored positive and a credit negative, on 3 period(s), so that the rendered Profit Before Tax less Income Tax equals Net Profit. The required sign is fixed by the direction of the move from Profit Before Tax to Net Profit in the stored rows, and the stored magnitude already agreed with that move. | CRON 20260929_003746: FY2025 Revenue 5,368,622,000 filled from the printed Sales line and FY2025 Operating Profit (EBIT) corrected to 470,187,000, the printed Profit before fair value gain in non-current biological assets and income tax. Source: Kakuzi PLC announcement of group results for the year ended 31 December 2025, condensed consolidated statement of profit or loss, Shs thousands: Sales 5,368,622, Profit before fair value gain in non-current biological assets and income tax 470,187, Fair value gain in non-current biological assets 98,230, Profit before income tax 568,417, Income tax charge 180,844, Operating profit for the year 387,573, basic and diluted earnings per share 19.77. The issuer labels the post-tax line Operating profit for the year and the file had stored it against Operating Profit (EBIT) for FY2025 in thousands while the file is in units, so the cell now carries the pre-tax operating line. The announcement prints no cost of sales, gross profit or operating expenses line, so those FY2025 cells stay empty.",
  "source_note": "Farmed from the kenyanstocks.com statement API on 2026-09-21. Every cell is computed: line items carried from the source (0 where absent), group subtotals and statement totals computed by identity. No blanks. | 5 previously blank cell(s) filled on 2026-09-27 from Kakuzi Plc announcement of group results for the year ended 31 December 2022 (NSE filing); Kakuzi Plc announcement of group results for the year ended 31 December 2023 (NSE filing); see cell_sources. | Operating Profit (EBIT) FY2025 read from Kakuzi-Plc-Group-Results-for-the-Year-Ended-31-Dec-2025.pdf",
  "asOf": "2026-09-21",
  "statement": "income",
@@ -123,10 +123,10 @@
   {
    "label": "Income Tax Credit/(Charge)",
    "values": [
-    -180844000,
+    180844000,
     35054000.0,
-    -210465000.0,
-    -375820000.0,
+    210465000.0,
+    375820000.0,
     -151820000.0
    ],
    "group": "Ungrouped"
@@ -250,14 +250,21 @@
   {
    "label": "Operating Profit (EBIT)",
    "values": [
-    387573,
+    470187000,
     -303500000.0,
     348137000.0,
     902637000.0,
     207910000.0
    ],
-   "derived": true,
-   "derived_from": "Gross Profit - Operating Expenses"
+   "derived_from": "Gross Profit - Operating Expenses",
+   "derivedCells": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "derivedCellFormula": "printed Profit before fair value gain in non-current biological assets and income tax for FY2025; FY2024 to FY2021 derived as Revenue less Cost of Sales less Operating Expenses",
+   "derivedFrom": "Kakuzi PLC announcement of group results for the year ended 31 December 2025, PricewaterhouseCoopers report dated 24 March 2026, Shs thousands"
   },
   {
    "label": "Profit Before Tax",
@@ -282,14 +289,20 @@
   {
    "label": "Revenue",
    "values": [
-    null,
+    5368622000,
     4791692000.0,
     5401468000.0,
     4434211000.0,
     3296414000.0
    ],
-   "derived": true,
-   "formula": "Revenue as printed by the source"
+   "formula": "Revenue as printed by the source",
+   "derivedCells": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "derivedCellFormula": "FY2025 is the printed Sales line; FY2024 to FY2021 repeat the Sales line of each year"
   },
   {
    "label": "Cost of Sales",
