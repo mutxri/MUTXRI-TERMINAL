@@ -316,6 +316,61 @@ def oauth_exchange(one_time_code):
     return {"ok": True, "token": token, "email": rec["email"], "name": rec.get("name", ""),
             "username": (u or {}).get("username", ""), "owner": _is_owner(rec["email"])}
 
+# MAILER (2026-09-29): the deployed backend had NO sending code at all. afri_server.py
+# does `import auth_api`, which resolves to THIS file, so signups on the live site sent
+# nothing while the root copy held the only mailer. Ported verbatim from the root file.
+# Needs MAIL_PASS in the environment (Render dashboard); without it the function
+# returns quietly and signup still succeeds.
+def _send_confirmation_email(email, name):
+    """Send a confirmation email on signup via Zoho SMTP (env-configured).
+
+    Zoho, not SES: the SES account is sandboxed, so it silently rejects any
+    recipient that is not a verified identity - which is every real signup.
+    Zoho sends to arbitrary recipients and its DKIM (selector 'zmail') aligns
+    with mutxri.com, so these messages pass DMARC.
+
+    Non-blocking: failures are logged, never fail the signup."""
+    try:
+        import smtplib, ssl, os, html as _html
+        from email.mime.text import MIMEText
+        # smtppro.zoho.com is the host for custom-domain (paid) Zoho accounts;
+        # free/personal accounts use smtp.zoho.com. Override via MAIL_SERVER.
+        # MAILBOX 2026-09-28: the sending account is mutxriterminal@gmail.com and it
+        # sends through Gmail SMTP. These defaults were previously a Zoho account for
+        # mutxri.com that no longer serves this domain, so every sign-in and
+        # confirmation email failed silently while the form looked broken.
+        server = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
+        user = os.environ.get("MAIL_USER", "mutxriterminal@gmail.com")
+        pwd = os.environ.get("MAIL_PASS", "")
+        sender = os.environ.get("MAIL_FROM", user or "mutxriterminal@gmail.com")
+        if not server or not user or not pwd:
+            print("[auth] MAIL_USER/MAIL_PASS not set - confirmation email "
+                  f"NOT sent to {email}", flush=True)
+            return
+        first = (name or email).split()[0] if (name or "").strip() else email
+        first = _html.escape(first)  # never let a user-supplied name inject HTML into the email
+        html = f"""<div style="background:#000;color:#f0f0f0;font-family:monospace;padding:32px">
+  <h2 style="color:#33e29a">MUTXRI TERMINAL</h2>
+  <p>Hi {first},</p>
+  <p>Your MUTXRI TERMINAL account has been created. Welcome.</p>
+  <p style="color:#9a9a9a">You can now log in at <a href="https://mutxriterminal.com" style="color:#33e29a">mutxriterminal.com</a> and start exploring 938 securities across the NSE, NGX, JSE and EGX.</p>
+  <p style="color:#6a6a6a;font-size:12px">This is a confirmation email for your account. No action needed. If you did not create this account, reply and we will remove it.</p>
+</div>"""
+        msg = MIMEText(html, "html")
+        msg["Subject"] = "Welcome to MUTXRI TERMINAL - account confirmed"
+        msg["From"] = sender
+        msg["To"] = email
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP(server, int(os.environ.get("MAIL_PORT", "587")), timeout=30) as s:
+            s.starttls(context=ctx)
+            s.login(user, pwd)
+            s.sendmail(sender, [email], msg.as_string())
+        print(f"[auth] confirmation email sent to {email}", flush=True)
+    except Exception as e:
+        print(f"[auth] CONFIRMATION EMAIL FAILED for {email}: "
+              f"{type(e).__name__}: {str(e)[:200]}", flush=True)
+
+
 def signup(email, password, name="", username="", ip="", user_agent=""):
     email = (email or "").lower().strip()
     if not _EMAIL_RE.match(email):
@@ -341,6 +396,11 @@ def signup(email, password, name="", username="", ip="", user_agent=""):
         "created": time.time(),
     }
     _save_user(record)
+    # send the welcome email without letting a mail failure break signup
+    try:
+        _send_confirmation_email(email, record["name"])
+    except Exception:
+        pass
     _record_signin(email, record["name"], "password", "signup", ip, user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": record["name"],
