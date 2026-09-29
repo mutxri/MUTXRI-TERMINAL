@@ -3328,7 +3328,12 @@ function renderStockInfo(d, sym){
       if(d.me) me = d.me;
       if(d.messages && d.messages.length){
         if(!drew){ roomLog.innerHTML = ''; drew = true; }
-        d.messages.forEach(drawMsg);
+        d.messages.forEach(function(m){
+          // history only returns messages newer than lastTs, so each broadcast
+          // notifies once instead of on every poll
+          addReplyQuote(addReplyButton(drawMsg(m), m), m);
+          notifyIfEveryone(m);
+        });
       }else if(!drew && lastTs === 0){
         empty('Nobody has said anything yet. Start the conversation.');
       }
@@ -3355,6 +3360,20 @@ function renderStockInfo(d, sym){
   window.addEventListener('mt:layout', function(){ if(active()) refresh(); });
 
   roomLog.addEventListener('click', async function(e){
+    const rc = e.target.closest('.rm-cancel');
+    if(rc){ clearReply(); return; }
+    const rb = e.target.closest('.rm-reply');
+    if(rb){
+      // Read the quote off the rendered row rather than adding attributes to
+      // drawMsg: the text a reader sees is exactly what gets quoted.
+      const rrow = rb.closest('.room-msg');
+      const tEl = rrow && rrow.querySelector('.rm-t');
+      const nEl = rrow && rrow.querySelector('.rm-h');
+      setReply({id: rrow && rrow.getAttribute('data-id'),
+                name: (nEl && nEl.textContent.trim()) || '',
+                text: (tEl && tEl.textContent.trim()) || ''});
+      return;
+    }
     const b = e.target.closest('.rm-x');
     if(!b) return;
     const row = b.closest('.room-msg');
@@ -3366,8 +3385,75 @@ function renderStockInfo(d, sym){
     }catch(err){ setNote('Could not reach the room.', true); }
   });
 
+  // ---------------- REPLIES + @everyone (2026-09-29) ----------------
+  // The room could only post flat messages. Both additions are deliberately
+  // self-contained: they read the message objects the backend already returns
+  // and never touch drawMsg, so an existing render path cannot regress.
+  var replyTo = '';
+  function askPermission(){
+    // Browsers require a user gesture before they will show notifications, and
+    // posting is the first natural one. Failure to grant is not an error: the
+    // in-panel note below still fires.
+    try{
+      if('Notification' in window && Notification.permission === 'default'){
+        Notification.requestPermission();
+      }
+    }catch(e){}
+  }
+  function notifyIfEveryone(m){
+    if(!m || !m.everyone) return;
+    var who = m.name || 'Someone';
+    var body = String(m.text || '').slice(0, 140);
+    try{
+      if('Notification' in window && Notification.permission === 'granted'){
+        new Notification('@everyone - ' + who, {body: body});
+      }
+    }catch(e){}
+    setNote('<b>' + esc(who) + '</b> mentioned everyone: ' + esc(body), false);
+  }
+  function addReplyButton(el, m){
+    if(!el) return el;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'rm-reply';
+    b.textContent = 'reply';
+    b.style.cssText = 'background:none;border:0;color:var(--tx3);font:inherit;font-size:10px;cursor:pointer;padding:0 8px 0 0;text-transform:uppercase;letter-spacing:.08em';
+    el.appendChild(b);
+    return el;
+  }
+  function addReplyQuote(el, m){
+    if(!el || !m || !m.reply) return el;
+    var q = document.createElement('div');
+    q.className = 'room-quote';
+    q.style.cssText = 'border-left:2px solid var(--acc);padding:2px 0 2px 8px;margin:0 0 5px 0;color:var(--tx3);font-size:11px';
+    q.innerHTML = '<b>' + esc(m.reply.name || '') + '</b> ' + esc(String(m.reply.text || '').slice(0,120));
+    el.insertBefore(q, el.firstChild);
+    return el;
+  }
+  function setReply(m){
+    replyTo = (m && m.id) || '';
+    var chip = $('roomReply');
+    if(!chip){
+      chip = document.createElement('div');
+      chip.id = 'roomReply';
+      chip.style.cssText = 'display:none;font-size:11px;color:var(--tx3);padding:5px 8px;border-left:2px solid var(--acc);margin:0 0 5px 0';
+      if(input && input.parentNode) input.parentNode.insertBefore(chip, input);
+    }
+    chip.innerHTML = 'replying to <b>' + esc((m && m.name) || '') + '</b>: '
+      + esc(String((m && m.text) || '').slice(0,60))
+      + ' <button type="button" class="rm-cancel" style="background:none;border:0;color:var(--acc);font:inherit;cursor:pointer;padding:0 0 0 6px">cancel</button>';
+    chip.style.display = 'block';
+    if(input) input.focus();
+  }
+  function clearReply(){
+    replyTo = '';
+    var chip = $('roomReply');
+    if(chip){ chip.style.display = 'none'; chip.innerHTML = ''; }
+  }
+
   async function sendRoom(text){
     if(!token()){ setNote('Sign in to post to the room.', true); return; }
+    askPermission();
     sendBtn.disabled = true;
     const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
     // optimistic echo: show the message immediately, then reconcile with the
@@ -3377,11 +3463,12 @@ function renderStockInfo(d, sym){
     input.value = '';
     setNote('');
     try{
-      const d = await api('/api/chat/send', {text: text, ctx: ctx, room: activeRoom});
+      const d = await api('/api/chat/send', {text: text, ctx: ctx, room: activeRoom, reply_to: replyTo});
       if(tmpEl) tmpEl.remove();
       if(d && d.ok && d.message){
         if(!drew){ roomLog.innerHTML = ''; drew = true; }
-        drawMsg(d.message);
+        addReplyQuote(addReplyButton(drawMsg(d.message), d.message), d.message);
+        clearReply();
       }else{
         input.value = text;
         setNote(esc((d && d.error) || 'message not sent'), true);
