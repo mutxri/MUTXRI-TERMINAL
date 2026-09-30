@@ -3347,8 +3347,14 @@ function renderStockInfo(d, sym){
         if(!drew){ roomLog.innerHTML = ''; drew = true; }
         d.messages.forEach(function(m){
           // history only returns messages newer than lastTs, so each broadcast
-          // notifies once instead of on every poll
-          addReplyQuote(addReplyButton(drawMsg(m), m), m);
+          // notifies once instead of on every poll.
+          // drawMsg does NOT return its element: it appends to roomLog and returns
+          // nothing. Passing drawMsg(m) into addReplyButton therefore handed it
+          // undefined, the guard bailed, and no reply control was ever built on any
+          // message. The row is taken from the DOM instead, which is what drawMsg
+          // actually produced.
+          drawMsg(m);
+          decorate(m);
           notifyIfEveryone(m);
         });
       }else if(!drew && lastTs === 0){
@@ -3438,6 +3444,13 @@ function renderStockInfo(d, sym){
     el.appendChild(b);
     return el;
   }
+  function decorate(m){
+    // The row drawMsg just appended. Only a real message carries data-id, so a
+    // divider or notice is skipped rather than given a reply control.
+    var el = roomLog.lastElementChild;
+    if(!el || !el.getAttribute || !el.getAttribute('data-id')) return;
+    addReplyQuote(addReplyButton(el, m), m);
+  }
   function addReplyQuote(el, m){
     if(!el || !m || !m.reply) return el;
     var q = document.createElement('div');
@@ -3484,7 +3497,8 @@ function renderStockInfo(d, sym){
       if(tmpEl) tmpEl.remove();
       if(d && d.ok && d.message){
         if(!drew){ roomLog.innerHTML = ''; drew = true; }
-        addReplyQuote(addReplyButton(drawMsg(d.message), d.message), d.message);
+        drawMsg(d.message);
+        decorate(d.message);
         clearReply();
       }else{
         input.value = text;
