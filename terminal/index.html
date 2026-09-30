@@ -3356,6 +3356,11 @@ function renderStockInfo(d, sym){
           // undefined, the guard bailed, and no reply control was ever built on any
           // message. The row is taken from the DOM instead, which is what drawMsg
           // actually produced.
+          // Two overlapping refresh() calls fetch the same window, and the send path
+          // races a poll, so the same message could be drawn twice. The log itself is
+          // the record: if that id is already rendered, skip it. A cleared log (the
+          // username re-render) clears this answer too.
+          if(m.id && roomLog.querySelector('[data-id="' + m.id + '"]')) return;
           drawMsg(m);
           decorate(m);
           notifyIfEveryone(m);
@@ -3458,6 +3463,8 @@ function renderStockInfo(d, sym){
     // divider or notice is skipped rather than given a reply control.
     var el = roomLog.lastElementChild;
     if(!el || !el.getAttribute || !el.getAttribute('data-id')) return;
+    if(el.getAttribute('data-decorated')) return;   // the image append had no guard
+    el.setAttribute('data-decorated', '1');
     addReplyQuote(addReplyButton(el, m), m);
     // The image goes INSIDE the text block, like the reply control: appended to
     // the row it would become a block of its own.
