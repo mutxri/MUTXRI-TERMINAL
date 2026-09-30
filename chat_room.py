@@ -92,7 +92,37 @@ def _all():
     return _load_json()
 
 
-def post(email, name, text, room, ctx, username="", reply_to="", owner=False):
+# ---- image attachments (2026-09-30) ----
+# The client downscales to about 1200px and exports JPEG, so a value arrives as a
+# data: URL of roughly 100-150KB. Only these four prefixes are accepted, the
+# payload must be base64 and nothing else, and the whole value is capped. The
+# stored string is later rendered as <img src> in every reader's panel, so the
+# allowlist and the charset check are what make it safe to render at all.
+_MAX_IMAGE = 200000
+_IMG_PREFIXES = ("data:image/png;base64,", "data:image/jpeg;base64,",
+                 "data:image/jpg;base64,", "data:image/webp;base64,")
+_B64_OK = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+
+
+def _clean_image(value):
+    """Return a safe data URI, or (None, reason) if it must be rejected."""
+    v = (value or "").strip()
+    if not v:
+        return "", None
+    if len(v) > _MAX_IMAGE:
+        return None, "image too large (about 150KB max - it is downscaled before sending)"
+    if not v.startswith(_IMG_PREFIXES):
+        return None, "only png, jpeg or webp images are accepted"
+    payload = v.split("base64,", 1)[1]
+    if not payload:
+        return None, "image payload is empty"
+    for ch in payload:
+        if ch not in _B64_OK:
+            return None, "image payload is not valid base64"
+    return v, None
+
+
+def post(email, name, text, room, ctx, username="", reply_to="", owner=False, image=""):
     text = (text or "").strip()
     if not text:
         return {"ok": False, "error": "message is empty"}
@@ -148,10 +178,16 @@ def post(email, name, text, room, ctx, username="", reply_to="", owner=False):
         "ctx": (ctx or "").strip()[:60],
         "ts": int(time.time()),
     }
+    image, _img_err = _clean_image(image)
+    if _img_err:
+        return {"ok": False, "error": _img_err}
+
     if reply is not None:
         msg["reply"] = reply
     if everyone:
         msg["everyone"] = True
+    if image:
+        msg["image"] = image
     with _LOCK:
         if _USE_MONGO:
             try:

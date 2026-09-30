@@ -1501,7 +1501,8 @@ class Handler(SimpleHTTPRequestHandler):
                                              data.get("room", chat_room.DEFAULT_ROOM), data.get("ctx", ""),
                                              who.get("username"),
                                              data.get("reply_to", ""),
-                                             bool(who.get("owner"))))
+                                             bool(who.get("owner")),
+                                             data.get("image", "")))
                 elif action == "chat_history":
                     # POST, not GET: a session token in a query string ends up in
                     # every proxy and access log between here and the browser
