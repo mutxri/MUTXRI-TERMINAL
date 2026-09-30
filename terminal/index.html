@@ -3436,12 +3436,17 @@ function renderStockInfo(d, sym){
   }
   function addReplyButton(el, m){
     if(!el) return el;
+    if(el.querySelector && el.querySelector('.rm-reply')) return el;   // idempotent: one control per row
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'rm-reply';
     b.textContent = 'reply';
-    b.style.cssText = 'background:none;border:0;color:var(--tx3);font:inherit;font-size:10px;cursor:pointer;padding:0 8px 0 0;text-transform:uppercase;letter-spacing:.08em';
-    el.appendChild(b);
+    b.style.cssText = 'background:none;border:0;color:var(--tx3);font:inherit;font-size:9px;cursor:pointer;display:inline-block;margin-left:6px;padding:0;text-transform:uppercase;letter-spacing:.08em';
+    // Append INSIDE the text block, not to the row. A control placed after the
+    // rm-t block becomes a block of its own, which stacked one REPLY per line
+    // down the whole panel instead of one control per message.
+    var host = (el.querySelector && el.querySelector('.rm-t')) || el;
+    host.appendChild(b);
     return el;
   }
   function decorate(m){
