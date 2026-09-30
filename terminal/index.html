@@ -1293,7 +1293,13 @@ function renderTabs(){
       document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       __activePanelIdx = PANELS.indexOf(p);
-    $('stageFrame').src = panelUrl(p);
+      // 2026-09-30: a tab click used to write straight into the shared stage frame,
+      // so no panel ever opened in a window of its own from this strip - COMPARE in
+      // particular could only be reached by the command form (CMP A B). Going
+      // through openPanelWin() gives every panel its own window on desktop, and
+      // falls back to the stage on mobile/embed, so the locked mobile stack is
+      // untouched.
+      openPanelWin(p);
     };
     nav.appendChild(t);
   });
