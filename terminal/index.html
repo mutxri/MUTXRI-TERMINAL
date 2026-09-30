@@ -1075,6 +1075,9 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
       <div class="chat-log" id="chatLog" aria-live="polite" style="display:none"></div>
       <div class="chat-note" id="chatNote" hidden></div>
       <form class="chat-form" id="chatForm" autocomplete="off">
+        <input id="chatPhoto" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
+        <button type="button" id="chatPhotoBtn" title="Attach an image" aria-label="Attach an image"
+                style="background:none;border:1px solid var(--line2);color:var(--tx3);font:inherit;font-size:11px;cursor:pointer;padding:0 7px;line-height:1.6">IMG</button>
         <input id="chatInput" placeholder="Message the room..." aria-label="Chat message" spellcheck="false" maxlength="500">
         <button type="submit" id="chatSend">SEND</button>
       </form>
@@ -3382,9 +3385,10 @@ function renderStockInfo(d, sym){
   document.addEventListener('visibilitychange', function(){ if(active()) refresh(); });
   window.addEventListener('mt:layout', function(){ if(active()) refresh(); });
 
+  wirePhoto();
   roomLog.addEventListener('click', async function(e){
     const rc = e.target.closest('.rm-cancel');
-    if(rc){ clearReply(); return; }
+    if(rc){ clearReply(); clearImage(); return; }
     const rb = e.target.closest('.rm-reply');
     if(rb){
       // Read the quote off the rendered row rather than adding attributes to
@@ -3455,6 +3459,17 @@ function renderStockInfo(d, sym){
     var el = roomLog.lastElementChild;
     if(!el || !el.getAttribute || !el.getAttribute('data-id')) return;
     addReplyQuote(addReplyButton(el, m), m);
+    // The image goes INSIDE the text block, like the reply control: appended to
+    // the row it would become a block of its own.
+    if(m && m.image && String(m.image).indexOf('data:image/') === 0){
+      var host = (el.querySelector && el.querySelector('.rm-t')) || el;
+      var im = document.createElement('img');
+      im.src = m.image;
+      im.alt = 'attached image';
+      im.loading = 'lazy';
+      im.style.cssText = 'display:block;max-width:100%;border-radius:3px;margin-top:6px;border:1px solid var(--line)';
+      host.appendChild(im);
+    }
   }
   function addReplyQuote(el, m){
     if(!el || !m || !m.reply) return el;
@@ -3486,6 +3501,64 @@ function renderStockInfo(d, sym){
     if(chip){ chip.style.display = 'none'; chip.innerHTML = ''; }
   }
 
+  // ---------------- IMAGE ATTACHMENTS (2026-09-30) ----------------
+  var imageData = "";
+  function showImageChip(dataUrl, dims){
+    var chip = $('roomImage');
+    if(!chip){
+      chip = document.createElement('div');
+      chip.id = 'roomImage';
+      chip.style.cssText = 'display:none;padding:5px 8px;border-left:2px solid var(--acc);margin:0 0 5px 0';
+      if(input && input.parentNode) input.parentNode.insertBefore(chip, input);
+    }
+    chip.innerHTML = '<img style="max-height:70px;max-width:120px;border:1px solid var(--line);border-radius:3px;vertical-align:middle">'
+      + ' <span style="font-size:10px;color:var(--tx3)">' + esc(dims) + '</span>'
+      + ' <button type="button" class="rm-cancel" style="background:none;border:0;color:var(--acc);font:inherit;cursor:pointer">remove</button>';
+    chip.getElementsByTagName('img')[0].src = dataUrl;
+    chip.style.display = 'block';
+  }
+  function clearImage(){
+    imageData = '';
+    var chip = $('roomImage');
+    if(chip){ chip.style.display = 'none'; chip.innerHTML = ''; }
+    var pf = $('chatPhoto');
+    if(pf) pf.value = '';
+  }
+  function pickImage(file){
+    if(!file) return;
+    if(!/^image\/(png|jpe?g|webp)$/i.test(file.type || '')){
+      setNote('Only png, jpeg or webp images can be attached.', true);
+      return;
+    }
+    var fr = new FileReader();
+    fr.onload = function(){
+      var img = new Image();
+      img.onload = function(){
+        var MAX = 1200, w = img.width, h = img.height;
+        if(w > MAX || h > MAX){ var sc = Math.min(MAX / w, MAX / h); w = Math.round(w * sc); h = Math.round(h * sc); }
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        // JPEG q0.75 keeps a phone photo near 100-150KB, which is what the server
+        // cap is sized for. The server re-validates the value regardless.
+        imageData = c.toDataURL('image/jpeg', 0.75);
+        showImageChip(imageData, w + 'x' + h + ' - ' + Math.round(imageData.length / 1024) + 'KB');
+      };
+      img.onerror = function(){ setNote('That file could not be read as an image.', true); };
+      img.src = fr.result;
+    };
+    fr.onerror = function(){ setNote('That file could not be read.', true); };
+    fr.readAsDataURL(file);
+  }
+  function wirePhoto(){
+    var btn = $('chatPhotoBtn'), pf = $('chatPhoto');
+    if(btn && pf && !btn.getAttribute('data-wired')){
+      btn.setAttribute('data-wired', '1');
+      btn.onclick = function(){ pf.click(); };
+      pf.onchange = function(){ if(pf.files && pf.files[0]) pickImage(pf.files[0]); };
+    }
+  }
+
   async function sendRoom(text){
     if(!token()){ setNote('Sign in to post to the room.', true); return; }
     askPermission();
@@ -3498,13 +3571,14 @@ function renderStockInfo(d, sym){
     input.value = '';
     setNote('');
     try{
-      const d = await api('/api/chat/send', {text: text, ctx: ctx, room: activeRoom, reply_to: replyTo});
+      const d = await api('/api/chat/send', {text: text, ctx: ctx, room: activeRoom, reply_to: replyTo, image: imageData});
       if(tmpEl) tmpEl.remove();
       if(d && d.ok && d.message){
         if(!drew){ roomLog.innerHTML = ''; drew = true; }
         drawMsg(d.message);
         decorate(d.message);
         clearReply();
+        clearImage();
       }else{
         input.value = text;
         setNote(esc((d && d.error) || 'message not sent'), true);
