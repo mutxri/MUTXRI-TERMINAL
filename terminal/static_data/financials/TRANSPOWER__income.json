@@ -42,13 +42,14 @@
   {
    "label": "Income Tax",
    "values": [
-    -28600450000,
-    -33273928000,
-    -22530171000,
-    -11335571000,
-    -3546936000,
-    -475762000
-   ]
+    28600450000,
+    33273928000,
+    22530171000,
+    11335571000,
+    3546936000,
+    475762000
+   ],
+   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity Profit Before Tax - Income Tax = Net Profit, and the column ties with it positive"
   },
   {
    "label": "Net Profit",
@@ -73,6 +74,56 @@
    ],
    "derived": true,
    "derivedFrom": "Net Profit / Revenue x 100"
+  },
+  {
+   "label": "ROE (%)",
+   "values": [
+    49.85,
+    63.19,
+    52.25,
+    41.47,
+    57.47,
+    46.96
+   ],
+   "derived": true,
+   "derivedFrom": "Net Profit / Total Equity x 100",
+   "identityAgreement": "5072 agree / 240 contradict"
+  },
+  {
+   "label": "ROA (%)",
+   "values": [
+    16.22,
+    20.17,
+    13.53,
+    null,
+    null,
+    null
+   ],
+   "derivedCells": [
+    0,
+    1,
+    2
+   ],
+   "derivedCellFormula": "ROA (%) = Net Profit / Total Assets x 100",
+   "identityAgreement": "5374 agree / 210 contradict"
+  },
+  {
+   "label": "Debt to Equity",
+   "values": [
+    2.07,
+    2.13,
+    2.86,
+    null,
+    null,
+    null
+   ],
+   "derivedCells": [
+    0,
+    1,
+    2
+   ],
+   "derivedCellFormula": "Debt to Equity = Total Liabilities / Total Equity",
+   "identityAgreement": "5419 agree / 286 contradict"
   }
  ],
  "validated": true,
@@ -80,7 +131,9 @@
  "sourceAsOf": "2026-10-02",
  "note": "Income rows filled from the issuer audited annual report in the NGX filing library.",
  "derivation": {
-  "ratios": "derive_ratios.py"
+  "ratios": "derive_ratios.py",
+  "ratiosBy": "derive_statement_rows.py",
+  "ratiosNote": "ratio cells tagged derived are arithmetic on the filed figures of this security, not printed in the source"
  },
  "marketCap": 1335000000000,
  "sharesOutstanding": 7500000000,
