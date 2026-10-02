@@ -224,15 +224,18 @@
 
   function filingsFor(t){
     if(FILINGS[t]) return FILINGS[t];
-    // NGX/NSE: official filing links from financials_index
+    // financials_index.json carries ONLY name / currency / exchange / marketCap /
+    // source for each security - it has no per-company filing URLs (0 of its 1613
+    // entries carry a "filings" key). So return the real identity from the keys
+    // that ARE present, with an EMPTY reports list; that makes the panel render
+    // its truthful "no verified filing links on file" state instead of a dead
+    // branch that could never fire. Filing URLs are never invented here.
     if(window.__FIN_IDX){
       var e = window.__FIN_IDX[t] || window.__FIN_IDX[String(t).split(".")[0]];
-      if(e && e.filings && e.filings.length){
+      if(e){
         return {
           name: e.name || t, exchange: e.exchange, currency: e.currency,
-          reports: e.filings.map(function(f){
-            return {label: (f.title || "Financial Statement") + (f.date ? " (" + f.date + ")" : ""), url: f.url || "#"};
-          })
+          source: e.source || "", reports: []
         };
       }
     }
@@ -453,7 +456,7 @@
     }).catch(function(){
       var fil=filingsFor(state.ticker);
       render(fil?{name:fil.name,currency:fil.currency,ir:fil.ir,reports:fil.reports,periods:[]}:{periods:[]});
-      setStatus(fil?"LINKS":"NONE",null);
+      setStatus(fil&&fil.reports&&fil.reports.length?"LINKS":"NONE",null);
     });
     });
   }

@@ -8,12 +8,12 @@
   so). Every instrument shows its own auction date, and figures past the
   staleness threshold are visually flagged. Never presented as live.
 
-  Standalone-viewable on SAMPLE data; auto-uses /api/bonds when live.
+  Reads the published snapshot static_data/bonds.json when /api/bonds is not
+  reachable; when neither is available it says so rather than inventing yields.
   Vanilla JS, exact Godel tokens, no build step.
 
   INTEGRATE: lift .bnd-* markup into a right-panel tab (BND), lift the
-  <script>, wire the BND command to window.showBnd(). Delete SAMPLE_DATA
-  once /api/bonds is live.
+  <script>, wire the BND command to window.showBnd().
 -->
 <html lang="en">
 <head>
@@ -91,27 +91,6 @@
   "use strict";
   var BND_ENDPOINT = "/api/bonds";
 
-  // Clearly-labeled sample; mirrors the /api/bonds shape. Delete once live.
-  var SAMPLE_DATA = {
-    note: "Curated from central-bank auction results — not a live feed.",
-    countries: [
-      { iso:"KE", country:"Kenya", source:"Central Bank of Kenya", source_url:"#", instruments:[
-        { name:"91-day T-bill", tenor:"91d", "yield":15.98, freshness:"3 days ago", stale:false },
-        { name:"182-day T-bill", tenor:"182d", "yield":16.22, freshness:"3 days ago", stale:false },
-        { name:"364-day T-bill", tenor:"364d", "yield":16.75, freshness:"3 days ago", stale:false }
-      ]},
-      { iso:"NG", country:"Nigeria", source:"CBN / DMO", source_url:"#", instruments:[
-        { name:"364-day NTB", tenor:"364d", "yield":22.05, freshness:"7 days ago", stale:false },
-        { name:"FGN 2033 bond", tenor:"10y", "yield":20.10, freshness:"21 days ago — may be out of date", stale:true }
-      ]},
-      { iso:"ZA", country:"South Africa", source:"National Treasury / JSE", source_url:"#", instruments:[
-        { name:"R2032", tenor:"10y", "yield":10.85, freshness:"2 days ago", stale:false }
-      ]},
-      { iso:"EG", country:"Egypt", source:"Central Bank of Egypt", source_url:"#", instruments:[
-        { name:"91-day T-bill", tenor:"91d", "yield":27.50, freshness:"4 days ago", stale:false }
-      ]}
-    ]
-  };
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
@@ -147,10 +126,9 @@
 
   function load() {
     $("bndFoot").textContent = "loading…";
-    // The live site is static, so /api/bonds is never reachable there and this
-    // panel was rendering SAMPLE_DATA against real published yields sitting in
-    // static_data/bonds.json. Try the endpoint, fall back to the real snapshot,
-    // and only show the sample if neither exists - it carries its own label.
+    // The live site is static, so /api/bonds is never reachable there. Try the
+    // endpoint, then the real published snapshot at static_data/bonds.json. If
+    // neither yields data, say so; no sample yields are ever shown.
     fetch(BND_ENDPOINT)
       .then(function (r) { if (!r.ok) throw 0; return r.json(); })
       .then(function (data) { showCurve(data, "curated"); })
@@ -160,8 +138,8 @@
           .then(function (data) { showCurve(data, "official auction results"); });
       })
       .catch(function () {
-        render(SAMPLE_DATA);
-        $("bndFoot").textContent = "SAMPLE DATA (no bond source reachable)";
+        render({ note: "Bond yields unavailable - no live feed and no snapshot on file.", countries: [] });
+        $("bndFoot").textContent = "no bond source reachable";
       });
     loadBondNews();
   }

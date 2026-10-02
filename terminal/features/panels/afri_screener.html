@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- MUTXRI TERMINAL - SCREEN (Equity Screener). Rebuilt to match the rendered design.
-     Godel black+mint, Oxygen Mono. Vanilla JS, no build. Runs standalone on
-     SAMPLE data; uses /api/screener when reachable. Delete SAMPLE_STOCKS when live. -->
+     Godel black+mint, Oxygen Mono. Vanilla JS, no build. Reads the published
+     static_data/screener_<EX>.json snapshot; no sample rows are shipped. -->
 <html lang="en">
 <head>
 <meta name="robots" content="noindex, nofollow">
@@ -91,7 +91,7 @@
   "use strict";
   window.STATIC_MODE = true;
   var ENDPOINT="../../static_data/screener", LS="afri_screener_filters";
-  var state={sort:"chgPct",dir:"desc",rows:[],ex:"JSE"};
+  var state={sort:"chgPct",dir:"desc",rows:[],ex:"JSE",dataErr:false};
   // honor ?ex= deep-link from the terminal (landing exchange dropdown)
   try{
     var _pex=(new URLSearchParams(location.search).get("ex")||"").toUpperCase();
@@ -105,16 +105,6 @@
     {k:"live",l:"Feed",n:false}
   ];
   
-  var SAMPLE_STOCKS=[
-    {ticker:"COMI",name:"Commercial Intl Bank",sym:"COMI.CA",exchange:"EGX",sector:"Banks",currency:"EGP",price:52.8,chgPct:2.14,volume:3400000,divYield:4.73,live:true},
-    {ticker:"SOL",name:"Sasol",sym:"SOL.JO",exchange:"JSE",sector:"Oil & Gas",currency:"ZAR",price:118.5,chgPct:2.1,volume:1200000,divYield:10.13,live:true},
-    {ticker:"MTN",name:"MTN Group",sym:"MTN.JO",exchange:"JSE",sector:"Telecom",currency:"ZAR",price:98.2,chgPct:-0.71,volume:900000,divYield:3.36,live:true},
-    {ticker:"NPN",name:"Naspers",sym:"NPN.JO",exchange:"JSE",sector:"Technology",currency:"ZAR",price:3450,chgPct:-0.8,volume:480000,divYield:null,live:true},
-    {ticker:"SCOM",name:"Safaricom",sym:"SCOM",exchange:"NSE",sector:"Telecom",currency:"KES",price:18.4,chgPct:null,volume:null,divYield:6.52,live:false},
-    {ticker:"EQTY",name:"Equity Group",sym:"EQTY",exchange:"NSE",sector:"Banks",currency:"KES",price:44.15,chgPct:null,volume:null,divYield:9.06,live:false},
-    {ticker:"MTNN",name:"MTN Nigeria",sym:"MTNN",exchange:"NGX",sector:"Telecom",currency:"NGN",price:240,chgPct:null,volume:null,divYield:8.33,live:false},
-    {ticker:"DANGCEM",name:"Dangote Cement",sym:"DANGCEM",exchange:"NGX",sector:"Industrials",currency:"NGN",price:470,chgPct:null,volume:null,divYield:null,live:false}
-  ];
   function $(id){return document.getElementById(id);}
   function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
   function readFilters(){
@@ -152,6 +142,7 @@
   }
   function body(){
     var rows=sortRows(state.rows.slice());
+    $("empty").textContent=state.dataErr?("Screener data unavailable for "+state.ex+" - no snapshot on file."):"No stocks match these filters.";
     $("empty").style.display=rows.length?"none":"block";
     $("body").innerHTML=rows.map(function(r){
       var cc=r.chgPct==null?"muted":(r.chgPct>=0?"up":"down");
@@ -190,8 +181,8 @@
   function run(){
     var f=readFilters();save(f);
     fetch((window.STATIC_MODE ? ENDPOINT+"_"+state.ex+".json" : ENDPOINT+"?"+q(f))).then(function(r){if(!r.ok)throw 0;return r.json();})
-      .then(function(d){state.rows=d.stocks||[];$("src").textContent=window.STATIC_MODE?"":"source: /api/screener";sectors(state.rows);body();})
-      .catch(function(){state.rows=localFilter(SAMPLE_STOCKS,f);$("src").textContent="";body();});
+      .then(function(d){state.dataErr=false;state.rows=d.stocks||[];$("src").textContent=window.STATIC_MODE?"":"source: /api/screener";sectors(state.rows);body();})
+      .catch(function(){state.dataErr=true;state.rows=[];$("src").textContent="no screener snapshot for "+state.ex;body();});
   }
   function csv(){
     var rows=sortRows(state.rows.slice());if(!rows.length)return;
@@ -205,7 +196,7 @@
     try{localStorage.removeItem(LS);}catch(e){}run();}
   window.showScreener=function(){var el=$("screener");if(el)el.scrollIntoView({behavior:"smooth"});};
   function init(){
-    sectors(SAMPLE_STOCKS);restore();head();
+    sectors([]);restore();head();
     // honor ?ex= deep-link from the terminal (landing exchange dropdown) -
     // set AFTER restore() so the URL param wins over saved filters
     
