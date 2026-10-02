@@ -386,13 +386,22 @@
   function historyOf(t){
     var r = quote(t);
     if(!r) return Promise.resolve(null);
-    // END OF DAY MARK (2026-09-28). The archives are named <EXCHANGE>_<ticker>.json
-    // (NSE_ABSA.json), but this used the record's file field, which is the exchange's own
-    // symbol (ABSA, ABG.JO), so the fetch 404'd and no exchange ever loaded a bar. Build
-    // the archive key here. Why the bars: the market snapshot's todayClose duplicates
-    // prevClose on every NSE row (0 of 56 rows differ), so a mark taken from it can never
+    // END OF DAY MARK (2026-09-28). Archive keys are per exchange: NSE/NGX files
+    // are prefixed with the exchange and carry no suffix (NSE_SCOM.json,
+    // NGX_DANGCEM.json), while JSE/EGX files are the exchange's own suffixed
+    // symbol (SOL.JO.json, COMI.CA.json). Building "<EX>_<ticker>" for every
+    // exchange stripped the JSE/EGX suffix and 404'd, so those markets never
+    // refined their end-of-day mark from the daily archive. Build the right key
+    // here. Why the bars: the market snapshot's todayClose duplicates prevClose
+    // on every NSE row (0 of 56 rows differ), so a mark taken from it can never
     // move. The daily bars carry a real close per session.
-    r.file = EX + "_" + String(t || "").toUpperCase().replace(/\.(JO|CA)$/, "");
+    var _tk = String(t || "").toUpperCase();
+    if(EX === "JSE" || EX === "EGX"){
+      var _suf = EX === "JSE" ? ".JO" : ".CA";
+      r.file = /\.(JO|CA)$/.test(_tk) ? _tk : _tk.split(".")[0] + _suf;
+    }else{
+      r.file = EX + "_" + _tk.replace(/\.(JO|CA)$/, "");
+    }
     if(!HIST[r.file]){
       HIST[r.file] = fetch("../../static_data/history/" + encodeURIComponent(r.file) + ".json?t=" + Math.floor(Date.now() / 3600000))
         .then(function(res){ if(!res.ok) throw 0; return res.json(); })

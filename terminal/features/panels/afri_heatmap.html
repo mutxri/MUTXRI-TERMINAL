@@ -2,7 +2,9 @@
 <!-- MUTXRI TERMINAL - HEATMAP (TradingView-style squarified treemap).
      Sector-grouped, cells packed by weight to fill space, colored by day %,
      AUTO-POLLING with animated transitions. Godel palette, vanilla JS, no build.
-     Standalone on SAMPLE data; polls /api/heatmap?exchange=X when reachable.
+     Reads the live /api/heatmap feed when reachable, else the dated snapshot
+     static_data/heatmap_<EX>.json; an honest empty state if neither exists.
+     Never renders invented rows.
      LIVE DATA appears only when wired to afri_server.py (see README). -->
 <html lang="en">
 <head>
@@ -235,52 +237,6 @@
   var pollTimer=null;
   var prevByKey={};
 
-  var SAMPLE={
-    JSE:[
-      {ticker:"SOL",name:"Sasol",chgPct:2.10,weight:1200000,sector:"Oil & Gas"},
-      {ticker:"AGL",name:"Anglo American",chgPct:-1.60,weight:1500000,sector:"Mining"},
-      {ticker:"GFI",name:"Gold Fields",chgPct:-0.64,weight:1100000,sector:"Mining"},
-      {ticker:"ANG",name:"AngloGold",chgPct:1.90,weight:800000,sector:"Mining"},
-      {ticker:"IMP",name:"Impala Platinum",chgPct:-1.20,weight:520000,sector:"Mining"},
-      {ticker:"MTN",name:"MTN Group",chgPct:-0.71,weight:900000,sector:"Telecom"},
-      {ticker:"VOD",name:"Vodacom",chgPct:0.42,weight:640000,sector:"Telecom"},
-      {ticker:"TKG",name:"Telkom SA",chgPct:0.30,weight:300000,sector:"Telecom"},
-      {ticker:"SBK",name:"Standard Bank",chgPct:-1.10,weight:980000,sector:"Banks"},
-      {ticker:"FSR",name:"FirstRand",chgPct:0.85,weight:1050000,sector:"Banks"},
-      {ticker:"ABSA",name:"Absa Group",chgPct:0.20,weight:700000,sector:"Banks"},
-      {ticker:"NPN",name:"Naspers",chgPct:-0.80,weight:1400000,sector:"Technology"},
-      {ticker:"SHP",name:"Shoprite",chgPct:1.25,weight:560000,sector:"Retail"},
-      {ticker:"BTI",name:"Brit Am Tobacco",chgPct:-0.35,weight:900000,sector:"Consumer"}
-    ],
-    EGX:[
-      {ticker:"COMI",name:"Commercial Intl Bank",chgPct:2.14,weight:3400000,sector:"Banks"},
-      {ticker:"HRHO",name:"EFG Holding",chgPct:1.10,weight:1200000,sector:"Banks"},
-      {ticker:"FAITA",name:"Faisal Islamic",chgPct:0.30,weight:400000,sector:"Banks"},
-      {ticker:"TMGH",name:"Talaat Moustafa",chgPct:-0.40,weight:900000,sector:"REIT / Property"},
-      {ticker:"PHDC",name:"Palm Hills",chgPct:-1.05,weight:520000,sector:"REIT / Property"},
-      {ticker:"ESRS",name:"Ezz Steel",chgPct:0.80,weight:650000,sector:"Industrials"},
-      {ticker:"SWDY",name:"Elsewedy Electric",chgPct:1.42,weight:780000,sector:"Industrials"},
-      {ticker:"EAST",name:"Eastern Company",chgPct:-0.22,weight:430000,sector:"Consumer"}
-    ],
-    NGX:[
-      {ticker:"MTNN",name:"MTN Nigeria",chgPct:1.20,weight:900000,sector:"Telecom",eod:true},
-      {ticker:"AIRTELAF",name:"Airtel Africa",chgPct:-0.60,weight:700000,sector:"Telecom",eod:true},
-      {ticker:"DANGCEM",name:"Dangote Cement",chgPct:0.45,weight:1100000,sector:"Industrials",eod:true},
-      {ticker:"BUACEMENT",name:"BUA Cement",chgPct:-0.30,weight:600000,sector:"Industrials",eod:true},
-      {ticker:"GTCO",name:"Guaranty Trust",chgPct:2.05,weight:850000,sector:"Banks",eod:true},
-      {ticker:"ZENITHBANK",name:"Zenith Bank",chgPct:1.35,weight:800000,sector:"Banks",eod:true},
-      {ticker:"NB",name:"Nigerian Breweries",chgPct:-0.85,weight:420000,sector:"Food & Beverage",eod:true}
-    ],
-    NSE:[
-      {ticker:"SCOM",name:"Safaricom",chgPct:1.38,weight:900000,sector:"Telecom",eod:true},
-      {ticker:"EQTY",name:"Equity Group",chgPct:0.34,weight:640000,sector:"Banks",eod:true},
-      {ticker:"KCB",name:"KCB Group",chgPct:-0.64,weight:520000,sector:"Banks",eod:true},
-      {ticker:"COOP",name:"Co-op Bank",chgPct:0.28,weight:300000,sector:"Banks",eod:true},
-      {ticker:"EABL",name:"EA Breweries",chgPct:0.19,weight:410000,sector:"Food & Beverage",eod:true},
-      {ticker:"BATK",name:"BAT Kenya",chgPct:-0.42,weight:250000,sector:"Consumer",eod:true},
-      {ticker:"KEGN",name:"KenGen",chgPct:0.90,weight:280000,sector:"Utilities",eod:true}
-    ]
-  };
 
   function $(id){return document.getElementById(id);}
   function lerp(a,b,t){
@@ -442,9 +398,13 @@
     Object.keys(existing).forEach(function(key){if(!want[key])canvas.removeChild(existing[key]);});
   }
 
-  function setStatus(live){
-    $("dot").className="dot "+(live?"eod":"sample");
-    $("statusTxt").textContent=live?(snapAsOf?"\u00b7 "+snapAsOf:""):"";
+  // status is honest about WHERE the rows came from: the live exchange feed,
+  // a real on-disk snapshot (dated), or nothing at all. There is no SAMPLE
+  // state any more - a heatmap of invented prices must never be shown.
+  function setStatus(mode,note){
+    if(mode==="live"){ $("dot").className="dot live"; $("statusTxt").textContent="LIVE - polling "+(POLL_MS/1000)+"s"; return; }
+    if(mode==="snapshot"){ $("dot").className="dot"; $("statusTxt").textContent="SNAPSHOT"+(note?" "+note:"")+" - not live"; return; }
+    $("dot").className="dot"; $("statusTxt").textContent="data unavailable";
   }
 
   // ---- sector drill-down: click a sector label or a cell to see the
@@ -516,6 +476,10 @@
         sector:x.sector||"Other",eod:!!x.eod||!!EOD_MARKETS[activeEx]};
     });
   }
+  // The live feed is /api/heatmap, which does not exist on the served origin.
+  // The real rows ship as static_data/heatmap_<EX>.json, so the fallback reads
+  // THAT (a dated snapshot, labelled as such) and never the SAMPLE treemap.
+  // Only if both sources fail does the canvas go to an honest empty state.
   function load(){
     fetch('../../static_data/heatmap_' + activeEx + '.json')
       .then(function(r){if(!r.ok)throw 0;return r.json();})
@@ -523,11 +487,31 @@
         var rows;
         if(d.sectors){rows=[];d.sectors.forEach(function(s){(s.cells||[]).forEach(function(c){c.sector=s.sector;rows.push(c);});});}
         else rows=d.stocks||[];
-        snapAsOf=(d.asOf||"").slice(0,10);draw(normalize(rows));setStatus(true);
+        if(!rows.length) throw 0;
+        draw(normalize(rows));setStatus("live");
       })
-      .catch(function(){
-        draw(normalize(SAMPLE[activeEx]||[]));setStatus(false);
-      });
+      .catch(function(){ loadSnapshot(); });
+  }
+  function loadSnapshot(){
+    fetch("../../static_data/heatmap_"+encodeURIComponent(activeEx)+".json")
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){
+        var rows=d.stocks||[];
+        if(!rows.length) throw 0;
+        draw(normalize(rows));
+        setStatus("snapshot", d.asOf||"");
+      })
+      .catch(function(){ showNoData(); });
+  }
+  function showNoData(){
+    var canvas=$("canvas");
+    while(canvas.firstChild) canvas.removeChild(canvas.firstChild);
+    currentRows=[];
+    var m=document.createElement("div");
+    m.style.cssText="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:12px;line-height:1.6";
+    m.textContent="No heatmap data available for "+activeEx+". No live feed and no snapshot on file.";
+    canvas.appendChild(m);
+    setStatus("none");
   }
   function startPolling(){/* static build: the snapshot changes only on deploy, but the first draw can land before the panel has its final width - redraw once layout settles */ setTimeout(load,300); setTimeout(load,1200);}
   function tabs(){
@@ -557,12 +541,18 @@
     $("cpSub").textContent = cpName;
     $("cpStat").textContent = "loading…";
     document.getElementById("chartPanel").classList.add("open");
-    var sym = (c.sym || c.ticker || "").replace(/\//g, "_");
-    var histBase = sym;
-    // NSE/NGX history files are prefixed with the exchange (NSE_SCOM.json)
+    // History file keys differ per exchange. NSE/NGX archives are prefixed with
+    // the exchange and carry no suffix (NSE_SCOM.json, NGX_DANGCEM.json). JSE/EGX
+    // archives are named with the exchange's own symbol suffix (SOL.JO.json,
+    // COMI.CA.json). Build the key to match, and fall back to the suffix when a
+    // bare ticker arrives (e.g. typed or from a row that only carries `ticker`).
+    var rawSym = String(c.sym || c.ticker || "").replace(/\//g, "_").toUpperCase();
+    var histBase;
     if(activeEx === "NSE" || activeEx === "NGX"){
-      var shortSym = sym.split(".")[0];
-      histBase = activeEx + "_" + shortSym;
+      histBase = activeEx + "_" + rawSym.split(".")[0];
+    }else{
+      var exSuf = activeEx === "JSE" ? ".JO" : (activeEx === "EGX" ? ".CA" : "");
+      histBase = /\.(JO|CA)$/.test(rawSym) ? rawSym : rawSym.split(".")[0] + exSuf;
     }
     cpBarsDaily = []; cpBarsMax = []; cpBothDone = false;
     fetch("../../static_data/history/" + encodeURIComponent(histBase) + ".json")
