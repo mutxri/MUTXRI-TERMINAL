@@ -2,7 +2,7 @@
  "ticker": "BOC",
  "currency": "KES",
  "source": "kenyanstocks.com financial statements API (farmed, complete) | FY2025: BOC Kenya Plc audited group results for the year ended 31 December 2025, filed on nse.co.ke. | kenyanstocks.com financial statements API, farmed harvest. Profit Before Tax derived as Net Profit plus Income Tax; Gross Profit as Revenue minus Cost of Sales. Cross checked: Profit Before Tax minus Income Tax equals Net Profit and Revenue minus Cost of Sales equals Gross Profit. | CRON 20260929_003746: Income Tax sign normalised to the dataset convention, the charge stored positive and a credit negative, on 2 period(s), so that the rendered Profit Before Tax less Income Tax equals Net Profit. The required sign is fixed by the direction of the move from Profit Before Tax to Net Profit in the stored rows, and the stored magnitude already agreed with that move. | CRON 20260929_190804: FY2025 and FY2024 Net Profit corrected from total comprehensive income to profit for the year, and the Income Tax cells restored to the dataset convention (charge positive) so that the rendered Profit Before Tax less Income Tax equals Net Profit. Source: BOC Kenya Plc audited group results for the year ended 31 December 2025 (NSE filing, unqualified PwC opinion), summarised consolidated income statement in KShs thousands: Revenue 1,427,046, Earnings before investment income and taxes 383,684, Investment income less finance cost 58,996, Profit before tax 442,680, Income tax expense (128,656), Profit for the year 314,024, basic earnings per share Kshs 16.08 (2024: Revenue 1,204,201, 222,479, 72,975, 295,454, 83,807, 211,647, 10.84). Checks: 442,680 less 128,656 equals 314,024 and 295,454 less 83,807 equals 211,647; the printed earnings per share of 16.08 and 10.84 divide exactly into those two profit figures on the issued shares, while 415,088 and 308,270 are each the printed total comprehensive income (314,024 plus 106,920 less 5,856, and 211,647 plus 100,980 less 4,357). The comprehensive figures remain in the Total Profit/Loss row. Operating Profit (EBIT) is the printed Earnings before investment income and taxes, and Net Finance Costs is the printed Investment income less finance cost, so EBIT less Net Finance Costs equals Profit Before Tax in both years. The filing prints no Cost of Sales, Gross Profit or Operating Expenses line, so those FY2025 cells stay empty. Filled 2026-10-01 from the kenyanstocks.com comprehensive income API: Income Tax FY2021 from the source line Income Tax Expense; Income Tax FY2022 from the source line Income Tax Expense; Income Tax FY2024 from the source line Income Tax Expense.",
- "source_note": "Farmed from the kenyanstocks.com statement API on 2026-09-21. Every cell is computed: line items carried from the source (0 where absent), group subtotals and statement totals computed by identity. No blanks. | 6 previously blank cell(s) filled on 2026-09-27 from BOC Kenya Plc audited group results for the year ended 31 December 2022 (NSE filing); BOC Kenya Plc audited group results for the year ended 31 December 2023 (NSE filing); BOC Kenya Plc audited group results for the year ended 31 December 2025 (NSE filing); see cell_sources.",
+ "source_note": "Farmed from the kenyanstocks.com statement API on 2026-09-21. Every cell is computed: line items carried from the source (0 where absent), group subtotals and statement totals computed by identity. No blanks. | 6 previously blank cell(s) filled on 2026-09-27 from BOC Kenya Plc audited group results for the year ended 31 December 2022 (NSE filing); BOC Kenya Plc audited group results for the year ended 31 December 2023 (NSE filing); BOC Kenya Plc audited group results for the year ended 31 December 2025 (NSE filing); see cell_sources. | CRON 20261004_1032: blank cell filled from the file's own duplicate statement row carrying the same line under an issuer label (validated Profit Before Tax minus Income Tax equals Net Profit).",
  "asOf": "2026-09-26",
  "statement": "income",
  "statementTitle": "Income Statement",
@@ -193,22 +193,30 @@
    "values": [
     415088000,
     308270000.0,
-    232756000.0,
+    198058000,
     147992000.0,
     108349000.0
    ],
-   "isStatementTotal": true
+   "isStatementTotal": true,
+   "corrected": true,
+   "source": "issuer filing",
+   "source_url": "https://www.nse.co.ke/wp-content/uploads/BOC-Kenya-Plc-Audited-Group-Results-for-the-Year-Ended-31-Dec-2023.pdf",
+   "source_note": "same correction as the Net Profit row; the panel resolves netProfit from the Net Profit label first, so both rows are kept consistent"
   },
   {
    "label": "Net Profit",
    "values": [
     314024000,
     211647000,
-    232756000.0,
+    198058000,
     147992000.0,
     108349000.0
    ],
-   "aliasOf": "Total Profit/Loss"
+   "aliasOf": "Total Profit/Loss",
+   "corrected": true,
+   "source": "issuer filing",
+   "source_url": "https://www.nse.co.ke/wp-content/uploads/BOC-Kenya-Plc-Audited-Group-Results-for-the-Year-Ended-31-Dec-2023.pdf",
+   "source_note": "the published audited group results for the year ended 31 December 2023 print net profit for the year 198,058 thousand against a profit before tax of 309,081; the file carried 232,756, which is not the filed figure. Corrected so Profit Before Tax 309,081 less Income Tax 111,023 equals Net Profit 198,058, and so it agrees with the file own EPS of 10.14 on the issued share count"
   },
   {
    "label": "ROE (%)",
@@ -370,13 +378,17 @@
   {
    "label": "Income Tax",
    "values": [
-    null,
+    128656000,
     83807000.0,
-    null,
+    111023000,
     65434000.0,
     60644000.0
    ],
-   "gapSource": "kenyanstocks.com financial statements API, comprehensive income, harvested 2026-10-01"
+   "gapSource": "kenyanstocks.com financial statements API, comprehensive income, harvested 2026-10-01",
+   "derived": true,
+   "source": "issuer filing / same-file identity",
+   "source_url": "https://www.nse.co.ke/wp-content/uploads/BOC-Kenya-Plc-Audited-Group-Results-for-the-Year-Ended-31-Dec-2023.pdf",
+   "source_note": "the published audited group results for the year ended 31 December 2023 imply an income tax charge of 111,023 thousand (profit before tax 309,081 less net profit 198,058), which the file own Income Tax Expense row already carried as -111,023"
   }
  ],
  "grouped": true,

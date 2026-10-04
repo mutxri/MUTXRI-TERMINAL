@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <!--
-  MUTXRI TERMINAL - MACRO panel: annual consumer price inflation per country.
+  MUTXRI TERMINAL - MACRO panel: annual consumer price inflation, plus GDP,
+  GDP growth and GDP per capita, per country.
 
-  Source: World Bank Open Data, indicator FP.CPI.TOTL.ZG (inflation, consumer
-  prices, annual %). Values are reproduced exactly as published. This is an
-  ANNUAL series, not a live monthly print, and the panel says so: presenting an
-  annual average as a current monthly rate would be a wrong number.
+  Source: World Bank Open Data. Inflation is FP.CPI.TOTL.ZG. The GDP block is
+  NY.GDP.MKTP.CD (GDP, current US$), NY.GDP.MKTP.KD.ZG (GDP growth, annual %)
+  and NY.GDP.PCAP.CD (GDP per capita, current US$). Values are reproduced
+  exactly as published. These are ANNUAL series, not a live monthly print, and
+  the panel says so: presenting an annual average as a current rate would be a
+  wrong number. A year with no published value shows n/a; it is never filled.
 
   Built by build_macro.py -> static_data/macro.json. Vanilla JS, Godel tokens,
   no build step.
@@ -68,13 +71,19 @@
 
   .mc-note { padding:10px 14px; color:var(--tx3); font-family:var(--mono); font-size:10px; line-height:1.7; border-top:1px solid var(--line); }
   .mc-warn { padding:8px 14px; color:var(--down); font-family:var(--mono); font-size:10px; }
+
+  .mc-sec { border-top:2px solid var(--line2); }
+  .mc-sec-h { padding:12px 14px 2px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
+  .mc-sec-h b { color:var(--acc); font-weight:700; }
+  table.mc th.g, table.mc td.g, table.mc td.gdp { border-left:1px solid var(--line2); }
+  table.mc td.gdp { color:var(--tx); font-size:12px; font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
 
 <div class="mc-wrap" id="mc">
   <div class="mc-head">
-    <div class="mc-title"><b>MACRO</b> &middot; Inflation by Country</div>
+    <div class="mc-title"><b>MACRO</b> &middot; Inflation and GDP by Country</div>
     <button class="mc-refresh" id="mcRefresh">Refresh</button>
   </div>
 
@@ -107,6 +116,45 @@
   <div class="mc-legend" id="mcLegend"></div>
 
   <div class="mc-note" id="mcNote">&nbsp;</div>
+
+  <div class="mc-sec">
+    <div class="mc-sec-h"><b>GDP</b> &middot; level, growth and per capita by country</div>
+
+    <div class="mc-lead">
+      Gross domestic product for the four markets covered by the terminal, year by year, from the
+      World Bank. The level is <b>GDP at current prices, in US dollars</b>. Growth is the
+      <b>annual percentage change</b>. Per capita is <b>GDP per person, in current US dollars</b>.
+      Every value is the published figure, reproduced as the source reports it. A year with no
+      published value shows n/a and is never filled, and no value is carried forward.
+    </div>
+
+    <div class="mc-tablewrap">
+      <table class="mc">
+        <thead>
+          <tr>
+            <th class="l">Country</th>
+            <th class="l">Currency</th>
+            <th class="l">Exchange</th>
+            <th id="mcGdpYearH">Year</th>
+            <th class="g">GDP (US$)</th>
+            <th>GDP growth</th>
+            <th>GDP per capita (US$)</th>
+            <th class="l g">GDP, recent years (US$)</th>
+            <th class="l">Growth, recent years (%)</th>
+            <th class="l">GDP per capita, recent years (US$)</th>
+          </tr>
+        </thead>
+        <tbody id="mcGdpBody">
+          <tr><td class="l" colspan="10" style="color:var(--tx3)">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mc-chart" id="mcGdpChart"></div>
+    <div class="mc-legend" id="mcGdpLegend"></div>
+
+    <div class="mc-note" id="mcGdpNote">&nbsp;</div>
+  </div>
 </div>
 
 <script>
@@ -178,6 +226,8 @@
       '<br>' + esc(d.indicator || "") + " &middot; " +
       '<a href="' + esc(d.source_url || "#") + '" target="_blank" rel="noopener" style="color:var(--acc)">' +
       esc(d.source_url || "") + '</a>';
+
+    renderGdp(d.gdp);
   }
 
   // Four countries over the same six published years, drawn from the history
@@ -246,6 +296,150 @@
     if (!drawn){ host.innerHTML = ""; leg.innerHTML = ""; }
   }
 
+  // ---------- GDP block ----------
+  // Money is shown in whole US dollars for the level (a national GDP level has no
+  // meaningful cents) and to two decimals for per capita, exactly as the panel
+  // prints inflation to two decimals. The stored series is the API value; a
+  // missing year prints n/a and is never replaced by 0 or a carried-forward figure.
+  function fmtMoney0(v){
+    return (typeof v === "number") ? "$" + Math.round(v).toLocaleString("en-US") : "n/a";
+  }
+  function fmtMoney2(v){
+    return (typeof v === "number") ? "$" + v.toLocaleString("en-US",
+      {minimumFractionDigits:2, maximumFractionDigits:2}) : "n/a";
+  }
+  function fmtPct(v){
+    return (typeof v === "number") ? v.toFixed(2) + "%" : "n/a";
+  }
+  function series(hist, key, f){
+    return (hist || []).map(function(h){
+      return h.year + " " + (typeof h[key] === "number" ? f(h[key]) : "n/a");
+    }).join("  ");
+  }
+
+  function renderGdp(g){
+    var body = document.getElementById("mcGdpBody");
+    var note = document.getElementById("mcGdpNote");
+    if (!g || !g.countries || !g.countries.length){
+      body.innerHTML = '<tr><td class="l" colspan="10" style="color:var(--tx3)">' +
+        'No GDP data available. The gap is shown rather than filled.</td></tr>';
+      note.innerHTML = "&nbsp;";
+      document.getElementById("mcGdpChart").innerHTML = "";
+      document.getElementById("mcGdpLegend").innerHTML = "";
+      return;
+    }
+    body.innerHTML = "";
+    g.countries.forEach(function(c){
+      var tr = document.createElement("tr");
+      if (String(c.exchange).toUpperCase() === ex) tr.className = "cur";
+      tr.innerHTML =
+        '<td class="l country">' + esc(c.country) + '</td>' +
+        '<td class="l code">' + esc(c.currency) + '</td>' +
+        '<td class="l code">' + esc(c.exchange) + '</td>' +
+        '<td class="code">' + esc(c.gdp_year == null ? "n/a" : c.gdp_year) + '</td>' +
+        '<td class="gdp g">' + fmtMoney0(c.gdp) + '</td>' +
+        '<td class="gdp">' + fmtPct(c.gdp_growth) + '</td>' +
+        '<td class="gdp">' + fmtMoney2(c.gdp_per_capita) + '</td>' +
+        '<td class="l hist g">' + esc(series(c.history, "gdp", fmtMoney0)) + '</td>' +
+        '<td class="l hist">' + esc(series(c.history, "gdp_growth", fmtPct)) + '</td>' +
+        '<td class="l hist">' + esc(series(c.history, "gdp_per_capita", fmtMoney2)) + '</td>';
+      body.appendChild(tr);
+    });
+    var yh = document.getElementById("mcGdpYearH");
+    if (g.countries[0] && g.countries[0].gdp_year) yh.textContent = String(g.countries[0].gdp_year);
+
+    drawGdpChart(g.countries);
+
+    var ys = [];
+    g.countries.forEach(function(c){ (c.history || []).forEach(function(h){ ys.push(h.year); }); });
+    var span = ys.length ? (Math.min.apply(null, ys) + " to " + Math.max.apply(null, ys)) : "";
+    var ind = g.indicators || {};
+    var codes = ["gdp", "gdp_growth", "gdp_per_capita"].map(function(k){
+      if (!ind[k]) return "";
+      return '<br>' + esc(k.replace(/_/g, " ")) + ": " + esc(ind[k].code) +
+        " (" + esc(ind[k].name) + ", " + esc(ind[k].unit) + ")" +
+        (ind[k].source_last_updated ? " &middot; series last updated " + esc(ind[k].source_last_updated) : "");
+    }).join("");
+    note.innerHTML =
+      "Annual GDP series for " + g.countries.length + " countries, " + esc(span) +
+      ".<br>Source: " + esc(g.source || "World Bank Open Data") + codes +
+      (g.generated ? " &middot; retrieved " + esc(g.generated) : "");
+  }
+
+  // GDP per capita, current US dollars, drawn from the history exactly as stored.
+  // Per capita is the series that makes the four countries comparable. The line
+  // joins published years and stops at the last one the source reports.
+  function drawGdpChart(rows){
+    var host = document.getElementById("mcGdpChart");
+    var leg  = document.getElementById("mcGdpLegend");
+    host.innerHTML = ""; leg.innerHTML = "";
+    if (!rows || !rows.length) return;
+
+    var years = [], seen = {};
+    rows.forEach(function(c){
+      (c.history || []).forEach(function(h){
+        if (typeof h.gdp_per_capita !== "number") return;
+        if (!seen[h.year]){ seen[h.year] = 1; years.push(h.year); }
+      });
+    });
+    years.sort(function(a,b){ return a - b; });
+    if (years.length < 2){
+      host.innerHTML = '<div style="color:var(--tx3);font-family:var(--mono);font-size:10px">Too few published years to draw a trend. The gap is shown rather than filled.</div>';
+      return;
+    }
+
+    var maxV = 0;
+    rows.forEach(function(c){ (c.history || []).forEach(function(h){
+      if (typeof h.gdp_per_capita === "number" && h.gdp_per_capita > maxV) maxV = h.gdp_per_capita;
+    }); });
+    var top = Math.ceil(maxV / 1000) * 1000;
+    if (top <= 0) top = 1000;
+
+    var W = 700, H = 250, L = 66, R = 96, T = 14, B = 26;
+    var iw = W - L - R, ih = H - T - B;
+    var xi = function(i){ return L + (years.length === 1 ? iw/2 : iw * i / (years.length - 1)); };
+    var yv = function(v){ return T + ih - (ih * (v / top)); };
+    var money = function(v){ return "$" + Math.round(v).toLocaleString("en-US"); };
+
+    var s = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="GDP per capita, current US dollars, by country">'];
+
+    var steps = 5;
+    for (var g2 = 0; g2 <= steps; g2++){
+      var val = top * g2 / steps, y = yv(val);
+      s.push('<line class="' + (g2 === 0 ? "zero" : "grid") + '" x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W - R) + '" y2="' + y.toFixed(1) + '"/>');
+      s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end">' + money(val) + '</text>');
+    }
+    years.forEach(function(yr, i){
+      if (years.length > 12 && i % 2) return;
+      s.push('<text class="ax" x="' + xi(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + yr + '</text>');
+    });
+
+    var drawn = 0;
+    rows.forEach(function(c, idx){
+      var hs = (c.history || []).filter(function(h){ return typeof h.gdp_per_capita === "number"; })
+        .slice().sort(function(a,b){ return a.year - b.year; });
+      if (hs.length < 2) return;
+      var col = SERIES[idx % SERIES.length];
+      var pts = hs.map(function(h){
+        var gi = years.indexOf(h.year);
+        return xi(gi).toFixed(1) + "," + yv(h.gdp_per_capita).toFixed(1);
+      });
+      s.push('<polyline fill="none" stroke="' + col + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" points="' + pts.join(" ") + '"/>');
+      hs.forEach(function(h){
+        var gi = years.indexOf(h.year);
+        s.push('<circle cx="' + xi(gi).toFixed(1) + '" cy="' + yv(h.gdp_per_capita).toFixed(1) + '" r="2.2" fill="' + col + '"/>');
+      });
+      var last = hs[hs.length - 1];
+      s.push('<text class="lbl" x="' + (W - R + 8) + '" y="' + (yv(last.gdp_per_capita) + 3).toFixed(1) + '" fill="' + col + '">' + esc(c.iso2 || c.country) + ' ' + money(last.gdp_per_capita) + '</text>');
+      leg.innerHTML += '<span><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
+      drawn++;
+    });
+
+    s.push('</svg>');
+    host.innerHTML = s.join("");
+    if (!drawn){ host.innerHTML = ""; leg.innerHTML = ""; }
+  }
+
   function load(){
     fetch(ENDPOINT, { cache:"default" })
       .then(function(r){ if(!r.ok) throw new Error("no endpoint"); return r.json(); })
@@ -254,6 +448,8 @@
       .catch(function(e){
         document.getElementById("mcBody").innerHTML =
           '<tr><td class="l" colspan="7" style="color:var(--tx3)">Macro data could not be loaded from the source. Nothing is shown rather than an invented figure.</td></tr>';
+        document.getElementById("mcGdpBody").innerHTML =
+          '<tr><td class="l" colspan="10" style="color:var(--tx3)">GDP data could not be loaded from the source. Nothing is shown rather than an invented figure.</td></tr>';
       });
   }
 
