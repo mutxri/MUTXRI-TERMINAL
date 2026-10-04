@@ -1,7 +1,7 @@
 {
  "ticker": "EABL",
  "currency": "KES",
- "source": "kenyanstocks.com financial statements API (farmed, complete) | kenyanstocks.com financial statements API, farmed harvest. Profit Before Tax derived as Net Profit plus Income Tax; Gross Profit as Revenue minus Cost of Sales. Cross checked: Profit Before Tax minus Income Tax equals Net Profit and Revenue minus Cost of Sales equals Gross Profit. | CRON 20260929_003746: Income Tax sign normalised to the dataset convention, the charge stored positive and a credit negative, on 3 period(s), so that the rendered Profit Before Tax less Income Tax equals Net Profit. The required sign is fixed by the direction of the move from Profit Before Tax to Net Profit in the stored rows, and the stored magnitude already agreed with that move.",
+ "source": "FIX 2026-10-04: row 'Profit before income tax' renamed 'Profit Before Taxation' so tax is read from 'Income Tax'. | FY2026 (year ended 30 June 2026, condensed audited) added from East African Breweries Plc condensed audited results for the year ended 30 June 2026 (NSE filing, via africanfinancials.com); Kshs'M x1e6. Row 'Profit before income tax' renamed 'Profit Before Taxation' so bot/statements.py reads tax from the Income Tax row, not from a profit-before-tax row. | kenyanstocks.com financial statements API (farmed, complete) | kenyanstocks.com financial statements API, farmed harvest. Profit Before Tax derived as Net Profit plus Income Tax; Gross Profit as Revenue minus Cost of Sales. Cross checked: Profit Before Tax minus Income Tax equals Net Profit and Revenue minus Cost of Sales equals Gross Profit. | CRON 20260929_003746: Income Tax sign normalised to the dataset convention, the charge stored positive and a credit negative, on 3 period(s), so that the rendered Profit Before Tax less Income Tax equals Net Profit. The required sign is fixed by the direction of the move from Profit Before Tax to Net Profit in the stored rows, and the stored magnitude already agreed with that move.",
  "source_note": "EABL condensed audited results for the year ended 30 June 2025 (Kshs million: operating costs 29,220; EBIT 25,171; PBT 19,312; profit for the year 12,198; basic EPS 11.97. FY2024: 24,830 / 24,897 / 16,771 / 10,870 / 10.30) | https://eabl.com/~/media/Files/E/eabl/documents/investor/financial-result/2025/eabl-f25-full-year-2025-financial-results-press-release.pdf FY2026 column from the company filing (https://africanfinancials.com/document/ke-eabl-2026-ab-00/): revenue, profit after tax and EPS only; other lines blank because the release did not state them. UNIT CHECK: values whose magnitude did not reconcile with the annual column were withheld (filing unit differed from the statement unit); they were not rescaled. | CRON 20261004_1032: EPS for FY2022 filled with the issuer's printed comparative, Basic and diluted 15.00, from EABL audited results for the year ended 30 June 2023 (eabl.com results booklet); ties to profit attributable to equity holders 11,857,336k over 790,774,356 shares.",
  "asOf": "2026-09-21",
  "statement": "income",
@@ -10,6 +10,7 @@
  "available": true,
  "name": "East African Breweries",
  "periods": [
+  "FY2026",
   "FY2025",
   "FY2024",
   "FY2023",
@@ -19,17 +20,20 @@
   {
    "label": "Cost of Sales",
    "values": [
+    83800000000,
     74713068000.0,
     70482904000.0,
     62249439000.0,
     56553029000.0
    ],
    "group": "Cost of Sales",
-   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity Revenue - Cost of Sales = Gross Profit, and the column ties with it positive"
+   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity Revenue - Cost of Sales = Gross Profit, and the column ties with it positive",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Gross Profit",
    "values": [
+    62158000000,
     54077489000.0,
     53647756000.0,
     47399974000.0,
@@ -37,53 +41,63 @@
    ],
    "derived": true,
    "derivedFrom": "Revenue - Cost of Sales",
-   "group": "Cost of Sales"
+   "group": "Cost of Sales",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Finance costs",
    "values": [
+    -4410000000,
     -6001969000.0,
     -8195721000.0,
     -5560462000.0,
     -4420520000.0
    ],
-   "group": "Finance costs"
+   "group": "Finance costs",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Revenue from contracts with customers",
    "values": [
+    145958000000,
     128790557000.0,
     124130660000.0,
     109649413000.0,
     109409027000.0
    ],
-   "group": "Revenue"
+   "group": "Revenue",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Revenue",
    "values": [
+    145958000000,
     128790557000.0,
     124130660000.0,
     109649413000.0,
     109409027000.0
    ],
    "group": "Revenue",
-   "isGroupHeader": true
+   "isGroupHeader": true,
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Revenue Total",
    "values": [
+    145958000000,
     128790557000.0,
     124130660000.0,
     109649413000.0,
     109409027000.0
    ],
    "group": "Revenue",
-   "isGroupTotal": true
+   "isGroupTotal": true,
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Administration And Other Expenses",
    "values": [
+    null,
     13113619000.0,
     12203890000.0,
     11116982000.0,
@@ -95,6 +109,7 @@
   {
    "label": "Exchange differences on translation of foreign operations",
    "values": [
+    null,
     515148000.0,
     -3958971000.0,
     4237207000.0,
@@ -105,6 +120,7 @@
   {
    "label": "Finance income",
    "values": [
+    null,
     142545000.0,
     68499000.0,
     75171000.0,
@@ -113,8 +129,9 @@
    "group": "Ungrouped"
   },
   {
-   "label": "Profit before income tax",
+   "label": "Profit Before Taxation",
    "values": [
+    27660000000,
     19312000000,
     16771000000,
     18709000000,
@@ -123,26 +140,28 @@
    "derived": true,
    "derivedFrom": "Net Profit + Income Tax expense",
    "group": "Profit before income tax",
-   "source": "EABL condensed audited results, years ended 30 June 2025 and 30 June 2023 (Kshs millions)",
+   "source": "EABL condensed audited results FY2026: profit before tax KShs 27,660m | https://africanfinancials.com/document/ke-eabl-2026-ab-00/",
    "source_url": "https://eabl.com/~/media/Files/E/eabl/documents/investor/financial-result/2025/eabl-f25-full-year-2025-financial-results-press-release.pdf",
-   "note": "all four columns taken from the issuer's own audited releases; stored values had been total comprehensive income for Net Profit and a partial expense set for EBIT. FY2022 income tax sign corrected to a positive expense."
+   "note": "renamed from 'Profit before income tax' (FIX 2026-10-04): the phrase 'income tax' made bot/statements.py read this profit-before-tax row as the tax line. It now maps to pbt, and tax is read from the Income Tax row."
   },
   {
    "label": "Income Tax",
    "values": [
+    9432000000,
     7114000000,
     5901000000,
     6386000000,
     8442000000
    ],
    "group": "Ungrouped",
-   "source": "EABL condensed audited results, years ended 30 June 2025 and 30 June 2023 (Kshs millions)",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/",
    "source_url": "https://eabl.com/~/media/Files/E/eabl/documents/investor/financial-result/2025/eabl-f25-full-year-2025-financial-results-press-release.pdf",
    "note": "all four columns taken from the issuer's own audited releases; stored values had been total comprehensive income for Net Profit and a partial expense set for EBIT. FY2022 income tax sign corrected to a positive expense."
   },
   {
    "label": "Net impairment on financial assets",
    "values": [
+    null,
     -75283000.0,
     52576000.0,
     387772000.0,
@@ -153,6 +172,7 @@
   {
    "label": "Other expenses",
    "values": [
+    null,
     -4561285000.0,
     -5624633000.0,
     -2439916000.0,
@@ -163,6 +183,7 @@
   {
    "label": "Other Income",
    "values": [
+    null,
     477405000.0,
     448898000.0,
     0.0,
@@ -173,6 +194,7 @@
   {
    "label": "Selling and distribution costs",
    "values": [
+    null,
     -11633930000.0,
     -11422773000.0,
     -10036418000.0,
@@ -183,6 +205,7 @@
   {
    "label": "Ungrouped",
    "values": [
+    null,
     -35362603000.0,
     -38540794000.0,
     -25279388000.0,
@@ -194,6 +217,7 @@
   {
    "label": "Group Total",
    "values": [
+    null,
     -35362603000.0,
     -38540794000.0,
     -25279388000.0,
@@ -205,43 +229,48 @@
   {
    "label": "Total Profit/Loss",
    "values": [
+    18228000000,
     12198000000,
     10870000000,
     12323000000,
     15574000000
    ],
    "isStatementTotal": true,
-   "source": "EABL condensed audited results, years ended 30 June 2025 and 30 June 2023 (Kshs millions)",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/",
    "source_url": "https://eabl.com/~/media/Files/E/eabl/documents/investor/financial-result/2025/eabl-f25-full-year-2025-financial-results-press-release.pdf",
    "note": "all four columns taken from the issuer's own audited releases; stored values had been total comprehensive income for Net Profit and a partial expense set for EBIT. FY2022 income tax sign corrected to a positive expense."
   },
   {
    "label": "Net Profit",
    "values": [
+    18228000000,
     12198000000,
     10870000000,
     12323000000,
     15574000000
    ],
    "aliasOf": "Total Profit/Loss",
-   "source": "EABL condensed audited results, years ended 30 June 2025 and 30 June 2023 (Kshs millions)",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/",
    "source_url": "https://eabl.com/~/media/Files/E/eabl/documents/investor/financial-result/2025/eabl-f25-full-year-2025-financial-results-press-release.pdf",
    "note": "all four columns taken from the issuer's own audited releases; stored values had been total comprehensive income for Net Profit and a partial expense set for EBIT. FY2022 income tax sign corrected to a positive expense."
   },
   {
    "label": "ROE (%)",
    "values": [
-    14.17,
-    14.92,
+    36.01,
+    28.85,
+    29.59,
     38.82,
     58.96
    ],
    "derived": true,
-   "derivedFrom": "Net Profit / Total Equity x 100"
+   "derivedFrom": "Net Profit / Total Equity x 100",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "ROA (%)",
    "values": [
+    13.54,
     9.31,
     8.75,
     9.29,
@@ -253,51 +282,59 @@
   {
    "label": "Net Margin (%)",
    "values": [
+    12.49,
     9.47,
     8.76,
     11.24,
     14.23
    ],
    "derived": true,
-   "derivedFrom": "Net Profit / Revenue x 100"
+   "derivedFrom": "Net Profit / Revenue x 100",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Gross Margin (%)",
    "values": [
+    42.59,
     41.99,
     43.22,
     43.23,
     48.31
    ],
    "derived": true,
-   "derivedFrom": "Gross Profit / Revenue x 100"
+   "derivedFrom": "Gross Profit / Revenue x 100",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Debt to Equity",
    "values": [
-    0.52,
-    0.71,
+    1.66,
+    2.1,
+    2.38,
     3.18,
     3.18
    ],
    "derived": true,
-   "derivedFrom": "Total Liabilities / Total Equity"
+   "derivedFrom": "Total Liabilities / Total Equity",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Profit Before Tax",
    "values": [
+    27660000000,
     19312000000,
     16771000000,
     18709000000,
     24016000000
    ],
-   "source": "EABL condensed audited results, years ended 30 June 2025 and 30 June 2023 (Kshs millions)",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/",
    "source_url": "https://eabl.com/~/media/Files/E/eabl/documents/investor/financial-result/2025/eabl-f25-full-year-2025-financial-results-press-release.pdf",
    "note": "all four columns taken from the issuer's own audited releases; stored values had been total comprehensive income for Net Profit and a partial expense set for EBIT. FY2022 income tax sign corrected to a positive expense."
   },
   {
    "label": "Operating Profit (EBIT)",
    "values": [
+    null,
     24857489000.0,
     null,
     24194000000,
@@ -305,7 +342,7 @@
    ],
    "derived": true,
    "derived_from": "Gross Profit - Operating Expenses",
-   "source": "EABL condensed audited results, years ended 30 June 2025 and 30 June 2023 (Kshs millions)",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/",
    "source_url": "https://eabl.com/~/media/Files/E/eabl/documents/investor/financial-result/2025/eabl-f25-full-year-2025-financial-results-press-release.pdf",
    "note": "all four columns taken from the issuer's own audited releases; stored values had been total comprehensive income for Net Profit and a partial expense set for EBIT. FY2022 income tax sign corrected to a positive expense.",
    "derivedFrom": "Operating Profit (EBIT) = Gross Profit - Operating Expenses",
@@ -314,17 +351,20 @@
   {
    "label": "Operating Margin (%)",
    "values": [
+    null,
     19.3,
     null,
     22.06,
     25.82
    ],
    "derived": true,
-   "derivedFrom": "Operating Profit (EBIT) / Revenue x 100"
+   "derivedFrom": "Operating Profit (EBIT) / Revenue x 100",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/"
   },
   {
    "label": "Operating Expenses",
    "values": [
+    null,
     29220000000,
     null,
     23206000000,
@@ -337,25 +377,27 @@
     "Gross Profit",
     "Operating Profit (EBIT)"
    ],
-   "source": "EABL condensed audited results, years ended 30 June 2025 and 30 June 2023 (Kshs millions)",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/",
    "source_url": "https://eabl.com/~/media/Files/E/eabl/documents/investor/financial-result/2025/eabl-f25-full-year-2025-financial-results-press-release.pdf",
    "note": "all four columns taken from the issuer's own audited releases; stored values had been total comprehensive income for Net Profit and a partial expense set for EBIT. FY2022 income tax sign corrected to a positive expense."
   },
   {
    "label": "EPS",
    "values": [
+    18.99,
     11.97,
     10.3,
     12.47,
     15.0
    ],
-   "source": "EABL audited basic earnings per share, FY2025 11.97, FY2024 10.30, FY2023 12.47",
+   "source": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/",
    "source_url": "https://eabl.com/~/media/Files/E/eabl/documents/investor/financial-result/2025/eabl-f25-full-year-2025-financial-results-press-release.pdf",
    "note": "FY2022 basic EPS not stated in the retrieved release, left blank"
   },
   {
    "label": "Net Finance Costs",
    "values": [
+    null,
     5859424000.0,
     8127222000.0,
     5485291000.0,
@@ -379,5 +421,6 @@
  "cell_sources": [],
  "interim": true,
  "source_url": "https://africanfinancials.com/document/ke-eabl-2026-ab-00/",
- "marketCapSource": "kenyanstocks.com /data/stocks/v1/all (field shares_issued)"
+ "marketCapSource": "kenyanstocks.com /data/stocks/v1/all (field shares_issued)",
+ "fixerA_addedPeriod": "FY2026"
 }
