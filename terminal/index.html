@@ -1262,7 +1262,6 @@ let PANELS = [
   {id:'ratings', label:'RATINGS', url:'features/panels/afri_ratings.html'},
   {id:'reg',     label:'REG',     url:'features/panels/afri_reg.html'},
   {id:'corp',    label:'CORP',    url:'features/panels/afri_corp.html'},
-  {id:'wire',    label:'WIRE',    url:'features/panels/afri_wire.html'},
   {id:'glco',    label:'GLCO',    url:'features/panels/afri_glco.html'},
   {id:'tas',     label:'TAS',     url:'features/panels/afri_tas.html'},
 ];
@@ -1283,6 +1282,15 @@ try{
 // live symbol, or none at all).
 let curSec = '';
 function panelUrl(p, symArg){
+  // 2026-10-04: a panel frame must NEVER be pointed at the terminal itself. When a
+  // panel entry has no file of its own, or its url resolves back to the shell
+  // (index.html, ./, /, an empty or bare path), the iframe renders the whole
+  // terminal inside its own panel - the nested-shell defect. Refuse and hand back a
+  // blank frame: the caller keeps working, nothing nests.
+  if(!p || !p.url) return 'about:blank';
+  const _path = String(p.url).trim().split(/[?#]/)[0].replace(/\\/g, '/');
+  const _file = _path.substring(_path.lastIndexOf('/') + 1);
+  if(!_file || _file.toLowerCase() === 'index.html') return 'about:blank';
   const s = (symArg === undefined) ? curSec : symArg;
   return p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 'ex=' + currentEx
     + (s ? '&sym=' + encodeURIComponent(s) : '') + '&v=' + Date.now();

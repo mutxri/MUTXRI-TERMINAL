@@ -9,18 +9,25 @@
      the error page out of the index without affecting the redirect itself. -->
 <title>MUTXRI TERMINAL</title>
 <script>
-// redirect case-mismatched / old terminal URLs to the canonical terminal,
-// everything else to the landing page.
-var p = location.pathname;
-var lower = p.toLowerCase();
-if (lower.indexOf('/mutxri-terminal') === 0 || lower.indexOf('/terminal') === 0) {
+// Redirect case-mismatched / old terminal ENTRY urls to the canonical terminal, and
+// other shallow unknown urls to the landing page. A DEEP path is a missing FILE,
+// not a moved entry, so it is left as an honest 404. Bouncing a deep path into the
+// terminal made a missing panel frame load the whole terminal inside its own panel
+// (the nested-shell defect), so that redirect is gone.
+var segs = location.pathname.split('/').filter(function(s){ return s.length; })
+                                     .map(function(s){ return s.toLowerCase(); });
+var isTerm = segs.length > 0 && (segs[0] === 'terminal' || segs[0] === 'mutxri-terminal');
+if (isTerm && segs.length <= 1) {
   location.replace('/terminal/');
-} else {
+} else if (isTerm) {
+  /* a missing file under the terminal: stay put, do not nest the shell */
+} else if (segs.length <= 1) {
   location.replace('/');
 }
+/* a deep non-terminal path: leave the 404 in place */
 </script>
 </head>
 <body style="background:#000;color:#33e29a;font-family:monospace;padding:40px">
-MUTXRI TERMINAL — redirecting...
+MUTXRI TERMINAL
 </body>
 </html>
