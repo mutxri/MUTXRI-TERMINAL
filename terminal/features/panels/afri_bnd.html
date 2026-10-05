@@ -4,7 +4,7 @@
   Per-country sovereign yield board: KE, NG, ZA, EG.
 
   IMPORTANT honesty design: this is a CURATED board, not a live feed
-  (no free real-time African sovereign-yield API exists — the spec says
+  (no free real-time sovereign-yield API for these markets exists - the spec says
   so). Every instrument shows its own auction date, and figures past the
   staleness threshold are visually flagged. Never presented as live.
 
@@ -89,7 +89,10 @@
 <script>
 (function () {
   "use strict";
-  var BND_ENDPOINT = "/api/bonds";
+  // The served site is static: /api/bonds does not exist on Pages (it 404s, and
+  // the fetch was pointless before falling back here). Read the published
+  // snapshot the build ships directly, with no doomed API call first.
+  var BND_ENDPOINT = "../../static_data/bonds.json";
 
 
   function $(id){ return document.getElementById(id); }
@@ -126,17 +129,11 @@
 
   function load() {
     $("bndFoot").textContent = "loading…";
-    // The live site is static, so /api/bonds is never reachable there. Try the
-    // endpoint, then the real published snapshot at static_data/bonds.json. If
-    // neither yields data, say so; no sample yields are ever shown.
+    // The served site is static; read the published snapshot directly and say so
+    // if it is missing rather than inventing a yield.
     fetch(BND_ENDPOINT)
       .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-      .then(function (data) { showCurve(data, "curated"); })
-      .catch(function () {
-        return fetch("../../static_data/bonds.json")
-          .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-          .then(function (data) { showCurve(data, "official auction results"); });
-      })
+      .then(function (data) { showCurve(data, "official auction results"); })
       .catch(function () {
         render({ note: "Bond yields unavailable - no live feed and no snapshot on file.", countries: [] });
         $("bndFoot").textContent = "no bond source reachable";

@@ -99,12 +99,13 @@
   .cp-title{font-family:var(--mono);font-weight:700;color:var(--acc);letter-spacing:.04em;}
   .cp-sub{font-size:11px;color:var(--tx3);margin-top:2px;}
   .cp-toolbar{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
-  .cp-types,.cp-ranges{display:flex;gap:4px;}
-  .cp-type,.cp-range{font-family:var(--mono);font-size:10px;color:var(--tx2);background:var(--bg3);
+  .cp-types,.cp-ranges,.cp-basis{display:flex;gap:4px;}
+  .cp-type,.cp-range,.cp-basis-b{font-family:var(--mono);font-size:10px;color:var(--tx2);background:var(--bg3);
     border:1px solid var(--line2);border-radius:2px;padding:4px 10px;cursor:pointer;letter-spacing:.06em;transition:all .12s;}
-  .cp-type.on,.cp-range.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700;}
-  .cp-type:hover,.cp-range:hover{border-color:var(--acc);color:var(--acc);}
-  .cp-type.on:hover,.cp-range.on:hover{color:#00160e;}
+  .cp-type.on,.cp-range.on,.cp-basis-b.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700;}
+  .cp-type:hover,.cp-range:hover,.cp-basis-b:hover{border-color:var(--acc);color:var(--acc);}
+  .cp-type.on:hover,.cp-range.on:hover,.cp-basis-b.on:hover{color:#00160e;}
+  .cp-basis-b.dim{opacity:.35;pointer-events:none;}
   .cp-inds{display:flex;gap:4px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding:8px 18px;margin:0 18px;width:calc(100% - 36px);box-sizing:border-box;}
   .cp-ind{font-family:var(--mono);font-size:9px;color:var(--tx3);background:transparent;border:1px solid var(--line2);border-radius:2px;padding:3px 8px;cursor:pointer;letter-spacing:.05em;transition:all .12s;}
   .cp-ind:hover{border-color:var(--acc);color:var(--acc);}
@@ -177,6 +178,10 @@
         <button class="cp-range" data-rng="1Y" onclick="cpSetRange('1Y')">1Y</button>
         <button class="cp-range" data-rng="10Y" onclick="cpSetRange('10Y')">10Y</button>
         <button class="cp-range" data-rng="ALL" onclick="cpSetRange('ALL')">ALL</button>
+      </div>
+      <div class="cp-basis" id="cpBasisBtns">
+        <button class="cp-basis-b on" data-basis="splits" onclick="cpSetBasis('splits')" title="TradingView's default chart basis">SPLIT</button>
+        <button class="cp-basis-b" data-basis="dividends" onclick="cpSetBasis('dividends')" title="Adjusted for dividends too, which is NOT TradingView's default">+DIV</button>
       </div>
       <div class="cp-stat" id="cpStat">-</div>
     </div>
@@ -527,8 +532,34 @@
 
     // ===== Security chart (candles/line, 1D/1M/1Y/ALL) - reliable in-house
   // renderer using static_data/history (no third-party iframe) =====
-  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpName="", cpTkr="", cpCellPrice=null, cpCellChg=null, cpCellCur="", cpCellVol=null, cpBothDone=false,
+  var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpDivBars=[], cpName="", cpTkr="", cpCellPrice=null, cpCellChg=null, cpCellCur="", cpCellVol=null, cpBothDone=false, cpBasis="", cpBasisMode="splits",
       cpInds={sma20:false,sma50:false,sma200:false,ema20:false,bb:false,vol:false,rsi:false,macd:false};
+  // The archive is drawn exactly as TradingView draws its default chart: split
+  // adjusted, NOT dividend adjusted. Every series file states its own basis
+  // ("splits"), so the status line can name the basis the candles are on rather
+  // than leaving a reader to assume it. A clearly named <key>.div.json sidecar,
+  // when the dividend builder has written one, lets the reader switch to the
+  // dividend-adjusted series - which is NOT the default and is labelled as such.
+  function cpBasisLabel(){
+    if(cpBasisMode === "dividends" && cpDivBars.length) return "split- and dividend-adjusted (NOT TradingView default)";
+    return "split-adjusted, dividends not adjusted (TradingView default)";
+  }
+  function cpActiveDaily(){
+    return (cpBasisMode === "dividends" && cpDivBars.length) ? cpDivBars : cpBarsDaily;
+  }
+  function cpPaintBasisBtns(){
+    var hasDiv = cpDivBars.length > 0;
+    Array.prototype.forEach.call(document.querySelectorAll(".cp-basis-b"), function(b){
+      var isDiv = b.getAttribute("data-basis") === "dividends";
+      if(isDiv && !hasDiv) b.classList.add("dim"); else b.classList.remove("dim");
+      b.classList.toggle("on", b.getAttribute("data-basis") === cpBasisMode);
+    });
+  }
+  function cpSetBasis(mode){
+    cpBasisMode = (mode === "dividends" && cpDivBars.length) ? "dividends" : "splits";
+    cpPaintBasisBtns();
+    cpRender();
+  }
   function openChart(c){
     if(!c) return;
     cpName = c.name || c.ticker || "";
@@ -581,10 +612,15 @@
       }
       return next();
     }
-    cpBarsDaily = []; cpBarsMax = []; cpBothDone = false;
+    cpBarsDaily = []; cpBarsMax = []; cpDivBars = []; cpBothDone = false; cpBasis = ""; cpBasisMode = "splits";
+    cpPaintBasisBtns();
     phFetch("")
-      .then(function(d){ cpBarsDaily = (d && d.bars) || []; cpBothDone = true; cpRender(); })
+      .then(function(d){ cpBarsDaily = (d && d.bars) || []; cpBasis = (d && (d.basis || d.adjusted)) || ""; cpBothDone = true; cpRender(); })
       .catch(function(){ cpBarsDaily = []; cpBothDone = true; cpRender(); });
+    // the clearly named dividend-adjusted sidecar, when one exists
+    phFetch(".div")
+      .then(function(d){ cpDivBars = (d && d.bars) || []; cpPaintBasisBtns(); cpRender(); })
+      .catch(function(){ cpDivBars = []; cpPaintBasisBtns(); });
     phFetch(".max")
       .then(function(d){ cpBarsMax = (d && d.bars) || []; cpRender(); })
       .catch(function(){ cpBarsMax = []; cpRender(); });
@@ -603,7 +639,12 @@
   function cpBarsForRange(){
     // a single real bar still renders as one honest candle (NSE archiver
     // accumulates daily) - never show "no data" for a bar we actually have
-    function oneBar(){ return cpBarsDaily.length ? cpBarsDaily.slice(-1) : (cpBarsMax.length ? cpBarsMax.slice(-1) : []); }
+    var D = cpActiveDaily();
+    // Never fall back to the monthly series while the DIVIDEND basis is selected:
+    // the monthly file is the SPLITS series, and mixing two bases on one chart is
+    // exactly what this work exists to prevent.
+    var FALLBACK = (cpBasisMode === "dividends") ? [] : cpBarsMax;
+    function oneBar(){ return D.length ? D.slice(-1) : (FALLBACK.length ? FALLBACK.slice(-1) : []); }
     // 10Y and ALL must read the DAILY series, never the monthly .max aggregate. Reading
     // the monthly file made long ranges show FEWER, coarser bars than a shorter one (120
     // monthly at 10Y vs 260 daily at 1Y), left 10Y and ALL byte-identical on any history
@@ -611,10 +652,10 @@
     // summary instead of every candle since the first bar. The monthly file is now only
     // a fallback for a security that has no daily series at all.
     function pick(dailyN, maxN){
-      var d = cpBarsDaily.slice(-dailyN);
-      return d.length >= 1 ? d : cpBarsMax.slice(-maxN);
+      var d = D.slice(-dailyN);
+      return d.length >= 1 ? d : FALLBACK.slice(-maxN);
     }
-    if(cpRange === "ALL") return cpBarsDaily.length >= 1 ? cpBarsDaily : cpBarsMax;
+    if(cpRange === "ALL") return D.length >= 1 ? D : FALLBACK;
     if(cpRange === "10Y") return pick(2600, 120);
     if(cpRange === "1Y") return pick(260, 12);
     if(cpRange === "6M") return pick(130, 6);
@@ -846,6 +887,7 @@
     function ym(t){ if(t == null) return ""; if(typeof t === "number"){ var d = new Date(t * 1000); return d.getUTCFullYear() + "-" + String(d.getUTCMonth()+1).padStart(2,"0"); } return String(t).slice(0,7); }
     var statText = bars.length + " bars · " + sign + pct.toFixed(2) + "% · " + (cpRange === "ALL" ? ("since " + ym(bars[0].t)) : cpRange);
     if(legendParts.length) statText += "  |  " + legendParts.join(" · ");
+    statText += "  |  basis: " + cpBasisLabel();
     $("cpStat").textContent = statText;
     var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(function(){ try{ if(cpChart) cpChart.applyOptions({width: Math.max(box.clientWidth||800,200)}); }catch(e){} }, 150); });
   }
@@ -857,6 +899,7 @@
   window.closeChartPanel = closeChartPanel;
   window.cpSetType = cpSetType;
   window.cpSetRange = cpSetRange;
+  window.cpSetBasis = cpSetBasis;
   window.cpRender = cpRender;
   window.cpToggleInd = cpToggleInd;
   window.cpResetZoom = cpResetZoom;

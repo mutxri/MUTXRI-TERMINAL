@@ -136,6 +136,36 @@
     return s;
   })();
 
+  // ---- display labels: never show an internal key to a reader -------------
+  // The EGX statement files are keyed by the ISIN (EGS60121C018.CA), which is
+  // the right KEY for the lookup but the wrong LABEL: the header printed the
+  // ISIN where the ticker (COMI) belongs. listing_<EX>.json carries both the
+  // key forms and the ticker + company name, so resolve a display ticker and
+  // name for the key while the key itself stays internal to every fetch.
+  var LABELS = null;   // upper-cased key form -> {ticker, name}
+  function loadLabels(){
+    if (LABELS) return Promise.resolve(LABELS);
+    var ex = state.ex || "NSE";
+    return fetch("../../static_data/listing_" + encodeURIComponent(ex) + ".json").then(function(r){
+      if(!r.ok) throw 0; return r.json();
+    }).then(function(d){
+      var m = {};
+      (d.stocks || []).forEach(function(s){
+        var tkr = s.ticker || s.short || s.code || (s.sym || "").split(".")[0];
+        var nm = s.name || "";
+        [s.sym, s.ticker, s.code, s.short, s.short_sym, s.data_sym, s.display_sym].forEach(function(k){
+          if(k) m[String(k).toUpperCase()] = {ticker: tkr, name: nm};
+        });
+      });
+      LABELS = m; return m;
+    }).catch(function(){ LABELS = {}; return LABELS; });
+  }
+  function labelFor(t){
+    if(!LABELS) return null;
+    var u = String(t || "").toUpperCase();
+    return LABELS[u] || LABELS[u.split(".")[0]] || null;
+  }
+
   // ---- VERIFIED REAL FILINGS (links only, no fabricated numbers) ----------
   // Each URL was confirmed against the issuer's own domain. This panel shows
   // NO made-up financial statements: statement values render as dashes until a
@@ -249,8 +279,13 @@
     var body=document.getElementById("body");
     var cur=rec&&rec.currency?rec.currency:null;
     document.getElementById("curBadge").textContent=cur||DASH;
-    document.getElementById("coName").textContent=(rec&&rec.name)||"";
-    document.getElementById("tkr").textContent=state.ticker;
+    // The key (an EGX ISIN) stays internal; the reader sees the ticker and the
+    // company name. Fall back to the key only when nothing resolves it.
+    var lab=labelFor(state.ticker);
+    var dispTicker=(lab&&lab.ticker)?lab.ticker:state.ticker;
+    var dispName=(rec&&rec.name)||(lab&&lab.name)||"";
+    document.getElementById("coName").textContent=dispName;
+    document.getElementById("tkr").textContent=dispTicker;
 
 
     var sch=SCHEMA[state.statement];
@@ -280,7 +315,7 @@
         }
       });
     }
-    var h='<table><thead><tr><th>'+STMT_TITLE()+'</th>';
+    var h='<table><thead><tr><th>'+STMT_TITLE()+(dispTicker?(' &middot; '+esc(dispTicker)):'')+(dispName?(' &middot; '+esc(dispName)):'')+'</th>';
     for(var i=0;i<per.length;i++)h+='<th>'+esc(per[i])+'</th>';
     h+='</tr></thead><tbody>';
     var anyDerived=false;
@@ -338,7 +373,15 @@
     var n = Number(v);
     if(unit === '%') return n.toFixed(2) + '%';
     if(unit === 'x') return n.toFixed(2) + 'x';
-    return n.toFixed(2);
+    // A statement figure arrives in whole units (a net profit of 61634295000),
+    // which printed raw. Give it a readable scale so the analysis block reads
+    // like the statement above it.
+    var a = Math.abs(n), s = n < 0 ? '-' : '', suf = unit ? ' ' + unit : '';
+    if(a >= 1e12) return s + (a/1e12).toFixed(2) + 'T' + suf;
+    if(a >= 1e9)  return s + (a/1e9).toFixed(2) + 'B' + suf;
+    if(a >= 1e6)  return s + (a/1e6).toFixed(2) + 'M' + suf;
+    if(a >= 1e3)  return s + Math.round(a).toLocaleString('en-US') + suf;
+    return n.toFixed(2) + suf;
   }
 
   function renderAnalysis(a){
@@ -424,6 +467,9 @@
   function load(){
     // no ticker selected yet - wait for loadSecurities to pick the first
     if(!state.ticker) return;
+    // Resolve the display ticker/name (an EGX ISIN is the KEY, not the label)
+    // before the first render, so the header never shows the key to a reader.
+    if(!LABELS){ loadLabels().then(function(){ load(); }); return; }
     // try the static Yahoo-financials file first (works on GitHub Pages),
     // then the real endpoint; offline, show verified filing links + dash
     // scaffold (NEVER fabricated statement numbers)
@@ -501,9 +547,15 @@
       SECS = Object.keys(seen).sort().map(function(k){ return seen[k]; });
       var dl = document.getElementById("secList");
       if(dl){
-        dl.innerHTML = SECS.map(function(s){
-          return '<option value="' + s.t + '">' + s.t + " · " + s.n.replace(/"/g, "") + '</option>';
-        }).join("");
+        // The option VALUE stays the internal key (the statement file is named
+        // for it); the option TEXT shows the ticker the reader knows.
+        loadLabels().then(function(){
+          dl.innerHTML = SECS.map(function(s){
+            var lab = labelFor(s.t);
+            var tkr = (lab && lab.ticker) ? lab.ticker : s.t;
+            return '<option value="' + s.t + '">' + tkr + " · " + s.n.replace(/"/g, "") + '</option>';
+          }).join("");
+        }).catch(function(){});
       }
       var exLbl = document.getElementById("exLabel");
       if(exLbl) exLbl.textContent = state.ex + " · " + SECS.length + " securities";

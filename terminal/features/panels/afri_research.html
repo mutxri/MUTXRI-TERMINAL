@@ -132,7 +132,32 @@
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
   function num(v){ return v === null || v === undefined || v === "" || isNaN(v) ? null : Number(v); }
-  function f2(v, suf){ return v === null ? "not available" : (Math.round(v * 100) / 100) + (suf || ""); }
+  // A price and every money amount are formatted for a reader, never printed as
+  // the raw double the JSON carries. Yahoo leaves float noise on EGX prices
+  // (85.5090054, 126.98999786376953) and a statement figure arrives in whole
+  // units (61634295000); both read as broken on screen.
+  function money(a){
+    var s = a < 0 ? "-" : "", x = Math.abs(a);
+    if (x >= 1e12) return s + (x / 1e12).toFixed(2) + "T";
+    if (x >= 1e9) return s + (x / 1e9).toFixed(2) + "B";
+    if (x >= 1e6) return s + (x / 1e6).toFixed(2) + "M";
+    if (x >= 1e3) return s + Math.round(x).toLocaleString("en-US");
+    return s + (Math.round(x * 100) / 100).toLocaleString("en-US", {maximumFractionDigits: 2});
+  }
+  function fmtPx(x){
+    if (x === null || x === undefined || isNaN(x)) return null;
+    return Number(x).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  // f2 formats one figure for display. A unit of % or x is a percentage or a
+  // multiple; a large plain or money value gets a readable scale and thousands
+  // separators; a small one keeps two decimals.
+  function f2(v, unit){
+    if (v === null || v === undefined || isNaN(v)) return "not available";
+    var n = Number(v), u = unit || "";
+    if (u === "%" || u === "x") return (Math.round(n * 100) / 100) + u;
+    if (Math.abs(n) >= 1000) return money(n) + (u ? " " + u : "");
+    return (Math.round(n * 100) / 100) + (u ? " " + u : "");
+  }
   function keyFor(ex, sym){
     var s = String(sym);
     if (ex === "NSE" || ex === "NGX") return ex + "_" + s.split(".")[0];
@@ -273,7 +298,9 @@
   function rng(a, b){
     var x = num(a), y = num(b);
     if (x === null || y === null) return null;
-    return Math.min(x, y) + " - " + Math.max(x, y);
+    // prices to a 2-decimal tick, sorted low-high: the raw stored doubles
+    // (126.98999786376953 - 128.8000030517578) read as broken.
+    return fmtPx(Math.min(x, y)) + " - " + fmtPx(Math.max(x, y));
   }
   function statTable(pairs){
     return '<table class="rs-stats">' + pairs.map(function(p){
@@ -309,9 +336,19 @@
     get(base + "analytics/" + analyticsKeys(SYM)[0] + ".json")
       .catch(function(){ return get(base + "analytics/" + analyticsKeys(SYM)[1] + ".json"); })
       .catch(function(){ return null; }),
-    marketP.then(function(mkt){ return getHist(EX, SYM, mkt, ""); })
+    marketP.then(function(mkt){ return getHist(EX, SYM, mkt, ""); }),
+    // Key statistics fall back to the tree's own sources when the market row
+    // does not carry a field: the NSE live board writes a lean row (no cap, no
+    // share count, no 52-week range, no listing date, no instrument), and no
+    // exchange's market file carries the fiscal year end at all. The data
+    // exists in shares_outstanding.json, company_info.json and
+    // listing_<EX>.json, so resolve it there rather than print a column of
+    // dashes. A field that genuinely does not exist stays a single dash.
+    get(base + "shares_outstanding.json").catch(function(){ return null; }),
+    get(base + "company_info.json").catch(function(){ return null; }),
+    get(base + "listing_" + EX + ".json").catch(function(){ return null; })
   ]).then(function(res){
-    var mkt = res[0], an = res[1], hist = res[2];
+    var mkt = res[0], an = res[1], hist = res[2], SHARES = res[3], CINFO = res[4], LISTING = res[5];
 
     if (mkt && mkt.stocks){
       // Not every exchange keys a security the same way. EGX carries the bare
@@ -332,7 +369,7 @@
     if (stock){
       document.getElementById("rsName").textContent = stock.name || "";
       var px = num(stock.price), ch = num(stock.chgPct);
-      document.getElementById("rsPx").textContent = px === null ? "--" : (px + " " + (stock.currency || ""));
+      document.getElementById("rsPx").textContent = px === null ? "--" : (fmtPx(px) + " " + (stock.currency || ""));
       var ce = document.getElementById("rsChg");
       if (ch !== null){ ce.textContent = (ch > 0 ? "+" : "") + ch.toFixed(2) + "%"; ce.className = "rs-chg " + (ch >= 0 ? "up" : "down"); }
       document.getElementById("rsMeta").innerHTML =
@@ -340,18 +377,60 @@
         (stock.asOf ? "<br>as of " + esc(stock.asOf) : "");
       document.getElementById("rsAsOf").textContent = stock.asOf ? ("as of " + stock.asOf) : "";
 
+      // ---- key statistics, resolved from every source in the tree ----------
+      // The market row is tried first; where it is silent, shares come from
+      // shares_outstanding.json, the listing from listing_<EX>.json, the
+      // fiscal year end and listing date from company_info.json, and the
+      // 52-week range from the price history already loaded for the chart.
+      var _bare2 = String(SYM).split(".")[0];
+      var _sfx = EX === "JSE" ? ".JO" : (EX === "EGX" ? ".CA" : "");
+      var KEYS = [SYM, _bare2, _bare2 + _sfx, EX + "_" + _bare2];
+      function pick(o, ks){
+        if (!o) return null;
+        for (var i = 0; i < ks.length; i++){ if (ks[i] && o[ks[i]] != null) return o[ks[i]]; }
+        return null;
+      }
+      var listRec = null;
+      if (LISTING && LISTING.stocks){
+        var _g = String(SYM).toUpperCase(), _b = _bare2.toUpperCase();
+        for (var _li = 0; _li < LISTING.stocks.length; _li++){
+          var _s2 = LISTING.stocks[_li];
+          var _sn = String(_s2.sym || "").toUpperCase(), _tn = String(_s2.ticker || "").toUpperCase();
+          if (_sn === _g || _tn === _g || _sn.split(".")[0] === _b || _tn.split(".")[0] === _b){ listRec = _s2; break; }
+        }
+      }
+      var ciRec = pick(CINFO, KEYS) ||
+                  pick(CINFO, [EX + ":" + _bare2.toLowerCase(), EX.toLowerCase() + "_" + _bare2.toLowerCase()]);
+      var shRec = pick(SHARES, KEYS);
+      var sharesFile = null;
+      if (shRec != null){
+        var _sv = (typeof shRec === "object")
+          ? (shRec.shares || shRec.shares_outstanding || shRec.sharesOutstanding || shRec.value)
+          : shRec;
+        sharesFile = num(_sv);
+      }
       var shares = num(stock.sharesIssued);
+      if (shares === null) shares = sharesFile;
+      var cap = stock.marketCap || null;
+      if (!cap && shares !== null && num(stock.price) !== null) cap = money(num(stock.price) * shares);
+      var r52 = rng(stock.w52Low, stock.w52High) || stock.range52w || null;
+      if (!r52 && hist && hist.bars && hist.bars.length){
+        var _bs = hist.bars.slice(-260), _hs = [], _ls = [];
+        _bs.forEach(function(b){
+          if (num(b.h) !== null) _hs.push(num(b.h));
+          if (num(b.l) !== null) _ls.push(num(b.l));
+        });
+        if (_hs.length && _ls.length) r52 = rng(Math.min.apply(null, _ls), Math.max.apply(null, _hs));
+      }
       document.getElementById("rsStats").innerHTML = statTable([
-        ["Market cap", stock.marketCap || null],
+        ["Market cap", cap],
         ["Shares issued", shares === null ? null : shares.toLocaleString("en-US")],
-        // sorted low-high: the market file does not guarantee the order, and
-        // "78227 - 75428" reads as broken to anyone looking at it
-        ["52 week range", rng(stock.w52Low, stock.w52High) || stock.range52w || null],
+        ["52 week range", r52],
         ["Day range", rng(stock.low, stock.high)],
-        ["Previous close", stock.prevClose !== undefined ? stock.prevClose : null],
-        ["Year end", stock.yearEnd || null],
-        ["Listed", stock.ipo || null],
-        ["Instrument", stock.instrument || null]
+        ["Previous close", num(stock.prevClose) !== null ? fmtPx(stock.prevClose) : null],
+        ["Year end", stock.yearEnd || (ciRec && ciRec.year_end) || null],
+        ["Listed", stock.ipo || (ciRec && ciRec.listed) || null],
+        ["Instrument", stock.instrument || (listRec && listRec.instrument) || null]
       ]);
     } else {
       document.getElementById("rsName").textContent = "(not in the " + EX + " market file)";
@@ -423,7 +502,7 @@
 
       var rs = an.ratios || [];
       document.getElementById("rsRatios").innerHTML = bars(rs.map(function(r){
-        return {label: r.label || r.key, value: num(r.value), suffix: (r.unit === "%" ? "%" : "")};
+        return {label: r.label || r.key, value: num(r.value), suffix: (r.unit || "")};
       }), {empty: "No ratios for this security.", foot: an.period ? ("Statement period " + an.period + (an.currency ? ", " + an.currency : "")) : ""});
 
       var fl = an.flags || [];

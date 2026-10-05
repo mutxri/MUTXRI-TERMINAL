@@ -328,6 +328,7 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 #wlChart .wc-close:hover{color:#ff5f56;}
 #wlChart .wc-body{height:380px;}
 #wlChart .wc-load{color:var(--tx3);font-size:12px;padding:24px;text-align:center;}
+#wlChart .wc-basis{color:var(--tx3);font-size:10px;letter-spacing:.06em;padding:8px 16px;border-top:1px solid var(--line);}
 /* auth gate (sign in required) */
 .auth-gate-holder #authGate, #authGate{position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;font-family:var(--mono);padding:16px;box-sizing:border-box;overflow-y:auto;}
 #authGate .gate-card{width:340px;max-width:calc(100vw - 32px);border:1px solid var(--line2);border-radius:8px;padding:28px;background:var(--bg2);box-shadow:0 24px 80px rgba(0,0,0,.6);}
@@ -622,6 +623,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
       <button class="wc-close" onclick="wcClose()">&times;</button>
     </div>
     <div class="wc-body" id="wcBody"><div class="wc-load">Loading history…</div></div>
+    <div class="wc-basis" id="wcBasis"></div>
   </div>
 </div>
 <script>
@@ -1235,6 +1237,18 @@ function clockTZ(){
 }
 setInterval(clockTZ, 1000);
 clockTZ();
+
+// Some feeds print a 24-hour clock AND a meridiem ("NSE 05/10/2026 14:11 PM
+// GMT+3 (open)"). A 24-hour value must carry no meridiem, so drop a stray AM/PM
+// when the hour is 13-23 (or 00). A genuine 12-hour value ("02:11 PM") passes
+// through untouched. Applied where the market rail's DATA AS OF text is set.
+function fixMeridiem(s){
+  return String(s == null ? '' : s).replace(/(\d{1,2}):(\d{2})\s*(AM|PM)\b/gi, function(all, h, m, p){
+    var hh = parseInt(h, 10);
+    if(hh === 0 || hh >= 13) return h + ':' + m;
+    return all;
+  });
+}
 
 // ===== Tabs (Claude's panels, untouched, embedded) =====
 let PANELS = [
@@ -2099,7 +2113,7 @@ async function loadListing(ex){
         const mr = await fetch('static_data/market_' + ex + '.json?t=' + Math.floor(Date.now() / 900000));
         const md = await mr.json();
         window.__MKASOF = window.__MKASOF || {};
-        window.__MKASOF[ex] = md.asOf || md.generated || '';
+        window.__MKASOF[ex] = fixMeridiem(md.asOf || md.generated || '');
         const byTkr = {};
         (md.stocks || []).forEach(s => { byTkr[s.ticker || s.sym] = s; });
         listing[ex] = listing[ex].map(s => {
@@ -2150,7 +2164,10 @@ function renderWatchlist(filter){
     const cur = s.currency || (q.currency || '');
     const pr = price != null ? Number(price).toLocaleString(undefined,{maximumFractionDigits:2}) : '-';
     const cls = chg === null || chg === undefined ? '' : (chg >= 0 ? 'up' : 'down');
-    const sign = chg === null || chg === undefined ? '' : TickerFix.fmtPct(chg);
+    // A null change means no prior close exists to compute one from (a security
+    // with a single session). Rendering it as an empty cell reads as a defect;
+    // "n/a" states the truth.
+    const sign = chg === null || chg === undefined ? 'n/a' : TickerFix.fmtPct(chg);
     const sym = stockTicker(s);
     const volTxt = vol != null ? (Number(String(vol).replace(/,/g,'')).toLocaleString() || String(vol)) : '';
     // logo: official domain -> favicon service (or direct image URL); monogram fallback (no broken images)
@@ -2192,7 +2209,7 @@ async function primeQuotes(ex){
       const r = await fetch('static_data/market_' + ex + '.json');
       const d = await r.json();
       window.__MKASOF = window.__MKASOF || {};
-      window.__MKASOF[ex] = d.asOf || d.generated || '';
+      window.__MKASOF[ex] = fixMeridiem(d.asOf || d.generated || '');
       (d.stocks || []).forEach(s => {
         quotes[s.sym] = { price: s.price, changePct: s.chgPct, volume: s.volume, currency: s.currency };
         if(s.ticker) quotes[s.ticker] = quotes[s.sym];
@@ -2348,7 +2365,10 @@ function buildTapeFromListing(ex){
       const sign = e.changePct >= 0 ? '+' : '';
       const pct = e.changePct != null ? TickerFix.fmtPct(e.changePct) : '-';
       const price = e.price != null ? e.price.toLocaleString(undefined,{maximumFractionDigits:2}) : '';
-      const tag = e.kind === 'basket' ? ' (basket)' : '';
+      // the index label may already name the basket (indices.json carries
+      // "NSE (basket)"), so only add the tag when the label does not - otherwise
+      // the rail reads "NSE (basket) (basket)".
+      const tag = (e.kind === 'basket' && !/\(basket\)/i.test(e.label || '')) ? ' (basket)' : '';
       return `<span class="tape-item" style="color:var(--tx2)"><b style="color:var(--acc)">${esc(e.label)}${esc(tag)}</b> <span style="color:#fff">${esc(price)}</span> <span class="${cls}">${esc(pct)}</span></span>`;
     }).join('');
     $('tape').innerHTML = ix + (items + items);
@@ -2787,7 +2807,7 @@ function renderMarketStatic(rec, info){
   const cls = chg === null || chg === undefined ? '' : (chg >= 0 ? 'up' : 'down');
   const sign = chg === null || chg === undefined ? '' : (chg >= 0 ? '+' : '');
   const px = rec.price != null ? Number(rec.price).toLocaleString(undefined,{maximumFractionDigits:2}) : '-';
-  const chgTxt = chg === null || chg === undefined ? '' : sign + Number(chg).toFixed(2) + '%';
+  const chgTxt = chg === null || chg === undefined ? 'n/a' : sign + Number(chg).toFixed(2) + '%';
   const vol = rec.volume != null ? Number(String(rec.volume).replace(/,/g,'')).toLocaleString() : '-';
   const i = info || {};
   const dash = '-';
@@ -3037,8 +3057,42 @@ function wcSetType(t){
     __wcChart.timeScale().fitContent();
   }catch(e){}
 }
+function wcBasis(d){
+  // Name the adjustment basis the series is drawn on, from the file's own label.
+  // The archive is split-adjusted and NOT dividend-adjusted, which is exactly
+  // TradingView's default chart, so a reader comparing the two sees the same
+  // picture and can never mistake this for a dividend-adjusted series.
+  const el = $('wcBasis'); if(!el) return;
+  const b = (d && (d.basis || d.adjusted)) || '';
+  let txt = '';
+  if(b === 'splits') txt = 'basis: split-adjusted, dividends NOT adjusted (TradingView default)';
+  else if(b === 'dividends' || b === 'splits+dividends') txt = 'basis: split- and dividend-adjusted';
+  else if(b) txt = 'basis: ' + b;
+  el.textContent = txt;
+  el.style.display = txt ? 'block' : 'none';
+}
 function wcClose(){ const m = $('wlChart'); if(m) m.style.display = 'none'; }
+// A person may type a security any of three ways: the ticker (COMI, SOL), the
+// ticker plus market suffix (COMI.CA, SOL.JO), or the market row's own `sym`
+// (the EGX puts the ISIN in `sym`, e.g. EGS60121C018.CA). Only ONE of them names
+// the history file on disk, and that is the market row's `sym`, so resolve any
+// spelling onto it before a lookup. Falls back to the input when the listing is
+// not loaded yet or nothing matches, so a genuinely unknown symbol still shows
+// the honest no-data state rather than another security's series.
+function resolveSym(sym){
+  var q = String(sym == null ? '' : sym).trim().toUpperCase();
+  if(!q) return sym;
+  var rows = (listing && listing[currentEx]) || [];
+  function base(s){ return String(s || '').toUpperCase().split('.')[0]; }
+  var qb = base(q);
+  var hit = rows.find(function(r){ return String(r.sym || '').toUpperCase() === q; })
+         || rows.find(function(r){ return String(r.ticker || '').toUpperCase() === q; })
+         || rows.find(function(r){ return base(r.sym) === qb || base(r.ticker) === qb; })
+         || rows.find(function(r){ return String(r.name || '').toUpperCase() === q; });
+  return (hit && (hit.sym || hit.ticker)) ? (hit.sym || hit.ticker) : sym;
+}
 function openChartModal(sym){
+  sym = resolveSym(sym);
   const m = $('wlChart'); if(!m) return;
   const ttl = $('wcTitle'); if(ttl) ttl.textContent = sym;
   m.style.display = 'flex';
@@ -3049,16 +3103,20 @@ function openChartModal(sym){
   }catch(e){}
   fetch('static_data/history/' + encodeURIComponent(histBase) + '.json')
     .then(r => r.ok ? r.json() : Promise.reject())
-    .then(d => wcRender((d && d.bars) || []))
+    .then(d => { wcBasis(d); wcRender((d && d.bars) || []); })
     .catch(() => fetch('static_data/history/' + encodeURIComponent(histBase) + '.max.json')
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => wcRender((d && d.bars) || []))
-      .catch(() => wcRender(null)));
+      .then(d => { wcBasis(d); wcRender((d && d.bars) || []); })
+      .catch(() => { wcBasis(null); wcRender(null); }));
 }
 
 let __activePanelIdx = -1;
 function openStock(sym){
   if(!sym) return;
+  // Resolve the typed spelling onto the market row's own `sym` FIRST: the info
+  // lookup, the history lookup and every panel window then follow one canonical
+  // symbol, so COMI, COMI.CA and EGS60121C018.CA all land on the same series.
+  sym = resolveSym(sym);
   // the typed symbol is shared state: every open panel window is re-pointed to
   // it here, before the mt_tickerClick preference is consulted, because that
   // setting governs the MARKET rail, not which security the panels follow

@@ -57,7 +57,7 @@
 <div class="tas-wrap" id="tas">
   <div class="tas-head">
     <div class="tas-title"><b>TAS</b> · Time &amp; Sales</div>
-    <span class="tas-sym" id="tasSym">COMI.CA</span>
+    <span class="tas-sym" id="tasSym"></span>
   </div>
   <div class="tas-cols"><span>Time</span><span>Price</span><span>Volume</span><span>Cum Vol</span></div>
   <div class="tas-feed" id="tasFeed"></div>
@@ -69,56 +69,54 @@
 (function () {
   window.STATIC_MODE = true;
   "use strict";
+  var Q = new URLSearchParams(location.search);
+  var EX = (Q.get("ex") || "").toUpperCase();
+  var REQ = (Q.get("sym") || Q.get("symbol") || "").toUpperCase();
   var TAS_ENDPOINT = "../../static_data/tas.json";
-
-  // Sample bar-derived tape; delete once /api/tas is live.
-  var SAMPLE = {
-    symbol: "COMI.CA", available: true,
-    source: "",
-    prints: [
-      { t:"11:32", price:52.80, volume:12000, cumVolume:184000, tick:"up" },
-      { t:"11:31", price:52.74, volume:8600,  cumVolume:172000, tick:"down" },
-      { t:"11:30", price:52.79, volume:15400, cumVolume:163400, tick:"up" },
-      { t:"11:29", price:52.71, volume:9200,  cumVolume:148000, tick:"flat" },
-      { t:"11:28", price:52.71, volume:11100, cumVolume:138800, tick:"up" },
-      { t:"11:27", price:52.63, volume:7400,  cumVolume:127700, tick:"down" }
-    ]
-  };
 
   function $(id){ return document.getElementById(id); }
   function fmt(v, dp){ return v == null ? '<span class="muted">—</span>' : Number(v).toLocaleString(undefined,{minimumFractionDigits:dp,maximumFractionDigits:dp}); }
 
+  // The free sources MUTXRI reads are end-of-day: there is no intraday trade
+  // tape for any of the four boards. State that honestly, NAME the selected
+  // exchange, and never show a fixed ticker (the old build printed "SOL.JO"
+  // whatever market was selected) or invent prints. A security label appears
+  // only when the snapshot really carries that security's own prints.
   function render(data) {
-    $("tasSym").textContent = data.symbol || "";
-    if (!data.available) {
-      $("tasFeed").innerHTML = "";
-      $("tasEmpty").style.display = "block";
-      $("tasEmpty").textContent = data.reason || "No tape available.";
-      $("tasFoot").textContent = data.source || "—";
+    var sec = data && data.symbol ? String(data.symbol) : "";
+    var avail = !!(data && data.available && (data.prints || []).length);
+    if (avail && REQ && sec.toUpperCase() !== REQ) avail = false;
+    if (avail) {
+      $("tasSym").textContent = sec || REQ;
+      $("tasEmpty").style.display = "none";
+      $("tasFeed").innerHTML = (data.prints || []).map(function (r) {
+        var cls = r.tick === "up" ? "up" : r.tick === "down" ? "down" : "flat";
+        return '<div class="tas-row">' +
+          '<span class="t">' + (r.t || "—") + "</span>" +
+          '<span class="p ' + cls + '">' + fmt(r.price, 2) + "</span>" +
+          "<span>" + fmt(r.volume, 0) + "</span>" +
+          "<span>" + fmt(r.cumVolume, 0) + "</span>" +
+        "</div>";
+      }).join("");
+      $("tasFoot").textContent = data.source || "";
       return;
     }
-    $("tasEmpty").style.display = "none";
-    $("tasFeed").innerHTML = (data.prints || []).map(function (r) {
-      var cls = r.tick === "up" ? "up" : r.tick === "down" ? "down" : "flat";
-      return '<div class="tas-row">' +
-        '<span class="t">' + (r.t || "—") + "</span>" +
-        '<span class="p ' + cls + '">' + fmt(r.price, 2) + "</span>" +
-        "<span>" + fmt(r.volume, 0) + "</span>" +
-        "<span>" + fmt(r.cumVolume, 0) + "</span>" +
-      "</div>";
-    }).join("");
-    $("tasFoot").textContent = data.source || "live";
+    $("tasFeed").innerHTML = "";
+    $("tasSym").textContent = EX || "";
+    $("tasEmpty").style.display = "block";
+    $("tasEmpty").textContent = "No intraday trade tape" + (EX ? " for " + EX : "") +
+      ". The free sources this terminal reads are end-of-day, so nothing is shown here rather than a fabricated tape.";
+    $("tasFoot").textContent = (data && data.reason) || "";
   }
 
   function load(symbol) {
-    var url = TAS_ENDPOINT + (symbol ? "?symbol=" + encodeURIComponent(symbol) : "");
-    fetch(url)
-      .then(function (r) { if (!r.ok) throw new Error("no endpoint"); return r.json(); })
+    if (symbol) REQ = String(symbol).toUpperCase();
+    // Static origin: read the published snapshot directly (there is no /api/tas
+    // here, so calling it first would only 404). Never fall back to sample prints.
+    fetch(TAS_ENDPOINT)
+      .then(function (r) { if (!r.ok) throw new Error("no snapshot"); return r.json(); })
       .then(render)
-      .catch(function () {
-        render(SAMPLE);
-        $("tasFoot").textContent = "SAMPLE DATA (server /api/tas not reachable)";
-      });
+      .catch(function () { render(null); });
   }
 
   window.showTas = function (symbol) {

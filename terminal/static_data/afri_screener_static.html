@@ -91,7 +91,7 @@
   "use strict";
   window.STATIC_MODE = true;
   var ENDPOINT="../../static_data/screener", LS="afri_screener_filters";
-  var state={sort:"chgPct",dir:"desc",rows:[],ex:"JSE",dataErr:false};
+  var state={sort:"chgPct",dir:"desc",rows:[],ex:"JSE",dataErr:false,hasDiv:null};
   // honor ?ex= deep-link from the terminal (landing exchange dropdown)
   try{
     var _pex=(new URLSearchParams(location.search).get("ex")||"").toUpperCase();
@@ -134,7 +134,13 @@
   function head(){
     $("hrow").innerHTML=COLS.map(function(c){
       var ar=state.sort===c.k?' <span class="ar">'+(state.dir==="desc"?"\u25be":"\u25b4")+"</span>":"";
-      return '<th data-k="'+c.k+'">'+c.l+ar+"</th>";
+      // When no row in the snapshot carries a dividend yield, the column says so
+      // ONCE (in the header) instead of printing a dash on every row: a wall of
+      // dashes reads as broken data, a single "not on file" is the honest state.
+      var noDiv = (c.k==="divYield" && state.hasDiv===false);
+      var lab = noDiv ? "Div% (n/a)" : c.l;
+      var tip = noDiv ? ' title="No dividend yield is on file for any '+esc(state.ex)+' security."' : "";
+      return '<th data-k="'+c.k+'"'+tip+'>'+lab+ar+"</th>";
     }).join("");
     Array.prototype.forEach.call($("hrow").querySelectorAll("th"),function(th){
       th.onclick=function(){var k=th.getAttribute("data-k");if(state.sort===k)state.dir=state.dir==="desc"?"asc":"desc";else{state.sort=k;state.dir="desc";}head();body();};
@@ -158,10 +164,16 @@
         '<td class="num">'+fmt(r.price,2)+"</td>"+
         '<td class="num '+cc+'">'+ct+"</td>"+
         '<td class="num">'+(r.volume==null?'<span class="muted">-</span>':fmt(r.volume,0))+"</td>"+
-        '<td class="num">'+(r.divYield==null?'<span class="muted">-</span>':Number(r.divYield).toFixed(2))+"</td>"+
+        '<td class="num">'+(state.hasDiv===false?"":(r.divYield==null?'<span class="muted">-</span>':Number(r.divYield).toFixed(2)))+"</td>"+
         "<td>"+feed+"</td></tr>";
     }).join("");
     $("cnt").textContent=rows.length+(rows.length===1?" match":" matches");
+    // Say the empty dividend column ONCE in the footer, not once per row.
+    if(!state.dataErr){
+      $("src").textContent = (state.hasDiv===false)
+        ? ("Dividend yield: not on file for "+state.ex+" (no dividend feed is wired to this screener).")
+        : (window.STATIC_MODE?"":"source: /api/screener");
+    }
   }
   function sectors(rows){
     var set={};rows.forEach(function(s){if(s.sector)set[s.sector]=true;});
@@ -181,7 +193,7 @@
   function run(){
     var f=readFilters();save(f);
     fetch((window.STATIC_MODE ? ENDPOINT+"_"+state.ex+".json" : ENDPOINT+"?"+q(f))).then(function(r){if(!r.ok)throw 0;return r.json();})
-      .then(function(d){state.dataErr=false;state.rows=d.stocks||[];$("src").textContent=window.STATIC_MODE?"":"source: /api/screener";sectors(state.rows);body();})
+      .then(function(d){state.dataErr=false;state.rows=d.stocks||[];state.hasDiv=state.rows.some(function(r){return r.divYield!=null;});$("src").textContent=window.STATIC_MODE?"":"source: /api/screener";sectors(state.rows);head();body();})
       .catch(function(){state.dataErr=true;state.rows=[];$("src").textContent="no screener snapshot for "+state.ex;body();});
   }
   function csv(){

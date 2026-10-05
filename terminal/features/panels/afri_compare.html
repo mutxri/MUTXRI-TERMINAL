@@ -405,14 +405,58 @@ $('goBtn').addEventListener('click', function(){
   $(id).addEventListener('keydown', function(e){ if(e.key==='Enter') $('goBtn').click(); });
 });
 
-// boot
+// boot: prefill from ?a/?b, or from the terminal's ?sym= deep link (sym is the
+// security the panels follow). With ONLY one symbol we fill side A and auto-pick
+// a same-sector peer for side B, so a deep link into COMPARE is not left showing
+// "-- vs --"; when no peer exists we say what to enter instead.
+function pickPeer(one){
+  if(!one || !one.sector) return null;
+  var aKey = String(one.ticker || one.sym || '');
+  var pool = [];
+  EXS.forEach(function(e){
+    (listingCache[e] || []).forEach(function(s){
+      var k = s.ticker || s.sym;
+      if(k && String(k) !== aKey && (s.sector||'').toLowerCase() === (one.sector||'').toLowerCase())
+        pool.push(Object.assign({ ex: e }, s));
+    });
+  });
+  // prefer a peer on the same exchange, then the others
+  pool.sort(function(x, y){ return (x.ex === one.ex ? 0 : 1) - (y.ex === one.ex ? 0 : 1); });
+  return pool[0] || null;
+}
 (async function(){
-  var a = Q.get('a'), b = Q.get('b');
-  if(a){ $('inA').value = a.toUpperCase(); }
-  if(b){ $('inB').value = b.toUpperCase(); }
-  if(a && b){ await compare(a, b); }
-  else if(a){ var one = await resolveStock(a); if(one){ CUR.a=one; renderPeers(one, null); $('body').innerHTML='<div class="err">Pick a peer from above, or type a second ticker.</div>'; $('head').innerHTML='<span class="code">'+esc(one.ticker||one.sym)+'</span><span class="name">'+esc(one.name)+'</span><span class="vs">vs</span><span class="bcode">--</span>'; } }
-  else { $('status').textContent = 'ready'; }
+  var a = Q.get('a'), b = Q.get('b') || Q.get('peer'), sym = Q.get('sym');
+  if(!a && sym) a = sym;                       // ?sym= is the terminal's deep link
+  if(a){ $('inA').value = String(a).toUpperCase(); }
+  if(b){ $('inB').value = String(b).toUpperCase(); }
+  if(a && b){ await compare(a, b); return; }
+  if(a){
+    var one = await resolveStock(a);
+    if(!one){
+      $('body').innerHTML = '<div class="err">Could not resolve <b>'+esc(a)+'</b>. Type a ticker the board lists, e.g. <b>EQTY</b> or <b>KCB</b>.</div>';
+      $('status').textContent = 'not found';
+      return;
+    }
+    // warm every listing so a peer can be found across exchanges
+    for(var i = 0; i < EXS.length; i++){
+      if(!listingCache[EXS[i]]){
+        var dd = await loadJSON('../../static_data/listing_' + EXS[i] + '.json');
+        listingCache[EXS[i]] = dd ? (dd.stocks || []) : [];
+      }
+    }
+    var peer = pickPeer(one);
+    if(peer){
+      $('inB').value = String(peer.ticker || peer.sym).toUpperCase();
+      await compare(a, peer.ticker || peer.sym);
+      return;
+    }
+    CUR.a = one; renderPeers(one, null);
+    $('head').innerHTML = '<span class="code">'+esc(one.ticker||one.sym)+'</span><span class="name">'+esc(one.name)+'</span><span class="vs">vs</span><span class="bcode">--</span>';
+    $('body').innerHTML = '<div class="err">Comparing <b>'+esc(one.ticker||one.sym)+'</b>. Type a second ticker in the right box (or pick a peer above) and hit COMPARE.</div>';
+    $('status').textContent = 'ready';
+    return;
+  }
+  $('status').textContent = 'ready';
 })();
 </script>
 </body>
