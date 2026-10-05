@@ -75,7 +75,7 @@
 <div class="wrap">
   <div class="head">
     <span class="code">ANNOUNCEMENTS</span>
-    <span class="title"><b>NSE</b> LISTED-COMPANY FILINGS</span>
+    <span class="title"><b id="exName">NSE</b> LISTED-COMPANY FILINGS</span>
     <span class="spacer"></span>
     <span class="src" id="src">nse.co.ke · audited results · AGM · dividends</span>
   </div>
@@ -108,6 +108,26 @@
       moreEl = document.getElementById("more");
   var ALL = [];
   var PAGE = 150;
+
+  // Which exchange's filings this panel shows. The shell appends ?ex=<EX> to
+  // every panel URL, so a reader on Lagos must never be handed Nairobi's
+  // filings as if they were their own. NSE and NGX have a listed-company
+  // filing feed in the static snapshot; JSE and EGX do not, and say so rather
+  // than borrowing another market's data.
+  var EX = "NSE";
+  try { var _ex = new URLSearchParams(location.search).get("ex"); if (_ex) EX = _ex.toUpperCase(); } catch(e){}
+  var EXNAMES = { NSE:"NSE", NGX:"NGX", JSE:"JSE", EGX:"EGX" };
+  var FEED = {
+    NSE: { ann:"../../static_data/nse_announcements.json",
+           cal:"../../static_data/nse_corporate_actions.json",
+           src:"nse.co.ke \u00b7 audited results \u00b7 AGM \u00b7 dividends", dict:false },
+    NGX: { ann:"../../static_data/ngx_filings.json", cal:null,
+           src:"ngxgroup.com \u00b7 listed-company filings", dict:true },
+    JSE: { ann:null, cal:null, src:"" },
+    EGX: { ann:null, cal:null, src:"" }
+  };
+  var CFG = FEED[EX] || FEED.NSE;
+  document.getElementById("exName").textContent = EXNAMES[EX] || EX;
 
   function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
@@ -195,13 +215,24 @@
   }
 
   var DIVACT = [];
-  fetch("../../static_data/nse_corporate_actions.json")
-    .then(function(r){ if (!r.ok) throw 0; return r.json(); })
-    .then(function(d){ DIVACT = d || []; renderDiv(); })
-    .catch(function(){
+  function loadCalendar(){
+    var calSrc = document.getElementById("calSrc");
+    if (!CFG.cal){
+      // honest: no dividend calendar is wired for this exchange, and another
+      // market's calendar would be exactly the defect this fix removes
+      calSrc.textContent = "";
       document.getElementById("calBody").innerHTML =
-        '<div class="empty">Dividend notices could not be loaded. Nothing is shown rather than an invented date.</div>';
-    });
+        '<div class="empty">No dividend calendar for ' + (EXNAMES[EX] || EX) + ' in this build.</div>';
+      return;
+    }
+    fetch(CFG.cal)
+      .then(function(r){ if (!r.ok) throw 0; return r.json(); })
+      .then(function(d){ DIVACT = d || []; renderDiv(); })
+      .catch(function(){
+        document.getElementById("calBody").innerHTML =
+          '<div class="empty">Dividend notices could not be loaded. Nothing is shown rather than an invented date.</div>';
+      });
+  }
 
   document.getElementById("calToggle").addEventListener("click", function(){
     var b = document.getElementById("calBody");
@@ -210,26 +241,53 @@
     this.textContent = hid ? "HIDE" : "SHOW";
   });
 
-  fetch("../../static_data/nse_announcements.json")
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){
-      ALL = d || [];
-      // build the year selector from the data itself
-      var years = [];
-      ALL.forEach(function(o){ if(o.year && years.indexOf(o.year) < 0) years.push(o.year); });
-      years.sort(function(a,b){ return b-a; });
-      years.forEach(function(y){
-        var opt = document.createElement("option");
-        opt.value = String(y); opt.textContent = String(y);
-        yrEl.appendChild(opt);
+  // ngx_filings.json is a {ticker: [{title,type,date,url}]} map; flatten it to
+  // the same row shape the NSE feed already uses.
+  function flatten(d){
+    var out = [];
+    Object.keys(d || {}).forEach(function(tk){
+      (d[tk] || []).forEach(function(it){
+        out.push({ company: tk, title: (it.title || it.type || ""),
+                   url: it.url || "", year: String(it.date || "").slice(0,4) });
       });
-      var u = document.createElement("option");
-      u.value = "undated"; u.textContent = "UNDATED";
-      yrEl.appendChild(u);
-      document.getElementById("src").textContent = ALL.length + " filings · nse.co.ke";
-      render();
-    })
-    .catch(function(){ el.innerHTML = '<div class="empty">failed to load announcements</div>'; });
+    });
+    return out;
+  }
+
+  function loadAnnouncements(){
+    document.getElementById("src").textContent = CFG.src;
+    if (!CFG.ann){
+      // honest: no listed-company announcement feed for this exchange. Showing
+      // Nairobi's filings to a Lagos reader was the bug; show nothing instead.
+      el.innerHTML = '<div class="empty">No listed-company announcement feed is wired for '
+        + (EXNAMES[EX] || EX) + ' in this build. Nothing is shown rather than another market&#39;s filings.</div>';
+      document.getElementById("count").textContent = "";
+      moreEl.style.display = "none";
+      return;
+    }
+    fetch(CFG.ann)
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){
+        ALL = CFG.dict ? flatten(d) : (d || []);
+        // build the year selector from the data itself
+        var years = [];
+        ALL.forEach(function(o){ if(o.year && years.indexOf(o.year) < 0) years.push(o.year); });
+        years.sort(function(a,b){ return b-a; });
+        years.forEach(function(y){
+          var opt = document.createElement("option");
+          opt.value = String(y); opt.textContent = String(y);
+          yrEl.appendChild(opt);
+        });
+        var u = document.createElement("option");
+        u.value = "undated"; u.textContent = "UNDATED";
+        yrEl.appendChild(u);
+        render();
+      })
+      .catch(function(){ el.innerHTML = '<div class="empty">failed to load announcements</div>'; });
+  }
+
+  loadCalendar();
+  loadAnnouncements();
 })();
 </script>
 </body>

@@ -602,11 +602,13 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
       <button class="gate-tab on" data-gmode="login" onclick="gateMode('login')">SIGN IN</button>
       <button class="gate-tab" data-gmode="signup" onclick="gateMode('signup')">CREATE ACCOUNT</button>
     </div>
-    <div class="gate-field"><input id="gateEmail" type="email" placeholder="EMAIL" autocomplete="email"></div>
-    <div class="gate-field" id="gateNameWrap" style="display:none"><input id="gateName" type="text" placeholder="NAME (OPTIONAL)" autocomplete="name"></div>
-    <div class="gate-field"><input id="gatePwd" type="password" placeholder="PASSWORD (MIN 8)" autocomplete="current-password" onkeydown="if(event.key==='Enter')gateSubmit()"></div>
-    <div class="gate-msg" id="gateMsg"></div>
-    <button class="gate-btn" onclick="gateSubmit()">SIGN IN</button>
+    <form id="gateForm" autocomplete="on" onsubmit="event.preventDefault();gateSubmit();">
+      <div class="gate-field"><input id="gateEmail" type="email" placeholder="EMAIL" autocomplete="email"></div>
+      <div class="gate-field" id="gateNameWrap" style="display:none"><input id="gateName" type="text" placeholder="NAME (OPTIONAL)" autocomplete="name"></div>
+      <div class="gate-field"><input id="gatePwd" type="password" placeholder="PASSWORD (MIN 8)" autocomplete="current-password"></div>
+      <div class="gate-msg" id="gateMsg"></div>
+      <button class="gate-btn" type="submit">SIGN IN</button>
+    </form>
     <div class="gate-back" onclick="location.href='/'">&larr; Back to mutxriterminal.com</div>
   </div>
 </div>
@@ -679,7 +681,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
   window.gateSocial = function(provider){
     msg("Connecting to " + provider + "…");
     fetch(AUTH_API + "/api/auth/oauth/" + provider + "/start")
-      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"could not reach server"}; }); })
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"Could not reach the sign-in server"}; }); })
       .then(function(d){
         if(d && d.ok && d.url){ window.location.href = d.url; }
         else { msg((d && d.error) ? d.error : "Sign-in is not available right now."); }
@@ -724,7 +726,7 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
     if(mode === "signup" && name) payload.name = name;
     msg(mode === "login" ? "Signing in…" : "Creating your account…");
     fetch(AUTH_API + "/api/auth/" + (mode === "login" ? "login" : "signup"), {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)})
-      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"server error"}; }); })
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:"Server error"}; }); })
       .then(function(d){
         if(d && d.ok){
           try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); localStorage.setItem("mt_username", d.username || ""); localStorage.setItem("mt_name", d.name || ""); }catch(e){}
@@ -831,8 +833,10 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
                 <div class="settings-field">
                   <label for="acctPwd">Password</label>
                   <small>Set a password so you can sign in without Google</small>
-                  <input id="acctPwd" type="password" placeholder="New password (8+ characters)" autocomplete="new-password">
-                  <button type="button" class="settings-save" data-setpwd="acctPwd">Set password</button>
+                  <form autocomplete="on" onsubmit="event.preventDefault();return false;">
+                    <input id="acctPwd" type="password" placeholder="New password (8+ characters)" autocomplete="new-password">
+                    <button type="button" class="settings-save" data-setpwd="acctPwd">Set password</button>
+                  </form>
                 </div>
                 <div class="settings-div"></div>
                 <div class="settings-head">Privacy</div>
@@ -1493,7 +1497,7 @@ function renderTabs(){
         const b = document.createElement('button');
         b.type = 'button';
         b.className = i === active ? 'on' : '';
-        b.title = sp.name + ' \u2014 click to switch, double-click to rename';
+        b.title = sp.name + ' - click to switch, double-click to rename';
         b.onclick = function(){ switchTo(i); };
         b.ondblclick = function(){
           const name = window.prompt('Workspace name', sp.name);
@@ -2162,7 +2166,11 @@ function renderWatchlist(filter){
     const chg = q.changePct != null ? q.changePct : s.chgPct;
     const vol = q.volume != null ? q.volume : s.volume;
     const cur = s.currency || (q.currency || '');
-    const pr = price != null ? Number(price).toLocaleString(undefined,{maximumFractionDigits:2}) : '-';
+    // A row with no price must read honestly: a bare dash followed by the
+    // currency ("- EGP") looks like a real value that failed to render. Say the
+    // price is missing and do not tack the currency onto nothing.
+    const hasPrice = price != null && price !== '' && isFinite(Number(String(price).replace(/,/g,'')));
+    const pr = hasPrice ? Number(String(price).replace(/,/g,'')).toLocaleString(undefined,{maximumFractionDigits:2}) : 'no price';
     const cls = chg === null || chg === undefined ? '' : (chg >= 0 ? 'up' : 'down');
     // A null change means no prior close exists to compute one from (a security
     // with a single session). Rendering it as an empty cell reads as a defect;
@@ -2190,7 +2198,7 @@ function renderWatchlist(filter){
         <span class="nm">${esc(s.name||'')}</span>
       </span>
       <span class="wl-price">
-        <span class="pr">${pr} <small style="color:var(--tx3)">${esc(cur)}</small></span>
+        <span class="pr">${pr}${hasPrice ? ' <small style="color:var(--tx3)">' + esc(cur) + '</small>' : ''}</span>
         <span class="chg ${cls}">${sign}</span>
       </span>
     </div>`;
@@ -3728,20 +3736,21 @@ function renderStockInfo(d, sym){
   function quoteCard(row, ex){
     const chg = row.chgPct;
     const cls = chg == null ? '' : (chg >= 0 ? 'up' : 'down');
-    const chgTxt = chg == null ? '\u2014' : (chg >= 0 ? '+' : '') + Number(chg).toFixed(2) + '%';
+    const chgTxt = chg == null ? 'n/a' : (chg >= 0 ? '+' : '') + Number(chg).toFixed(2) + '%';
+    const pxTxt = num(row.price) || 'no price';
     return '<b>' + esc(tickerOf(row)) + '</b> <span style="color:var(--tx3)">' + esc(ex) + '</span>' +
       '<div style="color:var(--tx3);font-size:10px">' + esc(row.name || '') + '</div>' +
       '<div class="krow">' +
-        '<span>PRICE</span><span>' + (num(row.price) || '\u2014') + ' ' + esc(row.currency || '') + '</span>' +
+        '<span>PRICE</span><span>' + pxTxt + (num(row.price) ? ' ' + esc(row.currency || '') : '') + '</span>' +
         '<span>CHANGE</span><span class="' + cls + '">' + chgTxt + '</span>' +
-        '<span>VOLUME</span><span>' + (num(String(row.volume == null ? '' : row.volume).replace(/,/g, ''), 0) || '\u2014') + '</span>' +
+        '<span>VOLUME</span><span>' + (num(String(row.volume == null ? '' : row.volume).replace(/,/g, ''), 0) || 'n/a') + '</span>' +
       '</div>';
   }
   function movers(ex, dir){
     const rows = rowsFor(ex).filter(function(s){ return s.chgPct != null && !isNaN(Number(s.chgPct)); });
     if(!rows.length) return null;
     rows.sort(function(a, b){ return dir * (Number(b.chgPct) - Number(a.chgPct)); });
-    return '<b>' + (dir > 0 ? 'Top gainers' : 'Top losers') + ' \u2014 ' + esc(ex) + '</b>' +
+    return '<b>' + (dir > 0 ? 'Top gainers' : 'Top losers') + ' - ' + esc(ex) + '</b>' +
       '<div class="krow">' + rows.slice(0, 5).map(function(s){
         const c = Number(s.chgPct);
         return '<span>' + esc(tickerOf(s)) + '</span><span class="' + (c >= 0 ? 'up' : 'down') + '">' +
@@ -4055,11 +4064,11 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     var fn = document.getElementById("acctFullName");
     if(fn) fn.value = name || "";
     var e3 = document.getElementById("acctEmail3");
-    if(e3) e3.textContent = email || "\u2014";
+    if(e3) e3.textContent = email || "-";
     var se = document.getElementById("secEmail");
     if(se) se.textContent = email || "Not signed in";
     var ie = document.getElementById("intEmail");
-    if(ie) ie.textContent = email || "\u2014";
+    if(ie) ie.textContent = email || "-";
   }
   // exposed so the session check can repaint the account panes once /api/auth/me
   // has refreshed the cached identity

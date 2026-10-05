@@ -100,8 +100,8 @@
           var pv = i.price != null ? num(i.price) : null;
           return '<div class="idx">' +
             '<div class="n">' + esc(i.name) + '</div>' +
-            '<div class="v">' + (pv != null ? pv.toLocaleString(undefined,{maximumFractionDigits:2}) : "—") + '</div>' +
-            '<div class="c ' + (up ? "up" : "down") + '">' + (i.changePct != null ? esc(i.changePct) : (pv != null && i.change ? esc(i.change) : "—")) + '</div></div>';
+            '<div class="v">' + (pv != null ? pv.toLocaleString(undefined,{maximumFractionDigits:2}) : '<span style="font-size:12px;font-weight:600;color:var(--tx3)">level not available</span>') + '</div>' +
+            '<div class="c ' + (up ? "up" : "down") + '">' + (i.changePct != null ? esc(i.changePct) : (pv != null && i.change ? esc(i.change) : "")) + '</div></div>';
         }).join("");
       })
       .catch(function(){ document.getElementById("idxGrid").innerHTML = '<div class="empty">no index data</div>'; });
@@ -111,7 +111,7 @@
       .then(function(s){
         function renderMini(elId, list, showVol){
           var el = document.getElementById(elId);
-          if(!list || !list.length){ el.innerHTML = '<div class="empty">—</div>'; return; }
+          if(!list || !list.length){ el.innerHTML = '<div class="empty">no data</div>'; return; }
           el.innerHTML = list.map(function(x){
             var up = String(x.changePct||"").indexOf("-") !== 0;
             return '<div class="mini">' +
@@ -128,9 +128,9 @@
         renderMini("moveGrid", s.topMovers, true);
       })
       .catch(function(){
-        document.getElementById("gainGrid").innerHTML = '<div class="empty">—</div>';
-        document.getElementById("loseGrid").innerHTML = '<div class="empty">—</div>';
-        document.getElementById("moveGrid").innerHTML = '<div class="empty">—</div>';
+        document.getElementById("gainGrid").innerHTML = '<div class="empty">no data</div>';
+        document.getElementById("loseGrid").innerHTML = '<div class="empty">no data</div>';
+        document.getElementById("moveGrid").innerHTML = '<div class="empty">no data</div>';
       });
   }
   var CUR = "NSE";

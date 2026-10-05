@@ -440,13 +440,13 @@
       $("spList").innerHTML=sorted.map(function(r){
         var cls=r.chgPct==null?"":(r.chgPct>=0?"up":"down");
         var sign=r.chgPct==null?"":(r.chgPct>=0?"+":"");
-        var px=r.price!=null?Number(r.price).toLocaleString(undefined,{maximumFractionDigits:2}):"—";
+        var px=r.price!=null?Number(r.price).toLocaleString(undefined,{maximumFractionDigits:2}):"-";
         var sym=r.ticker||"";
         return '<div class="sp-row" data-sym="'+esc(sym)+'">'+
           '<span class="tkr">'+esc(sym)+'</span>'+
           '<span class="nm">'+esc(r.name||"")+'</span>'+
           '<span class="px">'+esc(px)+'</span>'+
-          '<span class="chg '+cls+'">'+esc(r.chgPct==null?"—":sign+r.chgPct.toFixed(2)+"%")+'</span>'+
+          '<span class="chg '+cls+'">'+esc(r.chgPct==null?"-":sign+r.chgPct.toFixed(2)+"%")+'</span>'+
           '</div>';
       }).join("");
       // staggered entrance: each row slides in 30ms after the previous
@@ -769,7 +769,7 @@
       // board price + change from the snapshot (NEVER fabricated candles)
       try{
         var tvSym = String(cpTkr || cpTitleTkr || "").toUpperCase();
-        var px = cpCellPrice != null ? Number(cpCellPrice).toLocaleString(undefined,{maximumFractionDigits:2}) : "—";
+        var px = cpCellPrice != null ? Number(cpCellPrice).toLocaleString(undefined,{maximumFractionDigits:2}) : "-";
         var cg = cpCellChg != null ? (cpCellChg > 0 ? "+" : "") + Number(cpCellChg).toFixed(2) + "%" : "";
         var up = cpCellChg != null && cpCellChg >= 0;
         var vol = cpCellVol != null ? Number(cpCellVol).toLocaleString(undefined,{maximumFractionDigits:0}) : "";

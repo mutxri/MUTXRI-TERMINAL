@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  MUTXRI TERMINAL — GLCO (Global Commodities) panel. Spec section 9.1 (P2).
+  MUTXRI TERMINAL - GLCO (Global Commodities) panel. Spec section 9.1 (P2).
   Board of commodities with a regional angle: gold/platinum (SA), cocoa
   (GH/CI), coffee/tea (KE/ET/UG). Each row: commodity, price, day %, and
   a mini area sparkline, plus the regional-relevance note the spec asks for.
@@ -17,7 +17,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MUTXRI TERMINAL — GLCO</title>
+<title>MUTXRI TERMINAL - GLCO</title>
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
@@ -63,7 +63,7 @@
     <button class="glco-refresh" id="glcoRefresh">Refresh</button>
   </div>
   <div id="glcoRows"></div>
-  <div class="glco-foot" id="glcoFoot">—</div>
+  <div class="glco-foot" id="glcoFoot">-</div>
 </div>
 
 <script>
@@ -74,18 +74,18 @@
 
   // Clearly-labeled sample; deleted once the endpoint is live.
   var SAMPLE_ROWS = [
-    { name:"Gold", unit:"USD/oz", africa:"South Africa — major producer/exporter", price:2412.5, chgPct:0.62, spark:[2380,2388,2375,2402,2395,2412] },
-    { name:"Platinum", unit:"USD/oz", africa:"South Africa — ~70% of world supply", price:1012.0, chgPct:-1.14, spark:[1040,1035,1028,1020,1018,1012] },
+    { name:"Gold", unit:"USD/oz", africa:"South Africa - major producer/exporter", price:2412.5, chgPct:0.62, spark:[2380,2388,2375,2402,2395,2412] },
+    { name:"Platinum", unit:"USD/oz", africa:"South Africa - ~70% of world supply", price:1012.0, chgPct:-1.14, spark:[1040,1035,1028,1020,1018,1012] },
     { name:"Brent", unit:"USD/bbl", africa:"Nigeria/Angola crude benchmark", price:82.4, chgPct:1.05, spark:[80,80.5,81.2,81.0,81.9,82.4] },
-    { name:"Cocoa", unit:"USD/t", africa:"Ghana & Cote d'Ivoire — ~60% of world supply", price:7850, chgPct:2.31, spark:[7600,7680,7720,7700,7790,7850] },
-    { name:"Coffee", unit:"USD/lb", africa:"Ethiopia, Kenya, Uganda — key exporters", price:238.5, chgPct:-0.44, spark:[242,240,239,240.5,239,238.5] },
+    { name:"Cocoa", unit:"USD/t", africa:"Ghana & Cote d'Ivoire - ~60% of world supply", price:7850, chgPct:2.31, spark:[7600,7680,7720,7700,7790,7850] },
+    { name:"Coffee", unit:"USD/lb", africa:"Ethiopia, Kenya, Uganda - key exporters", price:238.5, chgPct:-0.44, spark:[242,240,239,240.5,239,238.5] },
     { name:"Wheat", unit:"USD/bu", africa:"A major import for all four markets - food-security signal", price:548.0, chgPct:null, spark:[] }
   ];
 
   function $(id){ return document.getElementById(id); }
 
   function sparkline(vals, up) {
-    if (!vals || vals.length < 2) return '<span class="muted" style="font-family:var(--mono);font-size:10px;">—</span>';
+    if (!vals || vals.length < 2) return '<span class="muted" style="font-family:var(--mono);font-size:10px;">-</span>';
     var w = 76, h = 26, pad = 2;
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
     var range = (max - min) || 1;
@@ -103,7 +103,7 @@
   }
 
   function fmtPrice(v) {
-    if (v == null) return '<span class="muted">—</span>';
+    if (v == null) return '<span class="muted">-</span>';
     return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
   }
 
@@ -111,7 +111,7 @@
     $("glcoRows").innerHTML = rows.map(function (r) {
       var up = r.chgPct == null ? true : r.chgPct >= 0;
       var chgCls = r.chgPct == null ? "muted" : (r.chgPct >= 0 ? "up" : "down");
-      var chgTxt = r.chgPct == null ? "—" : (r.chgPct >= 0 ? "+" : "") + Number(r.chgPct).toFixed(2) + "%";
+      var chgTxt = r.chgPct == null ? "-" : (r.chgPct >= 0 ? "+" : "") + Number(r.chgPct).toFixed(2) + "%";
       return '<div class="glco-row">' +
         '<div class="glco-name"><span class="nm">' + r.name + '</span><span class="af">' + (r.africa || "") + '</span></div>' +
         '<div class="glco-price">' + fmtPrice(r.price) + ' <span class="glco-unit">' + (r.unit || "") + '</span></div>' +

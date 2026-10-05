@@ -15,7 +15,7 @@
 (function (root) {
   "use strict";
 
-  var DASH = "\u2014";
+  var DASH = "-";
 
   // ---- BUG 1: never emit NaN -------------------------------------------
   // Returns a Number (percent) or null. null means "no basis to compute".

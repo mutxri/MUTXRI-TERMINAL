@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  MUTXRI TERMINAL — FX (Cross-Rate Matrix + Converter) panel.
+  MUTXRI TERMINAL - FX (Cross-Rate Matrix + Converter) panel.
   Cross rates across KES/NGN/ZAR/EGP/USD/EUR/GBP, triangulated via USD.
   Standalone-viewable on SAMPLE rates; auto-uses /api/fx when live.
   Vanilla JS, exact Godel tokens, no build step.
@@ -14,7 +14,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MUTXRI TERMINAL — FX</title>
+<title>MUTXRI TERMINAL - FX</title>
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
@@ -72,13 +72,13 @@
     <div class="fx-field"><label>Amount</label><input id="fxAmt" type="number" step="any" value="100" /></div>
     <div class="fx-field"><label>From</label><select id="fxFrom"></select></div>
     <div class="fx-field"><label>To</label><select id="fxTo"></select></div>
-    <div class="fx-result"><div class="val" id="fxOut">—</div><div class="sub" id="fxRate">—</div></div>
+    <div class="fx-result"><div class="val" id="fxOut">-</div><div class="sub" id="fxRate">-</div></div>
   </div>
 
   <div class="fx-tablewrap">
     <table class="fx" id="fxTable"><thead><tr id="fxHead"></tr></thead><tbody id="fxBody"></tbody></table>
   </div>
-  <div class="fx-foot" id="fxFoot">—</div>
+  <div class="fx-foot" id="fxFoot">-</div>
 </div>
 
 <script>
@@ -103,7 +103,7 @@
   }
 
   function fmt(v) {
-    if (v == null) return "—";
+    if (v == null) return "-";
     // adaptive precision: big numbers few decimals, small many
     var abs = Math.abs(v);
     var dp = abs >= 100 ? 2 : abs >= 1 ? 4 : 6;
@@ -118,7 +118,7 @@
       var cells = codes.map(function (to) {
         if (frm === to) return '<td class="diag">1</td>';
         var r = rate(frm, to);
-        return r == null ? '<td class="na">—</td>' : "<td>" + fmt(r) + "</td>";
+        return r == null ? '<td class="na">-</td>' : "<td>" + fmt(r) + "</td>";
       }).join("");
       return '<tr><td class="rowh">' + frm + "</td>" + cells + "</tr>";
     }).join("");
@@ -129,7 +129,7 @@
     var frm = $("fxFrom").value, to = $("fxTo").value;
     var r = rate(frm, to);
     if (r == null || isNaN(amt)) {
-      $("fxOut").textContent = "—";
+      $("fxOut").textContent = "-";
       $("fxRate").textContent = "rate unavailable";
       return;
     }

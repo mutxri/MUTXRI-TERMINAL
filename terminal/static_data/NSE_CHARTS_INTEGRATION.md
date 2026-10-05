@@ -1,8 +1,8 @@
-# NSE heatmap charts — candlestick / line
+# NSE heatmap charts - candlestick / line
 
 Renders candlestick and line charts for NSE securities (heatmap cells or a detail
 pane), on TradingView's **open-source Lightweight Charts** library (Apache-2.0).
-`nse_heatmap_charts.js` — 9 tests passing.
+`nse_heatmap_charts.js` - 9 tests passing.
 
 ## Important: data source
 This module does **not** fetch from TradingView. TradingView's terms prohibit
@@ -41,7 +41,7 @@ adapter.getBars('SCOM', {timeframe:'1D'}).then(bars =>
 - No data -> empty state (`data-empty` attribute), never fabricated candles.
 - EOD close-only sources: prefer **line** charts. If you must draw candles from
   close-only data, the example adapter sets OHLC = close (a flat mark) rather than
-  inventing highs/lows — so the chart never implies intraday range it doesn't have.
+  inventing highs/lows - so the chart never implies intraday range it doesn't have.
 - Rising sparkline = mint, falling = red (Godel palette).
 
 ## Data contract
