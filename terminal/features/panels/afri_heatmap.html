@@ -769,13 +769,13 @@
       // board price + change from the snapshot (NEVER fabricated candles)
       try{
         var tvSym = String(cpTkr || cpTitleTkr || "").toUpperCase();
-        var px = cpCellPrice != null ? Number(cpCellPrice).toLocaleString(undefined,{maximumFractionDigits:2}) : "-";
+        var px = cpCellPrice != null ? Number(cpCellPrice).toLocaleString(undefined,{maximumFractionDigits:2}) + (cpCellCur ? " " + cpCellCur : "") : "no price";
         var cg = cpCellChg != null ? (cpCellChg > 0 ? "+" : "") + Number(cpCellChg).toFixed(2) + "%" : "";
         var up = cpCellChg != null && cpCellChg >= 0;
         var vol = cpCellVol != null ? Number(cpCellVol).toLocaleString(undefined,{maximumFractionDigits:0}) : "";
         box.innerHTML =
           '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;padding:20px;text-align:center">' +
-          '<div style="font-family:var(--mono);font-size:26px;font-weight:700;color:var(--tx)">' + esc(px) + ' ' + esc(cpCellCur || "") + '</div>' +
+          '<div style="font-family:var(--mono);font-size:26px;font-weight:700;color:var(--tx)">' + esc(px) + '</div>' +
           (cg ? '<div style="font-family:var(--mono);font-size:14px;color:' + (up ? "var(--up)" : "var(--down)") + '">' + esc(cg) + '</div>' : '') +
           (vol ? '<div style="font-family:var(--mono);font-size:10px;color:var(--tx2)">VOL ' + esc(vol) + '</div>' : '') +
           '<div style="font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.06em">NO FREE OHLC FEED FOR ' + esc(tvSym || activeEx) + '</div>' +
