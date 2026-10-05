@@ -50,7 +50,9 @@
   table.mc th, table.mc td { padding:8px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); }
   table.mc thead th { color:var(--tx3); font-weight:400; font-size:10px; border-bottom:1px solid var(--line2); text-transform:uppercase; letter-spacing:.06em; }
   table.mc th.l, table.mc td.l { text-align:left; }
-  table.mc td.country { color:var(--tx); font-family:var(--ui); font-weight:600; font-size:12px; }
+  table.mc td.country { color:var(--tx); font-family:var(--ui); font-weight:600; font-size:12px; border-left:3px solid transparent; }
+  table.mc thead th:first-child { border-left:3px solid transparent; }
+  table.mc td.country i.cdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle; }
   table.mc td.code { color:var(--tx3); }
   table.mc td.rate { color:var(--acc); font-size:13px; font-variant-numeric:tabular-nums; }
   table.mc td.delta.up { color:var(--up); }
@@ -68,6 +70,11 @@
   .mc-legend { display:flex; gap:16px; flex-wrap:wrap; padding:0 14px 12px; font-family:var(--mono); font-size:10px; color:var(--tx2); }
   .mc-legend span { display:flex; align-items:center; }
   .mc-legend i { display:inline-block; width:16px; height:2px; margin-right:6px; }
+  /* key: the country-to-colour mapping stated once, up top, so a reader can
+     track a country across the tables and both charts at a glance */
+  .mc-key { display:flex; gap:16px; flex-wrap:wrap; padding:12px 14px 0; font-family:var(--mono); font-size:10px; }
+  .mc-key span { display:flex; align-items:center; }
+  .mc-key i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
 
   .mc-note { padding:10px 14px; color:var(--tx3); font-family:var(--mono); font-size:10px; line-height:1.7; border-top:1px solid var(--line); }
   .mc-warn { padding:8px 14px; color:var(--down); font-family:var(--mono); font-size:10px; }
@@ -92,6 +99,8 @@
     published <b>annual average</b>, reproduced exactly as the source reports it, with the year shown
     beside it. No estimate, no interpolation, no rounding from a headline figure.
   </div>
+
+  <div class="mc-key" id="mcKey"></div>
 
   <div class="mc-tablewrap">
     <table class="mc">
@@ -188,6 +197,11 @@
     }
     body.innerHTML = "";
     document.getElementById("mcLegend").innerHTML = "";
+    document.getElementById("mcKey").innerHTML = rows.map(function(c){
+      var col = ccolor(c);
+      return '<span style="color:' + col + '"><i style="background:' + col + '"></i>' +
+        esc(c.country) + '</span>';
+    }).join("");
     rows.forEach(function(c){
       var tr = document.createElement("tr");
       if (String(c.exchange).toUpperCase() === ex) tr.className = "cur";
@@ -204,14 +218,15 @@
 
       var hist = (c.history || []).map(function(h){ return h.year + " " + h.value.toFixed(2); }).join("  ");
 
+      var col = ccolor(c);
       tr.innerHTML =
-        '<td class="l country">' + esc(c.country) + '</td>' +
+        '<td class="l country" style="border-left-color:' + col + '">' + countryCell(col, c.country) + '</td>' +
         '<td class="l code">' + esc(c.currency) + '</td>' +
         '<td class="l code">' + esc(c.exchange) + '</td>' +
         '<td class="code">' + esc(c.inflation_year) + '</td>' +
-        '<td class="rate">' + fmt(c.inflation) + '</td>' +
+        '<td class="rate" style="color:' + col + '">' + fmt(c.inflation) + '</td>' +
         '<td class="delta ' + cls + '">' + esc(delta) + '</td>' +
-        '<td class="l hist">' + esc(hist) + '</td>';
+        '<td class="l hist" style="color:' + col + '">' + esc(hist) + '</td>';
       body.appendChild(tr);
     });
 
@@ -232,10 +247,29 @@
     renderGdp(d.gdp);
   }
 
-  // Four countries over the same six published years, drawn from the history
-  // array exactly as stored. Nothing is interpolated: the line joins published
-  // annual averages and stops at the last one the source reports.
-  var SERIES = ["#33e29a", "#7ef0c0", "#2aa9a0", "#c9d94a"];
+  // One accent colour per country, so the same country reads as the same colour
+  // in its table row, its legend entry, its line in both charts and its chart
+  // label. Colours are keyed by ISO2 (the mapping is explicit and does not
+  // depend on row order). Each is chosen to sit beside the mint house accent
+  // (#33e29a) without clashing, to stay clearly distinct from the other three on
+  // black, and to avoid a red-versus-green-only split. The measured WCAG contrast
+  // against black is noted beside each; all four clear the AAA text ratio (7:1).
+  var CCOLOR = {
+    KE: "#FFB000", // Kenya        amber     11.5:1 on black
+    NG: "#3FA9F5", // Nigeria      sky blue   8.2:1 on black
+    ZA: "#FF6FB5", // South Africa pink       8.2:1 on black
+    EG: "#B18CFF"  // Egypt        violet     8.1:1 on black
+  };
+  // fallback order (KE, NG, ZA, EG) for any record missing an iso2
+  var SERIES = ["#FFB000", "#3FA9F5", "#FF6FB5", "#B18CFF"];
+  function ccolor(c){
+    var k = c && c.iso2 ? String(c.iso2).toUpperCase() : "";
+    return CCOLOR[k] || SERIES[0];
+  }
+  function countryCell(col, name){
+    return '<i class="cdot" style="background:' + col + '"></i>' +
+      '<span style="color:' + col + '">' + esc(name) + '</span>';
+  }
 
   function drawChart(rows){
     var host = document.getElementById("mcChart");
@@ -277,7 +311,7 @@
     rows.forEach(function(c, idx){
       var hs = (c.history || []).slice().sort(function(a,b){ return a.year - b.year; });
       if (hs.length < 2) return;
-      var col = SERIES[idx % SERIES.length];
+      var col = ccolor(c);
       var pts = hs.map(function(h){
         var gi = years.indexOf(h.year);
         return xi(gi).toFixed(1) + "," + yv(h.value).toFixed(1);
@@ -289,7 +323,7 @@
       });
       var last = hs[hs.length - 1];
       s.push('<text class="lbl" x="' + (W - R + 8) + '" y="' + (yv(last.value) + 3).toFixed(1) + '" fill="' + col + '">' + esc(c.iso2 || c.country) + ' ' + last.value.toFixed(2) + '%</text>');
-      leg.innerHTML += '<span><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
+      leg.innerHTML += '<span style="color:' + col + '"><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
       drawn++;
     });
 
@@ -334,17 +368,18 @@
     g.countries.forEach(function(c){
       var tr = document.createElement("tr");
       if (String(c.exchange).toUpperCase() === ex) tr.className = "cur";
+      var col = ccolor(c);
       tr.innerHTML =
-        '<td class="l country">' + esc(c.country) + '</td>' +
+        '<td class="l country" style="border-left-color:' + col + '">' + countryCell(col, c.country) + '</td>' +
         '<td class="l code">' + esc(c.currency) + '</td>' +
         '<td class="l code">' + esc(c.exchange) + '</td>' +
         '<td class="code">' + esc(c.gdp_year == null ? "n/a" : c.gdp_year) + '</td>' +
-        '<td class="gdp g">' + fmtMoney0(c.gdp) + '</td>' +
+        '<td class="gdp g" style="color:' + col + '">' + fmtMoney0(c.gdp) + '</td>' +
         '<td class="gdp">' + fmtPct(c.gdp_growth) + '</td>' +
         '<td class="gdp">' + fmtMoney2(c.gdp_per_capita) + '</td>' +
-        '<td class="l hist g">' + esc(series(c.history, "gdp", fmtMoney0)) + '</td>' +
-        '<td class="l hist">' + esc(series(c.history, "gdp_growth", fmtPct)) + '</td>' +
-        '<td class="l hist">' + esc(series(c.history, "gdp_per_capita", fmtMoney2)) + '</td>';
+        '<td class="l hist g" style="color:' + col + '">' + esc(series(c.history, "gdp", fmtMoney0)) + '</td>' +
+        '<td class="l hist" style="color:' + col + '">' + esc(series(c.history, "gdp_growth", fmtPct)) + '</td>' +
+        '<td class="l hist" style="color:' + col + '">' + esc(series(c.history, "gdp_per_capita", fmtMoney2)) + '</td>';
       body.appendChild(tr);
     });
     var yh = document.getElementById("mcGdpYearH");
@@ -421,7 +456,7 @@
       var hs = (c.history || []).filter(function(h){ return typeof h.gdp_per_capita === "number"; })
         .slice().sort(function(a,b){ return a.year - b.year; });
       if (hs.length < 2) return;
-      var col = SERIES[idx % SERIES.length];
+      var col = ccolor(c);
       var pts = hs.map(function(h){
         var gi = years.indexOf(h.year);
         return xi(gi).toFixed(1) + "," + yv(h.gdp_per_capita).toFixed(1);
@@ -433,7 +468,7 @@
       });
       var last = hs[hs.length - 1];
       s.push('<text class="lbl" x="' + (W - R + 8) + '" y="' + (yv(last.gdp_per_capita) + 3).toFixed(1) + '" fill="' + col + '">' + esc(c.iso2 || c.country) + ' ' + money(last.gdp_per_capita) + '</text>');
-      leg.innerHTML += '<span><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
+      leg.innerHTML += '<span style="color:' + col + '"><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
       drawn++;
     });
 

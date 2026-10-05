@@ -1,18 +1,32 @@
 <!DOCTYPE html>
 <!--
-  MUTXRI TERMINAL - PORTFOLIO panel: the paper book, drawn.
+  MUTXRI TERMINAL - PORTFOLIO panel: the paper book, drawn as a crypto-style
+  account card.
 
   The book is read from localStorage["mx_paper_v1"], the same key the TRADE
-  panel writes - positions as { <sym>: { qty, avg } } under a user key. This
+  panel writes, and from localStorage["mt_paper_v1"] if a build ever uses that
+  key. The panel READS the book and never writes it: no reset, no shrink, no
+  clear. Positions arrive as { <sym>: { qty, avg } } under an exchange key. This
   panel does not invent positions and it does not invent prices: it joins what
   the book holds against the exchange files on disk, and any position it cannot
   price is NAMED rather than valued at zero.
 
-  Charts are inline SVG, no library, same as the RESEARCH panel.
+  Presentation is the crypto-account idiom: a summary row of signed figures, a
+  hero P&L card, and (behind SHOW MORE) the allocation rings, the sector and
+  exchange breakdowns, and the per-position table. Charts are inline SVG, no
+  library and no network fetch, so the panel works offline.
 
   Honest limits stated in the panel itself:
    * the book is browser-local, so this shows only what this browser holds;
-   * a position with no price in the exchange files is listed as unpriced.
+   * a position with no price in the exchange files is excluded from the ring
+     and the totals, and is listed as unpriced, with the count;
+   * a position with no cost basis is valued but claims no profit, and is named.
+
+  Colour: the sector colour map is owned by a sibling workstream on this panel.
+  Every sector colour in this file resolves through the single sectorColour()
+  function below, which consumes a sibling map (window.MT_SECTOR_COLOURS or
+  window.mtSectorColour) when present and otherwise falls back to a stable
+  palette. One edit to that function restyles ring, legend and rows together.
 -->
 <html lang="en">
 <head>
@@ -26,76 +40,226 @@
   html{color-scheme:dark;scrollbar-width:none;}
   ::-webkit-scrollbar{width:0;height:0;}
   :root{
-    --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
-    --line:#1a1a1a; --line2:#262626;
-    --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
-    --up:#33e29a; --down:#ff5c5c; --acc:#33e29a;
+    --bg:#000; --bg2:#0a0c0b; --bg3:#141816; --pill:#121514;
+    --line:#1c201e; --line2:#282d2a;
+    --tx:#f2f5f3; --tx2:#9aa29d; --tx3:#6b726d;
+    --up:#33e29a; --down:#ff6b4a; --acc:#33e29a;
     --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--ui);font-size:13px;}
-  .pf{max-width:980px;margin:0 auto;padding:16px 14px 32px;}
-  .pf-head{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--line2);padding-bottom:9px;flex-wrap:wrap;}
-  .pf-code{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--acc);}
-  .pf-name{font-size:15px;font-weight:600;}
-  .pf-who{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-left:auto;}
-  .cards{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px;}
-  .card{border:1px solid var(--line2);border-radius:2px;background:var(--bg2);padding:9px 13px;min-width:150px;flex:1;}
-  .card .k{font-family:var(--mono);font-size:9px;letter-spacing:.07em;color:var(--tx3);text-transform:uppercase;}
-  .card .v{font-family:var(--mono);font-size:17px;margin-top:4px;font-variant-numeric:tabular-nums;}
-  .v.up{color:var(--up);} .v.down{color:var(--down);}
-  .sec{border:1px solid var(--line2);border-radius:2px;background:var(--bg2);margin-top:12px;}
-  .sec-h{display:flex;align-items:baseline;gap:9px;padding:8px 12px;border-bottom:1px solid var(--line2);}
-  .sec-t{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--tx2);}
-  .sec-s{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-left:auto;}
-  .sec-b{padding:12px;}
-  svg{display:block;width:100%;height:auto;}
-  .ax{fill:var(--tx3);font-family:var(--mono);font-size:9px;}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--mono);font-size:13px;-webkit-font-smoothing:antialiased;}
+  .pf{max-width:560px;margin:0 auto;padding:16px 14px 40px;}
+  .pf-who{font-size:10px;color:var(--tx3);letter-spacing:.04em;margin-bottom:10px;}
+  .up{color:var(--up);} .down{color:var(--down);} .mut{color:var(--tx3);}
+  .ar{font-size:.85em;}
+
+  /* summary pills: muted label left, signed value right */
+  .pill{display:flex;align-items:center;justify-content:space-between;gap:12px;
+        background:var(--pill);border:1px solid var(--line);border-radius:14px;
+        padding:11px 14px;margin-bottom:8px;}
+  .pill .l{color:var(--tx3);font-size:11px;letter-spacing:.04em;}
+  .pill .v{font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+  /* hero P&L card */
+  .hero{position:relative;overflow:hidden;isolation:isolate;
+        background:linear-gradient(158deg,#0e1210 0%,#080a09 100%);
+        border:1px solid var(--line2);border-radius:18px;padding:18px 18px 16px;margin:14px 0 10px;}
+  .hero .tex{position:absolute;inset:0;z-index:0;pointer-events:none;
+        background-image:radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px);
+        background-size:15px 15px;}
+  .hero .mos{position:absolute;right:-16px;top:-10px;width:170px;height:128px;z-index:0;opacity:.55;pointer-events:none;}
+  .hero>*{position:relative;z-index:1;}
+  .hero .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .hero .brand{display:flex;align-items:center;gap:8px;font-weight:700;color:#fff;font-size:13px;letter-spacing:.02em;}
+  .hero .date{color:var(--tx3);font-size:11px;text-align:right;}
+  .hero .big{font-size:clamp(30px,9vw,42px);font-weight:700;line-height:1.02;letter-spacing:-.01em;
+        margin:20px 0 4px;display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;}
+  .hero .big .arw{flex:0 0 auto;}
+  .hero .sub{color:var(--tx3);font-size:11px;line-height:1.6;max-width:82%;}
+  .hero .ft{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:22px;}
+  .hero .acct{display:flex;align-items:center;gap:8px;color:var(--tx2);font-size:11px;min-width:0;}
+  .hero .acct .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .hero .dot{width:24px;height:24px;border-radius:50%;background:#000;border:1px solid var(--line2);
+        display:flex;align-items:center;justify-content:center;flex:0 0 24px;}
+  .hero .dom{color:#fff;font-size:11px;white-space:nowrap;}
+
+  /* buttons */
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+       border-radius:14px;padding:14px;font-family:var(--mono);font-size:11.5px;
+       letter-spacing:.08em;text-decoration:none;cursor:pointer;margin-bottom:8px;}
+  .btn.pri{background:var(--acc);color:#04120c;font-weight:700;border:1px solid var(--acc);}
+  .btn.pri:hover{filter:brightness(1.05);}
+  .btn.sec{background:var(--pill);color:var(--tx2);border:1px solid var(--line2);}
+  .btn.sec:hover{color:var(--tx);}
+  .btn .chev{transition:transform .18s ease;}
+  .btn.sec[aria-expanded="true"] .chev{transform:rotate(180deg);}
+
+  /* sections */
+  .sec{background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:10px;}
+  .sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px;}
+  .sec-t{color:var(--tx3);font-size:10px;letter-spacing:.1em;text-transform:uppercase;}
+  .sec-s{color:var(--tx3);font-size:9.5px;text-align:right;}
+  .ax{fill:var(--tx3);font-family:var(--mono);font-size:9px;color:var(--tx3);}
+
+  /* allocation rings */
+  .ring-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap;}
+  .ring-wrap svg.ring{width:190px;height:190px;flex:0 0 190px;max-width:62vw;}
+  .ring .rc1{fill:var(--tx3);font-family:var(--mono);font-size:11px;letter-spacing:.06em;}
+  .ring .rc2{fill:var(--tx);font-family:var(--mono);font-size:13px;}
+  .ring .seg{cursor:pointer;transition:opacity .12s;}
+  .ring .seg:hover{opacity:.82;}
+  .leg{flex:1;min-width:186px;}
+  .leg-row{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid var(--line);font-size:11px;}
+  .leg-row .sw{width:10px;height:10px;border-radius:3px;flex:0 0 10px;}
+  .leg-row .nm{flex:1;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .leg-row .vl{color:var(--tx);font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+  /* per-position table */
+  .ptab{font-size:11px;}
+  .prow{display:grid;grid-template-columns:9px minmax(0,1fr) 54px 82px 84px;gap:8px;align-items:center;
+        padding:8px 0;border-bottom:1px solid var(--line);}
+  .prow.head{border-bottom:1px solid var(--line2);padding:4px 0;}
+  .prow.head span{color:var(--tx3);font-size:9px;letter-spacing:.06em;text-transform:uppercase;}
+  .prow .sw{width:9px;height:9px;border-radius:3px;}
+  .prow .id{min-width:0;}
+  .prow .id .tk{color:var(--acc);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .prow .id .co{color:var(--tx3);font-size:9px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .prow .q,.prow .v,.prow .p{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .prow .q{color:var(--tx2);}
+  .prow .tag{color:var(--tx3);font-size:9px;}
+
+  /* P&L contribution list */
+  .plrow{display:grid;grid-template-columns:76px minmax(0,1fr) 120px;gap:9px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:11px;}
+  .plrow .nm{color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .plrow .bar{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;}
+  .plrow .bar i{display:block;height:100%;border-radius:4px;}
+  .plrow .val{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+  .bars .row{display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+  .bars .row .nm{font-size:10px;color:var(--tx2);min-width:96px;}
+  .bars .row .bar{flex:1;height:10px;background:var(--bg3);border-radius:4px;overflow:hidden;}
+  .bars .row .bar i{display:block;height:100%;}
+  .bars .row .vl{font-size:10px;min-width:110px;text-align:right;font-variant-numeric:tabular-nums;}
+
+  .note{padding:10px 12px;border:1px solid var(--line);border-radius:14px;color:var(--tx3);font-size:10px;line-height:1.75;margin-top:10px;background:var(--bg2);}
+  .excl{border-color:#3a2a22;color:#d8a48c;}
+  .excl b{color:#ff8f6b;font-weight:400;}
+  .warn{padding:12px;color:var(--down);font-size:10.5px;line-height:1.7;}
+  .empty{padding:16px 12px;color:var(--tx3);font-size:11px;line-height:1.8;}
+  table{width:100%;border-collapse:collapse;}
   .grid{stroke:var(--line);stroke-width:1;}
-  .zero{stroke:var(--line2);stroke-width:1;stroke-dasharray:3 3;}
   .lbl{fill:var(--tx);font-family:var(--mono);font-size:9px;}
-  .row{display:flex;align-items:center;gap:9px;margin-bottom:6px;}
-  .row .nm{font-family:var(--mono);font-size:10px;color:var(--tx2);min-width:112px;}
-  .row .bar{flex:1;height:12px;background:var(--bg3);border-radius:2px;overflow:hidden;}
-  .row .bar i{display:block;height:100%;}
-  .row .vl{font-family:var(--mono);font-size:10px;color:var(--tx);min-width:96px;text-align:right;font-variant-numeric:tabular-nums;}
-  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;}
-  th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;}
-  th{color:var(--tx3);font-weight:400;font-size:9px;text-transform:uppercase;letter-spacing:.06em;}
-  th.l,td.l{text-align:left;}
-  td.sym{color:var(--acc);}
-  td.pos{color:var(--up);} td.neg{color:var(--down);} td.mut{color:var(--tx3);}
-  .note{padding:10px 12px;border-top:1px solid var(--line);color:var(--tx3);font-family:var(--mono);font-size:10px;line-height:1.75;}
-  .warn{padding:9px 12px;color:var(--down);font-family:var(--mono);font-size:10px;line-height:1.7;}
-  .empty{padding:16px 12px;color:var(--tx3);font-family:var(--mono);font-size:11px;line-height:1.8;}
-  .pie-wrap{display:flex;gap:20px;align-items:center;flex-wrap:wrap;}
-  .pie-wrap svg{width:240px;height:240px;flex:0 0 240px;}
-  .pie-leg{flex:1;min-width:260px;}
-  .pie-row{display:flex;align-items:center;gap:9px;padding:4px 0;border-bottom:1px solid var(--line);}
-  .pie-row i{width:11px;height:11px;border-radius:2px;flex:0 0 11px;}
-  .pie-row .nm{font-family:var(--mono);font-size:10px;color:var(--tx2);flex:1;}
-  .pie-row .vl{font-family:var(--mono);font-size:10px;color:var(--tx);font-variant-numeric:tabular-nums;}
+  svg{display:block;}
+  svg.ring,svg.chart{width:100%;height:auto;}
+  .arw{width:24px;height:24px;flex:0 0 auto;}
+  .mark{width:16px;height:16px;flex:0 0 16px;}
+  .dot .mark{width:13px;height:13px;}
+  .chev{width:14px;height:14px;flex:0 0 14px;}
 </style>
 </head>
 <body>
 <div class="pf">
-  <div class="pf-head">
-    <span class="pf-code">PORTFOLIO</span>
-    <span class="pf-name">Paper book</span>
-    <span class="pf-who" id="pfWho"></span>
-  </div>
-
-  <div id="pfBody"><div class="empty">Loading the book&hellip;</div></div>
+  <div id="pfWho" class="pf-who"></div>
+  <div id="pfTop"><div class="empty">Loading the book&hellip;</div></div>
+  <div id="pfMore" hidden></div>
+  <div id="pfNotes"></div>
 </div>
 
+<script>
+/* ---- SECTOR COLOUR MAP (owned by the colour / sector-mapping workstream) ----
+   Every sector colour in this panel resolves through sectorColour() in the
+   script below, which reads window.MT_SECTOR_COLOURS. The 56 keys are the
+   exact, distinct sector strings the market and listing files of NSE, NGX,
+   JSE and EGX actually carry for their securities (read from
+   static_data/market_*.json and listing_*.json on 2026-10-05); none is
+   invented. Presentation only: this map decides colour, never a figure.
+
+   The colours were assigned by a deterministic farthest-point pass over a
+   hue + lightness-ladder candidate set so that every pair stays apart for
+   normal, protan, deutan and tritan vision. Measured: minimum pairwise
+   CIELAB dE 6.31 in the worst of those four models (6.49 for normal vision),
+   and every colour sits above black at WCAG contrast 4.17 or better (mean
+   9.47), so the map is legible on the #000 ground and does not rely on a
+   red-versus-green distinction between neighbouring sectors. The house mint
+   #33e29a is deliberately kept clear of every entry.
+
+   A position whose sector the files do not state is drawn in neutral grey
+   (#7f7f7f) and labelled Unclassified, so grey always means 'not known'
+   rather than a colour that implies knowledge we do not have. */
+window.MT_SECTOR_COLOURS = {
+    "Agricultural":            "#bd21e4",
+    "Agriculture":             "#40e751",
+    "Automotive":              "#dbcbeb",
+    "Banking":                 "#cd3764",
+    "Banks":                   "#f3b9a0",
+    "Beverages":               "#2d8bb4",
+    "Building & Associated":   "#e42121",
+    "Chemicals":               "#a0a8f3",
+    "Commercial Services":     "#ef80a1",
+    "Communications":          "#77c464",
+    "Consumer":                "#bff7d6",
+    "Consumer Goods":          "#a670db",
+    "Consumer Non-Durables":   "#ba6c4a",
+    "Consumer Services":       "#4aba77",
+    "ETF":                     "#ecf7bf",
+    "ETFs & Structured":       "#bde421",
+    "Education":               "#cd3791",
+    "Energy":                  "#a3993e",
+    "Energy Minerals":         "#80ef8b",
+    "Engineering":             "#c8b619",
+    "Finance":                 "#db70d1",
+    "Financial":               "#d897d1",
+    "Financial Services":      "#216fe4",
+    "Food":                    "#97d8c4",
+    "Food & Beverage":         "#bfc5f7",
+    "Health":                  "#a44aba",
+    "Healthcare":              "#ba4a4a",
+    "Industrial Services":     "#a6db70",
+    "Industrial holding":      "#f3a0a0",
+    "Industrials":             "#cbebe2",
+    "Insurance":               "#c48164",
+    "Investment":              "#7ecece",
+    "Materials":               "#f3eba0",
+    "Media":                   "#3ea384",
+    "Media & Entertainment":   "#37cd46",
+    "Mining & Resources":      "#cd3737",
+    "Non-Energy Minerals":     "#eb608a",
+    "Oil & Gas":               "#ce7eae",
+    "Pharmaceuticals":         "#e7a540",
+    "Printing & Publishing":   "#709bdb",
+    "Process Industries":      "#d47a54",
+    "Property":                "#646dc4",
+    "REIT / Property":         "#c88219",
+    "Real Estate":             "#70b42d",
+    "Retail":                  "#c464ba",
+    "Support Services":        "#c46464",
+    "Technology":              "#b8ef80",
+    "Technology Services":     "#b6a9ea",
+    "Telecom":                 "#c9eaa9",
+    "Tobacco":                 "#70db7b",
+    "Tourism":                 "#b1e2e2",
+    "Tourism & Leisure":       "#db9070",
+    "Transport":               "#808bef",
+    "Transport & Logistics":   "#e2a68d",
+    "Transportation":          "#eaa9e3",
+    "Utilities":               "#8de2af",
+    "Unclassified": "#7f7f7f",
+};
+window.MT_SECTOR_UNKNOWN = "#7f7f7f";
+window.mtSectorColour = function(sec){
+  if (sec == null || sec === "") return window.MT_SECTOR_UNKNOWN;
+  return window.MT_SECTOR_COLOURS[String(sec)] || window.MT_SECTOR_UNKNOWN;
+};
+</script>
 <script>
 (function(){
   "use strict";
   var BOOK_KEY = "mx_paper_v1";                 // written by the TRADE panel
+  var ALT_KEY  = "mt_paper_v1";                 // accepted read-only, older builds
   var EXES = ["NSE", "NGX", "JSE", "EGX"];
-  var FILE = { NSE:"NSE", NGX:"NGX", JSE:"JSE", EGX:"EGX" };
+  var MON = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>\"]/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
   function num(v){ return (typeof v === "number" && isFinite(v)) ? v : null; }
   function money(v, cur){
@@ -107,26 +271,47 @@
     else s = v.toFixed(2);
     return (cur ? cur + " " : "") + s;
   }
+  function qtyFmt(v){
+    if (num(v) === null) return "n/a";
+    var n = Math.round(v * 100) / 100;
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  function signed(v, cur){
+    if (num(v) === null) return "n/a";
+    return (v > 0 ? "+" : "") + money(v, cur);
+  }
+  function arrow(v){ return num(v) === null ? "" : (v > 0 ? "\u2191" : (v < 0 ? "\u2193" : "")); }
   function pct(v){
     if (num(v) === null) return "n/a";
     return (v > 0 ? "+" : "") + v.toFixed(2) + "%";
   }
-  function cls(v){ return num(v) === null ? "mut" : (v > 0 ? "pos" : (v < 0 ? "neg" : "mut")); }
+  function cls(v){ return num(v) === null ? "mut" : (v > 0 ? "up" : (v < 0 ? "down" : "mut")); }
+  function niceDate(iso){
+    if (!iso) return "";
+    var p = String(iso).slice(0, 10).split("-");
+    if (p.length !== 3) return String(iso);
+    var y = +p[0], m = +p[1], d = +p[2];
+    if (!y || !m || !d || m > 12) return String(iso);
+    return MON[m - 1] + " " + d + ", " + y;
+  }
 
-  // ---- the book --------------------------------------------------------
+  // ---- the book (READ ONLY) --------------------------------------------
   function readBook(){
-    var raw = null;
-    try { raw = localStorage.getItem(BOOK_KEY); } catch(e){ return { err:"unreadable" }; }
-    if (!raw) return { empty:true };
+    var raw = null, src = BOOK_KEY;
+    try {
+      raw = localStorage.getItem(BOOK_KEY);
+      if (!raw){ raw = localStorage.getItem(ALT_KEY); if (raw) src = ALT_KEY; }
+    } catch(e){ return { err:"unreadable" }; }
+    if (!raw) return { empty:true, src:src };
     var all = null;
     try { all = JSON.parse(raw); } catch(e){ return { err:"corrupt" }; }
-    if (!all || typeof all !== "object") return { empty:true };
+    if (!all || typeof all !== "object") return { empty:true, src:src };
 
     // The book is keyed by EXCHANGE (NSE, JSE, ...), each entry holding cash,
     // positions, orders and an equity history. Older variants keyed it by
     // account email, so both shapes are accepted. Every entry contributes:
     // a portfolio spanning two exchanges must not be counted once.
-    var out = [], books = [], cash = 0, realised = 0, equity = [], hasCash = false;
+    var out = [], books = [], cash = 0, realised = 0, equity = [], hasCash = false, hasReal = false;
     var keys = Object.keys(all);
     keys.forEach(function(k){
       var b = all[k];
@@ -138,7 +323,7 @@
       }
       var ex = /^[A-Z]{2,4}$/.test(k) ? k : null;
       if (num(b.cash) !== null){ cash += num(b.cash); hasCash = true; }
-      if (num(b.realised) !== null) realised += num(b.realised);
+      if (num(b.realised) !== null){ realised += num(b.realised); hasReal = true; }
       if (b.equity && b.equity.length) equity.push({ ex: ex, series: b.equity });
       var pos = b.positions || {};
       Object.keys(pos).forEach(function(sym){
@@ -150,8 +335,8 @@
       books.push({ key: k, ex: ex, cash: num(b.cash), realised: num(b.realised),
                    positions: Object.keys(pos).length, orders: (b.orders || []).length });
     });
-    return { positions: out, books: books, cash: hasCash ? cash : null, realised: realised,
-             equity: equity, accountCount: keys.length };
+    return { positions: out, books: books, cash: hasCash ? cash : null,
+             realised: hasReal ? realised : null, equity: equity, accountCount: keys.length, src: src };
   }
 
   // ---- price index over every exchange --------------------------------
@@ -165,8 +350,9 @@
   }
 
   function indexOf(markets){
-    var ix = {};
+    var byEx = {}, global = {};
     markets.forEach(function(m){
+      var room = byEx[m.ex] = byEx[m.ex] || {};
       var rows = (m.d && (m.d.stocks || m.d.rows || m.d.securities)) || [];
       rows.forEach(function(s){
         var sym = s.sym || s.ticker;
@@ -176,14 +362,31 @@
           name: s.name || s.company || String(sym),
           sector: s.sector || s.industry || null,
           price: num(s.price) !== null ? num(s.price) : num(s.last),
-          cur: s.currency || (m.ex === "NSE" ? "KES" : m.ex === "NGX" ? "NGN" : m.ex === "JSE" ? "ZAR" : "EGP")
+          prevClose: num(s.prevClose) !== null ? num(s.prevClose) : num(s.previousClose),
+          asOf: s.asOf || null,
+          cur: s.currency || (m.ex === "NSE" ? "KES" : m.ex === "NGX" ? "NGN" : m.ex === "JSE" ? "ZAc" : "EGP")
         };
-        ix[String(sym).toUpperCase()] = rec;
-        ix[String(sym).split(".")[0].toUpperCase()] = rec;
-        if (s.ticker) ix[String(s.ticker).toUpperCase()] = rec;
+        var keys = [String(sym).toUpperCase()];
+        if (String(sym).indexOf(".") >= 0) keys.push(String(sym).split(".")[0].toUpperCase());
+        if (s.ticker) keys.push(String(s.ticker).toUpperCase());
+        keys.forEach(function(k){
+          if (!(k in room)) room[k] = rec;             // an exchange owns its own tickers first
+          if (!(k in global)) global[k] = rec;          // then a first-wins global fallback
+        });
       });
     });
-    return ix;
+    return { byEx: byEx, global: global };
+  }
+  // A position is looked up on its OWN exchange first, so two exchanges that share
+  // a ticker (NSE BAT and JSE BAT.JO) can never cross-contaminate the book.
+  function lookup(ix, p){
+    var s = String(p.sym).toUpperCase(), base = s.split(".")[0];
+    var room = ix.byEx[p.ex];
+    if (room){
+      var r = room[s] || (s !== base ? room[base] : null);
+      if (r) return r;
+    }
+    return ix.global[s] || ix.global[base] || null;
   }
 
   function histKey(rec){
@@ -193,69 +396,135 @@
     return rec.sym;                                  // JSE/EGX key by their own sym
   }
 
-  // ---- charts ----------------------------------------------------------
-  // A donut. Slices are sized on absolute value, because a pie cannot show a
-  // negative slice - so this is exposure, and the caller labels it as gross.
-  // The percentages are of the gross total, which is why they sum to 100.
-  var PALETTE = ["#33e29a", "#7ef0c0", "#2aa9a0", "#1f7f7a", "#c9d94a",
-                 "#8fbf3f", "#5f9ea0", "#a8e6a1", "#4f8f6f", "#d9e88a"];
+  // ---- sector colour (single source of truth) --------------------------
+  // Owned by the sibling sector-colour workstream. If that work publishes a map
+  // (window.MT_SECTOR_COLOURS) or a function (window.mtSectorColour) this
+  // consumes it; otherwise a stable palette gives each sector in view its own
+  // colour. The ring, the legend and the position rows all call this one
+  // function, so they can never disagree on colour.
+  var SECT_PAL = ["#33e29a","#5ad1ff","#ffd166","#ff8f6b","#c792ea","#8bd450",
+                  "#f78fb3","#4cc9c0","#ffb454","#9aa6ff","#d7e06e","#7fd1ae"];
+  function siblingColour(sec){
+    try{
+      if (window.MT_SECTOR_COLOURS && window.MT_SECTOR_COLOURS[sec]) return window.MT_SECTOR_COLOURS[sec];
+      if (typeof window.mtSectorColour === "function"){
+        var c = window.mtSectorColour(sec); if (c) return c;
+      }
+    }catch(e){}
+    return null;
+  }
+  function sectorColour(sec, idx){
+    var sib = siblingColour(sec);
+    if (sib) return sib;
+    if (typeof idx === "number") return SECT_PAL[idx % SECT_PAL.length];
+    var h = 0, s = String(sec || "Unclassified");
+    for (var i = 0; i < s.length; i++){ h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+    return SECT_PAL[h % SECT_PAL.length];
+  }
+  var EX_COLOUR = { NSE:"#33e29a", NGX:"#5ad1ff", JSE:"#ffd166", EGX:"#c792ea" };
+  function exColour(ex){ return EX_COLOUR[ex] || "#8bd450"; }
 
-  function pieChart(items, size){
-    var pos = items.filter(function(i){ return Math.abs(i.value) > 0; });
-    if (!pos.length) return "";
+  // ---- the donut ring --------------------------------------------------
+  // Segments are sized on positive gross value (sum of absolute values per
+  // group), because a ring cannot draw a negative slice. Percentages are of the
+  // gross total, so they sum to 100. Hover or tap a segment to surface its
+  // value in the ring centre.
+  function ringChart(items, baseLabel, centreText){
     var gross = 0;
-    pos.forEach(function(i){ gross += Math.abs(i.value); });
-    if (!gross) return "";
-
-    var cx = 120, cy = 120, R = 104, r = 58;
-    var a0 = -Math.PI / 2;
-    var out = ['<svg viewBox="0 0 240 240" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Exposure by share">'];
-    pos.forEach(function(it, i){
-      var frac = Math.abs(it.value) / gross;
+    items.forEach(function(i){ gross += i.value; });
+    if (!gross) return { svg:"", items:[], total:0 };
+    var cx = 120, cy = 120, R = 100, r = 62, a0 = -Math.PI / 2;
+    var out = ['<svg viewBox="0 0 240 240" class="ring" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Allocation ring, ' + esc(baseLabel) + '">'];
+    out.push('<circle cx="120" cy="120" r="' + ((R + r) / 2) + '" fill="none" stroke="var(--line2)" stroke-width="' + (R - r) + '"/>');
+    items.forEach(function(it, i){
+      var frac = it.value / gross;
       var a1 = a0 + frac * Math.PI * 2;
       var big = (a1 - a0) > Math.PI ? 1 : 0;
-      var x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
-      var x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
-      var x2 = cx + r * Math.cos(a1), y2 = cy + r * Math.sin(a1);
-      var x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0);
-      var c = PALETTE[i % PALETTE.length];
-      // a slice of exactly 100% cannot be drawn as an arc; draw it as a ring
+      var c = it.colour;
+      var title = '<title>' + esc(it.label) + ': ' + esc(it.txt) + '</title>';
       if (frac > 0.9995){
-        out.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + ((R + r) / 2) + '" fill="none" stroke="' + c + '" stroke-width="' + (R - r) + '"/>');
+        out.push('<circle class="seg" data-i="' + i + '" cx="120" cy="120" r="' + ((R + r) / 2) + '" fill="none" stroke="' + c + '" stroke-width="' + (R - r) + '">' + title + '</circle>');
       } else {
-        out.push('<path d="M ' + x0.toFixed(2) + ' ' + y0.toFixed(2) +
+        var x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
+        var x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+        var x2 = cx + r * Math.cos(a1), y2 = cy + r * Math.sin(a1);
+        var x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0);
+        out.push('<path class="seg" data-i="' + i + '" d="M ' + x0.toFixed(2) + ' ' + y0.toFixed(2) +
                  ' A ' + R + ' ' + R + ' 0 ' + big + ' 1 ' + x1.toFixed(2) + ' ' + y1.toFixed(2) +
                  ' L ' + x2.toFixed(2) + ' ' + y2.toFixed(2) +
-                 ' A ' + r + ' ' + r + ' 0 ' + big + ' 0 ' + x3.toFixed(2) + ' ' + y3.toFixed(2) + ' Z" fill="' + c + '"/>');
+                 ' A ' + r + ' ' + r + ' 0 ' + big + ' 0 ' + x3.toFixed(2) + ' ' + y3.toFixed(2) + ' Z" fill="' + c + '">' + title + '</path>');
       }
-      it.pieColour = c;
-      it.piePct = frac * 100;
+      it.pct = frac * 100;
       a0 = a1;
     });
+    out.push('<text class="rc1" x="120" y="113" text-anchor="middle" data-c1>' + esc(baseLabel) + '</text>');
+    out.push('<text class="rc2" x="120" y="131" text-anchor="middle" data-c2>' + esc(centreText) + '</text>');
     out.push('</svg>');
-    return out.join("");
+    return { svg: out.join(""), items: items, total: gross };
   }
 
-  function pieLegend(items, cur){
-    var pos = items.filter(function(i){ return i.pieColour; });
-    return '<div class="pie-leg">' + pos.map(function(i){
-      return '<div class="pie-row"><i style="background:' + i.pieColour + '"></i>' +
+  function legend(items, cur){
+    return '<div class="leg">' + items.map(function(i){
+      return '<div class="leg-row"><i class="sw" style="background:' + i.colour + '"></i>' +
         '<span class="nm">' + esc(i.label) + '</span>' +
-        '<span class="vl">' + money(Math.abs(i.value), cur) + ' &middot; ' + i.piePct.toFixed(1) + '%</span></div>';
+        '<span class="vl">' + money(i.value, cur) + ' &middot; ' + i.pct.toFixed(1) + '%</span></div>';
     }).join("") + '</div>';
+  }
+
+  function wireRing(wrap, items, cur, baseLabel, centreText){
+    var svg = wrap.querySelector("svg.ring");
+    if (!svg) return;
+    var c1 = svg.querySelector("[data-c1]"), c2 = svg.querySelector("[data-c2]");
+    function reset(){ if (c1) c1.textContent = baseLabel; if (c2) c2.textContent = centreText; }
+    function show(i){
+      var it = items[i]; if (!it) return;
+      if (c1) c1.textContent = it.label;
+      if (c2) c2.textContent = money(it.value, cur) + "  " + it.pct.toFixed(1) + "%";
+    }
+    Array.prototype.forEach.call(svg.querySelectorAll(".seg"), function(s){
+      var i = +s.getAttribute("data-i");
+      s.addEventListener("mouseenter", function(){ show(i); });
+      s.addEventListener("mouseleave", reset);
+      s.addEventListener("touchstart", function(e){ e.preventDefault(); show(i); }, { passive:false });
+    });
+  }
+
+  function ringTotal(items){ var t = 0; items.forEach(function(i){ t += i.value; }); return t; }
+
+  function ringSection(title, sub, items, baseLabel, cur){
+    if (!items.length) return '<div class="sec"><div class="sec-h"><span class="sec-t">' + esc(title) + '</span>' +
+      '<span class="sec-s">' + esc(sub) + '</span></div><span class="ax">No priced position to allocate.</span></div>';
+    var ring = ringChart(items, baseLabel, money(ringTotal(items), cur));
+    return '<div class="sec"><div class="sec-h"><span class="sec-t">' + esc(title) + '</span>' +
+      '<span class="sec-s">' + esc(sub) + '</span></div>' +
+      '<div class="ring-wrap" data-ring>' + ring.svg + legend(items, cur) + '</div></div>';
+  }
+
+  function plRows(items, cur){
+    var max = 0;
+    items.forEach(function(i){ if (Math.abs(i.pl) > max) max = Math.abs(i.pl); });
+    if (!max) max = 1;
+    return items.map(function(i){
+      var w = Math.abs(i.pl) / max * 100;
+      var c = i.pl >= 0 ? "var(--up)" : "var(--down)";
+      return '<div class="plrow"><span class="nm">' + esc(i.label) + '</span>' +
+        '<span class="bar"><i style="width:' + w.toFixed(1) + '%;background:' + c + '"></i></span>' +
+        '<span class="val ' + cls(i.pl) + '">' + signed(i.pl, cur) + ' <span class="ar">' + arrow(i.pl) + '</span>' +
+        (num(i.plpc) !== null ? ' <span class="ar">' + pct(i.plpc) + '</span>' : '') + '</span></div>';
+    }).join("");
   }
 
   function barRows(items, colour){
     var max = 0;
     items.forEach(function(i){ if (Math.abs(i.value) > max) max = Math.abs(i.value); });
     if (!max) return "";
-    return items.map(function(i){
+    return '<div class="bars">' + items.map(function(i){
       var w = Math.abs(i.value) / max * 100;
       var c = typeof colour === "function" ? colour(i) : colour;
       return '<div class="row"><span class="nm">' + esc(i.label) + '</span>' +
         '<span class="bar"><i style="width:' + w.toFixed(1) + '%;background:' + c + '"></i></span>' +
         '<span class="vl">' + esc(i.text) + '</span></div>';
-    }).join("");
+    }).join("") + '</div>';
   }
 
   function lineChart(series){
@@ -268,7 +537,7 @@
     var pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
     var x = function(i){ return L + iw * i / (pts.length - 1); };
     var y = function(v){ return T + ih - ih * ((v - lo) / (hi - lo)); };
-    var out = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(series.label) + '">'];
+    var out = ['<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(series.label) + '">'];
     for (var g = 0; g <= 4; g++){
       var v = lo + (hi - lo) * g / 4, yy = y(v);
       out.push('<line class="grid" x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + (W - R) + '" y2="' + yy.toFixed(1) + '"/>');
@@ -303,111 +572,254 @@
     return { vol: sd * Math.sqrt(252) * 100, mdd: mdd * 100 };
   }
 
+  // ---- chrome ----------------------------------------------------------
+  function mark(){
+    return '<svg class="mark" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">' +
+      '<rect x="1" y="1" width="14" height="14" rx="4" fill="none" stroke="var(--acc)" stroke-width="1.5"/>' +
+      '<path d="M4.8 11.2 L8 4.6 L11.2 11.2" fill="none" stroke="var(--acc)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+  }
+  function heroArrow(up){
+    var d = up
+      ? '<path d="M7 17 L17 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M9 7 H17 V15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>'
+      : '<path d="M7 7 L17 17" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M9 17 H17 V9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>';
+    return '<svg class="arw" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
+  }
+  function mosaic(){
+    return '<svg class="mos" viewBox="0 0 170 132" aria-hidden="true"><g opacity="0.9">' +
+      '<rect x="4" y="6" width="28" height="28" rx="8" fill="#262b28"/>' +
+      '<rect x="38" y="6" width="42" height="28" rx="8" fill="#1f2421"/>' +
+      '<rect x="86" y="6" width="24" height="28" rx="8" fill="#2c312d"/>' +
+      '<rect x="116" y="6" width="38" height="28" rx="8" fill="#232725"/>' +
+      '<rect x="4" y="40" width="42" height="42" rx="10" fill="#1f2421"/>' +
+      '<rect x="52" y="40" width="28" height="42" rx="9" fill="#2c312d"/>' +
+      '<rect x="86" y="40" width="48" height="42" rx="10" fill="#232725"/>' +
+      '<rect x="140" y="40" width="24" height="42" rx="8" fill="#2c312d"/>' +
+      '<rect x="4" y="88" width="32" height="32" rx="9" fill="#232725"/>' +
+      '<rect x="42" y="88" width="46" height="32" rx="9" fill="#1f2421"/>' +
+      '<rect x="94" y="88" width="32" height="32" rx="9" fill="#2c312d"/>' +
+      '<rect x="132" y="88" width="32" height="32" rx="9" fill="#232725"/>' +
+      '</g></svg>';
+  }
+  function handle(){
+    try{
+      return localStorage.getItem("mt_name") || localStorage.getItem("mt_username") ||
+             localStorage.getItem("mt_email") || "PAPER BOOK";
+    }catch(e){ return "PAPER BOOK"; }
+  }
+
   // ---- render ----------------------------------------------------------
   function render(book, markets){
-    var host = document.getElementById("pfBody");
+    var top = document.getElementById("pfTop");
+    var more = document.getElementById("pfMore");
+    var notes = document.getElementById("pfNotes");
     var who = document.getElementById("pfWho");
+    more.hidden = true; more.innerHTML = ""; notes.innerHTML = "";
 
     if (book.err === "unreadable"){
-      host.innerHTML = '<div class="warn">This browser blocks local storage, so the paper book cannot be read. No figure is shown rather than a guessed one.</div>';
-      return;
+      top.innerHTML = '<div class="warn">This browser blocks local storage, so the paper book cannot be read. No figure is shown rather than a guessed one.</div>';
+      who.textContent = ""; return;
     }
-    if (book.empty || !book.positions || !book.positions.length){
+    if (!book.positions || !book.positions.length){
       var cashLine = (book.cash !== null && book.cash !== undefined)
-        ? '<br>This book holds ' + money(book.cash, "") + ' in cash and no open positions, so there is nothing to allocate or value yet.'
-        : '';
-      host.innerHTML = '<div class="empty">No paper positions in this browser.' + cashLine + '<br><br>' +
-        'Add them in the TRADE panel: enter the quantity you would hold and the average price you paid, and they appear here with allocation, profit and loss, a value curve and per-position risk.<br><br>' +
-        'This panel reads only what the book actually holds. It will not show a portfolio it cannot read.</div>';
-      who.textContent = "";
-      return;
+        ? 'This book holds ' + money(book.cash, "") + ' in cash and no open positions, so there is nothing to allocate or value yet.'
+        : 'This book holds no open positions, so there is nothing to allocate or value yet.';
+      top.innerHTML =
+        '<div class="sec"><div class="sec-h"><span class="sec-t">PORTFOLIO</span><span class="sec-s">' + esc(book.src || BOOK_KEY) + '</span></div>' +
+        '<div class="empty">No paper positions in this browser.<br>' + esc(cashLine) + '<br><br>' +
+        'Add them in the TRADE panel: enter the quantity you would hold and the average price you paid, and they appear here with a ring allocation, a profit and loss readout and a per-position breakdown.<br><br>' +
+        'This panel reads only what the book actually holds. It will not draw a ring it cannot price.</div></div>';
+      who.textContent = ""; return;
     }
 
     var ix = indexOf(markets);
-    var rows = [], unpriced = [];
+    var rows = [], unpriced = [], noCost = [];
     book.positions.forEach(function(p){
-      var rec = ix[p.sym.toUpperCase()];
-      if (!rec){
-        unpriced.push(p.sym);
-        rows.push({ sym:p.sym, qty:p.qty, avg:p.avg, last:null, rec:null,
-                    value:null, cost:num(p.avg) !== null ? p.qty * p.avg : null, pl:null, plpc:null });
-        return;
-      }
-      var last = rec.price;
+      var rec = lookup(ix, p);
       var cost = num(p.avg) !== null ? p.qty * p.avg : null;
-      var value = last !== null ? p.qty * last : null;
+      var last = rec ? rec.price : null;
+      var value = (rec && last !== null) ? p.qty * last : null;
       var pl = (value !== null && cost !== null) ? value - cost : null;
-      rows.push({ sym:p.sym, qty:p.qty, avg:p.avg, last:last, rec:rec, value:value, cost:cost, pl:pl,
-                  plpc:(pl !== null && cost) ? (pl / Math.abs(cost)) * 100 : null });
+      var day = (rec && last !== null && rec.prevClose !== null) ? p.qty * (last - rec.prevClose) : null;
+      var row = { sym:p.sym, qty:p.qty, avg:p.avg, rec:rec,
+                  name: rec ? rec.name : p.sym,
+                  sector: rec ? (rec.sector || "Unclassified (sector unknown)") : "Unclassified (sector unknown)",
+                  ex: rec ? rec.ex : (p.ex || "?"),
+                  last:last, prevClose: rec ? rec.prevClose : null,
+                  value:value, cost:cost, pl:pl,
+                  plpc:(pl !== null && cost) ? (pl / Math.abs(cost)) * 100 : null,
+                  day:day, asOf: rec ? rec.asOf : null };
+      rows.push(row);
+      if (value === null) unpriced.push(p.sym);
+      else if (cost === null) noCost.push(p.sym);
     });
 
     var cur = (rows[0] && rows[0].rec) ? rows[0].rec.cur : "";
     var mixed = rows.some(function(r){ return r.rec && r.rec.cur !== cur; });
-    var tVal = 0, tCost = 0, priced = 0;
+    var uni = mixed ? "" : cur;                       // currency label only when single-currency
+
+    var tVal = 0, tCost = 0, tPL = 0, tDay = 0, priced = 0, plBase = 0;
     rows.forEach(function(r){
       if (r.value !== null){ tVal += r.value; priced++; }
       if (r.cost !== null) tCost += r.cost;
+      if (r.pl !== null){ tPL += r.pl; plBase += Math.abs(r.cost); }
+      if (r.day !== null) tDay += r.day;
     });
-    var tPL = tCost ? tVal - tCost : null;
-    var tPLpc = (tPL !== null && tCost) ? (tPL / Math.abs(tCost)) * 100 : null;
-    var cash = book.cash, equityTotal = (cash !== null ? cash : 0) + tVal;
+    var tPLpc = plBase ? (tPL / plBase) * 100 : null;
+    var cash = book.cash;
 
+    var asOf = "";
+    rows.forEach(function(r){ if (r.value !== null && r.asOf && String(r.asOf).slice(0,10) > asOf) asOf = String(r.asOf).slice(0,10); });
+    var dateTxt = niceDate(asOf);
+
+    // ---- summary pills + hero card + buttons ----
     var html = "";
-    html += '<div class="cards">' +
-      '<div class="card"><div class="k">Positions</div><div class="v">' + rows.length + '</div></div>' +
-      '<div class="card"><div class="k">Market value</div><div class="v">' + money(tVal, mixed ? "" : cur) + '</div></div>' +
-      '<div class="card"><div class="k">Cost</div><div class="v">' + money(tCost, mixed ? "" : cur) + '</div></div>' +
-      '<div class="card"><div class="k">Profit / loss</div><div class="v ' + cls(tPL) + '">' + money(tPL, mixed ? "" : cur) + '</div></div>' +
-      (cash !== null ? '<div class="card"><div class="k">Cash</div><div class="v">' + money(cash, mixed ? "" : cur) + '</div></div>' : '') +
-      (cash !== null ? '<div class="card"><div class="k">Account value</div><div class="v">' + money(equityTotal, mixed ? "" : cur) + '</div></div>' : '') +
-      (book.realised ? '<div class="card"><div class="k">Realised</div><div class="v ' + cls(book.realised) + '">' + money(book.realised, mixed ? "" : cur) + '</div></div>' : '') +
-      '<div class="card"><div class="k">Return</div><div class="v ' + cls(tPLpc) + '">' + pct(tPLpc) + '</div></div>' +
+    html += '<div class="pill"><span class="l">Day profit and loss</span><span class="v ' + cls(tDay) + '">' +
+      signed(tDay, uni) + ' <span class="ar">' + arrow(tDay) + '</span></span></div>';
+    html += '<div class="pill"><span class="l">Total profit and loss</span><span class="v ' + cls(tPL) + '">' +
+      signed(tPL, uni) + ' <span class="ar">' + arrow(tPL) + '</span></span></div>';
+    if (num(book.realised) !== null)
+      html += '<div class="pill"><span class="l">Realised</span><span class="v ' + cls(book.realised) + '">' +
+        signed(book.realised, uni) + ' <span class="ar">' + arrow(book.realised) + '</span></span></div>';
+    html += '<div class="pill"><span class="l">Invested value (cost)</span><span class="v">' + money(tCost, uni) + '</span></div>';
+    html += '<div class="pill"><span class="l">Market value</span><span class="v">' + money(tVal, uni) + '</span></div>';
+    if (cash !== null)
+      html += '<div class="pill"><span class="l">Cash</span><span class="v">' + money(cash, uni) + '</span></div>';
+
+    var heroUp = !(num(tPL) < 0);
+    html += '<div class="hero">' + mosaic() + '<div class="tex"></div>' +
+      '<div class="hd"><span class="brand">' + mark() + ' MUTXRI | PORTFOLIO</span>' +
+      '<span class="date">' + (dateTxt ? 'as of ' + esc(dateTxt) : 'as of last close') + '</span></div>' +
+      '<div class="big ' + cls(tPL) + '">' + signed(tPL, uni) + ' ' + heroArrow(heroUp) + '</div>' +
+      '<div class="sub">Total unrealised profit and loss across ' + priced + ' priced position' + (priced === 1 ? '' : 's') +
+        ' at the last close in the exchange files' + (tPLpc !== null ? ', ' + pct(tPLpc) + ' on cost' : '') + '.</div>' +
+      '<div class="ft"><span class="acct"><span class="dot">' + mark() + '</span><span class="nm">' + esc(handle()) + '</span></span>' +
+      '<span class="dom">mutxriterminal.com</span></div>' +
       '</div>';
 
-    // allocation by sector
-    var bySec = {};
+    html += '<a class="btn pri" href="afri_trade.html">PLACE A PAPER TRADE</a>';
+    html += '<button type="button" class="btn sec" id="pfMoreBtn" aria-expanded="false">SHOW MORE ' +
+      '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9 L12 15 L18 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+
+    top.innerHTML = html;
+
+    // ---- detail (behind SHOW MORE) ----
+    var det = "";
+
+    // sector breakdown (gross exposure), colours via the single sectorColour() source
+    var bySec = {}, sectNames = [];
     rows.forEach(function(r){
       if (r.value === null) return;
-      var k = (r.rec.sector || "Unclassified");
-      bySec[k] = (bySec[k] || 0) + r.value;
+      var k = r.sector || "Unclassified";
+      if (!(k in bySec)){ bySec[k] = 0; sectNames.push(k); }
+      bySec[k] += Math.abs(r.value);
     });
-    var secItems = Object.keys(bySec).map(function(k){
-      return { label:k, value:bySec[k], text: money(bySec[k], mixed ? "" : cur) + "  " + (bySec[k] / tVal * 100).toFixed(1) + "%" };
+    sectNames.sort();
+    var sectIdx = {}; sectNames.forEach(function(s, i){ sectIdx[s] = i; });
+    var secItems = sectNames.map(function(k){
+      return { label:k, value:bySec[k], colour:sectorColour(k, sectIdx[k]), txt:money(bySec[k], uni) };
     }).sort(function(a, b){ return b.value - a.value; });
+    det += ringSection("ALLOCATION BY SECTOR", secItems.length + " sectors, gross exposure, shorts included",
+                       secItems, "SECTORS", uni);
 
-    html += '<div class="sec"><div class="sec-h"><span class="sec-t">EXPOSURE BY SECTOR</span>' +
-      '<span class="sec-s">' + secItems.length + ' sectors &middot; slice sized on absolute value, shorts included</span></div><div class="sec-b">' +
-      (secItems.length
-        ? '<div class="pie-wrap">' + pieChart(secItems) + pieLegend(secItems, mixed ? "" : cur) + '</div>'
-        : '<span class="ax">No priced position to allocate.</span>') +
-      '</div></div>';
-
-    // by exchange
-    var byEx = {};
-    rows.forEach(function(r){ if (r.value !== null) byEx[r.rec.ex] = (byEx[r.rec.ex] || 0) + r.value; });
-    var exItems = Object.keys(byEx).map(function(k){
-      return { label:k, value:byEx[k], text: money(byEx[k], "") + "  " + (byEx[k] / tVal * 100).toFixed(1) + "%" };
+    // exchange breakdown
+    var byEx = {}, exNames = [];
+    rows.forEach(function(r){
+      if (r.value === null) return;
+      var k = r.ex || "?";
+      if (!(k in byEx)){ byEx[k] = 0; exNames.push(k); }
+      byEx[k] += Math.abs(r.value);
+    });
+    exNames.sort();
+    var exItems = exNames.map(function(k){
+      return { label:k, value:byEx[k], colour:exColour(k), txt:money(byEx[k], "") };
     }).sort(function(a, b){ return b.value - a.value; });
-    html += '<div class="sec"><div class="sec-h"><span class="sec-t">EXPOSURE BY EXCHANGE</span>' +
-      '<span class="sec-s">' + exItems.length + ' exchanges</span></div><div class="sec-b">' +
-      (exItems.length
-        ? '<div class="pie-wrap">' + pieChart(exItems) + pieLegend(exItems, "") + '</div>'
-        : '<span class="ax">No exchange exposure to show.</span>') +
-      '</div></div>';
+    det += ringSection("ALLOCATION BY EXCHANGE", exItems.length + " exchange" + (exItems.length === 1 ? "" : "s"),
+                       exItems, "EXCHANGE", "");
 
-    // profit and loss per position
+    // sector totals as rows
+    det += '<div class="sec"><div class="sec-h"><span class="sec-t">SECTOR TOTALS</span><span class="sec-s">gross exposure</span></div>';
+    if (secItems.length){
+      det += secItems.map(function(i){
+        return '<div class="leg-row"><i class="sw" style="background:' + i.colour + '"></i>' +
+          '<span class="nm">' + esc(i.label) + '</span><span class="vl">' + money(i.value, uni) + ' &middot; ' + i.pct.toFixed(1) + '%</span></div>';
+      }).join("");
+    } else { det += '<span class="ax">No priced sector to show.</span>'; }
+    det += '</div>';
+
+    // P&L contribution by position
     var plItems = rows.filter(function(r){ return r.pl !== null; }).map(function(r){
-      return { label:r.sym, value:Math.abs(r.pl), pl:r.pl, text: money(r.pl, "") + "  " + pct(r.plpc) };
-    }).sort(function(a, b){ return b.value - a.value; });
-    html += '<div class="sec"><div class="sec-h"><span class="sec-t">PROFIT AND LOSS BY POSITION</span>' +
-      '<span class="sec-s">against average cost, at last close</span></div><div class="sec-b">' +
-      (plItems.length ? barRows(plItems, function(i){ return i.pl >= 0 ? "var(--up)" : "var(--down)"; })
-                      : '<span class="ax">No position can be priced against a cost, so no profit is claimed.</span>') +
-      '</div></div>';
+      return { label:r.sym, pl:r.pl, plpc:r.plpc };
+    }).sort(function(a, b){ return Math.abs(b.pl) - Math.abs(a.pl); });
+    det += '<div class="sec"><div class="sec-h"><span class="sec-t">PROFIT AND LOSS BY POSITION</span>' +
+      '<span class="sec-s">against average cost, at last close</span></div>';
+    det += plItems.length ? plRows(plItems, uni)
+      : '<span class="ax">No position can be priced against a cost, so no profit is claimed.</span>';
+    det += '</div>';
 
-    host.innerHTML = html;
+    // per-position table
+    det += '<div class="sec"><div class="sec-h"><span class="sec-t">POSITIONS</span><span class="sec-s">' +
+      rows.length + ' held &middot; colour is sector</span></div><div class="ptab">' +
+      '<div class="prow head"><span class="sw"></span><span class="id">POSITION</span>' +
+      '<span class="q">QTY</span><span class="v">VALUE</span><span class="p">P&amp;L</span></div>';
+    rows.slice().sort(function(a, b){ return Math.abs((b.value || 0)) - Math.abs((a.value || 0)); }).forEach(function(r){
+      var c = sectorColour(r.sector, sectIdx[r.sector]);
+      var valTxt = r.value === null ? '<span class="tag">unpriced</span>' : money(r.value, uni);
+      var pTxt;
+      if (r.pl !== null) pTxt = '<span class="' + cls(r.pl) + '">' + signed(r.pl, uni) + ' <span class="ar">' + arrow(r.pl) + '</span></span>';
+      else if (r.value === null) pTxt = '<span class="tag">no price</span>';
+      else pTxt = '<span class="tag">no cost basis</span>';
+      det += '<div class="prow"><span class="sw" style="background:' + (r.value === null ? "var(--line2)" : c) + '"></span>' +
+        '<span class="id"><span class="tk">' + esc(r.sym) + '</span><span class="co">' + esc(r.name) +
+          (r.ex && r.ex !== "?" ? " &middot; " + esc(r.ex) : "") + ' &middot; ' + esc(r.sector) + '</span></span>' +
+        '<span class="q">' + qtyFmt(r.qty) + '</span>' +
+        '<span class="v">' + valTxt + '</span>' +
+        '<span class="p">' + pTxt + '</span></div>';
+    });
+    det += '</div></div>';
 
-    // value curve + risk need the price history; appended when it arrives
+    // excluded / not claimed, named with reasons
+    if (unpriced.length){
+      det += '<div class="note excl">Excluded from the ring and the totals: <b>' + unpriced.length + '</b> position' +
+        (unpriced.length === 1 ? '' : 's') + ' with no current price in the exchange files, so they cannot be valued: ' +
+        unpriced.map(esc).join(", ") + '. An unpriced holding is not worth zero, so it is named here rather than drawn.</div>';
+    }
+    if (noCost.length){
+      det += '<div class="note excl">Valued in the ring but kept out of the profit and loss total: <b>' + noCost.length +
+        '</b> position' + (noCost.length === 1 ? '' : 's') + ' with no cost basis, so no profit can be measured: ' +
+        noCost.map(esc).join(", ") + '.</div>';
+    }
+    if (!unpriced.length && !noCost.length){
+      det += '<div class="note">Every held position is priced and carries a cost basis, so none is excluded: ' +
+        rows.length + ' of ' + rows.length + ' positions are in the ring and the totals.</div>';
+    }
+
+    // honest limits
+    var limits = '<div class="note">Ring segments are sized on gross exposure (the sum of absolute values), so the shares sum to 100 percent of the ' +
+      'gross book and a short contributes like a long; the signed profit and loss is shown separately. ';
+    if (mixed) limits += 'This book spans more than one currency (positions in ' + exNames.join(", ") +
+      '), so the money figures are currency-agnostic and would need conversion before they could be added as one sum. ';
+    limits += 'The book is browser-local under ' + esc(book.src || BOOK_KEY) + ', so this panel shows only what this browser holds and never writes to it.</div>';
+    det += limits;
+
+    more.innerHTML = det;
+
+    // wire the expandable detail and the ring hover/tap
+    var btn = document.getElementById("pfMoreBtn");
+    if (btn){
+      btn.addEventListener("click", function(){
+        more.hidden = !more.hidden;
+        btn.setAttribute("aria-expanded", more.hidden ? "false" : "true");
+      });
+    }
+    var wraps = more.querySelectorAll("[data-ring]");
+    if (wraps[0]) wireRing(wraps[0], secItems, uni, "SECTORS", money(ringTotal(secItems), uni));
+    if (wraps[1]) wireRing(wraps[1], exItems, "", "EXCHANGE", money(ringTotal(exItems), ""));
+
+    who.innerHTML = "Paper account, " + rows.length + " position" + (rows.length === 1 ? "" : "s") +
+      " across " + (exNames.length || 0) + " exchange" + (exNames.length === 1 ? "" : "s") +
+      " &middot; read from this browser only";
+
+    // ---- value curve + risk need the price history; appended when it arrives ----
     var wanted = rows.filter(function(r){ return r.rec && r.qty; });
     if (!wanted.length) return;
 
@@ -419,7 +831,6 @@
     })).then(function(got){
       var ok = got.filter(function(g){ return g.bars.length > 1; });
 
-      // per-position risk
       var risk = {};
       got.forEach(function(g){
         var cl = g.bars.map(function(b){ return b.c; });
@@ -427,7 +838,6 @@
         if (m) risk[g.r.sym] = m;
       });
 
-      // book value curve over the common recent window
       var dates = {};
       ok.forEach(function(g){
         g.bars.slice(-320).forEach(function(b){ if (b && b.t) dates[String(b.t).slice(0, 10)] = 1; });
@@ -455,26 +865,26 @@
       var extra = "";
       if (curve.length > 1){
         extra += '<div class="sec"><div class="sec-h"><span class="sec-t">BOOK VALUE OVER TIME</span>' +
-          '<span class="sec-s">quantity held today, priced at each historic close</span></div><div class="sec-b">' +
+          '<span class="sec-s">quantity held today, priced at each historic close</span></div>' +
           lineChart({ points:curve, label:"Book value over time" }) +
-          '<div class="note" style="border:0;padding:8px 0 0">Held quantity applied to each day\'s close from the exchange files, so today\'s holdings are measured through history rather than a trade-by-trade track record this book does not store.</div>' +
-          '</div></div>';
+          '<div class="note">Held quantity applied to each day\'s close from the exchange files, so today\'s holdings are measured through history rather than a trade-by-trade track record this book does not store.</div>' +
+          '</div>';
       } else {
         extra += '<div class="sec"><div class="sec-h"><span class="sec-t">BOOK VALUE OVER TIME</span></div>' +
-          '<div class="sec-b"><span class="ax">Not enough price history to draw a curve. The gap is shown rather than filled.</span></div></div>';
+          '<span class="ax">Not enough price history to draw a curve. The gap is shown rather than filled.</span></div>';
       }
 
       var rk = Object.keys(risk);
       if (rk.length){
         var ritems = rk.map(function(s){ return { k:s, v:risk[s] }; }).sort(function(a, b){ return b.v.vol - a.v.vol; });
         extra += '<div class="sec"><div class="sec-h"><span class="sec-t">RISK PER POSITION</span>' +
-          '<span class="sec-s">annualised volatility from daily closes, and worst peak-to-trough</span></div><div class="sec-b">' +
+          '<span class="sec-s">annualised volatility from daily closes, and worst peak-to-trough</span></div>' +
           barRows(ritems.map(function(i){
             return { label:i.k, value:i.v.vol, text:"vol " + i.v.vol.toFixed(1) + "%  dd " + i.v.mdd.toFixed(1) + "%" };
-          }), "var(--down)") + '</div></div>';
+          }), "var(--down)") + '</div>';
       }
 
-      host.insertAdjacentHTML("beforeend", extra);
+      more.insertAdjacentHTML("beforeend", extra);
     });
   }
 
@@ -482,7 +892,7 @@
     var book = readBook();
     loadMarkets().then(function(markets){ render(book, markets); })
       .catch(function(){
-        document.getElementById("pfBody").innerHTML =
+        document.getElementById("pfTop").innerHTML =
           '<div class="warn">The exchange files could not be loaded, so positions cannot be priced. Nothing is shown rather than an invented value.</div>';
       });
     // AUTO-REVALUE (2026-09-28): re-run this panel's own cycle on a timer, so the

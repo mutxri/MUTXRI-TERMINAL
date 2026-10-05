@@ -25,6 +25,9 @@
   --mono:'Oxygen Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --ui:'Inter',system-ui,sans-serif;
   --brand:'Sofia Sans Semi Condensed','Inter',sans-serif;
+  /* reader text size: one unitless multiplier for the whole shell. 1 = the
+     current size, so a reader who never touches the control sees no change. */
+  --mt-scale:1;
 }
 /* light theme - same Godel tokens, restruck for a light canvas */
 html[data-theme="light"]{
@@ -41,7 +44,20 @@ body{
   -webkit-font-smoothing:antialiased;
   font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;
 }
-.term{height:100vh;display:grid;grid-template-rows:auto auto 1fr auto;overflow:hidden}
+/* reader text size: zoom the whole shell (chrome, the inline panels and the
+   panel iframes) by one multiplier, and divide the viewport height back out so
+   a full-height layout never overflows. var(--mt-scale) is 1 by default.
+   The single column is minmax(0,1fr) so the workspace row can never be wider
+   than the viewport: the stacked phone panels then always fill the screen width
+   at any size, so a bigger size never pushes the price column off the edge, and
+   the ticker bar (with the text size control) always stays on screen. */
+.term{height:calc(100vh / var(--mt-scale));zoom:var(--mt-scale);
+  display:grid;grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto 1fr auto;overflow:hidden}
+@supports not (zoom:1){
+  .term{zoom:1;height:100vh}
+  html{font-size:calc(16px * var(--mt-scale))}
+}
 
 /* ---------- top bar ---------- */
 .topbar{display:flex;align-items:center;gap:var(--s5);padding:0 var(--s4);height:52px;
@@ -183,6 +199,26 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .tape-item .sym{color:var(--tx2);font-weight:500}
 .tape-item .pr{color:var(--tx)}
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--tx3)}
+
+/* reader text size control: lives at the right end of the ticker bar, which is
+   full width on a phone, so it is reachable without crowding or overlapping the
+   top bar. The marquee is clipped inside .tape-scroll, so the control never
+   covers it and never displaces it. */
+.tape-scroll{flex:1 1 auto;min-width:0;overflow:hidden}
+.fs-ctl{flex:0 0 auto;display:flex;align-items:stretch;margin:0 var(--s3) 0 var(--s2);
+  border:1px solid var(--line2);border-radius:4px;overflow:hidden;background:var(--bg2)}
+.fs-ic{display:flex;align-items:center;padding:0 7px;color:var(--tx3);
+  font-family:var(--mono);font-size:10px;letter-spacing:.02em}
+.fs-b{background:none;border:0;border-left:1px solid var(--line2);color:var(--tx3);
+  font-family:var(--mono);font-size:10px;letter-spacing:.02em;padding:0 8px;height:22px;
+  line-height:1;cursor:pointer;transition:background .15s,color .15s}
+.fs-b:hover{color:var(--tx)}
+.fs-b.on{background:var(--acc);color:#000;font-weight:700}
+.fs-b:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* continuous control in Settings > Theme */
+.fs-range{width:96px;accent-color:var(--acc);background:transparent;cursor:pointer}
 
 /* ---------- workspace: floating windows ---------- */
 /* Windows are absolutely placed inside .main and never change parent, so
@@ -556,8 +592,15 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
     document.documentElement.style.setProperty('--mono', _f === 'system' ? 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace' : "'Oxygen Mono',ui-monospace,SFMono-Regular,Menlo,monospace");
     var _o = localStorage.getItem('mt_outline') || 'default';
     document.documentElement.style.setProperty('--win-outline', (window.__OUTLINES && window.__OUTLINES[_o]) || '#4a4a4a');
+    // reader text size: restore before paint so the page never flashes from the
+    // default size to the chosen one. Missing or invalid values leave it at 1.
+    var _fs = parseFloat(localStorage.getItem('mt_textsize'));
+    if(_fs > 0.4 && _fs < 3){ document.documentElement.style.setProperty('--mt-scale', String(_fs)); }
   }catch(e){}
 })();
+// current reader text size multiplier (1 = default). Read from the live custom
+// property so the shell window managers can compensate their drag maths.
+window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mt-scale')); return (v > 0.4 && v < 3) ? v : 1; }catch(e){ return 1; } };
 </script>
 
 <!-- _tabbar_removed 2026-09-27: the panel tab strip is gone. Panels now open as their own
@@ -915,6 +958,13 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
               <option value="mono">Oxygen Mono</option>
             </select>
           </div>
+          <div class="settings-row" style="margin-top:10px">
+            <span class="settings-k">Text size<small>Scales every panel, on any device</small></span>
+            <span style="display:flex;align-items:center;gap:8px">
+              <input id="fsRange" class="fs-range" type="range" min="80" max="150" step="5" value="100" aria-label="Text size percent">
+              <span class="settings-badge" id="fsPct" style="min-width:34px;text-align:center">100%</span>
+            </span>
+          </div>
           <div class="settings-div"></div>
           <div class="settings-head">Table</div>
           <div class="settings-subhead">animation</div>
@@ -1005,7 +1055,18 @@ window.__OUTLINES = { default:'#4a4a4a', mint:'#33e29a', blue:'#4aa8ff', amber:'
   </header>
 
   <!-- TAPE -->
-  <div class="tape"><div class="tape-inner" id="tape"></div></div>
+  <div class="tape">
+    <div class="tape-scroll"><div class="tape-inner" id="tape"></div></div>
+    <!-- reader text size: always-reachable on desktop and phone, at the end of
+         the full-width ticker bar, so it never crowds or covers the top bar. -->
+    <div class="fs-ctl" id="fsCtl" role="group" aria-label="Text size">
+      <span class="fs-ic" aria-hidden="true">Aa</span>
+      <button type="button" class="fs-b" data-fs="sm" aria-label="Smaller text size" title="Smaller text" aria-pressed="false">A-</button>
+      <button type="button" class="fs-b on" data-fs="md" aria-label="Default text size" title="Default text size" aria-pressed="true">A</button>
+      <button type="button" class="fs-b" data-fs="lg" aria-label="Larger text size" title="Larger text" aria-pressed="false">A+</button>
+    </div>
+    <span class="sr-only" id="fsLive" aria-live="polite"></span>
+  </div>
 
   <!-- MAIN -->
   <div class="main">
@@ -1367,7 +1428,10 @@ function renderTabs(){
 
     let spaces = [], active = 0, zTop = 10;
 
-    function box(){ return main.getBoundingClientRect(); }
+    // the workspace is zoomed by the reader text size, so its usable size in the
+    // shell's own (zoomed) coordinate space is the visual rect divided by the
+    // scale. Window geometry is stored in that space.
+    function box(){ var r = main.getBoundingClientRect(), sc = mtScale(); return {width: r.width / sc, height: r.height / sc}; }
     function tiled(){
       // the first workspace mirrors the tiled layout people already know
       const b = box(), W = b.width || 1280, H = b.height || 700;
@@ -1560,9 +1624,12 @@ function renderTabs(){
       touched();
       const w = win(k), sx = e.clientX, sy = e.clientY;
       const o = {x: w.x, y: w.y, w: w.w, h: w.h};
+      // the shell is zoomed by the reader text size, so a mouse delta in screen
+      // pixels is divided by that zoom to move a window by the same amount
+      const sc = mtScale();
       const ov = overlay(mode === 'move' ? 'grabbing' : getComputedStyle(e.target).cursor);
       function move(ev){
-        const dx = ev.clientX - sx, dy = ev.clientY - sy;
+        const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc;
         if(mode === 'move'){ w.x = o.x + dx; w.y = o.y + dy; }
         else{
           if(dir.indexOf('e') >= 0) w.w = Math.max(MIN_W, o.w + dx);
@@ -1716,10 +1783,14 @@ window.MTPanelWins = (function(){
   function bbox(){
     let b = null;
     try{ b = layer && layer.parentNode ? layer.parentNode.getBoundingClientRect() : null; }catch(e){ b = null; }
-    const W = (b && b.width) || window.innerWidth || 1280;
-    const H = (b && b.height) || ((window.innerHeight || 700) - 120);
+    // divide out the reader text size zoom so the bounds match the window coords
+    const sc = mtScale();
+    const W = ((b && b.width) || window.innerWidth || 1280) / sc;
+    const H = ((b && b.height) || ((window.innerHeight || 700) - 120)) / sc;
     return {width: Math.max(320, Math.round(W)), height: Math.max(200, Math.round(H))};
   }
+  // re-fit open panel windows when the reader changes the text size
+  window.addEventListener('mt:textsize', function(){ try{ if(active()) render(); }catch(e){} });
   function savedSym(){
     try{ return localStorage.getItem(SYM_KEY) || ''; }catch(e){ return ''; }
   }
@@ -1916,9 +1987,11 @@ window.MTPanelWins = (function(){
     raise(id);
     const w = state[id], sx = e.clientX, sy = e.clientY;
     const o = {x: w.x, y: w.y, w: w.w, h: w.h};
+    // compensate for the reader text size zoom, as in the main window manager
+    const sc = mtScale();
     const ov = overlay(mode === 'move' ? 'grabbing' : 'default');
     function move(ev){
-      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc;
       if(mode === 'move'){ w.x = o.x + dx; w.y = o.y + dy; }
       else{
         if(dir.indexOf('e') >= 0) w.w = Math.max(MIN_W, o.w + dx);
@@ -4266,7 +4339,7 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     else if(key === "mt_winShadow"){ document.documentElement.setAttribute("data-win-shadow", on ? "on" : "off"); }
     else if(key === "mt_winAnim"){ document.documentElement.setAttribute("data-win-anim", on ? "on" : "off"); }
     else if(key === "mt_breakingNews"){
-      var tape = document.querySelector(".tape");
+      var tape = document.querySelector(".tape-scroll");
       if(tape) tape.style.display = on ? "" : "none";
     }
     renderToggles();
@@ -4297,7 +4370,7 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     document.documentElement.setAttribute("data-win-anim", localStorage.getItem("mt_winAnim") === "on" ? "on" : "off");
   }catch(e){}
   try{
-    var _tape = document.querySelector(".tape");
+    var _tape = document.querySelector(".tape-scroll");
     if(_tape && localStorage.getItem("mt_breakingNews") === "off") _tape.style.display = "none";
   }catch(e){}
   renderAcct();
@@ -4308,6 +4381,78 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
   setSel("fontSel", fontName());
   setSel("outlineSel", outlineName());
   renderToggles();
+})();
+</script>
+
+<script>
+/* ---- reader text size: ticker-bar steps + Settings > Theme slider ---- */
+(function(){
+  var KEY = 'mt_textsize';
+  var SIZES = [0.85, 1, 1.3];        // smaller / default / larger
+  var DEFAULT = 1, MIN = 0.8, MAX = 1.5;
+  var ctl = document.getElementById('fsCtl');
+  var btns = ctl ? Array.prototype.slice.call(ctl.querySelectorAll('.fs-b')) : [];
+  var range = document.getElementById('fsRange');
+  var pct = document.getElementById('fsPct');
+  var live = document.getElementById('fsLive');
+
+  function current(){
+    try{ var v = parseFloat(localStorage.getItem(KEY));
+         if(v >= MIN - 0.0001 && v <= MAX + 0.0001) return v; }catch(e){}
+    return DEFAULT;
+  }
+  function presetIndex(v){
+    for(var i = 0; i < SIZES.length; i++){ if(Math.abs(SIZES[i] - v) < 0.001) return i; }
+    return -1;
+  }
+  function paint(v){
+    var pi = presetIndex(v);
+    for(var i = 0; i < btns.length; i++){
+      var on = (pi === i) || (pi === -1 && v < 1 && i === 0) || (pi === -1 && v > 1 && i === 2);
+      btns[i].classList.toggle('on', on);
+      btns[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    if(range) range.value = String(Math.round(v * 100));
+    if(pct) pct.textContent = Math.round(v * 100) + '%';
+  }
+  function apply(v, quiet){
+    v = Math.min(MAX, Math.max(MIN, v));
+    try{ localStorage.setItem(KEY, String(v)); }catch(e){}
+    document.documentElement.style.setProperty('--mt-scale', String(v));
+    paint(v);
+    // let the shell window managers re-fit their windows: the whole shell is
+    // zoomed, so a size change is like a viewport resize. Coalesced so dragging
+    // the slider does not re-tile on every pixel.
+    try{
+      var relayout = function(){ try{ window.dispatchEvent(new Event('resize')); }catch(e){} };
+      if(window.requestAnimationFrame){
+        if(window.__mtRelayoutRAF) cancelAnimationFrame(window.__mtRelayoutRAF);
+        window.__mtRelayoutRAF = requestAnimationFrame(relayout);
+      } else { relayout(); }
+    }catch(e){}
+    if(!quiet && live) live.textContent = 'Text size ' + Math.round(v * 100) + ' percent';
+    try{ window.dispatchEvent(new Event('mt:textsize')); }catch(e){}
+  }
+  function step(dir){
+    var v = current(), i = presetIndex(v);
+    if(i >= 0) v = SIZES[Math.min(SIZES.length - 1, Math.max(0, i + dir))];
+    else v = v + dir * 0.15;                 // nudge a slider value, then clamp
+    apply(v);
+  }
+  if(ctl) ctl.addEventListener('click', function(e){
+    var b = e.target && e.target.closest ? e.target.closest('.fs-b') : null;
+    if(!b) return;
+    var k = b.getAttribute('data-fs');
+    if(k === 'sm') step(-1);
+    else if(k === 'lg') step(1);
+    else apply(DEFAULT);
+  });
+  if(range){
+    range.addEventListener('input', function(){ apply(parseFloat(range.value) / 100, true); });
+    range.addEventListener('change', function(){ apply(parseFloat(range.value) / 100); });
+  }
+  paint(current());
+  window.mtTextSize = { get: current, set: apply, step: step, reset: function(){ apply(DEFAULT); }, SIZES: SIZES.slice() };
 })();
 </script>
 
