@@ -4,20 +4,20 @@
   The trust differentiator: one scrolling feed of official regulator /
   central-bank releases across KE/NG/ZA/EG.
 
-  Standalone-viewable: runs on built-in SAMPLE items when /api/reg isn't
-  reachable, auto-uses the real endpoint when it is. Vanilla JS, exact
-  Godel tokens, no build step.
+  Standalone-viewable: reads static_data/reg.json (the real regulator feed)
+  when /api/reg isn't reachable. Vanilla JS, exact Godel tokens, no build step.
 
   INTEGRATE: lift the .reg-* markup into your right-panel tab set (new
   REG tab) and the <script> into your bundle. Wire the REG command to
-  window.showReg(). Delete SAMPLE_ITEMS once /api/reg is live.
+  window.showReg(). No sample items are shipped.
 -->
 <html lang="en">
 <head>
-<meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - REG</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
@@ -60,7 +60,6 @@
 </head>
 <body>
 
-
 <div class="reg-wrap" id="reg">
   <div class="reg-head">
     <div class="reg-title"><b>REG</b> · Regulatory Wire</div>
@@ -74,9 +73,8 @@
 
 <script>
 (function () {
-  window.STATIC_MODE = true;
   "use strict";
-  var REG_ENDPOINT = "../../static_data/reg.json";
+  var REG_ENDPOINT = "/api/reg";
 
   // Regulators, for the country/source filter chips.
   var REGULATORS = [
@@ -86,14 +84,6 @@
     { reg:"FRA", iso:"EG" }, { reg:"CBE", iso:"EG" }
   ];
 
-  // Clearly-labeled sample so the panel is demonstrable standalone.
-  var SAMPLE_ITEMS = [
-    { regulator:"CMA", country:"Kenya", iso:"KE", headline:"CMA approves new green bond framework for issuers - Business Daily", outlet:"Business Daily", date:"2026-08-20T09:30:00+00:00", link:"#" },
-    { regulator:"SARB", country:"South Africa", iso:"ZA", headline:"SARB holds repo rate at 7.25%, cites inflation outlook - Moneyweb", outlet:"Moneyweb", date:"2026-08-20T08:00:00+00:00", link:"#" },
-    { regulator:"SEC", country:"Nigeria", iso:"NG", headline:"SEC Nigeria issues guidelines on digital asset custody - Nairametrics", outlet:"Nairametrics", date:"2026-08-19T16:15:00+00:00", link:"#" },
-    { regulator:"FRA", country:"Egypt", iso:"EG", headline:"FRA tightens disclosure rules for listed companies - Ahram Online", outlet:"Ahram Online", date:"2026-08-19T11:00:00+00:00", link:"#" },
-    { regulator:"CBK", country:"Kenya", iso:"KE", headline:"Central Bank of Kenya T-bill auction oversubscribed - The Standard", outlet:"The Standard", date:"2026-08-18T13:20:00+00:00", link:"#" }
-  ];
 
   var activeIso = null; // null = all
   var allItems = [];
@@ -162,9 +152,23 @@
         $("regFoot").textContent = (data.freshness || "live") + " · " + allItems.length + " items";
         renderFeed();
       })
+      .catch(function () { loadStatic(); });
+  }
+
+  // The served origin has no /api backend; the real regulator feed ships as
+  // static_data/reg.json (same {count,sources,freshness,items} shape). Read
+  // that before giving up, and never fabricate a release.
+  function loadStatic() {
+    fetch("../../static_data/reg.json")
+      .then(function (r) { if (!r.ok) throw new Error("no snapshot"); return r.json(); })
+      .then(function (data) {
+        allItems = data.items || [];
+        $("regFoot").textContent = (data.freshness || "snapshot") + " · " + allItems.length + " items";
+        renderFeed();
+      })
       .catch(function () {
-        allItems = SAMPLE_ITEMS.slice();
-        $("regFoot").textContent = "SAMPLE DATA (server /api/reg not reachable)";
+        allItems = [];
+        $("regFoot").textContent = "regulatory wire unavailable - no live feed and no snapshot on file";
         renderFeed();
       });
   }

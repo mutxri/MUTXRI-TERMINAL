@@ -4,19 +4,20 @@
   A bar-derived trade tape for intraday markets (JSE/EGX). Honestly shows
   "no intraday tape" for EOD markets (NGX/NSE) rather than faking prints.
 
-  Standalone-viewable on SAMPLE bars; auto-uses /api/tas when live.
+  Standalone-viewable: reads static_data/tas.json (the real tape state) when /api/tas is not reachable.
   Vanilla JS, exact Godel tokens, no build step.
 
   INTEGRATE: lift .tas-* markup into a right-panel tab (TAS), lift the
-  <script>, wire the TAS command to window.showTas(symbol). Delete
-  SAMPLE once /api/tas is live (returns {available, reason, source, prints}).
+  <script>, wire the TAS command to window.showTas(symbol). No sample prints
+  are shipped; /api/tas (when live) returns {available, reason, source, prints}.
 -->
 <html lang="en">
 <head>
-<meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - TAS</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
@@ -53,7 +54,6 @@
 </head>
 <body>
 
-
 <div class="tas-wrap" id="tas">
   <div class="tas-head">
     <div class="tas-title"><b>TAS</b> · Time &amp; Sales</div>
@@ -67,12 +67,12 @@
 
 <script>
 (function () {
-  window.STATIC_MODE = true;
   "use strict";
   var Q = new URLSearchParams(location.search);
   var EX = (Q.get("ex") || "").toUpperCase();
   var REQ = (Q.get("sym") || Q.get("symbol") || "").toUpperCase();
   var TAS_ENDPOINT = "../../static_data/tas.json";
+
 
   function $(id){ return document.getElementById(id); }
   function fmt(v, dp){ return v == null ? '<span class="muted">-</span>' : Number(v).toLocaleString(undefined,{minimumFractionDigits:dp,maximumFractionDigits:dp}); }

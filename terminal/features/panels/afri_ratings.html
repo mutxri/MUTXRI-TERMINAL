@@ -4,19 +4,20 @@
   Aggregates INDICATIVE rating signals from public news. Prominently
   labeled as not-a-licensed-consensus. Never fabricates a rating.
 
-  Standalone-viewable on SAMPLE data; auto-uses /api/ratings when live.
+  Standalone-viewable: reads static_data/ratings.json (real snapshot) when /api/ratings is not reachable.
   Vanilla JS, exact Godel tokens, no build step.
 
   INTEGRATE: lift .rat-* markup into a right-panel tab (RATINGS), lift the
   <script>, wire the RATINGS command to window.showRatings(symbol).
-  Delete SAMPLE once /api/ratings is live.
+  No ratings are shipped as samples; with no signals the panel shows an honest empty state.
 -->
 <html lang="en">
 <head>
-<meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - RATINGS</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
@@ -64,7 +65,6 @@
 </head>
 <body>
 
-
 <div class="rat-wrap" id="rat">
   <div class="rat-head">
     <div class="rat-title"><b>RATINGS</b> · Indicative</div>
@@ -77,22 +77,9 @@
 
 <script>
 (function () {
-  window.STATIC_MODE = true;
   "use strict";
-  var RAT_ENDPOINT = "../../static_data/ratings.json";
+  var RAT_ENDPOINT = "/api/ratings";
 
-  var SAMPLE = {
-    symbol: "EQTY", consensus: "Buy (lean)", confidence: "moderate",
-    tally: { Buy: 4, Hold: 1, Sell: 0 }, signal_count: 5,
-    avg_target: 60.0, target_count: 3,
-    disclaimer: "Indicative only - derived from public news mentions, NOT a licensed analyst consensus. Full consensus and verified price targets require Refinitiv/Bloomberg/FactSet.",
-    signals: [
-      { headline:"Broker A initiates EQTY at Buy, price target of 60", rating:"Buy", target:60, date:"2026-08-20", link:"#" },
-      { headline:"Broker B upgrades to Outperform, target 58", rating:"Buy", target:58, date:"2026-08-18", link:"#" },
-      { headline:"Bank E rates Overweight, PT 62", rating:"Buy", target:62, date:"2026-08-15", link:"#" },
-      { headline:"Broker D maintains Hold on valuation", rating:"Hold", target:null, date:"2026-08-12", link:"#" }
-    ]
-  };
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
@@ -147,14 +134,31 @@
     $("ratFoot").textContent = d.signal_count + " signals · news-derived, indicative";
   }
 
+  // The live route is /api/ratings, which does not exist on the served origin.
+  // The real indicative snapshot ships as static_data/ratings.json, so read
+  // that before giving up. If neither yields data, render an honest empty
+  // state (render() shows "No rating signal found" for a zero-signal object).
   function load(symbol) {
     var url = RAT_ENDPOINT + (symbol ? "?symbol=" + encodeURIComponent(symbol) : "");
     fetch(url)
       .then(function (r) { if (!r.ok) throw new Error("no endpoint"); return r.json(); })
-      .then(render)
+      .then(function (d) {
+        render(d);
+        $("ratFoot").textContent = (d.signal_count || 0) + " signals · news-derived, indicative";
+      })
+      .catch(function () { loadStatic(); });
+  }
+
+  function loadStatic() {
+    fetch("../../static_data/ratings.json")
+      .then(function (r) { if (!r.ok) throw new Error("no snapshot"); return r.json(); })
+      .then(function (d) {
+        render(d);
+        $("ratFoot").textContent = (d.signal_count || 0) + " signals · news-derived, indicative (snapshot)";
+      })
       .catch(function () {
-        render(SAMPLE);
-        $("ratFoot").textContent = "SAMPLE DATA (server /api/ratings not reachable)";
+        render({ signal_count: 0 });
+        $("ratFoot").textContent = "ratings unavailable - no live feed and no snapshot on file";
       });
   }
 

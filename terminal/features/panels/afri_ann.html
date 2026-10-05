@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <!--
-  MUTXRI TERMINAL - ANNOUNCEMENTS panel. Every NSE listed-company announcement
-  (audited results, AGM notices, dividends, board changes) with a link to the
-  issuer's filing PDF on nse.co.ke. Vanilla JS, Godel palette.
+  MUTXRI TERMINAL - ANNOUNCEMENTS panel. Every listed-company announcement for
+  the selected exchange (audited results, AGM notices, dividends, board
+  changes, disclosures) with a link to the source filing. NSE reads nse.co.ke,
+  NGX reads ngxgroup.com, JSE reads the SENS wire via sharenet.co.za, EGX reads
+  Mubasher's Egyptian Exchange disclosure wire. Vanilla JS, Godel palette.
 -->
 <html lang="en">
 <head>
@@ -111,9 +113,12 @@
 
   // Which exchange's filings this panel shows. The shell appends ?ex=<EX> to
   // every panel URL, so a reader on Lagos must never be handed Nairobi's
-  // filings as if they were their own. NSE and NGX have a listed-company
-  // filing feed in the static snapshot; JSE and EGX do not, and say so rather
-  // than borrowing another market's data.
+  // filings as if they were their own. All four exchanges now carry their own
+  // listed-company feed: NSE from nse.co.ke, NGX from ngxgroup.com, JSE from
+  // the exchange's SENS wire (read through the sharenet.co.za mirror), and EGX
+  // from Mubasher's Egyptian Exchange disclosure wire. An exchange whose feed
+  // cannot be reached would say so in words rather than borrow another
+  // market's data.
   var EX = "NSE";
   try { var _ex = new URLSearchParams(location.search).get("ex"); if (_ex) EX = _ex.toUpperCase(); } catch(e){}
   var EXNAMES = { NSE:"NSE", NGX:"NGX", JSE:"JSE", EGX:"EGX" };
@@ -123,8 +128,10 @@
            src:"nse.co.ke \u00b7 audited results \u00b7 AGM \u00b7 dividends", dict:false },
     NGX: { ann:"../../static_data/ngx_filings.json", cal:null,
            src:"ngxgroup.com \u00b7 listed-company filings", dict:true },
-    JSE: { ann:null, cal:null, src:"" },
-    EGX: { ann:null, cal:null, src:"" }
+    JSE: { ann:"../../static_data/jse_announcements.json", cal:null,
+           src:"sharenet.co.za \u00b7 JSE SENS announcements", dict:false },
+    EGX: { ann:"../../static_data/egx_announcements.json", cal:null,
+           src:"mubasher.info \u00b7 Egyptian Exchange disclosures", dict:false }
   };
   var CFG = FEED[EX] || FEED.NSE;
   document.getElementById("exName").textContent = EXNAMES[EX] || EX;
@@ -145,7 +152,11 @@
     moreEl.style.display = list.length > PAGE ? "block" : "none";
     if(!shown.length){ el.innerHTML = '<div class="empty">no filings match</div>'; return; }
     el.innerHTML = shown.map(function(o){
-      var y = o.year ? '<span class="yr">' + esc(o.year) + '</span>' : '<span class="und">undated</span>';
+      // A feed may carry a full ISO date (the JSE SENS and EGX disclosure
+      // wires) or only a filing year (nse_announcements). Show the most precise
+      // stamp the row actually has; never invent one.
+      var stamp = o.date || (o.year ? String(o.year) : "");
+      var y = stamp ? '<span class="yr">' + esc(stamp) + '</span>' : '<span class="und">undated</span>';
       var co = o.company ? '<span class="co">' + esc(o.company) + '</span>' : '';
       var link = o.url
         ? '<a href="' + esc(o.url) + '" target="_blank" rel="nofollow noopener">' + esc(o.title) + '</a>'
@@ -257,10 +268,12 @@
   function loadAnnouncements(){
     document.getElementById("src").textContent = CFG.src;
     if (!CFG.ann){
-      // honest: no listed-company announcement feed for this exchange. Showing
-      // Nairobi's filings to a Lagos reader was the bug; show nothing instead.
-      el.innerHTML = '<div class="empty">No listed-company announcement feed is wired for '
-        + (EXNAMES[EX] || EX) + ' in this build. Nothing is shown rather than another market&#39;s filings.</div>';
+      // honest: no listed-company announcement feed could be reached for this
+      // exchange. Showing Nairobi's filings to a Lagos reader was the bug; this
+      // states the gap in words instead of leaving an empty panel.
+      el.innerHTML = '<div class="empty">No free listed-company announcement feed for '
+        + (EXNAMES[EX] || EX) + ' could be reached by this build&#39;s collectors. '
+        + 'Nothing is shown rather than another market&#39;s filings.</div>';
       document.getElementById("count").textContent = "";
       moreEl.style.display = "none";
       return;

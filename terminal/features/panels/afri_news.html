@@ -168,7 +168,7 @@
         return { title: h,
           publisher: String(i.regulator || "") + " \u00b7 " + String(i.outlet || ""),
           date: String(i.date || "").slice(0, 10),
-          url: i.link || "", tickers: [] };
+          url: i.link || "", tickers: [], _reg: true };
       });
   }
 
@@ -260,10 +260,18 @@
     // which are days older - fall past the 120-row cut and vanish, which is
     // exactly what they did before this. They are already capped at 25 by
     // corpRows, so reserve them their places and fill the rest by date.
+    //
+    // The regulator wire (reg.json) loses the same race for the same reason:
+    // on a busy board its few rows - dated weeks earlier than the press - drop
+    // below the cut, so the header said REGULATORY while showing none. Reserve
+    // a small slice for it too, so the panel shows what its header claims.
     var CAP = 120;
+    var REG_CAP = 6;
     var corp = all.filter(function(n){ return n._corp; });
-    var rest = all.filter(function(n){ return !n._corp; });
-    var shown = corp.concat(rest.slice(0, Math.max(0, CAP - corp.length)));
+    var reg  = all.filter(function(n){ return n._reg; }).slice(0, REG_CAP);
+    var rest = all.filter(function(n){ return !n._corp && !n._reg; });
+    var shown = corp.concat(reg).concat(
+      rest.slice(0, Math.max(0, CAP - corp.length - reg.length)));
     shown.sort(function(a, b){ return b._t - a._t; });
 
     el.innerHTML = shown.map(function(n){

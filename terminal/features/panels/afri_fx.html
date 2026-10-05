@@ -2,19 +2,21 @@
 <!--
   MUTXRI TERMINAL - FX (Cross-Rate Matrix + Converter) panel.
   Cross rates across KES/NGN/ZAR/EGP/USD/EUR/GBP, triangulated via USD.
-  Standalone-viewable on SAMPLE rates; auto-uses /api/fx when live.
+  Standalone-viewable: reads static_data/fx.json (real cross rates) when /api/fx is not reachable.
   Vanilla JS, exact Godel tokens, no build step.
 
   INTEGRATE: lift .fx-* markup into a right-panel tab (FX), lift <script>,
-  wire the FX command to window.showFx(). Delete SAMPLE_USD_RATES once
-  /api/fx is live (it should return {currencies, matrix, note}).
+  wire the FX command to window.showFx(). The /api/fx endpoint, when live, should
+  return {currencies, matrix, note}; otherwise the static snapshot is used and the
+  foot says so. No sample rates are shipped.
 -->
 <html lang="en">
 <head>
-<meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - FX</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
@@ -61,7 +63,6 @@
 </head>
 <body>
 
-
 <div class="fx-wrap" id="fx">
   <div class="fx-head">
     <div class="fx-title"><b>FX</b> · Cross Rates &amp; Converter</div>
@@ -83,12 +84,9 @@
 
 <script>
 (function () {
-  window.STATIC_MODE = true;
   "use strict";
-  var FX_ENDPOINT = "../../static_data/fx.json";
+  var FX_ENDPOINT = "/api/fx";
 
-  // Sample "units per 1 USD"; delete once /api/fx is live.
-  var SAMPLE_USD_RATES = { USD:1.0, KES:129.0, NGN:1550.0, ZAR:18.2, EGP:48.5, EUR:0.92, GBP:0.79 };
   var CCY = [["KES","Kenyan Shilling"],["NGN","Nigerian Naira"],["ZAR","South African Rand"],
              ["EGP","Egyptian Pound"],["USD","US Dollar"],["EUR","Euro"],["GBP","British Pound"]];
 
@@ -145,25 +143,46 @@
 
   function refreshAll() { renderMatrix(); renderConvert(); }
 
+  // Reconstruct usdRates from the matrix's USD row if provided, else expect a
+  // rates map. Support both shapes gracefully. Returns true only if at least
+  // one real rate was read, so the caller can fall through to the next source.
+  function applyFx(data) {
+    usdRates = {};
+    if (data && data.usd_rates) { usdRates = data.usd_rates; }
+    else if (data && data.matrix) {
+      var usdRow = data.matrix.filter(function (r) { return r.base === "USD"; })[0];
+      usdRates = { USD: 1.0 };
+      if (usdRow) (usdRow.cells || []).forEach(function (c) { if (c.rate != null) usdRates[c.to] = c.rate; });
+    }
+    return Object.keys(usdRates).length > 0;
+  }
+
   function load() {
     $("fxFoot").textContent = "loading…";
     fetch(FX_ENDPOINT)
       .then(function (r) { if (!r.ok) throw new Error("no endpoint"); return r.json(); })
       .then(function (data) {
-        // Reconstruct usdRates from the matrix's USD row if provided,
-        // else expect a rates map. Support both shapes gracefully.
-        if (data.usd_rates) { usdRates = data.usd_rates; }
-        else if (data.matrix) {
-          var usdRow = data.matrix.filter(function (r) { return r.base === "USD"; })[0];
-          usdRates = { USD: 1.0 };
-          if (usdRow) usdRow.cells.forEach(function (c) { if (c.rate != null) usdRates[c.to] = c.rate; });
-        }
-        $("fxFoot").textContent = (data.note || "live") ;
+        if (!applyFx(data)) throw new Error("no rates");
+        $("fxFoot").textContent = (data.note || "live");
+        refreshAll();
+      })
+      .catch(function () { loadStatic(); });
+  }
+
+  // The served origin has no /api backend; the real cross rates ship as
+  // static_data/fx.json (same {currencies,matrix,note} shape). Read that before
+  // giving up, and never invent a rate.
+  function loadStatic() {
+    fetch("../../static_data/fx.json")
+      .then(function (r) { if (!r.ok) throw new Error("no snapshot"); return r.json(); })
+      .then(function (data) {
+        if (!applyFx(data)) throw new Error("no rates");
+        $("fxFoot").textContent = "snapshot" + (data.note ? " · " + data.note : "");
         refreshAll();
       })
       .catch(function () {
-        usdRates = SAMPLE_USD_RATES;
-        $("fxFoot").textContent = "SAMPLE RATES (server /api/fx not reachable)";
+        usdRates = {};
+        $("fxFoot").textContent = "rates unavailable - no live feed and no snapshot on file";
         refreshAll();
       });
   }

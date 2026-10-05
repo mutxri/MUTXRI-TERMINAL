@@ -5,19 +5,20 @@
   (GH/CI), coffee/tea (KE/ET/UG). Each row: commodity, price, day %, and
   a mini area sparkline, plus the regional-relevance note the spec asks for.
 
-  Standalone-viewable on SAMPLE data; auto-uses /api/commodities when live.
+  Standalone-viewable: reads static_data/commodities.json (the real board) when /api/commodities is not reachable.
   Vanilla JS, exact Godel tokens, no build step.
 
   INTEGRATE: lift the .glco-* markup into a right-panel tab (GLCO) and the
   <script> into your bundle. Wire the GLCO command to window.showGlco().
-  Delete SAMPLE_ROWS once /api/commodities is live.
+  No sample rows are shipped; an empty board state is shown if no data is on file.
 -->
 <html lang="en">
 <head>
-<meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - GLCO</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
@@ -56,7 +57,6 @@
 </head>
 <body>
 
-
 <div class="glco-wrap" id="glco">
   <div class="glco-head">
     <div class="glco-title"><b>GLCO</b> · Global Commodities</div>
@@ -68,19 +68,9 @@
 
 <script>
 (function () {
-  window.STATIC_MODE = true;
   "use strict";
-  var GLCO_ENDPOINT = "../../static_data/commodities.json";
+  var GLCO_ENDPOINT = "/api/commodities";
 
-  // Clearly-labeled sample; deleted once the endpoint is live.
-  var SAMPLE_ROWS = [
-    { name:"Gold", unit:"USD/oz", africa:"South Africa - major producer/exporter", price:2412.5, chgPct:0.62, spark:[2380,2388,2375,2402,2395,2412] },
-    { name:"Platinum", unit:"USD/oz", africa:"South Africa - ~70% of world supply", price:1012.0, chgPct:-1.14, spark:[1040,1035,1028,1020,1018,1012] },
-    { name:"Brent", unit:"USD/bbl", africa:"Nigeria/Angola crude benchmark", price:82.4, chgPct:1.05, spark:[80,80.5,81.2,81.0,81.9,82.4] },
-    { name:"Cocoa", unit:"USD/t", africa:"Ghana & Cote d'Ivoire - ~60% of world supply", price:7850, chgPct:2.31, spark:[7600,7680,7720,7700,7790,7850] },
-    { name:"Coffee", unit:"USD/lb", africa:"Ethiopia, Kenya, Uganda - key exporters", price:238.5, chgPct:-0.44, spark:[242,240,239,240.5,239,238.5] },
-    { name:"Wheat", unit:"USD/bu", africa:"A major import for all four markets - food-security signal", price:548.0, chgPct:null, spark:[] }
-  ];
 
   function $(id){ return document.getElementById(id); }
 
@@ -108,6 +98,10 @@
   }
 
   function render(rows) {
+    if (!rows || !rows.length) {
+      $("glcoRows").innerHTML = '<div style="padding:26px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:11px">commodity prices unavailable</div>';
+      return;
+    }
     $("glcoRows").innerHTML = rows.map(function (r) {
       var up = r.chgPct == null ? true : r.chgPct >= 0;
       var chgCls = r.chgPct == null ? "muted" : (r.chgPct >= 0 ? "up" : "down");
@@ -129,9 +123,22 @@
         render(data.commodities || []);
         $("glcoFoot").textContent = data.freshness || "live";
       })
+      .catch(function () { loadStatic(); });
+  }
+
+  // The served origin has no /api backend; the real commodity board ships as
+  // static_data/commodities.json (same {commodities,freshness,live} shape).
+  // Read that before giving up, and never invent a price.
+  function loadStatic() {
+    fetch("../../static_data/commodities.json")
+      .then(function (r) { if (!r.ok) throw new Error("no snapshot"); return r.json(); })
+      .then(function (data) {
+        render(data.commodities || []);
+        $("glcoFoot").textContent = data.freshness || "snapshot";
+      })
       .catch(function () {
-        render(SAMPLE_ROWS);
-        $("glcoFoot").textContent = "SAMPLE DATA (server /api/commodities not reachable)";
+        render([]);
+        $("glcoFoot").textContent = "commodities unavailable - no live feed and no snapshot on file";
       });
   }
 
