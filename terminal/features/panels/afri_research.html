@@ -133,7 +133,56 @@
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
   function num(v){ return v === null || v === undefined || v === "" || isNaN(v) ? null : Number(v); }
   function f2(v, suf){ return v === null ? "not available" : (Math.round(v * 100) / 100) + (suf || ""); }
-  function keyFor(ex, sym){ return (ex === "NSE" || ex === "NGX") ? ex + "_" + String(sym).split(".")[0] : sym; }
+  function keyFor(ex, sym){
+    var s = String(sym);
+    if (ex === "NSE" || ex === "NGX") return ex + "_" + s.split(".")[0];
+    // JSE/EGX archives are named with the exchange's own suffix (SOL.JO.json,
+    // COMI.CA.json). A row that carries only `ticker` (no `.sym`) arrives bare,
+    // and looking up "SOL"/"COMI" found no file, so the price history drew as an
+    // empty "no price history" card for a security that has one. Add the suffix
+    // the archive actually uses, exactly as the heatmap's openChart does.
+    if (ex === "JSE" && !/\.JO$/.test(s)) return s.split(".")[0] + ".JO";
+    if (ex === "EGX" && !/\.CA$/.test(s)) return s.split(".")[0] + ".CA";
+    return s;
+  }
+  // The EGX archive mixes two key conventions: some securities are stored under
+  // the bare ticker ("AALR.CA") and others under the ISIN ("EGS60121C018.CA"),
+  // so a lookup by the ticker the panel carries (COMI) finds nothing and the
+  // chart draws empty for the names a reader most wants. The market file's own
+  // `sym` IS the file key, so try that first, then the ticker forms, and use the
+  // first history file that actually loads.
+  function histKeys(ex, sym, mkt){
+    var given = String(sym == null ? "" : sym).toUpperCase();
+    var bare = given.split(".")[0];
+    var out = [];
+    function push(k){ if (k && out.indexOf(k) < 0) out.push(k); }
+    if (ex === "NSE" || ex === "NGX"){ push(ex + "_" + bare); return out; }
+    if (mkt && mkt.stocks){
+      for (var i = 0; i < mkt.stocks.length; i++){
+        var s = mkt.stocks[i];
+        var sn = String(s.sym || "").toUpperCase(), tn = String(s.ticker || "").toUpperCase();
+        if (sn === given || tn === given || sn.split(".")[0] === bare || tn.split(".")[0] === bare){
+          push(s.sym); break;
+        }
+      }
+    }
+    if (/\.[A-Za-z]{2}$/.test(given)) push(given);
+    var sfx = ex === "JSE" ? ".JO" : (ex === "EGX" ? ".CA" : "");
+    if (sfx) push(bare + sfx);
+    push(bare);
+    return out;
+  }
+  function getHist(ex, sym, mkt, suffix){
+    var keys = histKeys(ex, sym, mkt), i = 0;
+    function next(){
+      if (i >= keys.length) return Promise.resolve(null);
+      var k = keys[i++];
+      return get(base + "history/" + k + (suffix || "") + ".json")
+        .then(function(d){ return (d && d.bars && d.bars.length) ? d : next(); })
+        .catch(next);
+    }
+    return next();
+  }
   // analytics files are keyed by the listing code without the exchange suffix on some markets
   function analyticsKeys(sym){
     var s = String(sym);
@@ -254,12 +303,13 @@
 
   document.getElementById("rsSym").textContent = SYM;
 
+  var marketP = get(base + "market_" + EX + ".json").catch(function(){ return null; });
   Promise.all([
-    get(base + "market_" + EX + ".json").catch(function(){ return null; }),
+    marketP,
     get(base + "analytics/" + analyticsKeys(SYM)[0] + ".json")
       .catch(function(){ return get(base + "analytics/" + analyticsKeys(SYM)[1] + ".json"); })
       .catch(function(){ return null; }),
-    get(base + "history/" + keyFor(EX, SYM) + ".json").catch(function(){ return null; })
+    marketP.then(function(mkt){ return getHist(EX, SYM, mkt, ""); })
   ]).then(function(res){
     var mkt = res[0], an = res[1], hist = res[2];
 
@@ -318,8 +368,7 @@
       document.getElementById("rsHistNote").textContent =
         shown.length + " bars, " + String(a.t).slice(0, 10) + " to " + String(b.t).slice(0, 10);
     } else {
-      fetch(base + "history/" + keyFor(EX, SYM) + ".max.json", {cache:"default"})
-        .then(function(r){ return r.ok ? r.json() : null; })
+      getHist(EX, SYM, mkt, ".max")
         .then(function(maxH){
           if (maxH && maxH.bars && maxH.bars.length > 1){
             document.getElementById("rsPrice").innerHTML = lineChart(maxH.bars);

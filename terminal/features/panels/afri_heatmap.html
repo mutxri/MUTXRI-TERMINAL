@@ -541,27 +541,52 @@
     $("cpSub").textContent = cpName;
     $("cpStat").textContent = "loading…";
     document.getElementById("chartPanel").classList.add("open");
-    // History file keys differ per exchange. NSE/NGX archives are prefixed with
-    // the exchange and carry no suffix (NSE_SCOM.json, NGX_DANGCEM.json). JSE/EGX
-    // archives are named with the exchange's own symbol suffix (SOL.JO.json,
-    // COMI.CA.json). Build the key to match, and fall back to the suffix when a
-    // bare ticker arrives (e.g. typed or from a row that only carries `ticker`).
-    var rawSym = String(c.sym || c.ticker || "").replace(/\//g, "_").toUpperCase();
-    var histBase;
-    if(activeEx === "NSE" || activeEx === "NGX"){
-      histBase = activeEx + "_" + rawSym.split(".")[0];
-    }else{
+    // History keys are per exchange AND per security. NSE/NGX archives are
+    // prefixed with the exchange and carry no suffix (NSE_SCOM.json,
+    // NGX_DANGCEM.json). JSE archives are "<TICKER>.JO". The EGX mixes the bare
+    // ticker ("AALR.CA") with the ISIN ("EGS60121C018.CA"), so a bare-ticker
+    // lookup (COMI) finds no file and the candle draws empty for exactly the
+    // names a reader opens first. Build the candidate keys from the row's own
+    // sym/code first - the market key IS the file key - then the ticker forms,
+    // and use the first history file that actually loads.
+    function phKeys(){
+      var out = [];
+      function add(k){
+        k = String(k == null ? "" : k).replace(/\//g, "_").toUpperCase();
+        if (k && out.indexOf(k) < 0) out.push(k);
+      }
+      if(activeEx === "NSE" || activeEx === "NGX"){
+        add(activeEx + "_" + String(c.sym || c.ticker || c.short || "").split(".")[0]);
+        return out;
+      }
       var exSuf = activeEx === "JSE" ? ".JO" : (activeEx === "EGX" ? ".CA" : "");
-      histBase = /\.(JO|CA)$/.test(rawSym) ? rawSym : rawSym.split(".")[0] + exSuf;
+      [c.sym, c.code, c.ticker, c.short].forEach(function(v){
+        v = String(v == null ? "" : v).replace(/\//g, "_").toUpperCase();
+        if(!v) return;
+        if(/\.[A-Za-z]{2}$/.test(v)) add(v);
+        else if(exSuf) add(v.split(".")[0] + exSuf);
+        add(v.split(".")[0]);
+      });
+      return out;
+    }
+    function phFetch(suffix){
+      var keys = phKeys(), i = 0;
+      function next(){
+        if(i >= keys.length) return Promise.resolve(null);
+        var k = keys[i++];
+        return fetch("../../static_data/history/" + encodeURIComponent(k) + (suffix || "") + ".json")
+          .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+          .then(function(d){ return (d && d.bars && d.bars.length) ? d : next(); })
+          .catch(next);
+      }
+      return next();
     }
     cpBarsDaily = []; cpBarsMax = []; cpBothDone = false;
-    fetch("../../static_data/history/" + encodeURIComponent(histBase) + ".json")
-      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-      .then(function(d){ cpBarsDaily = d.bars || []; cpBothDone = true; cpRender(); })
+    phFetch("")
+      .then(function(d){ cpBarsDaily = (d && d.bars) || []; cpBothDone = true; cpRender(); })
       .catch(function(){ cpBarsDaily = []; cpBothDone = true; cpRender(); });
-    fetch("../../static_data/history/" + encodeURIComponent(histBase) + ".max.json")
-      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-      .then(function(d){ cpBarsMax = d.bars || []; cpRender(); })
+    phFetch(".max")
+      .then(function(d){ cpBarsMax = (d && d.bars) || []; cpRender(); })
       .catch(function(){ cpBarsMax = []; cpRender(); });
   }
   function closeChartPanel(){ document.getElementById("chartPanel").classList.remove("open"); }

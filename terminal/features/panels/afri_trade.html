@@ -386,36 +386,55 @@
   function historyOf(t){
     var r = quote(t);
     if(!r) return Promise.resolve(null);
-    // END OF DAY MARK (2026-09-28). Archive keys are per exchange: NSE/NGX files
-    // are prefixed with the exchange and carry no suffix (NSE_SCOM.json,
-    // NGX_DANGCEM.json), while JSE/EGX files are the exchange's own suffixed
-    // symbol (SOL.JO.json, COMI.CA.json). Building "<EX>_<ticker>" for every
-    // exchange stripped the JSE/EGX suffix and 404'd, so those markets never
-    // refined their end-of-day mark from the daily archive. Build the right key
-    // here. Why the bars: the market snapshot's todayClose duplicates prevClose
-    // on every NSE row (0 of 56 rows differ), so a mark taken from it can never
-    // move. The daily bars carry a real close per session.
+    // END OF DAY MARK (2026-09-28). Archive keys are per exchange AND per
+    // security: NSE/NGX files are prefixed with the exchange and carry no suffix
+    // (NSE_SCOM.json, NGX_DANGCEM.json); the JSE is "<TICKER>.JO"; and the EGX
+    // mixes the bare ticker ("AALR.CA") with the ISIN ("EGS60121C018.CA"), so the
+    // old "<ticker>.CA" key (COMI.CA) matched no file and the EGX never refined
+    // its end-of-day mark. The market row's own `sym` IS the file key, so try it
+    // first, then the ticker forms, and use the first archive that loads. Why the
+    // bars: the market snapshot's todayClose duplicates prevClose on every NSE
+    // row (0 of 56 rows differ), so a mark taken from it can never move.
     var _tk = String(t || "").toUpperCase();
-    if(EX === "JSE" || EX === "EGX"){
-      var _suf = EX === "JSE" ? ".JO" : ".CA";
-      r.file = /\.(JO|CA)$/.test(_tk) ? _tk : _tk.split(".")[0] + _suf;
+    var _bare = _tk.replace(/\.(JO|CA)$/, "").split(".")[0];
+    var cands = [];
+    function _add(k){ k = String(k == null ? "" : k).toUpperCase(); if(k && cands.indexOf(k) < 0) cands.push(k); }
+    if(EX === "NSE" || EX === "NGX"){
+      _add(EX + "_" + _bare);
     }else{
-      r.file = EX + "_" + _tk.replace(/\.(JO|CA)$/, "");
+      var _suf = EX === "JSE" ? ".JO" : ".CA";
+      _add(r.sym);
+      _add(r.ticker);
+      _add(/\.(JO|CA)$/.test(_tk) ? _tk : _bare + _suf);
+      _add(_bare);
     }
-    if(!HIST[r.file]){
-      HIST[r.file] = fetch("../../static_data/history/" + encodeURIComponent(r.file) + ".json?t=" + Math.floor(Date.now() / 3600000))
-        .then(function(res){ if(!res.ok) throw 0; return res.json(); })
-        .then(function(d){
-          // bar times are session midnights in local exchange time; +12h lands
-          // every one of them on its own calendar date in UTC
-          return ((d && d.bars) || []).map(function(b){
-            return {date: new Date((b.t + 43200) * 1000).toISOString().slice(0, 10),
-                    open: num(b.o), high: num(b.h), low: num(b.l), price: num(b.c)};
-          });
-        })
-        .catch(function(){ return null; });
+    var _cacheKey = EX + "::" + cands.join(",");
+    if(!HIST[_cacheKey]){
+      HIST[_cacheKey] = (function(){
+        var i = 0;
+        function next(){
+          if(i >= cands.length) return Promise.resolve(null);
+          var k = cands[i++];
+          return fetch("../../static_data/history/" + encodeURIComponent(k) + ".json?t=" + Math.floor(Date.now() / 3600000))
+            .then(function(res){ if(!res.ok) throw 0; return res.json(); })
+            .then(function(d){
+              if(!d || !d.bars || !d.bars.length) return next();
+              // a bar date is a session midnight: an epoch in seconds or an ISO
+              // day. Accept both, so a normalised archive still marks the day.
+              return d.bars.map(function(b){
+                var tv = b.t;
+                var date = (typeof tv === "number")
+                  ? new Date((tv + 43200) * 1000).toISOString().slice(0, 10)
+                  : String(tv).slice(0, 10);
+                return {date: date, open: num(b.o), high: num(b.h), low: num(b.l), price: num(b.c)};
+              });
+            })
+            .catch(next);
+        }
+        return next();
+      })();
     }
-    return HIST[r.file];
+    return HIST[_cacheKey];
   }
 
   // ---------------- orders ----------------
