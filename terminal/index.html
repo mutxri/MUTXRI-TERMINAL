@@ -348,6 +348,19 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .wl-price{grid-column:3;text-align:right}
 .wl-price .pr{color:var(--tx);font-size:11px}
 .wl-price .chg{font-size:10.5px}
+/* watchlist rows for a company awaiting listing: no traded price exists, so the
+   row carries the status and the expected date or window, plus an offer price
+   labelled OFFER PRICE only where one exists. Never a price, change, percentage
+   or market cap, because a zero would claim the company traded at nothing. */
+.wl-row.await{background:var(--bg2);box-shadow:inset 3px 0 0 var(--acc)}
+.wl-row.await:hover{background:var(--bg3)}
+.wl-main.wl-wait{display:flex;flex-direction:column;gap:2px}
+.wl-main .wl-badge{align-self:flex-start;font-family:var(--mono);font-size:8px;letter-spacing:.1em;
+  color:#e0a340;border:1px solid #e0a340;border-radius:2px;padding:1px 5px;white-space:nowrap}
+.wl-main .wl-when{font-family:var(--mono);font-size:9px;color:var(--tx3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-price .wl-offer{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;color:var(--tx3)}
+.wl-price .wl-offer b{display:block;color:var(--acc);font-weight:700;letter-spacing:0}
 
 /* ---------- center panel ---------- */
 .panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
@@ -2230,12 +2243,148 @@ function stockTicker(s){
   return s.ticker || s.short || s.code || (s.sym || '').split('.')[0] || (s.name || '').split(' ')[0].toUpperCase();
 }
 
+// ===== Upcoming listings: companies that have NOT traded =====
+// Single source of truth: static_data/upcoming_listings.json, the same file the
+// NEWS panel renders. A company awaiting listing has no traded price, so it is
+// deliberately kept OUT of listing[] and therefore out of the tape, the market
+// breadth, the heatmap, the screener and the candles. It is shown only on the
+// watchlist (and in the finder), with a status where a price would sit.
+let AWAITING = {};          // board code -> [row]
+let AWAITING_BY_KEY = {};   // provisional key -> row
+function upcomingBoard(c){
+  const e = String((c && c.exchange) || '').toUpperCase();
+  if(e.indexOf('NGX') >= 0) return 'NGX';
+  if(e.indexOf('NSE') >= 0) return 'NSE';
+  const g = String((c && (c.exchange_name || c.segment)) || '').toUpperCase();
+  if(g.indexOf('NAIROBI') >= 0) return 'NSE';
+  if(g.indexOf('LAGOS') >= 0 || g.indexOf('NIGERIAN') >= 0) return 'NGX';
+  return '';
+}
+// The owner's ask: a confirmed offer reads AWAITING LISTING. An announced
+// project carries its own, weaker status and is never merged with a confirmed
+// offer on another exchange.
+function awaitStatusText(c){
+  return (String((c && c.status) || '').indexOf('ANNOUNCED') >= 0) ? 'LISTING ANNOUNCED' : 'AWAITING LISTING';
+}
+function awaitExpectedText(c){
+  if(c && c.expected_date) return 'Expected ' + c.expected_date;
+  if(c && c.expected_window) return 'Expected ' + c.expected_window;
+  return 'No listing date yet';
+}
+function upcomingRow(c){
+  return {
+    sym: String(c.key || c.id || c.name || ''),
+    name: c.name || '',
+    exchange: upcomingBoard(c),
+    _awaiting: true,
+    key: String(c.key || c.id || c.name || ''),
+    status: c.status || '',
+    expected_date: c.expected_date || null,
+    expected_window: c.expected_window || null,
+    expected_date_label: c.expected_date_label || null,
+    offer_price: (c.offer_price == null ? null : c.offer_price),
+    offer_price_currency: c.offer_price_currency || null,
+    offer_type: c.offer_type || null,
+    shares_offered: (c.shares_offered == null ? null : c.shares_offered),
+    shares_in_issue: (c.shares_in_issue == null ? null : c.shares_in_issue),
+    sector: c.sector || null,
+    note: c.note || null,
+    sources: c.sources || []
+  };
+}
+function loadUpcoming(){
+  // static_data/ is relative to the shell in BOTH flavors (the dev shell at the
+  // repo root and the GitHub Pages shell under /terminal/), exactly like the
+  // market_<EX>.json snapshots loadListing already reads.
+  return fetch('static_data/upcoming_listings.json')
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){
+      const rows = (d && d.listings) || [];
+      AWAITING = {}; AWAITING_BY_KEY = {};
+      rows.forEach(function(c){
+        if(!c || !c.name) return;
+        const s = upcomingRow(c);
+        if(AWAITING_BY_KEY[s.key]) return;
+        AWAITING_BY_KEY[s.key] = s;
+        if(s.exchange){ (AWAITING[s.exchange] = AWAITING[s.exchange] || []).push(s); }
+      });
+      renderWatchlist($('q') ? $('q').value : '');
+    })
+    .catch(function(){ /* no upcoming file: nothing to show, nothing breaks */ });
+}
+function awaitingRowsFor(ex, filter){
+  const f = (filter || '').toUpperCase();
+  return (AWAITING[ex] || []).filter(function(s){
+    if(!f) return true;
+    return String(s.key).toUpperCase().indexOf(f) >= 0 ||
+           String(s.name).toUpperCase().indexOf(f) >= 0;
+  });
+}
+// A watchlist row for a company that has not traded: the status is the visible
+// thing, then the expected date or window, then an OFFER PRICE only when one
+// exists. No price, change, percentage or market cap is ever rendered here.
+function awaitRowHTML(s){
+  let offer = '';
+  if(s.offer_price != null){
+    const px = (typeof s.offer_price === 'number')
+      ? s.offer_price.toLocaleString(undefined, {maximumFractionDigits: 2})
+      : String(s.offer_price);
+    const cur = s.offer_price_currency ? ' ' + s.offer_price_currency : '';
+    offer = '<span class="wl-offer">OFFER PRICE<b>' + esc(px + cur) + '</b></span>';
+  }
+  return '<div class="wl-row await" title="' + esc(s.name + ' is not listed and has no traded price') +
+      '" onclick="showAwaiting(\'' + esc(s.key) + '\')">' +
+    '<span class="wl-logo-cell"><span class="wl-mono">\u25f7</span></span>' +
+    '<span class="wl-main wl-wait">' +
+      '<span class="wl-badge">' + esc(awaitStatusText(s)) + '</span>' +
+      '<span class="nm">' + esc(s.name) + '</span>' +
+      '<span class="wl-when">' + esc(awaitExpectedText(s)) + '</span>' +
+    '</span>' +
+    '<span class="wl-price">' + offer + '</span>' +
+  '</div>';
+}
+// Clicking an awaiting row fills the market rail with the facts it does have.
+// It never shows a price, because there is none: the note says so outright.
+window.showAwaiting = function(key){
+  const s = AWAITING_BY_KEY[key];
+  if(!s) return;
+  const num = function(n){ return (n == null ? null : Number(n).toLocaleString()); };
+  const offer = (s.offer_price == null) ? null :
+    ((typeof s.offer_price === 'number' ? s.offer_price.toLocaleString(undefined, {maximumFractionDigits: 2}) : String(s.offer_price)) +
+     (s.offer_price_currency ? ' ' + s.offer_price_currency : '') + ' (offer price, not a traded price)');
+  const srcs = (s.sources || []).map(function(x){ return (x && (x.label || x)) || ''; }).filter(Boolean).join(' \u00b7 ');
+  const row = function(k, v){
+    const t = (v == null ? '' : String(v)).trim();
+    return t ? '<span>' + esc(k) + '</span><span>' + esc(t) + '</span>' : '';
+  };
+  $('rightInfo').innerHTML =
+    '<div class="qhead"><div class="qsym">' + esc(s.name) + '</div>' +
+    '<div class="qname">' + esc(awaitStatusText(s)) + '</div></div>' +
+    '<div class="qgrid">' +
+      row('EXCHANGE', s.exchange) +
+      row('EXPECTED', s.expected_date || s.expected_window) +
+      row('OFFER PRICE', offer) +
+      row('OFFER TYPE', s.offer_type) +
+      row('SHARES OFFERED', num(s.shares_offered)) +
+      row('SHARES IN ISSUE', num(s.shares_in_issue)) +
+      row('SECTOR', s.sector) +
+    '</div>' +
+    (s.note ? '<div style="padding:10px 16px;border-top:1px solid var(--line);font-family:var(--ui);font-size:11px;color:var(--tx2);line-height:1.55">' + esc(s.note) + '</div>' : '') +
+    (srcs ? '<div style="padding:8px 16px;color:var(--tx3);font-family:var(--mono);font-size:9px;line-height:1.5">SOURCE \u00b7 ' + esc(srcs) + '</div>' : '') +
+    '<div style="padding:8px 16px 12px;color:var(--tx3);font-family:var(--mono);font-size:9px;line-height:1.5">Not listed. No traded price, no change percentage and no market capitalisation exist yet. The key is provisional, not a published ticker.</div>';
+};
+
 function renderWatchlist(filter){
   const list = listing[currentEx] || [];
   const f = (filter || '').toUpperCase();
   const rows = f ? list.filter(s => stockTicker(s).includes(f) || (s.name||'').toUpperCase().includes(f)) : list.filter(s => s.instrument !== 'structured');
   const el = $('wlList');
-  el.innerHTML = rows.slice(0, 300).map(s => {
+  // A company awaiting listing has no traded price, so it is shown with a status
+  // instead of a price and pinned to the top of its board's watchlist, where a
+  // reader sees it without selecting anything first.
+  const awaitHtml = (typeof awaitingRowsFor === 'function')
+    ? awaitingRowsFor(currentEx, f).map(awaitRowHTML).join('') : '';
+  const body = rows.slice(0, 300).map(s => {
     // JSE/EGX: quote from cache; NGX/NSE: EOD data embedded in the listing
     const q = quotes[s.sym] || {};
     const price = q.price != null ? q.price : s.price;
@@ -2278,7 +2427,9 @@ function renderWatchlist(filter){
         <span class="chg ${cls}">${sign}</span>
       </span>
     </div>`;
-  }).join('') || '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px">no stocks</div>';
+  }).join('');
+  el.innerHTML = (awaitHtml + body) ||
+    '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px">no stocks</div>';
 }
 
 // ===== Quotes =====
@@ -2485,6 +2636,9 @@ window.__getRecents = function(){
   function allRows(){
     const out = [];
     EXCHANGES.forEach(function(ex){
+      // companies awaiting listing are searchable too, but they are flagged so
+      // the finder never prints a price for a security that has not traded
+      ((typeof AWAITING !== 'undefined' && AWAITING[ex]) || []).forEach(function(s){ out.push({ex: ex, s: s, _await: true}); });
       const src = (typeof listing !== 'undefined' && listing[ex]) ||
                   (typeof SEARCH_IDX !== 'undefined' && SEARCH_IDX[ex]) || [];
       src.forEach(function(s){ out.push({ex: ex, s: s}); });
@@ -2513,7 +2667,9 @@ window.__getRecents = function(){
       const tkr = String(stockTicker(r.s) || '').toUpperCase();
       const nm = String(r.s.name || '').toUpperCase();
       const sc = score(tkr, nm, q);
-      if(sc >= 0) hits.push({kind: 'sec', ex: r.ex, row: r.s, tkr: tkr, sc: sc});
+      // carry the awaiting flag through, or the finder falls back to printing the
+      // provisional key as if it were a ticker and an empty price cell
+      if(sc >= 0) hits.push({kind: 'sec', ex: r.ex, row: r.s, tkr: tkr, sc: sc, _await: r._await});
     });
     hits.sort(function(a, b){ return a.sc - b.sc; });
     return hits.slice(0, 12);
@@ -2534,6 +2690,12 @@ window.__getRecents = function(){
         return '<div class="fi mkt" data-i="' + i + '"><span class="t">' + esc(r.ex) +
                '</span><span class="n">' + esc(exFlag(r.ex)) + ' ' + esc(exName(r.ex)) +
                '</span><span class="px">market</span></div>';
+      }
+      if(r._await){
+        return '<div class="fi" data-i="' + i + '"><span class="t">' + esc(awaitStatusText(r.row)) +
+               ' <span class="mkt-code">' + esc(exFlag(r.ex) || r.ex) + '</span></span>' +
+               '<span class="n">' + esc(r.row.name || '') + '</span>' +
+               '<span class="px">not listed</span></div>';
       }
       const px = r.row.price != null ? Number(r.row.price).toLocaleString(undefined, {maximumFractionDigits: 2}) : '';
       const chg = r.row.chgPct;
@@ -2559,6 +2721,12 @@ window.__getRecents = function(){
     close();
     renderWatchlist('');
     if(r.kind === 'mkt'){ if(r.ex !== currentEx) switchExchange(r.ex); if(typeof window.__pushRecent === 'function') window.__pushRecent(r.ex); return; }
+    if(r._await){
+      if(r.ex !== currentEx) switchExchange(r.ex);
+      if(typeof window.showAwaiting === 'function') window.showAwaiting(r.row.key);
+      if(typeof window.__pushRecent === 'function') window.__pushRecent(r.row.name);
+      return;
+    }
     if(r.ex !== currentEx) switchExchange(r.ex);
     curSec = r.row.sym || r.tkr;
     if(typeof window.__pushRecent === 'function') window.__pushRecent(r.tkr);
@@ -3932,6 +4100,7 @@ function renderStockInfo(d, sym){
 
 loadListing(currentEx);  // honor ?ex= deep-link, else remembered/inferred market
 loadSearchIndex();       // every other market's tickers, so search spans all four
+loadUpcoming();          // companies awaiting listing (no price): watchlist + finder
 
 </script>
 

@@ -353,11 +353,16 @@
         var exTxt = c.exchange_name || c.exchange || "";
         if(c.segment) exTxt += (exTxt ? ' · ' : '') + c.segment;
         if(exTxt) f("EXCHANGE", esc(exTxt));
-        f("EXPECTED DATE", c.expected_date ? esc(c.expected_date) : "-");
+        // The date may be fixed or only a window. Show whichever exists, and a
+        // hyphen only when neither does, never a guessed date.
+        var when = c.expected_date ? esc(c.expected_date)
+                 : (c.expected_window ? esc(c.expected_window) : "-");
+        f("EXPECTED DATE", when);
         if(c.offer_price != null)
           f("OFFER PRICE",
             esc((typeof c.offer_price === "number" ? c.offer_price.toFixed(2) : c.offer_price) + (c.offer_price_currency ? " " + c.offer_price_currency : "")) +
             ' <span class="up-note">offer price, not a traded price</span>', "price");
+        if(c.shares_offered != null) f("SHARES OFFERED", esc(num(c.shares_offered)));
         if(c.shares_in_issue != null) f("SHARES IN ISSUE", esc(num(c.shares_in_issue)));
         if(c.sector) f("SECTOR", esc(c.sector));
         var src = "";
