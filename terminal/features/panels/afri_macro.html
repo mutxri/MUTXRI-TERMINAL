@@ -23,7 +23,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* each panel is its own document, so it states the dark scrollbar itself */
-  html{color-scheme:dark;scrollbar-width:none;}
+  html{color-scheme:dark;scrollbar-width:none;height:100%;}
   ::-webkit-scrollbar{width:0;height:0;}
 
   :root {
@@ -34,8 +34,22 @@
     --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
   }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--tx); font-family:var(--ui); font-size:13px; }
-  .mc-wrap { border:1px solid var(--line2); border-radius:2px; background:var(--bg2); max-width:720px; margin:24px auto; }
+  body { margin:0; background:var(--bg); color:var(--tx); font-family:var(--ui); font-size:13px; height:100%; overflow:hidden; }
+  /* The panel fills the frame the shell hands its iframe and scrolls its own
+     content, so the last line on the page (the caption and the source block) is
+     never cut by the frame edge and no row is stranded below an invisible fold.
+     The title bar stays pinned; everything under it lives in .mc-scroll. */
+  .mc-wrap { border:0; border-radius:0; background:var(--bg2); margin:0; max-width:none;
+             height:100%; display:flex; flex-direction:column; }
+  .mc-wrap > .mc-head { flex:0 0 auto; }
+  .mc-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden;
+               scrollbar-width:thin; scrollbar-color:#333 transparent; }
+  /* a slim scrollbar on the content region only. The shell hides scrollbars
+     everywhere else and that is why a long panel read as cut data rather than as
+     content that scrolls: with no bar there was no cue that more existed. */
+  .mc-scroll::-webkit-scrollbar { width:10px; height:0; }
+  .mc-scroll::-webkit-scrollbar-thumb { background:#333; border-radius:5px; }
+  .mc-scroll::-webkit-scrollbar-track { background:transparent; }
   .mc-head { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--line2); }
   .mc-title { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
   .mc-title b { color:var(--acc); font-weight:700; }
@@ -45,10 +59,16 @@
   .mc-lead { padding:12px 14px 4px; color:var(--tx2); font-size:12px; line-height:1.55; }
   .mc-lead b { color:var(--tx); }
 
-  .mc-tablewrap { overflow-x:auto; }
+  /* at very narrow widths the tables can no longer fit in one screen; when a
+     table does overflow, the horizontal scrollbar must be visible so the columns
+     past the edge are reachable rather than silently cut */
+  .mc-tablewrap { overflow-x:auto; scrollbar-width:thin; scrollbar-color:#333 transparent; }
+  .mc-tablewrap::-webkit-scrollbar { height:8px; }
+  .mc-tablewrap::-webkit-scrollbar-thumb { background:#333; border-radius:4px; }
+  .mc-tablewrap::-webkit-scrollbar-track { background:transparent; }
   table.mc { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
-  table.mc th, table.mc td { padding:8px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); }
-  table.mc thead th { color:var(--tx3); font-weight:400; font-size:10px; border-bottom:1px solid var(--line2); text-transform:uppercase; letter-spacing:.06em; }
+  table.mc th, table.mc td { padding:6px 7px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); }
+  table.mc thead th { color:var(--tx3); font-weight:400; font-size:10px; border-bottom:1px solid var(--line2); text-transform:uppercase; letter-spacing:.06em; white-space:normal; }
   table.mc th.l, table.mc td.l { text-align:left; }
   table.mc td.country { color:var(--tx); font-family:var(--ui); font-weight:600; font-size:12px; border-left:3px solid transparent; }
   table.mc thead th:first-child { border-left:3px solid transparent; }
@@ -59,7 +79,30 @@
   table.mc td.delta.down { color:var(--down); }
   table.mc tr.cur { background:var(--bg3); }
   table.mc tr.cur td.country { color:var(--acc); }
-  table.mc td.hist { color:var(--tx2); font-size:10px; }
+  table.mc td.hist { color:var(--tx2); font-size:10px; white-space:normal; line-height:1.5; }
+  /* recent-years values wrap onto as many lines as they need. The column is the
+     last one in the row, so a nowrap cell was clipped at the panel edge and the
+     later years were unreachable. One chip per year keeps a year beside its own
+     value when the line breaks, so a wrapped series can never be misread. */
+  table.mc td.hist .hv { display:inline-block; white-space:nowrap; margin:0 9px 1px 0; }
+  table.mc td.hist .hv b { color:var(--tx3); font-weight:400; margin-right:3px; }
+  table.mc thead th.wrap { white-space:normal; }
+  /* the recent-years column is the flexible one: every other column keeps its
+     natural width and this one takes all the space left over, so its values wrap
+     into as few lines as the frame allows instead of being pushed past the edge */
+  table.mc td.hist, table.mc thead th.wrap { width:100%; }
+  /* the GDP block carries three 20-year series. Three side-by-side history
+     columns could never fit the panel frame, so they are stacked as one column
+     with a label per series: every year of every series stays on the page and
+     the table needs no horizontal scroll. */
+  table.mc td.hist .gser { margin:0 0 3px; }
+  table.mc td.hist .gser:last-child { margin-bottom:0; }
+  table.mc td.hist .gsl { color:var(--tx3); text-transform:uppercase; letter-spacing:.04em; margin-right:8px; }
+  /* the GDP history row spans every column and gets the panel's full width, so a
+     20-year series wraps into a handful of lines instead of one long line that
+     ran off the right edge of the frame. */
+  table.mc tr.histrow > td.hist { padding-top:2px; padding-bottom:9px; border-bottom:1px solid var(--line2); }
+  table.mc td.hist .gcap { color:var(--tx3); text-transform:uppercase; letter-spacing:.06em; margin:0 0 3px; }
 
   .mc-chart { padding:16px 14px 6px; border-top:1px solid var(--line); }
   .mc-chart svg { display:block; width:100%; height:auto; }
@@ -94,6 +137,8 @@
     <button class="mc-refresh" id="mcRefresh">Refresh</button>
   </div>
 
+  <div class="mc-scroll">
+
   <div class="mc-lead">
     Consumer price inflation for the four markets covered by the terminal. Every value is the
     published <b>annual average</b>, reproduced exactly as the source reports it, with the year shown
@@ -112,7 +157,7 @@
           <th id="mcYearH">Year</th>
           <th>Inflation</th>
           <th>vs prior yr</th>
-          <th class="l">Recent years</th>
+          <th class="l wrap">Recent years</th>
         </tr>
       </thead>
       <tbody id="mcBody">
@@ -148,13 +193,10 @@
             <th class="g">GDP (US$)</th>
             <th>GDP growth</th>
             <th>GDP per capita (US$)</th>
-            <th class="l g">GDP, recent years (US$)</th>
-            <th class="l">Growth, recent years (%)</th>
-            <th class="l">GDP per capita, recent years (US$)</th>
           </tr>
         </thead>
         <tbody id="mcGdpBody">
-          <tr><td class="l" colspan="10" style="color:var(--tx3)">Loading&hellip;</td></tr>
+          <tr><td class="l" colspan="7" style="color:var(--tx3)">Loading&hellip;</td></tr>
         </tbody>
       </table>
     </div>
@@ -164,6 +206,7 @@
 
     <div class="mc-note" id="mcGdpNote">&nbsp;</div>
   </div>
+  </div><!-- /mc-scroll -->
 </div>
 
 <script>
@@ -216,7 +259,9 @@
         delta = "n/a";
       }
 
-      var hist = (c.history || []).map(function(h){ return h.year + " " + h.value.toFixed(2); }).join("  ");
+      var hist = (c.history || []).map(function(h){
+        return '<span class="hv"><b>' + esc(h.year) + '</b>' + h.value.toFixed(2) + '</span>';
+      }).join("");
 
       var col = ccolor(c);
       tr.innerHTML =
@@ -226,7 +271,7 @@
         '<td class="code">' + esc(c.inflation_year) + '</td>' +
         '<td class="rate" style="color:' + col + '">' + fmt(c.inflation) + '</td>' +
         '<td class="delta ' + cls + '">' + esc(delta) + '</td>' +
-        '<td class="l hist" style="color:' + col + '">' + esc(hist) + '</td>';
+        '<td class="l hist" style="color:' + col + '">' + hist + '</td>';
       body.appendChild(tr);
     });
 
@@ -271,6 +316,34 @@
       '<span style="color:' + col + '">' + esc(name) + '</span>';
   }
 
+  // End-of-line labels all sit at the same x (just right of the plot), so two
+  // series that finish at similar values drew their labels on top of each other
+  // and neither was readable. Sort the labels by y, push any that would collide
+  // down by one line step, then shift the whole stack back inside the plot. Each
+  // label keeps a short leader back to its own line end, so an offset label still
+  // points at the series it belongs to.
+  function placeEndLabels(out, xPlot, xLabel, yTop, yBot, labs){
+    labs.sort(function(a, b){ return a.y - b.y; });
+    var STEP = 11, i;
+    for (i = 1; i < labs.length; i++){
+      if (labs[i].y - labs[i-1].y < STEP) labs[i].y = labs[i-1].y + STEP;
+    }
+    if (labs.length && labs[labs.length - 1].y > yBot){
+      var d = labs[labs.length - 1].y - yBot;
+      for (i = 0; i < labs.length; i++) labs[i].y -= d;
+    }
+    if (labs.length && labs[0].y < yTop){
+      var u = yTop - labs[0].y;
+      for (i = 0; i < labs.length; i++) labs[i].y += u;
+    }
+    labs.forEach(function(l){
+      out.push('<line x1="' + xPlot + '" y1="' + l.py.toFixed(1) + '" x2="' + (xLabel - 3) +
+        '" y2="' + l.y.toFixed(1) + '" stroke="' + l.col + '" stroke-width="1" opacity="0.45"/>');
+      out.push('<text class="lbl" x="' + xLabel + '" y="' + (l.y + 3).toFixed(1) +
+        '" fill="' + l.col + '">' + l.txt + '</text>');
+    });
+  }
+
   function drawChart(rows){
     var host = document.getElementById("mcChart");
     var leg  = document.getElementById("mcLegend");
@@ -308,6 +381,7 @@
     });
 
     var drawn = 0;
+    var labs = [];
     rows.forEach(function(c, idx){
       var hs = (c.history || []).slice().sort(function(a,b){ return a.year - b.year; });
       if (hs.length < 2) return;
@@ -322,10 +396,12 @@
         s.push('<circle cx="' + xi(gi).toFixed(1) + '" cy="' + yv(h.value).toFixed(1) + '" r="2.4" fill="' + col + '"/>');
       });
       var last = hs[hs.length - 1];
-      s.push('<text class="lbl" x="' + (W - R + 8) + '" y="' + (yv(last.value) + 3).toFixed(1) + '" fill="' + col + '">' + esc(c.iso2 || c.country) + ' ' + last.value.toFixed(2) + '%</text>');
+      labs.push({py: yv(last.value), y: yv(last.value), col: col,
+                 txt: esc(c.iso2 || c.country) + ' ' + last.value.toFixed(2) + '%'});
       leg.innerHTML += '<span style="color:' + col + '"><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
       drawn++;
     });
+    placeEndLabels(s, W - R, W - R + 8, T + 8, H - B - 1, labs);
 
     s.push('</svg>');
     host.innerHTML = s.join("");
@@ -349,15 +425,16 @@
   }
   function series(hist, key, f){
     return (hist || []).map(function(h){
-      return h.year + " " + (typeof h[key] === "number" ? f(h[key]) : "n/a");
-    }).join("  ");
+      return '<span class="hv"><b>' + esc(h.year) + '</b>' +
+        (typeof h[key] === "number" ? f(h[key]) : "n/a") + '</span>';
+    }).join("");
   }
 
   function renderGdp(g){
     var body = document.getElementById("mcGdpBody");
     var note = document.getElementById("mcGdpNote");
     if (!g || !g.countries || !g.countries.length){
-      body.innerHTML = '<tr><td class="l" colspan="10" style="color:var(--tx3)">' +
+      body.innerHTML = '<tr><td class="l" colspan="7" style="color:var(--tx3)">' +
         'No GDP data available. The gap is shown rather than filled.</td></tr>';
       note.innerHTML = "&nbsp;";
       document.getElementById("mcGdpChart").innerHTML = "";
@@ -365,7 +442,7 @@
       return;
     }
     body.innerHTML = "";
-    g.countries.forEach(function(c){
+    g.countries.forEach(function(c, ci){
       var tr = document.createElement("tr");
       if (String(c.exchange).toUpperCase() === ex) tr.className = "cur";
       var col = ccolor(c);
@@ -376,11 +453,19 @@
         '<td class="code">' + esc(c.gdp_year == null ? "n/a" : c.gdp_year) + '</td>' +
         '<td class="gdp g" style="color:' + col + '">' + fmtMoney0(c.gdp) + '</td>' +
         '<td class="gdp">' + fmtPct(c.gdp_growth) + '</td>' +
-        '<td class="gdp">' + fmtMoney2(c.gdp_per_capita) + '</td>' +
-        '<td class="l hist g" style="color:' + col + '">' + esc(series(c.history, "gdp", fmtMoney0)) + '</td>' +
-        '<td class="l hist" style="color:' + col + '">' + esc(series(c.history, "gdp_growth", fmtPct)) + '</td>' +
-        '<td class="l hist" style="color:' + col + '">' + esc(series(c.history, "gdp_per_capita", fmtMoney2)) + '</td>';
+        '<td class="gdp">' + fmtMoney2(c.gdp_per_capita) + '</td>';
       body.appendChild(tr);
+
+      var hr = document.createElement("tr");
+      hr.className = "histrow" + (String(c.exchange).toUpperCase() === ex ? " cur" : "");
+      hr.innerHTML =
+        '<td class="l hist g" colspan="7" style="color:' + col + '">' +
+          (ci === 0 ? '<div class="gcap">Recent years, by series</div>' : '') +
+          '<div class="gser"><span class="gsl">GDP (US$)</span>' + series(c.history, "gdp", fmtMoney0) + '</div>' +
+          '<div class="gser"><span class="gsl">Growth (%)</span>' + series(c.history, "gdp_growth", fmtPct) + '</div>' +
+          '<div class="gser"><span class="gsl">Per capita (US$)</span>' + series(c.history, "gdp_per_capita", fmtMoney2) + '</div>' +
+        '</td>';
+      body.appendChild(hr);
     });
     var yh = document.getElementById("mcGdpYearH");
     if (g.countries[0] && g.countries[0].gdp_year) yh.textContent = String(g.countries[0].gdp_year);
@@ -452,6 +537,7 @@
     });
 
     var drawn = 0;
+    var labs = [];
     rows.forEach(function(c, idx){
       var hs = (c.history || []).filter(function(h){ return typeof h.gdp_per_capita === "number"; })
         .slice().sort(function(a,b){ return a.year - b.year; });
@@ -467,10 +553,12 @@
         s.push('<circle cx="' + xi(gi).toFixed(1) + '" cy="' + yv(h.gdp_per_capita).toFixed(1) + '" r="2.2" fill="' + col + '"/>');
       });
       var last = hs[hs.length - 1];
-      s.push('<text class="lbl" x="' + (W - R + 8) + '" y="' + (yv(last.gdp_per_capita) + 3).toFixed(1) + '" fill="' + col + '">' + esc(c.iso2 || c.country) + ' ' + money(last.gdp_per_capita) + '</text>');
+      labs.push({py: yv(last.gdp_per_capita), y: yv(last.gdp_per_capita), col: col,
+                 txt: esc(c.iso2 || c.country) + ' ' + money(last.gdp_per_capita)});
       leg.innerHTML += '<span style="color:' + col + '"><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
       drawn++;
     });
+    placeEndLabels(s, W - R, W - R + 8, T + 8, H - B - 1, labs);
 
     s.push('</svg>');
     host.innerHTML = s.join("");
@@ -485,7 +573,7 @@
         document.getElementById("mcBody").innerHTML =
           '<tr><td class="l" colspan="7" style="color:var(--tx3)">Macro data could not be loaded from the source. Nothing is shown rather than an invented figure.</td></tr>';
         document.getElementById("mcGdpBody").innerHTML =
-          '<tr><td class="l" colspan="10" style="color:var(--tx3)">GDP data could not be loaded from the source. Nothing is shown rather than an invented figure.</td></tr>';
+          '<tr><td class="l" colspan="7" style="color:var(--tx3)">GDP data could not be loaded from the source. Nothing is shown rather than an invented figure.</td></tr>';
       });
   }
 
