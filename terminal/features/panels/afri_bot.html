@@ -1,8 +1,26 @@
 <!DOCTYPE html>
 <!--
-  MUTXRI TERMINAL - BOT panel. Market intelligence: exchange financial state plus
-  ranked news signals linked to listed securities. Reads static_data/bot_signals.json
-  and static_data/bot_market_state.json, both written by market_bot.py.
+  MUTXRI TERMINAL - BOT panel. Shows the bot's three jobs, in this order:
+
+    PRICES         securities carried per exchange, with each market file's own
+                   asOf as the last-updated stamp and a staleness state
+    NEWS           headlines carried per exchange, stamped with the newest item
+                   timestamp inside each bot_news_<EX>.json
+    ANNOUNCEMENTS  filings carried per exchange, stamped with the newest item
+                   date inside each announcements file
+
+  plus a RUN strip showing what the last scan actually did (items fetched and
+  unique, signals produced, added this run, any exchange missing from the run)
+  and a SIGNALS / FLAGS analysis view as before.
+
+  Every displayed timestamp is read from the data files. Ages are the only
+  derived number and are labelled as such. A feed whose file carries no usable
+  timestamp says so instead of being given one.
+
+  Reads (all under static_data/):
+    market_<EX>.json, bot_news_<EX>.json, nse_announcements.json,
+    ngx_filings.json, jse_announcements.json, egx_announcements.json,
+    bot_signals.json, bot_market_state.json, bot_flags.json.
   Vanilla JS, Godel palette, matches the other static snapshot panels.
 -->
 <html lang="en">
@@ -52,6 +70,34 @@
 
   .sec{font-family:var(--mono);font-size:10px;color:var(--tx3);letter-spacing:.12em;
        margin:20px 0 6px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+  .snote{font-family:var(--mono);font-size:9px;color:var(--tx3);line-height:1.6;margin:-2px 0 6px}
+  .smsg{font-family:var(--mono);font-size:10px;color:var(--tx2);line-height:1.6;margin:0 0 8px}
+
+  .feed{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:6px 12px}
+  .frow{display:grid;grid-template-columns:54px 84px minmax(140px,1fr) 62px 168px;gap:8px;
+        align-items:center;padding:8px 0;border-bottom:1px solid var(--line);
+        font-family:var(--mono);font-size:11px;overflow:hidden}
+  .frow:last-child{border-bottom:none}
+  .frow.hd{border-bottom:1px solid var(--line2);color:var(--tx3);font-size:8px;letter-spacing:.1em;padding:6px 0}
+  .fx{color:var(--acc);letter-spacing:.08em}
+  .fcount{color:var(--tx)}
+  .fstamp{color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fage{color:var(--tx3);text-align:right}
+  .pills{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+  .pill.st-fresh{color:var(--up);border-color:#1c4d3a}
+  .pill.st-aging{color:var(--flat);border-color:#4a3a18}
+  .pill.st-stale{color:var(--dn);border-color:#5c2222}
+  .pill.st-unknown{color:var(--tx3)}
+  .pill.behind{color:var(--dn);border-color:#5c2222}
+
+  .run{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:11px 12px;margin-top:12px}
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:12px 10px}
+  .kv .k{font-family:var(--mono);font-size:8px;color:var(--tx3);letter-spacing:.08em}
+  .kv .v{font-family:var(--mono);font-size:15px;color:var(--tx);margin:3px 0 1px}
+  .warn{border:1px solid #5c2222;background:#160c0c;border-radius:3px;padding:8px 10px;margin-top:10px;
+        font-family:var(--mono);font-size:10px;color:var(--dn);line-height:1.6}
+  .ok{border:1px solid var(--line2);background:var(--bg3);border-radius:3px;padding:8px 10px;margin-top:10px;
+      font-family:var(--mono);font-size:10px;color:var(--tx2);line-height:1.6}
 
   .item{border:1px solid var(--line);border-radius:4px;background:var(--bg2);
         padding:10px 12px;margin-top:7px;display:flex;gap:11px;align-items:flex-start}
@@ -76,7 +122,7 @@
 <div class="wrap">
   <div class="head">
     <span class="code">BOT</span>
-    <span class="title">MARKET INTELLIGENCE <b id="viewName">· SIGNALS</b></span>
+    <span class="title">MARKET INTELLIGENCE <b id="viewName">· STATUS</b></span>
     <span class="spacer"></span>
     <span class="src" id="src">loading…</span>
   </div>
@@ -85,8 +131,9 @@
   <div class="tabs" id="tabs" role="tablist"></div>
   <div class="cards" id="cards"></div>
 
-  <div class="sec" id="secLabel">SIGNALS · impact = relevance × confidence</div>
-  <div id="items"><div class="empty">loading…</div></div>
+  <div class="sec" id="secLabel"></div>
+  <div id="status"></div>
+  <div id="items"></div>
   <div class="note" id="foot"></div>
 </div>
 
@@ -94,25 +141,41 @@
 (function(){
   "use strict";
   var EXS = ["ALL","NSE","NGX","JSE","EGX"];
+  var EXREAL = ["NSE","NGX","JSE","EGX"];
   var cur = "ALL";
   try{ var q = new URLSearchParams(window.location.search);
        if(q.get("ex")) cur = q.get("ex").toUpperCase(); }catch(e){}
   if(EXS.indexOf(cur) < 0) cur = "ALL";
 
+  // Staleness thresholds per feed type, in hours, stated on the section itself.
+  // Prices are daily sessions, news is intraday, filings arrive in bursts.
+  var TH = {
+    prices:        {fresh: 24, aging: 48, note: "fresh under 24h, aging to 48h"},
+    news:          {fresh: 8,  aging: 24, note: "fresh under 8h, aging to 24h"},
+    announcements: {fresh: 24, aging: 72, note: "fresh under 24h, aging to 72h"}
+  };
+  // A news exchange this far behind the freshest one is flagged as behind.
+  var NEWS_BEHIND_H = 12;
+
   var VIEWS = [
-    {id: "signals", label: "SIGNALS",
-     sec: "SIGNALS · impact = relevance × confidence"},
-    {id: "flags", label: "FLAGS",
-     sec: "STATEMENT FLAGS · computed from parsed filings, not opinions"}
+    {id:"status",  label:"STATUS",
+     sec:"BOT RUN · what the last scan did, and how current each feed is"},
+    {id:"signals", label:"SIGNALS",
+     sec:"SIGNALS · impact = relevance × confidence"},
+    {id:"flags",   label:"FLAGS",
+     sec:"STATEMENT FLAGS · computed from parsed filings, not opinions"}
   ];
-  var view = "signals";
+  var view = "status";
+
   var DATA = null, STATE = null, FLAGS = null;
+  var FILES = {}, PRICES = {}, NEWS = {}, ANN = {}, ANN_STATE = "loading";
 
   function esc(s){
     return String(s==null?"":s)
       .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
       .replace(/"/g,"&quot;");
   }
+  function pad2(n){ return (n<10?"0":"")+n; }
   function cls(v){ return v>0 ? "up" : (v<0 ? "dn" : "flat"); }
   function pct(v){ return (v==null||isNaN(v)) ? "-" : (v>0?"+":"") + Number(v).toFixed(2) + "%"; }
   function ago(ts){
@@ -122,6 +185,304 @@
     return Math.round(m/1440) + "d ago";
   }
 
+  // ------------------------------------------------------------- time helpers
+  function fmtSQL(ts){                       // epoch seconds -> "YYYY-MM-DD HH:MM" UTC
+    if(ts==null || isNaN(ts)) return null;
+    var d = new Date(ts*1000);
+    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth()+1) + "-" + pad2(d.getUTCDate())
+         + " " + pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes());
+  }
+  function fmtISO(s){                        // "2026-10-06T15:39:59+00:00" -> "2026-10-06 15:39Z"
+    if(!s) return null;
+    var m = String(s).match(/(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
+    return m ? (m[1] + " " + m[2] + "Z") : String(s);
+  }
+  function fmtAgeH(h){
+    if(h==null || isNaN(h)) return "-";
+    if(h < 1) return Math.round(h*60) + "m";
+    if(h < 48) return Math.round(h) + "h";
+    return Math.round(h/24) + "d";
+  }
+  function ageHours(epoch){
+    if(epoch==null) return null;
+    var h = (Date.now()/1000 - epoch)/3600;
+    // A source clock a minute ahead of this device must not read as a future age.
+    return h < 0 ? 0 : h;
+  }
+  function stateOf(h, th){
+    if(h==null || isNaN(h)) return "unknown";
+    if(h <= th.fresh) return "fresh";
+    if(h <= th.aging) return "aging";
+    return "stale";
+  }
+  function dayDiff(a, b){                    // b - a, both "YYYY-MM-DD"
+    if(!a || !b) return 0;
+    return Math.round((Date.parse(b+"T00:00:00Z") - Date.parse(a+"T00:00:00Z"))/86400000);
+  }
+  // A market file's own asOf. The NSE stamp carries a clock time and a GMT
+  // offset; the other three carry a bare session date. Both are read verbatim
+  // for display; the epoch is only used to derive an age. For a bare date the
+  // anchor is midnight UTC of that session date, which is stated on the panel.
+  function parseAsOf(s){
+    if(s==null) return null;
+    s = String(s);
+    var m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(?:GMT|UTC)\s*([+-]?\d+)?/i);
+    if(m){
+      var off = m[6] ? parseInt(m[6],10) : 0;
+      var ep = Date.UTC(+m[3], +m[2]-1, +m[1], +m[4], +m[5])/1000 - off*3600;
+      return {epoch: ep, date: m[3]+"-"+pad2(+m[2])+"-"+pad2(+m[1])};
+    }
+    m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if(m){
+      return {epoch: Date.UTC(+m[1], +m[2]-1, +m[3])/1000,
+              date: m[1]+"-"+m[2]+"-"+m[3], dateOnly:true};
+    }
+    return {epoch: null, date: null};
+  }
+
+  // ------------------------------------------------------ build from the files
+  function buildPrices(){
+    EXREAL.forEach(function(ex){
+      var f = "market_" + ex + ".json", o = FILES[f];
+      if(!o || typeof o !== "object"){ PRICES[ex] = {missing:true, file:f}; return; }
+      var stocks = Array.isArray(o.stocks) ? o.stocks : null;
+      var p = parseAsOf(o.asOf);
+      PRICES[ex] = {
+        file: f,
+        count: stocks ? stocks.length : null,
+        asOf: (o.asOf==null ? null : String(o.asOf)),
+        sessionDate: p && p.date,
+        epoch: p && p.epoch
+      };
+    });
+  }
+  function buildNews(){
+    EXREAL.forEach(function(ex){
+      var f = "bot_news_" + ex + ".json", o = FILES[f];
+      if(!Array.isArray(o)){ NEWS[ex] = {missing:true, file:f}; return; }
+      var newest = null;
+      o.forEach(function(it){
+        var t = it && it.ts;
+        if(typeof t === "number" && (newest==null || t > newest)) newest = t;
+      });
+      NEWS[ex] = {file:f, count:o.length, ts:newest};
+    });
+  }
+  function buildAnn(){
+    var f, o, i, d;
+    // NSE announcements carry title/company/year/url and no per-item date at
+    // all, so there is no last-updated stamp to show. Say so.
+    f = "nse_announcements.json"; o = FILES[f];
+    if(!Array.isArray(o)){ ANN.NSE = {missing:true, file:f}; }
+    else {
+      var yr = null;
+      o.forEach(function(it){ if(it && typeof it.year === "number" && (yr==null || it.year>yr)) yr = it.year; });
+      ANN.NSE = {file:f, count:o.length, date:null, epoch:null, noStamp:true, year:yr,
+                 note:"source file carries no per-item date (year " + (yr==null?"-":yr) + " only)"};
+    }
+    // NGX filings: an object keyed by ticker, each a list of {title,type,date,url}.
+    f = "ngx_filings.json"; o = FILES[f];
+    if(!o || typeof o !== "object" || Array.isArray(o)){ ANN.NGX = {missing:true, file:f}; }
+    else {
+      var tot = 0, nd = null;
+      Object.keys(o).forEach(function(k){
+        var lst = o[k];
+        if(!Array.isArray(lst)) return;
+        tot += lst.length;
+        for(i=0;i<lst.length;i++){ d = lst[i] && lst[i].date; if(d && (nd==null || String(d) > nd)) nd = String(d); }
+      });
+      ANN.NGX = {file:f, count:tot, date:nd, epoch: nd ? Date.parse(nd+"T00:00:00Z")/1000 : null};
+    }
+    // JSE and EGX announcements: flat lists with a date on every item.
+    [["JSE","jse_announcements.json"], ["EGX","egx_announcements.json"]].forEach(function(pair){
+      var ex = pair[0], ff = pair[1], oo = FILES[ff];
+      if(!Array.isArray(oo)){ ANN[ex] = {missing:true, file:ff}; return; }
+      var dd = null;
+      for(i=0;i<oo.length;i++){ d = oo[i] && oo[i].date; if(d && (dd==null || String(d) > dd)) dd = String(d); }
+      ANN[ex] = {file:ff, count:oo.length, date:dd, epoch: dd ? Date.parse(dd+"T00:00:00Z")/1000 : null};
+    });
+  }
+
+  // --------------------------------------------------------------- render bits
+  function secHead(title, note){
+    return '<div class="sec">' + esc(title) + '</div><div class="snote">' + esc(note) + '</div>';
+  }
+  function kv(k, v, sub){
+    if(v==null || v==="") v = "-";
+    return '<div><div class="k">' + esc(k) + '</div><div class="v">' + esc(String(v)) + '</div>' +
+           (sub ? '<div class="k">' + esc(sub) + '</div>' : '') + '</div>';
+  }
+  function frow(ex, count, stamp, ageTxt, state, behind){
+    var label = (state === "unknown") ? "no time" : state;
+    return '<div class="frow">' +
+      '<span class="fx">' + esc(ex) + '</span>' +
+      '<span class="fcount">' + esc(String(count)) + '</span>' +
+      '<span class="fstamp" title="' + esc(stamp) + '">' + esc(stamp) + '</span>' +
+      '<span class="fage">' + esc(ageTxt) + '</span>' +
+      '<span class="pills"><span class="pill st-' + state + '">' + esc(label) + '</span>' +
+        (behind ? '<span class="pill behind">' + esc(behind) + '</span>' : '') +
+      '</span>' +
+    '</div>';
+  }
+  function visible(){ return EXREAL.filter(function(ex){ return cur === "ALL" || ex === cur; }); }
+
+  // ------------------------------------------------------------- RUN strip
+  function renderRun(){
+    var c = (DATA && DATA.counts) || {}, r = (DATA && DATA.sourceReport) || {};
+    var genS = DATA && DATA.generated, genM = STATE && STATE.generated;
+    var aS = genS ? (Date.now() - Date.parse(genS))/3600000 : null;
+    var aM = genM ? (Date.now() - Date.parse(genM))/3600000 : null;
+    var h = '<div class="run"><div class="kv">';
+    h += kv("LAST SCAN", fmtISO(genS) || "not stated", aS==null ? "" : fmtAgeH(aS) + " ago");
+    h += kv("ITEMS FETCHED", c.itemsFetched, ((r.sources||[]).length) + " sources scanned");
+    h += kv("ITEMS UNIQUE", c.itemsUnique, "after dedupe");
+    h += kv("SIGNALS", c.signals);
+    h += kv("ADDED THIS RUN", c.addedThisRun, "new since last scan");
+    h += kv("ELAPSED", DATA && DATA.elapsedSec!=null ? DATA.elapsedSec + "s" : null, "scan wall time");
+    h += kv("WINDOW", DATA && DATA.windowDays!=null ? DATA.windowDays + "d" : null, "lookback");
+    h += kv("MARKET STATE", fmtISO(genM) || "not stated", aM==null ? "" : fmtAgeH(aM) + " ago");
+    h += '</div>';
+    var miss = (STATE && STATE.missingExchanges) || [];
+    if(miss.length){
+      h += '<div class="warn">LAST RUN WAS MISSING ' + miss.length + ' EXCHANGE'
+         + (miss.length>1?"S":"") + ': ' + esc(miss.join(", "))
+         + '. Their rows below were not refreshed by that run.</div>';
+    } else {
+      h += '<div class="ok">All four exchanges (NSE, NGX, JSE, EGX) were present in the last market-state run, so no market was silently skipped.</div>';
+    }
+    var errs = r.errors || [];
+    if(errs.length){
+      h += '<div class="warn">' + errs.length + ' SOURCE' + (errs.length>1?"S":"") + ' UNREACHABLE IN THAT RUN: '
+         + esc(errs.slice(0,6).map(function(e){ return e.source + " (" + e.error + ")"; }).join(" · "))
+         + (errs.length>6 ? " and " + (errs.length-6) + " more" : "") + '</div>';
+    }
+    var soc = (r.social || {}).status || "n/a";
+    h += '<div class="ok">Social tier: ' + esc(soc)
+       + (soc==="disabled" ? ' (set X_BEARER_TOKEN to enable X/Twitter)' : '')
+       + '. The news files are headline lists; impact and bias stay in SIGNALS.</div>';
+    h += '</div>';
+    return h;
+  }
+
+  // ------------------------------------------------------------- PRICES
+  function renderPrices(){
+    var maxS = null, total = 0, newest = null;
+    EXREAL.forEach(function(ex){
+      var p = PRICES[ex] || {};
+      if(p.count) total += p.count;
+      if(p.sessionDate && (newest==null || p.sessionDate > newest)) newest = p.sessionDate;
+      if(p.sessionDate && (maxS==null || p.sessionDate > maxS)) maxS = p.sessionDate;
+    });
+    var h = secHead("PRICES",
+      "securities carried per exchange · last session from each file's own asOf · "
+      + TH.prices.note + " · a bare session date is aged from midnight UTC of that date");
+    h += '<div class="smsg">The bot priced ' + total + ' securities across the exchanges it covers; '
+       + 'the newest session in any market file is ' + (newest || "not stated") + '.</div>';
+    h += '<div class="feed"><div class="frow hd">'
+       + '<span>EX</span><span>COUNT</span><span>LAST UPDATED (asOf)</span><span>AGE</span><span>STATE</span></div>';
+    visible().forEach(function(ex){
+      var p = PRICES[ex] || {};
+      if(p.missing){
+        h += frow(ex, "-", "file not fetchable: " + p.file, "-", "unknown", "no data");
+        return;
+      }
+      var age = ageHours(p.epoch);
+      var behind = null;
+      if(p.sessionDate && maxS && p.sessionDate < maxS){
+        var dd = dayDiff(p.sessionDate, maxS);
+        behind = dd + " session" + (dd>1?"s":"") + " behind";
+      }
+      h += frow(ex,
+        p.count==null ? "-" : p.count,
+        p.asOf ? ("asOf " + p.asOf) : "no asOf in file",
+        age==null ? "-" : fmtAgeH(age),
+        stateOf(age, TH.prices), behind);
+    });
+    h += '</div>';
+    return h;
+  }
+
+  // ------------------------------------------------------------- NEWS
+  function renderNews(){
+    var maxTs = null, total = 0;
+    EXREAL.forEach(function(ex){
+      var n = NEWS[ex] || {};
+      if(n.count) total += n.count;
+      if(n.ts!=null && (maxTs==null || n.ts > maxTs)) maxTs = n.ts;
+    });
+    var h = secHead("NEWS",
+      "headlines carried per exchange · newest item timestamp inside each bot_news file · "
+      + TH.news.note + " · flagged when more than " + NEWS_BEHIND_H + "h behind the freshest exchange");
+    h += '<div class="smsg">The bot carried ' + total + ' headlines; the newest anywhere is '
+       + (maxTs ? fmtSQL(maxTs) + " UTC" : "not timestamped") + '.</div>';
+    h += '<div class="feed"><div class="frow hd">'
+       + '<span>EX</span><span>COUNT</span><span>NEWEST ITEM</span><span>AGE</span><span>STATE</span></div>';
+    visible().forEach(function(ex){
+      var n = NEWS[ex] || {};
+      if(n.missing){
+        h += frow(ex, "-", "file not fetchable: " + n.file, "-", "unknown", "no data");
+        return;
+      }
+      var age = ageHours(n.ts);
+      var behind = null;
+      if(n.ts!=null && maxTs!=null && (maxTs - n.ts)/3600 >= NEWS_BEHIND_H){
+        behind = fmtAgeH((maxTs - n.ts)/3600) + " behind";
+      }
+      h += frow(ex, n.count,
+        n.ts!=null ? (fmtSQL(n.ts) + " UTC") : "no item in file carries a timestamp",
+        age==null ? "-" : fmtAgeH(age), stateOf(age, TH.news), behind);
+    });
+    h += '</div>';
+    return h;
+  }
+
+  // ------------------------------------------------------------- ANNOUNCEMENTS
+  function renderAnn(){
+    if(ANN_STATE !== "ready"){
+      return secHead("ANNOUNCEMENTS", "filings carried per exchange · newest item date in each file")
+        + '<div class="smsg">loading announcement files…</div>';
+    }
+    var maxD = null, total = 0;
+    EXREAL.forEach(function(ex){
+      var a = ANN[ex] || {};
+      if(a.count) total += a.count;
+      if(a.date && (maxD==null || a.date > maxD)) maxD = a.date;
+    });
+    var h = secHead("ANNOUNCEMENTS",
+      "filings carried per exchange · newest item date inside each file · "
+      + TH.announcements.note + " · a bare date is aged from midnight UTC of that date");
+    h += '<div class="smsg">The bot carried ' + total + ' filings; the newest dated filing is '
+       + (maxD || "not stamped") + '.</div>';
+    h += '<div class="feed"><div class="frow hd">'
+       + '<span>EX</span><span>COUNT</span><span>NEWEST FILING</span><span>AGE</span><span>STATE</span></div>';
+    visible().forEach(function(ex){
+      var a = ANN[ex] || {};
+      if(a.missing){
+        h += frow(ex, "-", "file not fetchable: " + a.file, "-", "unknown", "no data");
+        return;
+      }
+      if(a.noStamp){
+        h += frow(ex, a.count, a.note, "-", "unknown", null);
+        return;
+      }
+      var age = ageHours(a.epoch);
+      var behind = null;
+      if(a.date && maxD && a.date < maxD){
+        behind = dayDiff(a.date, maxD) + "d behind";
+      }
+      h += frow(ex, a.count, a.date ? ("newest " + a.date) : "no dated filing in file",
+        age==null ? "-" : fmtAgeH(age), stateOf(age, TH.announcements), behind);
+    });
+    h += '</div>';
+    return h;
+  }
+
+  function drawStatus(){
+    document.getElementById("status").innerHTML =
+      renderRun() + renderPrices() + renderNews() + renderAnn();
+  }
+
+  // ------------------------------------------------------------ SIGNALS/FLAGS
   function drawTabs(){
     document.getElementById("tabs").innerHTML = EXS.map(function(x){
       return '<button class="tab" role="tab" data-ex="'+x+'" aria-selected="'+
@@ -194,6 +555,15 @@
   }
 
   function drawFoot(){
+    if(view === "status"){
+      document.getElementById("foot").textContent =
+        "Every stamp above is read from the data files; ages are the only derived number and are "
+        + "measured against this device's clock, so a market closed for a holiday reads aging until "
+        + "it trades again. A feed whose file carries no usable timestamp says so and is never given one.";
+      document.getElementById("src").textContent = DATA && DATA.generated
+        ? ("scan " + fmtISO(DATA.generated)) : "no data";
+      return;
+    }
     if(view === "flags"){
       var f = document.getElementById("foot");
       if(!FLAGS){ f.textContent = ""; return; }
@@ -202,7 +572,7 @@
       f.textContent = FLAGS.companiesFlagged + " of " + FLAGS.companiesAnalysed
         + " companies with parsed statements carry a flag · " + top;
       document.getElementById("src").textContent =
-        "generated " + String(FLAGS.generated || "").replace("T", " ").replace("+00:00", "Z");
+        "generated " + (fmtISO(FLAGS.generated) || "-");
       return;
     }
     if(!DATA){ return; }
@@ -216,7 +586,7 @@
               (soc === "disabled" ? " (set X_BEARER_TOKEN to enable X/Twitter)" : ""));
     document.getElementById("foot").textContent = bits.join(" · ");
     document.getElementById("src").textContent =
-      "generated " + String(DATA.generated || "").replace("T", " ").replace("+00:00", "Z");
+      "generated " + (fmtISO(DATA.generated) || "-");
   }
 
   function drawViews(){
@@ -284,7 +654,21 @@
   }
 
   function draw(){
-    drawViews(); drawTabs(); drawCards();
+    drawViews(); drawTabs();
+    var st = document.getElementById("status");
+    var cards = document.getElementById("cards");
+    var items = document.getElementById("items");
+    if(view === "status"){
+      cards.innerHTML = ""; cards.style.display = "none";
+      items.innerHTML = ""; items.style.display = "none";
+      st.style.display = "";
+      drawStatus();
+      drawFoot();
+      return;
+    }
+    st.style.display = "none";
+    cards.style.display = ""; items.style.display = "";
+    drawCards();
     if(view === "flags"){ drawFlags(); } else { drawItems(); }
     drawFoot();
   }
@@ -297,18 +681,35 @@
 
   drawViews();
   drawTabs();
-  Promise.all([load("bot_signals.json"), load("bot_market_state.json"),
-               load("bot_flags.json")])
-    .then(function(res){
-      DATA = res[0]; STATE = res[1]; FLAGS = res[2];
-      if(!DATA && !STATE){
-        document.getElementById("items").innerHTML =
-          '<div class="empty">bot has not run yet - run <code>python market_bot.py</code></div>';
-        document.getElementById("src").textContent = "no data";
-        return;
-      }
-      draw();
+
+  var LIGHT = ["bot_signals.json", "bot_market_state.json", "bot_flags.json",
+               "market_NSE.json", "market_NGX.json", "market_JSE.json", "market_EGX.json",
+               "bot_news_NSE.json", "bot_news_NGX.json", "bot_news_JSE.json", "bot_news_EGX.json"];
+  var HEAVY = ["nse_announcements.json", "ngx_filings.json",
+               "jse_announcements.json", "egx_announcements.json"];
+
+  Promise.all(LIGHT.map(load)).then(function(res){
+    DATA = res[0]; STATE = res[1]; FLAGS = res[2];
+    LIGHT.forEach(function(n, i){ FILES[n] = res[i]; });
+    if(!DATA && !STATE){
+      var st = document.getElementById("status");
+      st.style.display = "";
+      st.innerHTML = '<div class="empty">bot has not run yet - run <code>python market_bot.py</code></div>';
+      document.getElementById("src").textContent = "no data";
+      return null;
+    }
+    buildPrices(); buildNews();
+    draw();
+    // Announcement files are large; they load after the rest so the panel
+    // paints the run strip, prices and news while they are still arriving.
+    return Promise.all(HEAVY.map(load)).then(function(ar){
+      HEAVY.forEach(function(n, i){ FILES[n] = ar[i]; });
+      ANN_STATE = "ready";
+      buildAnn();
+      if(view === "status"){ drawStatus(); drawFoot(); }
+      return true;
     });
+  });
 })();
 </script>
 </body>
