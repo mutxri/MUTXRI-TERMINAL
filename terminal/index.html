@@ -2348,6 +2348,10 @@ function awaitRowHTML(s){
 window.showAwaiting = function(key){
   const s = AWAITING_BY_KEY[key];
   if(!s) return;
+  // Hand the security context to the panels so a reader can reach this company's
+  // financials. The colon-free form is what the panel builds its filename from:
+  // the display key carries a colon, which cannot be a filename.
+  try { curSec = String(s.key || '').replace(/^AWAIT:/, ''); } catch(e) {}
   const num = function(n){ return (n == null ? null : Number(n).toLocaleString()); };
   const offer = (s.offer_price == null) ? null :
     ((typeof s.offer_price === 'number' ? s.offer_price.toLocaleString(undefined, {maximumFractionDigits: 2}) : String(s.offer_price)) +
@@ -2371,7 +2375,20 @@ window.showAwaiting = function(key){
     '</div>' +
     (s.note ? '<div style="padding:10px 16px;border-top:1px solid var(--line);font-family:var(--ui);font-size:11px;color:var(--tx2);line-height:1.55">' + esc(s.note) + '</div>' : '') +
     (srcs ? '<div style="padding:8px 16px;color:var(--tx3);font-family:var(--mono);font-size:9px;line-height:1.5">SOURCE \u00b7 ' + esc(srcs) + '</div>' : '') +
+    // A reader looking at a company that has not listed most wants its accounts, not
+    // its absence of a price, so give them the direct route rather than a dropdown.
+    (s.has_financials === false ? '' :
+      '<div style="padding:10px 16px 2px"><button type="button" class="btn" ' +
+      'onclick="openAwaitingFinancials()" style="width:100%;padding:9px 12px;cursor:pointer">VIEW FINANCIALS</button></div>') +
     '<div style="padding:8px 16px 12px;color:var(--tx3);font-family:var(--mono);font-size:9px;line-height:1.5">Not listed. No traded price, no change percentage and no market capitalisation exist yet. The key is provisional, not a published ticker.</div>';
+};
+
+// Open the FINANCIALS panel for the company the rail is showing. curSec was set by
+// showAwaiting, so panelUrl() resolves it to the colon-free key the panel asks for.
+window.openAwaitingFinancials = function(){
+  try {
+    if (typeof openPanelWin === 'function') { openPanelWin('financials'); }
+  } catch (e) {}
 };
 
 function renderWatchlist(filter){
