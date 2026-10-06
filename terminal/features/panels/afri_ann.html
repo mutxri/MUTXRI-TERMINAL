@@ -41,6 +41,7 @@
   select{background:var(--bg3);border:1px solid var(--line2);border-radius:3px;color:var(--tx);
     font-family:var(--mono);font-size:12px;padding:8px 6px;outline:none}
   .count{font-family:var(--mono);font-size:10px;color:var(--tx3);padding:0 4px 8px}
+  .note{font-family:var(--mono);font-size:9px;color:var(--tx3);padding:0 4px 6px;line-height:1.5}
 
   .item{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:11px 14px;margin-top:8px}
   .item a{color:var(--tx);text-decoration:none;font-size:13px;line-height:1.45;display:block}
@@ -96,6 +97,7 @@
   </div>
 
   <div class="count" id="count"></div>
+  <div class="note" id="note"></div>
   <div id="items"><div class="empty">loading…</div></div>
   <button class="more" id="more" style="display:none">SHOW MORE</button>
 </div>
@@ -125,13 +127,17 @@
   var FEED = {
     NSE: { ann:"../../static_data/nse_announcements.json",
            cal:"../../static_data/nse_corporate_actions.json",
-           src:"nse.co.ke \u00b7 audited results \u00b7 AGM \u00b7 dividends", dict:false },
+           src:"nse.co.ke \u00b7 audited results \u00b7 AGM \u00b7 dividends", dict:false,
+           note:"Date shown is the FILING YEAR: the NSE lists each notice under a year tab and publishes no exact filing date, so a year is the most precise stamp the source gives. Rows the exchange does not put under any year tab show the year printed in the filing title, or UNDATED." },
     NGX: { ann:"../../static_data/ngx_filings.json", cal:null,
-           src:"ngxgroup.com \u00b7 listed-company filings", dict:true },
+           src:"ngxgroup.com \u00b7 listed-company filings", dict:true,
+           note:"Date shown is the filing's publication date on ngxgroup.com." },
     JSE: { ann:"../../static_data/jse_announcements.json", cal:null,
-           src:"sharenet.co.za \u00b7 JSE SENS announcements", dict:false },
+           src:"sharenet.co.za \u00b7 JSE SENS announcements", dict:false,
+           note:"Date shown is the SENS publication date, read through the sharenet.co.za mirror." },
     EGX: { ann:"../../static_data/egx_announcements.json", cal:null,
-           src:"mubasher.info \u00b7 Egyptian Exchange disclosures", dict:false }
+           src:"mubasher.info \u00b7 Egyptian Exchange disclosures", dict:false,
+           note:"Date shown is the disclosure publication date on Mubasher." }
   };
   var CFG = FEED[EX] || FEED.NSE;
   document.getElementById("exName").textContent = EXNAMES[EX] || EX;
@@ -155,7 +161,8 @@
       // A feed may carry a full ISO date (the JSE SENS and EGX disclosure
       // wires) or only a filing year (nse_announcements). Show the most precise
       // stamp the row actually has; never invent one.
-      var stamp = o.date || (o.year ? String(o.year) : "");
+      var stamp = o.date ? String(o.date)
+                : (o.year ? ((EX === "NSE") ? "FY" + o.year : String(o.year)) : "");
       var y = stamp ? '<span class="yr">' + esc(stamp) + '</span>' : '<span class="und">undated</span>';
       var co = o.company ? '<span class="co">' + esc(o.company) + '</span>' : '';
       var link = o.url
@@ -258,8 +265,9 @@
     var out = [];
     Object.keys(d || {}).forEach(function(tk){
       (d[tk] || []).forEach(function(it){
-        out.push({ company: tk, title: (it.title || it.type || ""),
-                   url: it.url || "", year: String(it.date || "").slice(0,4) });
+        var dt = String(it.date || "");
+        out.push({ company: tk, ticker: tk, title: (it.title || it.type || ""),
+                   url: it.url || "", date: dt, year: dt.slice(0,4) });
       });
     });
     return out;
@@ -282,6 +290,19 @@
       .then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(d){
         ALL = CFG.dict ? flatten(d) : (d || []);
+        // Newest first. A row with a full ISO date sorts by it; a feed that
+        // carries no date (the NSE year feed) keeps its own order, which its
+        // collector already writes newest first, via a stable tie-break.
+        ALL = ALL.map(function(o, i){ return { o: o, i: i }; })
+                 .sort(function(a, b){
+                   var ka = a.o.date || "", kb = b.o.date || "";
+                   if (ka !== kb) return ka < kb ? 1 : -1;
+                   return a.i - b.i;
+                 })
+                 .map(function(x){ return x.o; });
+        var noteEl = document.getElementById("note");
+        if (noteEl) noteEl.textContent = CFG.note || "";
+        yrEl.options[0].textContent = (EX === "NSE") ? "ALL FILING YEARS" : "ALL DATES";
         // build the year selector from the data itself
         var years = [];
         ALL.forEach(function(o){ if(o.year && years.indexOf(o.year) < 0) years.push(o.year); });
