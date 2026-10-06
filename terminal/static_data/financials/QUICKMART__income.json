@@ -46,17 +46,18 @@
   {
    "label": "Cost of Sales",
    "values": [
-    -52127814000,
-    -45060936000,
-    -21120797000,
-    -39349358000,
-    -36432225000,
-    -32577573000,
-    -27385087000,
-    -20274410000
+    52127814000,
+    45060936000,
+    21120797000,
+    39349358000,
+    36432225000,
+    32577573000,
+    27385087000,
+    20274410000
    ],
    "source": "marker 119 (printed 117); projection marker 138 (printed 136)",
-   "note": "Stored negative, as printed in the memorandum (in brackets)."
+   "note": "Stored negative, as printed in the memorandum (in brackets).",
+   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity Revenue - Cost of Sales = Gross Profit, and the column ties with it positive"
   },
   {
    "label": "Gross Profit",
@@ -149,17 +150,18 @@
   {
    "label": "Income Tax",
    "values": [
-    -1051791000,
-    -845386000,
-    -376993000,
-    -658194000,
-    -509364000,
-    -196386000,
-    -127099000,
-    -86478000
+    1051791000,
+    845386000,
+    376993000,
+    658194000,
+    509364000,
+    196386000,
+    127099000,
+    86478000
    ],
    "source": "marker 119 (printed 117); projection marker 138 (printed 136)",
-   "note": "The memorandum's 'Income tax expense', printed in brackets; stored negative."
+   "note": "The memorandum's 'Income tax expense', printed in brackets; stored negative.",
+   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity Profit Before Tax - Income Tax = Net Profit, and the column ties with it positive"
   },
   {
    "label": "Net Profit",
@@ -220,6 +222,123 @@
    ],
    "source": "markers 124-125 (printed 122-123); projection marker 138 (printed 136)",
    "note": "Not a panel row. An alternative performance measure, not defined under IFRS and not audited: adds back exceptional items."
+  },
+  {
+   "label": "ROE (%)",
+   "values": [
+    147.68,
+    199.16,
+    73.08,
+    122.05,
+    81.85,
+    32.12,
+    null,
+    null
+   ],
+   "derivedCells": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "derivedCellFormula": "ROE (%) = Net Profit / Total Equity x 100",
+   "identityAgreement": "5072 agree / 240 contradict"
+  },
+  {
+   "label": "ROA (%)",
+   "values": [
+    14.63,
+    10.66,
+    4.83,
+    8.23,
+    6.52,
+    3.42,
+    null,
+    null
+   ],
+   "derivedCells": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "derivedCellFormula": "ROA (%) = Net Profit / Total Assets x 100",
+   "identityAgreement": "5374 agree / 210 contradict"
+  },
+  {
+   "label": "Net Margin (%)",
+   "values": [
+    4.22,
+    3.61,
+    3.2,
+    2.99,
+    2.43,
+    1.09,
+    0.79,
+    0.71
+   ],
+   "derived": true,
+   "derivedFrom": "Net Profit / Revenue x 100",
+   "identityAgreement": "4767 agree / 3 contradict"
+  },
+  {
+   "label": "Gross Margin (%)",
+   "values": [
+    22.7,
+    22.58,
+    22.54,
+    21.97,
+    22.0,
+    20.96,
+    21.26,
+    21.05
+   ],
+   "derived": true,
+   "derivedFrom": "Gross Profit / Revenue x 100",
+   "identityAgreement": "4252 agree / 5 contradict"
+  },
+  {
+   "label": "Operating Margin (%)",
+   "values": [
+    8.26,
+    7.58,
+    7.15,
+    6.84,
+    6.35,
+    4.8,
+    4.72,
+    4.27
+   ],
+   "derived": true,
+   "derivedFrom": "Operating Profit (EBIT) / Revenue x 100",
+   "identityAgreement": "4270 agree / 5 contradict"
+  },
+  {
+   "label": "Debt to Equity",
+   "values": [
+    9.1,
+    17.68,
+    14.12,
+    13.84,
+    11.55,
+    8.38,
+    null,
+    null
+   ],
+   "derivedCells": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "derivedCellFormula": "Debt to Equity = Total Liabilities / Total Equity",
+   "identityAgreement": "5419 agree / 286 contradict"
   }
  ],
  "identityChecks": [
@@ -229,5 +348,10 @@
   "Profit Before Tax + Income Tax = Net Profit"
  ],
  "roundingNote": "The memorandum's projected FY2027 column does not tie to the last digit: Profit Before Tax 3,900,106 less Income Tax 1,051,791 = 2,848,315 thousand, but the memorandum prints Profit for the year 2,848,316 thousand. The printed figure is stored unchanged; the 1 thousand (KES 1,000) difference is the memorandum's own rounding and has not been adjusted.",
- "periodOrder": "newest first; the two projected fiscal years (FY2027, FY2026) sort ahead of the interim H1 2026 and the audited years, and every projected column carries '(projected)' in its period label"
+ "periodOrder": "newest first; the two projected fiscal years (FY2027, FY2026) sort ahead of the interim H1 2026 and the audited years, and every projected column carries '(projected)' in its period label",
+ "derivation": {
+  "ratiosBy": "derive_statement_rows.py",
+  "ratiosNote": "ratio cells tagged derived are arithmetic on the filed figures of this security, not printed in the source",
+  "ratios": "derive_ratios.py"
+ }
 }
