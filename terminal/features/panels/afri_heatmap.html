@@ -536,10 +536,10 @@
       cpInds={sma20:false,sma50:false,sma200:false,ema20:false,bb:false,vol:false,rsi:false,macd:false};
   // The archive is drawn exactly as TradingView draws its default chart: split
   // adjusted, NOT dividend adjusted. Every series file states its own basis
-  // ("splits"), so the status line can name the basis the candles are on rather
-  // than leaving a reader to assume it. A clearly named <key>.div.json sidecar,
-  // when the dividend builder has written one, lets the reader switch to the
-  // dividend-adjusted series - which is NOT the default and is labelled as such.
+  // ("splits"). The basis is shown by the SPLIT/+DIV toggle's selected state, and
+  // only there, so that state must stay correct. A clearly named <key>.div.json
+  // sidecar, when the dividend builder has written one, lets the reader switch to
+  // the dividend-adjusted series, which is NOT TradingView's default.
   function cpBasisLabel(){
     if(cpBasisMode === "dividends" && cpDivBars.length) return "split- and dividend-adjusted (NOT TradingView default)";
     return "split-adjusted, dividends not adjusted (TradingView default)";
@@ -887,7 +887,6 @@
     function ym(t){ if(t == null) return ""; if(typeof t === "number"){ var d = new Date(t * 1000); return d.getUTCFullYear() + "-" + String(d.getUTCMonth()+1).padStart(2,"0"); } return String(t).slice(0,7); }
     var statText = bars.length + " bars · " + sign + pct.toFixed(2) + "% · " + (cpRange === "ALL" ? ("since " + ym(bars[0].t)) : cpRange);
     if(legendParts.length) statText += "  |  " + legendParts.join(" · ");
-    statText += "  |  basis: " + cpBasisLabel();
     $("cpStat").textContent = statText;
     var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(function(){ try{ if(cpChart) cpChart.applyOptions({width: Math.max(box.clientWidth||800,200)}); }catch(e){} }, 150); });
   }
