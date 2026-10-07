@@ -445,13 +445,17 @@
       document.getElementById("rsPrice").innerHTML = lineChart(shown);
       var a = shown[0], b = shown[shown.length - 1];
       document.getElementById("rsHistNote").textContent =
-        shown.length + " bars, " + String(a.t).slice(0, 10) + " to " + String(b.t).slice(0, 10);
+        String(a.t).slice(0, 10) + " to " + String(b.t).slice(0, 10);
     } else {
       getHist(EX, SYM, mkt, ".max")
         .then(function(maxH){
           if (maxH && maxH.bars && maxH.bars.length > 1){
             document.getElementById("rsPrice").innerHTML = lineChart(maxH.bars);
-            document.getElementById("rsHistNote").textContent = maxH.bars.length + " monthly bars";
+            // Same rule as above: the date range and the frequency stay, the count
+            // of bars the file happens to hold goes.
+            var _ma = maxH.bars[0], _mb = maxH.bars[maxH.bars.length - 1];
+            document.getElementById("rsHistNote").textContent =
+              "monthly, " + String(_ma.t).slice(0, 10) + " to " + String(_mb.t).slice(0, 10);
           } else {
             fail("rsPrice", "No price history file for this security, so no chart is drawn rather than a flat line that would imply prices did not move.");
           }

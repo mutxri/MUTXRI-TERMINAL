@@ -3322,18 +3322,15 @@ function wcSetType(t){
   }catch(e){}
 }
 function wcBasis(d){
-  // Name the adjustment basis the series is drawn on, from the file's own label.
-  // The archive is split-adjusted and NOT dividend-adjusted, which is exactly
-  // TradingView's default chart, so a reader comparing the two sees the same
-  // picture and can never mistake this for a dividend-adjusted series.
+  // The basis line was removed from the watchlist chart. It named the adjustment
+  // basis the series is drawn on, which on the default series is TradingView's own
+  // default and so told a reader nothing they needed, while on the adjusted series
+  // it repeated what the toggle already says. The element is kept and hidden so the
+  // layout does not shift, and the function is kept because the callers pass it the
+  // history payload.
   const el = $('wcBasis'); if(!el) return;
-  const b = (d && (d.basis || d.adjusted)) || '';
-  let txt = '';
-  if(b === 'splits') txt = 'basis: split-adjusted, dividends NOT adjusted (TradingView default)';
-  else if(b === 'dividends' || b === 'splits+dividends') txt = 'basis: split- and dividend-adjusted';
-  else if(b) txt = 'basis: ' + b;
-  el.textContent = txt;
-  el.style.display = txt ? 'block' : 'none';
+  el.textContent = '';
+  el.style.display = 'none';
 }
 function wcClose(){ const m = $('wlChart'); if(m) m.style.display = 'none'; }
 // A person may type a security any of three ways: the ticker (COMI, SOL), the

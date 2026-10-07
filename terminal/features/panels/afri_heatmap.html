@@ -885,7 +885,10 @@
     if(cpInds.rsi){ var rr = rsiOf(closes,14); v = rr[rr.length-1]; if(v != null) legendParts.push("RSI14 "+v.toFixed(1)); }
     if(cpInds.macd){ var mm = macdOf(closes,12,26,9); v = mm.line[mm.line.length-1]; if(v != null) legendParts.push("MACD "+fmt(v)); }
     function ym(t){ if(t == null) return ""; if(typeof t === "number"){ var d = new Date(t * 1000); return d.getUTCFullYear() + "-" + String(d.getUTCMonth()+1).padStart(2,"0"); } return String(t).slice(0,7); }
-    var statText = bars.length + " bars · " + sign + pct.toFixed(2) + "% · " + (cpRange === "ALL" ? ("since " + ym(bars[0].t)) : cpRange);
+    // The bar count is deliberately NOT shown. It stated how many bars the window
+    // holds, which is an implementation detail of the fetch rather than anything a
+    // reader acts on, and it led the line with a number that looked like a price.
+    var statText = sign + pct.toFixed(2) + "% · " + (cpRange === "ALL" ? ("since " + ym(bars[0].t)) : cpRange);
     if(legendParts.length) statText += "  |  " + legendParts.join(" · ");
     $("cpStat").textContent = statText;
     var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(function(){ try{ if(cpChart) cpChart.applyOptions({width: Math.max(box.clientWidth||800,200)}); }catch(e){} }, 150); });
