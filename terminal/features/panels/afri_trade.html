@@ -18,6 +18,13 @@
       against the previous close, unrealised against average cost, realised on every
       sale. A security with no published close has no end-of-day mark and is shown
       as unavailable rather than valued at an intraday tick.
+    * ACCOUNT VALUE BY SESSION is DERIVED, not merely recorded. Every session from
+      the account's first fill to the latest published close is valued at that
+      session's published close (the cash held that day plus quantity x close, with
+      the position held read from the account's own orders), so a session this
+      browser was not open for is rebuilt rather than lost. A point recorded live is
+      kept and wins, and a session with no published close for a held security is
+      left off the curve and reported rather than carried flat.
     * positions can be LONG or SHORT. SHORT sells shares you do not own and
       keeps the proceeds as cash; a later BUY covers the short (realising
       (entry - exit) x shares). No borrow cost or margin is modelled.
@@ -583,6 +590,136 @@
     if(e.length > 500) e.splice(0, e.length - 500);
   }
 
+  // ---------------- derived equity ----------------
+  // DERIVED EQUITY (2026-10-07). The recorded series above only knows about the
+  // session this browser was open for, so a session the panel missed was lost for
+  // good. This rebuilds the whole curve from the daily bar archive instead: for
+  // every session from the account's first fill to the latest published close it
+  // takes the cash held that day plus, over every position held that day, quantity
+  // times THAT SESSION'S PUBLISHED CLOSE. The mark is the close of a COMPLETED
+  // session, the same end-of-day rule the rest of this panel uses: never an intraday
+  // tick, never a high or a low, never the open. The position held on any past day
+  // is read from the account's own orders, which carry the session they filled in.
+  // RECORDED POINTS ARE A FLOOR: a point this browser wrote from the live feed is
+  // kept and wins any disagreement, and any recorded point the archive cannot cover
+  // is kept too. A session that cannot be priced (a held security with no published
+  // close on file) is left OFF the curve and reported, never carried flat.
+  var equityAudit = null;
+
+  function oDate(o){ return o.close || o.session || ""; }
+  function cashDelta(o){
+    var val = o.qty * o.px;
+    // BUY pays cash out and adds to the net position; SELL and SHORT both bank the
+    // proceeds and cut the net position, so a short leaves it negative.
+    return o.side === "BUY" ? {cash: -val, qty: o.qty} : {cash: val, qty: -o.qty};
+  }
+
+  function deriveSeries(a, bars){
+    var fills = (a.orders || []).filter(function(o){
+      return o.status === "FILLED" && o.px != null && oDate(o);
+    }).map(function(o){
+      return {sym: o.sym, side: o.side, qty: o.qty, px: o.px, d: oDate(o), id: o.id};
+    }).sort(function(x, y){ return x.d < y.d ? -1 : (x.d > y.d ? 1 : x.id - y.id); });
+    if(!fills.length) return {series: [], unpriced: [], first: "", last: ""};
+    var start = fills[0].d;
+
+    // every security the account has ever traded needs its archive
+    var syms = {};
+    fills.forEach(function(f){ syms[f.sym] = 1; });
+    Object.keys(a.positions || {}).forEach(function(t){ syms[t] = 1; });
+
+    // a session calendar from those archives, and each security's published close
+    var closeBy = {}, cal = {}, last = "";
+    Object.keys(syms).forEach(function(t){
+      closeBy[t] = {};
+      ((bars && bars[t]) || []).forEach(function(b){
+        if(!b || b.price == null || !b.date) return;
+        closeBy[t][b.date] = b.price;
+        cal[b.date] = 1;
+        if(b.date > last) last = b.date;
+      });
+    });
+
+    // net quantity held after each fill, per security
+    var steps = {}, qq = {};
+    Object.keys(syms).forEach(function(t){ steps[t] = []; qq[t] = 0; });
+    fills.forEach(function(f){
+      var d = cashDelta(f);
+      qq[f.sym] = (qq[f.sym] || 0) + d.qty;
+      steps[f.sym].push({d: f.d, q: qq[f.sym]});
+    });
+    function qtyOn(t, D){
+      var arr = steps[t] || [], q = 0;
+      for(var i = 0; i < arr.length; i++){ if(arr[i].d <= D) q = arr[i].q; else break; }
+      return q;
+    }
+    // cash on a past day: the live cash with the trades that happened AFTER that day undone
+    function cashOn(D){
+      var later = 0;
+      fills.forEach(function(f){ if(f.d > D) later += cashDelta(f).cash; });
+      return a.cash - later;
+    }
+
+    var days = Object.keys(cal).filter(function(d){ return d >= start && d <= last; }).sort();
+    var series = [], unpriced = [];
+    days.forEach(function(D){
+      var v = cashOn(D), missing = [];
+      Object.keys(syms).forEach(function(t){
+        var q = qtyOn(t, D);
+        if(!q) return;
+        var c = closeBy[t][D];
+        if(c == null) missing.push(t); else v += q * c;
+      });
+      if(missing.length) unpriced.push({d: D, missing: missing});
+      else series.push({d: D, v: v});
+    });
+    return {series: series, unpriced: unpriced, first: days.length ? days[0] : "", last: last};
+  }
+
+  function mergeSeries(recorded, derived){
+    var byD = {}, order = [], conflicts = [];
+    derived.forEach(function(p){
+      if(!Object.prototype.hasOwnProperty.call(byD, p.d)) order.push(p.d);
+      byD[p.d] = p;
+    });
+    (recorded || []).forEach(function(r){
+      if(Object.prototype.hasOwnProperty.call(byD, r.d)){
+        if(Math.abs(byD[r.d].v - r.v) > 1e-6) conflicts.push({d: r.d, recorded: r.v, derived: byD[r.d].v});
+        byD[r.d] = r;                                   // the recorded point always wins
+      }else{
+        order.push(r.d); byD[r.d] = r;                  // keep a point the archive cannot cover
+      }
+    });
+    order.sort();
+    return {series: order.map(function(d){ return byD[d]; }), conflicts: conflicts};
+  }
+
+  function backfillEquity(a){
+    var syms = {};
+    (a.orders || []).forEach(function(o){ if(o.status === "FILLED" && oDate(o)) syms[o.sym] = 1; });
+    Object.keys(a.positions || {}).forEach(function(t){ syms[t] = 1; });
+    var ks = Object.keys(syms);
+    if(!ks.length) return Promise.resolve();
+    return Promise.all(ks.map(function(t){
+      return historyOf(t).then(function(b){ return [t, b || []]; }).catch(function(){ return [t, []]; });
+    })).then(function(pairs){
+      var bars = {}; pairs.forEach(function(p){ bars[p[0]] = p[1]; });
+      var before = (a.equity || []).slice();
+      var recDates = {}; before.forEach(function(p){ recDates[p.d] = 1; });
+      var d = deriveSeries(a, bars);
+      var m = mergeSeries(before, d.series);
+      a.equity = m.series;
+      if(a.equity.length > 500) a.equity.splice(0, a.equity.length - 500);
+      equityAudit = {
+        before: before.length, beforeFirst: (before[0] || {}).d || "", beforeLast: (before[before.length - 1] || {}).d || "",
+        after: a.equity.length, afterFirst: (a.equity[0] || {}).d || "", afterLast: (a.equity[a.equity.length - 1] || {}).d || "",
+        recovered: d.series.filter(function(p){ return !recDates[p.d]; }).length,
+        firstSession: d.first, lastSession: d.last,
+        unpriced: d.unpriced, conflicts: m.conflicts
+      };
+    });
+  }
+
   // ---------------- screen ----------------
   function render(all){
     all = all || load();
@@ -641,7 +778,7 @@
         }).join("") + "</table></div>"
       : "<div class='empty'>No working orders. Limit, stop and stop-limit orders wait here until a new session reaches their price.</div>";
 
-    $("equity").innerHTML = spark(a.equity);
+    $("equity").innerHTML = spark(a.equity) + equityNote();
 
     $("orders").innerHTML = a.orders.length
       ? "<div class='tablewrap'><table><tr><th>WHEN</th><th>SIDE</th><th>SECURITY</th><th>QTY</th><th>TYPE</th><th>STATUS</th>" +
@@ -666,7 +803,7 @@
 
   function spark(e){
     if(!e || e.length < 2){
-      return "<div class='empty'>Your account value is recorded once per session. The chart fills in as new sessions arrive.</div>";
+      return "<div class='empty'>Your account value is rebuilt from each session's published close, and the points this browser recorded live are kept. The chart fills in as sessions are published.</div>";
     }
     var w = 600, h = 90, vs = e.map(function(x){ return x.v; });
     var mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs), span = (mx - mn) || 1;
@@ -678,6 +815,32 @@
            "<polyline fill='none' style='stroke:" + col + "' stroke-width='2' vector-effect='non-scaling-stroke' points='" + pts + "'/></svg>" +
            "<div class='sparkfoot'><span>" + esc(first.d) + " · " + money(first.v) + "</span>" +
            "<span class='" + tone(lastE.v - first.v) + "'>" + esc(lastE.d) + " · " + money(lastE.v) + " (" + signed(lastE.v - first.v) + ")</span></div>";
+  }
+
+  // What the derivation did, said plainly under the curve: how many sessions it
+  // restored, any session it could not price, and any session where the value this
+  // browser recorded live disagreed with the derivation and was kept.
+  function equityNote(){
+    if(!equityAudit) return "";
+    var bits = [];
+    if(equityAudit.recovered > 0){
+      bits.push("Rebuilt from the published session closes: " + equityAudit.recovered +
+                " session" + (equityAudit.recovered === 1 ? "" : "s") + " restored.");
+    }
+    if(equityAudit.unpriced.length){
+      var up = equityAudit.unpriced;
+      bits.push(up.length + " session" + (up.length === 1 ? " is" : "s are") +
+                " not on the curve, no published close for a held security: " +
+                up.map(function(u){ return u.d + " (" + u.missing.join(", ") + ")"; }).join("; ") + ".");
+    }
+    if(equityAudit.conflicts.length){
+      var cf = equityAudit.conflicts;
+      bits.push(cf.length + " session" + (cf.length === 1 ? " kept" : "s kept") +
+                " the recorded value where the derivation disagreed: " +
+                cf.map(function(c){ return c.d + " (recorded " + fmt(c.recorded) + " vs derived " + fmt(c.derived) + ")"; }).join("; ") + ".");
+    }
+    if(!bits.length) return "";
+    return "<div class='empty' style='padding-top:6px'>" + esc(bits.join(" ")) + "</div>";
   }
 
   function updLine(){
@@ -818,9 +981,14 @@
       var all = load();
       return evaluate(all).then(function(notes){
         recordEquity(all[EX]);
-        save(all);
-        render(all);
-        if(notes.length && showNotes !== false) say(notes.join(" · "), notes.some(function(x){ return / rejected: /.test(x); }));
+        // then rebuild the whole curve from the daily archives and merge the recorded
+        // points back on top, so a session this browser was not open for is no longer
+        // lost and today's live point is still kept.
+        return backfillEquity(all[EX]).then(function(){
+          save(all);
+          render(all);
+          if(notes.length && showNotes !== false) say(notes.join(" · "), notes.some(function(x){ return / rejected: /.test(x); }));
+        });
       });
     }).catch(function(){
       $("upd").textContent = "Could not load " + EX + " prices right now. Positions show the last prices this page saw.";
