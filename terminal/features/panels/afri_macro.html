@@ -10,6 +10,21 @@
   the panel says so: presenting an annual average as a current rate would be a
   wrong number. A year with no published value shows n/a; it is never filled.
 
+  LAYOUT (2026-10-08). The panel used to print every published year as an
+  inline chip: a 20-year GDP series is 60 chips per country, so the wall of
+  numbers WAS the panel. It is now built on an information hierarchy taken from
+  a financial publication's data page (headline figure, then a small-multiple
+  chart, then a real aligned table):
+    1. AT A GLANCE - one card per country carrying the latest published value
+       and the change against the prior published year.
+    2. SERIES SHAPE - a small-multiple sparkline per country. Each card has its
+       OWN y-scale, so a series that ran to the mid-30s (Egypt) does not flatten
+       one that stayed near 3 percent (South Africa) on a shared axis.
+    3. FULL SERIES - real aligned tables, not chips. The inflation matrix is
+       short (6 published years) so it stays open. Each GDP country's 20-year
+       history sits behind a disclosure, collapsed by default, so every
+       published value stays reachable without crowding the default view.
+
   Built by build_macro.py -> static_data/macro.json. Vanilla JS, Godel tokens,
   no build step.
 -->
@@ -37,16 +52,15 @@
   body { margin:0; background:var(--bg); color:var(--tx); font-family:var(--ui); font-size:13px; height:100%; overflow:hidden; }
   /* The panel fills the frame the shell hands its iframe and scrolls its own
      content, so the last line on the page (the caption and the source block) is
-     never cut by the frame edge and no row is stranded below an invisible fold.
-     The title bar stays pinned; everything under it lives in .mc-scroll. */
+     never cut by the frame edge and no block is stranded below an invisible
+     fold. The title bar stays pinned; everything under it lives in .mc-scroll. */
   .mc-wrap { border:0; border-radius:0; background:var(--bg2); margin:0; max-width:none;
              height:100%; display:flex; flex-direction:column; }
   .mc-wrap > .mc-head { flex:0 0 auto; }
   .mc-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden;
                scrollbar-width:thin; scrollbar-color:#333 transparent; }
-  /* a slim scrollbar on the content region only. The shell hides scrollbars
-     everywhere else and that is why a long panel read as cut data rather than as
-     content that scrolls: with no bar there was no cue that more existed. */
+  /* a slim scrollbar on the content region only, so a long panel reads as
+     content that scrolls rather than as data that is cut. */
   .mc-scroll::-webkit-scrollbar { width:10px; height:0; }
   .mc-scroll::-webkit-scrollbar-thumb { background:#333; border-radius:5px; }
   .mc-scroll::-webkit-scrollbar-track { background:transparent; }
@@ -59,74 +73,84 @@
   .mc-lead { padding:12px 14px 4px; color:var(--tx2); font-size:12px; line-height:1.55; }
   .mc-lead b { color:var(--tx); }
 
-  /* at very narrow widths the tables can no longer fit in one screen; when a
-     table does overflow, the horizontal scrollbar must be visible so the columns
-     past the edge are reachable rather than silently cut */
-  .mc-tablewrap { overflow-x:auto; scrollbar-width:thin; scrollbar-color:#333 transparent; }
+  /* the country-to-colour key, stated once, so a reader can track a country
+     across the cards, the tables and both sections at a glance */
+  .mc-key { display:flex; gap:16px; flex-wrap:wrap; padding:10px 14px 2px; font-family:var(--mono); font-size:10px; }
+  .mc-key span { display:flex; align-items:center; }
+  .mc-key i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
+
+  /* section and block headings */
+  .mc-block-h { padding:14px 14px 4px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
+  .mc-block-h b { color:var(--acc); font-weight:700; }
+  .mc-hint { padding:2px 14px 4px; color:var(--tx3); font-family:var(--mono); font-size:10px; line-height:1.6; }
+
+  /* ---- small multiples: one card per country, each its own chart and scale ---- */
+  .mc-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:10px; padding:6px 14px 4px; }
+  @media (max-width:560px){ .mc-grid { grid-template-columns:1fr; } }
+  .mc-card { border:1px solid var(--line2); border-radius:3px; background:var(--bg2); padding:9px 11px 5px; }
+  .mc-card.cur { border-color:#3a3a3a; background:var(--bg3); }
+  .mc-card .cname { display:flex; align-items:center; justify-content:space-between; }
+  .mc-card .cname .nm { display:flex; align-items:center; font-weight:600; font-size:12px; }
+  .mc-card .cname .cdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; }
+  .mc-card .cname .exch { font-family:var(--mono); font-size:10px; color:var(--tx3); }
+  .mc-card .big { font-family:var(--mono); font-size:22px; line-height:1.15; font-variant-numeric:tabular-nums; margin:3px 0 0; }
+  .mc-card .big .yr { font-family:var(--mono); font-size:10px; color:var(--tx3); margin-left:7px; }
+  .mc-card .sub { font-family:var(--mono); font-size:10px; color:var(--tx3); margin:1px 0 3px; }
+  .mc-card .sub .d.up { color:var(--up); }
+  .mc-card .sub .d.down { color:var(--down); }
+  .mc-card .sph svg { display:block; width:100%; height:auto; }
+  svg .ax { fill:var(--tx3); font-family:var(--mono); font-size:8.5px; }
+  svg .gl { stroke:var(--line); stroke-width:1; }
+
+  /* ---- tables: real column alignment, generous row height ---- */
+  .mc-tablewrap { overflow-x:auto; scrollbar-width:thin; scrollbar-color:#333 transparent; margin:2px 0 0; }
   .mc-tablewrap::-webkit-scrollbar { height:8px; }
   .mc-tablewrap::-webkit-scrollbar-thumb { background:#333; border-radius:4px; }
   .mc-tablewrap::-webkit-scrollbar-track { background:transparent; }
-  table.mc { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
-  table.mc th, table.mc td { padding:6px 7px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); }
+  table.mc { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; font-variant-numeric:tabular-nums; }
+  table.mc th, table.mc td { padding:8px 9px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); }
   table.mc thead th { color:var(--tx3); font-weight:400; font-size:10px; border-bottom:1px solid var(--line2); text-transform:uppercase; letter-spacing:.06em; white-space:normal; }
   table.mc th.l, table.mc td.l { text-align:left; }
   table.mc td.country { color:var(--tx); font-family:var(--ui); font-weight:600; font-size:12px; border-left:3px solid transparent; }
   table.mc thead th:first-child { border-left:3px solid transparent; }
   table.mc td.country i.cdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle; }
   table.mc td.code { color:var(--tx3); }
-  table.mc td.rate { color:var(--acc); font-size:13px; font-variant-numeric:tabular-nums; }
-  table.mc td.delta.up { color:var(--up); }
-  table.mc td.delta.down { color:var(--down); }
+  table.mc td.gdp { color:var(--tx); font-size:12px; }
+  table.mc td.y { color:var(--tx2); }
+  table.mc th.cur { color:var(--acc); }
   table.mc tr.cur { background:var(--bg3); }
   table.mc tr.cur td.country { color:var(--acc); }
-  table.mc td.hist { color:var(--tx2); font-size:10px; white-space:normal; line-height:1.5; }
-  /* recent-years values wrap onto as many lines as they need. The column is the
-     last one in the row, so a nowrap cell was clipped at the panel edge and the
-     later years were unreachable. One chip per year keeps a year beside its own
-     value when the line breaks, so a wrapped series can never be misread. */
-  table.mc td.hist .hv { display:inline-block; white-space:nowrap; margin:0 9px 1px 0; }
-  table.mc td.hist .hv b { color:var(--tx3); font-weight:400; margin-right:3px; }
-  table.mc thead th.wrap { white-space:normal; }
-  /* the recent-years column is the flexible one: every other column keeps its
-     natural width and this one takes all the space left over, so its values wrap
-     into as few lines as the frame allows instead of being pushed past the edge */
-  table.mc td.hist, table.mc thead th.wrap { width:100%; }
-  /* the GDP block carries three 20-year series. Three side-by-side history
-     columns could never fit the panel frame, so they are stacked as one column
-     with a label per series: every year of every series stays on the page and
-     the table needs no horizontal scroll. */
-  table.mc td.hist .gser { margin:0 0 3px; }
-  table.mc td.hist .gser:last-child { margin-bottom:0; }
-  table.mc td.hist .gsl { color:var(--tx3); text-transform:uppercase; letter-spacing:.04em; margin-right:8px; }
-  /* the GDP history row spans every column and gets the panel's full width, so a
-     20-year series wraps into a handful of lines instead of one long line that
-     ran off the right edge of the frame. */
-  table.mc tr.histrow > td.hist { padding-top:2px; padding-bottom:9px; border-bottom:1px solid var(--line2); }
-  table.mc td.hist .gcap { color:var(--tx3); text-transform:uppercase; letter-spacing:.06em; margin:0 0 3px; }
+  /* the inflation matrix: rows are years, columns are countries, so the year is
+     the row header and every value keeps its year beside it. */
+  table.mc.mtx thead th { text-transform:none; letter-spacing:.02em; }
 
-  .mc-chart { padding:16px 14px 6px; border-top:1px solid var(--line); }
-  .mc-chart svg { display:block; width:100%; height:auto; }
-  .mc-chart .ax { fill:var(--tx3); font-family:var(--mono); font-size:9px; }
-  .mc-chart .grid { stroke:var(--line); stroke-width:1; }
-  .mc-chart .zero { stroke:var(--line2); stroke-width:1; stroke-dasharray:3 3; }
-  .mc-chart .lbl { fill:var(--tx); font-family:var(--mono); font-size:9px; }
-  .mc-legend { display:flex; gap:16px; flex-wrap:wrap; padding:0 14px 12px; font-family:var(--mono); font-size:10px; color:var(--tx2); }
-  .mc-legend span { display:flex; align-items:center; }
-  .mc-legend i { display:inline-block; width:16px; height:2px; margin-right:6px; }
-  /* key: the country-to-colour mapping stated once, up top, so a reader can
-     track a country across the tables and both charts at a glance */
-  .mc-key { display:flex; gap:16px; flex-wrap:wrap; padding:12px 14px 0; font-family:var(--mono); font-size:10px; }
-  .mc-key span { display:flex; align-items:center; }
-  .mc-key i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
+  /* ---- disclosure: the long series, one click away, collapsed by default ---- */
+  details.mc-dis { border-top:1px solid var(--line); }
+  details.mc-dis:last-of-type { border-bottom:1px solid var(--line2); }
+  details.mc-dis > summary { cursor:pointer; list-style:none; padding:10px 14px; font-family:var(--mono); font-size:11px; color:var(--tx2);
+                             display:flex; align-items:center; justify-content:space-between; }
+  details.mc-dis > summary::-webkit-details-marker { display:none; }
+  details.mc-dis > summary:hover { color:var(--acc); }
+  details.mc-dis > summary .sfx { display:flex; align-items:center; }
+  details.mc-dis > summary .cdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; }
+  details.mc-dis > summary .caret { color:var(--tx3); font-size:10px; transition:transform .12s ease; }
+  details.mc-dis[open] > summary .caret { transform:rotate(90deg); }
+  details.mc-dis .mc-tablewrap { padding:0 14px 12px; }
 
   .mc-note { padding:10px 14px; color:var(--tx3); font-family:var(--mono); font-size:10px; line-height:1.7; border-top:1px solid var(--line); }
-  .mc-warn { padding:8px 14px; color:var(--down); font-family:var(--mono); font-size:10px; }
-
-  .mc-sec { border-top:2px solid var(--line2); }
+  .mc-note a { color:var(--acc); }
+  .mc-sec { border-top:2px solid var(--line2); margin-top:8px; }
   .mc-sec-h { padding:12px 14px 2px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
   .mc-sec-h b { color:var(--acc); font-weight:700; }
-  table.mc th.g, table.mc td.g, table.mc td.gdp { border-left:1px solid var(--line2); }
-  table.mc td.gdp { color:var(--tx); font-size:12px; font-variant-numeric:tabular-nums; }
+  .nodata { padding:10px 14px; color:var(--tx3); font-family:var(--mono); font-size:10px; }
+  /* at phone width the widest table (country, GDP level, growth, per capita) is
+     tightened so it fits the frame instead of needing a horizontal drag; if a
+     table still cannot fit, .mc-tablewrap keeps its scrollbar so nothing clips. */
+  @media (max-width:520px){
+    table.mc { font-size:10px; }
+    table.mc th, table.mc td { padding:6px 6px; }
+    table.mc td.country { font-size:11px; }
+  }
 </style>
 </head>
 <body>
@@ -139,6 +163,7 @@
 
   <div class="mc-scroll">
 
+  <!-- ===================== INFLATION ===================== -->
   <div class="mc-lead">
     Consumer price inflation for the four markets covered by the terminal. Every value is the
     published <b>annual average</b>, reproduced exactly as the source reports it, with the year shown
@@ -147,30 +172,16 @@
 
   <div class="mc-key" id="mcKey"></div>
 
-  <div class="mc-tablewrap">
-    <table class="mc">
-      <thead>
-        <tr>
-          <th class="l">Country</th>
-          <th class="l">Currency</th>
-          <th class="l">Exchange</th>
-          <th id="mcYearH">Year</th>
-          <th>Inflation</th>
-          <th>vs prior yr</th>
-          <th class="l wrap">Recent years</th>
-        </tr>
-      </thead>
-      <tbody id="mcBody">
-        <tr><td class="l" colspan="7" style="color:var(--tx3)">Loading&hellip;</td></tr>
-      </tbody>
-    </table>
+  <div class="mc-block-h"><b>Inflation</b> &middot; latest by country, each on its own scale</div>
+  <div class="mc-grid" id="mcInflGrid">
+    <div class="nodata">Loading&hellip;</div>
   </div>
 
-  <div class="mc-chart" id="mcChart"></div>
-  <div class="mc-legend" id="mcLegend"></div>
-
+  <div class="mc-block-h"><b>All published years</b> &middot; annual average, %</div>
+  <div id="mcInflTableHost"></div>
   <div class="mc-note" id="mcNote">&nbsp;</div>
 
+  <!-- ===================== GDP ===================== -->
   <div class="mc-sec">
     <div class="mc-sec-h"><b>GDP</b> &middot; level, growth and per capita by country</div>
 
@@ -182,27 +193,32 @@
       published value shows n/a and is never filled, and no value is carried forward.
     </div>
 
+    <div class="mc-block-h"><b>At a glance</b> &middot; latest published year</div>
     <div class="mc-tablewrap">
       <table class="mc">
         <thead>
           <tr>
             <th class="l">Country</th>
-            <th class="l">Currency</th>
-            <th class="l">Exchange</th>
-            <th id="mcGdpYearH">Year</th>
-            <th class="g">GDP (US$)</th>
-            <th>GDP growth</th>
-            <th>GDP per capita (US$)</th>
+            <th class="l">Exch</th>
+            <th>Year</th>
+            <th>GDP (US$)</th>
+            <th>Growth</th>
+            <th>Per capita (US$)</th>
           </tr>
         </thead>
-        <tbody id="mcGdpBody">
-          <tr><td class="l" colspan="7" style="color:var(--tx3)">Loading&hellip;</td></tr>
+        <tbody id="mcGdpTableBody">
+          <tr><td class="l" colspan="6" style="color:var(--tx3)">Loading&hellip;</td></tr>
         </tbody>
       </table>
     </div>
 
-    <div class="mc-chart" id="mcGdpChart"></div>
-    <div class="mc-legend" id="mcGdpLegend"></div>
+    <div class="mc-block-h"><b>Per capita</b> &middot; 2006 onward, each on its own scale</div>
+    <div class="mc-grid" id="mcGdpGrid"></div>
+
+    <div class="mc-block-h"><b>Full history</b> &middot; every published year, by country</div>
+    <div class="mc-hint">Collapsed so the panel reads at a glance. Expand a country to see all of its
+      published years, level, growth and per capita. Nothing is estimated and nothing is filled.</div>
+    <div id="mcGdpHist"></div>
 
     <div class="mc-note" id="mcGdpNote">&nbsp;</div>
   </div>
@@ -211,9 +227,8 @@
 
 <script>
 (function(){
-  // The served site is static: /api/macro does not exist on Pages (it 404s, and
-  // the fetch was pointless before falling back here). Read the published
-  // snapshot the build ships directly, with no doomed API call first.
+  // The served site is static: /api/macro does not exist on Pages, so read the
+  // published snapshot the build ships directly, with no doomed API call first.
   var FALLBACK = "../../static_data/macro.json";
   var ex = "JSE";
   try {
@@ -226,251 +241,211 @@
       return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
     });
   }
-  function fmt(v){
-    return (typeof v === "number") ? v.toFixed(2) + "%" : "n/a";
-  }
 
-  function render(d){
-    var body = document.getElementById("mcBody");
-    var rows = (d && d.countries) || [];
-    if (!rows.length){
-      body.innerHTML = '<tr><td class="l" colspan="7" style="color:var(--tx3)">' +
-        'No macro data available. The gap is shown rather than filled.</td></tr>';
-      return;
-    }
-    body.innerHTML = "";
-    document.getElementById("mcLegend").innerHTML = "";
-    document.getElementById("mcKey").innerHTML = rows.map(function(c){
-      var col = ccolor(c);
-      return '<span style="color:' + col + '"><i style="background:' + col + '"></i>' +
-        esc(c.country) + '</span>';
-    }).join("");
-    rows.forEach(function(c){
-      var tr = document.createElement("tr");
-      if (String(c.exchange).toUpperCase() === ex) tr.className = "cur";
-
-      var delta = "";
-      var cls = "";
-      if (typeof c.inflation === "number" && typeof c.inflation_prior === "number"){
-        var dd = c.inflation - c.inflation_prior;
-        cls = dd <= 0 ? "up" : "down";
-        delta = (dd > 0 ? "+" : "") + dd.toFixed(2) + "pp";
-      } else {
-        delta = "n/a";
-      }
-
-      var hist = (c.history || []).map(function(h){
-        return '<span class="hv"><b>' + esc(h.year) + '</b>' + h.value.toFixed(2) + '</span>';
-      }).join("");
-
-      var col = ccolor(c);
-      tr.innerHTML =
-        '<td class="l country" style="border-left-color:' + col + '">' + countryCell(col, c.country) + '</td>' +
-        '<td class="l code">' + esc(c.currency) + '</td>' +
-        '<td class="l code">' + esc(c.exchange) + '</td>' +
-        '<td class="code">' + esc(c.inflation_year) + '</td>' +
-        '<td class="rate" style="color:' + col + '">' + fmt(c.inflation) + '</td>' +
-        '<td class="delta ' + cls + '">' + esc(delta) + '</td>' +
-        '<td class="l hist" style="color:' + col + '">' + hist + '</td>';
-      body.appendChild(tr);
-    });
-
-    drawChart(rows);
-
-    var yh = document.getElementById("mcYearH");
-    if (rows[0] && rows[0].inflation_year) yh.textContent = String(rows[0].inflation_year);
-
-    document.getElementById("mcNote").innerHTML =
-      esc(d.indicator_name || "Inflation, consumer prices (annual %)") + " for " +
-      rows.length + " countries.<br>Source: " + esc(d.source || "World Bank Open Data") +
-      (d.source_last_updated ? " &middot; series last updated " + esc(d.source_last_updated) : "") +
-      (d.generated ? " &middot; retrieved " + esc(d.generated) : "") +
-      '<br>' + esc(d.indicator || "") + " &middot; " +
-      '<a href="' + esc(d.source_url || "#") + '" target="_blank" rel="noopener" style="color:var(--acc)">' +
-      esc(d.source_url || "") + '</a>';
-
-    renderGdp(d.gdp);
-  }
+  // Formatting is byte-for-byte the panel's existing formatting: inflation and
+  // growth to two decimals, the GDP level in whole US dollars, per capita to
+  // two decimals, exactly as before. A missing value prints n/a, never 0.
+  function pct(v){ return (typeof v === "number") ? v.toFixed(2) + "%" : "n/a"; }
+  function money0(v){ return (typeof v === "number") ? "$" + Math.round(v).toLocaleString("en-US") : "n/a"; }
+  function money2(v){ return (typeof v === "number") ? "$" + v.toLocaleString("en-US",
+    {minimumFractionDigits:2, maximumFractionDigits:2}) : "n/a"; }
 
   // One accent colour per country, so the same country reads as the same colour
-  // in its table row, its legend entry, its line in both charts and its chart
-  // label. Colours are keyed by ISO2 (the mapping is explicit and does not
-  // depend on row order). Each is chosen to sit beside the mint house accent
-  // (#33e29a) without clashing, to stay clearly distinct from the other three on
-  // black, and to avoid a red-versus-green-only split. The measured WCAG contrast
-  // against black is noted beside each; all four clear the AAA text ratio (7:1).
+  // in its card, its table row, its chart and its label. Keyed by ISO2. Each is
+  // chosen to sit beside the mint house accent (#33e29a) without clashing, to
+  // stay distinct from the other three on black, and to avoid a red-versus-green
+  // only split; all four clear the AAA text ratio (7:1) on black.
   var CCOLOR = {
-    KE: "#FFB000", // Kenya        amber     11.5:1 on black
-    NG: "#3FA9F5", // Nigeria      sky blue   8.2:1 on black
-    ZA: "#FF6FB5", // South Africa pink       8.2:1 on black
-    EG: "#B18CFF"  // Egypt        violet     8.1:1 on black
+    KE: "#FFB000", // Kenya        amber
+    NG: "#3FA9F5", // Nigeria      sky blue
+    ZA: "#FF6FB5", // South Africa pink
+    EG: "#B18CFF"  // Egypt        violet
   };
-  // fallback order (KE, NG, ZA, EG) for any record missing an iso2
   var SERIES = ["#FFB000", "#3FA9F5", "#FF6FB5", "#B18CFF"];
   function ccolor(c){
     var k = c && c.iso2 ? String(c.iso2).toUpperCase() : "";
     return CCOLOR[k] || SERIES[0];
   }
-  function countryCell(col, name){
-    return '<i class="cdot" style="background:' + col + '"></i>' +
-      '<span style="color:' + col + '">' + esc(name) + '</span>';
-  }
 
-  // End-of-line labels all sit at the same x (just right of the plot), so two
-  // series that finish at similar values drew their labels on top of each other
-  // and neither was readable. Sort the labels by y, push any that would collide
-  // down by one line step, then shift the whole stack back inside the plot. Each
-  // label keeps a short leader back to its own line end, so an offset label still
-  // points at the series it belongs to.
-  function placeEndLabels(out, xPlot, xLabel, yTop, yBot, labs){
-    labs.sort(function(a, b){ return a.y - b.y; });
-    var STEP = 11, i;
-    for (i = 1; i < labs.length; i++){
-      if (labs[i].y - labs[i-1].y < STEP) labs[i].y = labs[i-1].y + STEP;
+  // ---- small-multiple sparkline --------------------------------------------
+  // ONE series, its OWN y-scale: the top and bottom gridlines are that series'
+  // published maximum and minimum, labelled with those exact published values,
+  // so a country is never flattened by another country's range. Each point
+  // carries a "year: value" title so the exact figure is on hover.
+  function sparkline(pts, col, fmt, aria){
+    if (!pts || pts.length < 2){
+      return '<div class="nodata" style="padding:6px 0">Too few published years to draw a trend. The gap is shown rather than filled.</div>';
     }
-    if (labs.length && labs[labs.length - 1].y > yBot){
-      var d = labs[labs.length - 1].y - yBot;
-      for (i = 0; i < labs.length; i++) labs[i].y -= d;
-    }
-    if (labs.length && labs[0].y < yTop){
-      var u = yTop - labs[0].y;
-      for (i = 0; i < labs.length; i++) labs[i].y += u;
-    }
-    labs.forEach(function(l){
-      out.push('<line x1="' + xPlot + '" y1="' + l.py.toFixed(1) + '" x2="' + (xLabel - 3) +
-        '" y2="' + l.y.toFixed(1) + '" stroke="' + l.col + '" stroke-width="1" opacity="0.45"/>');
-      out.push('<text class="lbl" x="' + xLabel + '" y="' + (l.y + 3).toFixed(1) +
-        '" fill="' + l.col + '">' + l.txt + '</text>');
-    });
-  }
-
-  function drawChart(rows){
-    var host = document.getElementById("mcChart");
-    var leg  = document.getElementById("mcLegend");
-    if (!rows.length){ host.innerHTML = ""; leg.innerHTML = ""; return; }
-
-    var years = [], seen = {};
-    rows.forEach(function(c){
-      (c.history || []).forEach(function(h){
-        if (!seen[h.year]){ seen[h.year] = 1; years.push(h.year); }
-      });
-    });
-    years.sort(function(a,b){ return a - b; });
-    if (years.length < 2){ host.innerHTML = '<div style="color:var(--tx3);font-family:var(--mono);font-size:10px">Too few published years to draw a trend. The gap is shown rather than filled.</div>'; leg.innerHTML = ""; return; }
-
-    var maxV = 0;
-    rows.forEach(function(c){ (c.history || []).forEach(function(h){ if (h.value > maxV) maxV = h.value; }); });
-    var top = Math.ceil(maxV / 5) * 5;
-    if (top <= 0) top = 5;
-
-    var W = 700, H = 250, L = 46, R = 88, T = 14, B = 26;
+    var W = 360, H = 108, L = 60, R = 16, T = 12, B = 22;
     var iw = W - L - R, ih = H - T - B;
-    var xi = function(i){ return L + (years.length === 1 ? iw/2 : iw * i / (years.length - 1)); };
-    var yv = function(v){ return T + ih - (ih * (v / top)); };
+    var vals = pts.map(function(p){ return p.value; });
+    var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+    var flat = (mx === mn);
+    var lo = flat ? mn - 1 : mn, hi = flat ? mx + 1 : mx;
+    var x = function(i){ return L + (pts.length === 1 ? iw / 2 : iw * i / (pts.length - 1)); };
+    var y = function(v){ return T + ih - ih * (v - lo) / (hi - lo); };
 
-    var s = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Annual consumer price inflation by country">'];
+    var s = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(aria) + '">'];
+    s.push('<line class="gl" x1="' + L + '" y1="' + y(mx).toFixed(1) + '" x2="' + (W - R) + '" y2="' + y(mx).toFixed(1) + '"/>');
+    s.push('<line class="gl" x1="' + L + '" y1="' + y(mn).toFixed(1) + '" x2="' + (W - R) + '" y2="' + y(mn).toFixed(1) + '"/>');
+    s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y(mx) + 3).toFixed(1) + '" text-anchor="end">' + esc(fmt(mx)) + '</text>');
+    s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y(mn) + 3).toFixed(1) + '" text-anchor="end">' + esc(fmt(mn)) + '</text>');
 
-    var steps = 5;
-    for (var g = 0; g <= steps; g++){
-      var val = top * g / steps, y = yv(val);
-      s.push('<line class="' + (g === 0 ? "zero" : "grid") + '" x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W - R) + '" y2="' + y.toFixed(1) + '"/>');
-      s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end">' + val.toFixed(val % 1 ? 1 : 0) + '%</text>');
-    }
-    years.forEach(function(yr, i){
-      s.push('<text class="ax" x="' + xi(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + yr + '</text>');
+    var ptsStr = pts.map(function(p, i){ return x(i).toFixed(1) + "," + y(p.value).toFixed(1); }).join(" ");
+    var base = y(mn).toFixed(1);
+    s.push('<polyline fill="' + col + '" fill-opacity="0.10" stroke="none" points="' +
+      x(0).toFixed(1) + "," + base + " " + ptsStr + " " + x(pts.length - 1).toFixed(1) + "," + base + '"/>');
+    s.push('<polyline fill="none" stroke="' + col + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="' + ptsStr + '"/>');
+    pts.forEach(function(p, i){
+      s.push('<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.value).toFixed(1) + '" r="2.6" fill="' + col + '">' +
+        '<title>' + esc(p.year) + ": " + esc(fmt(p.value)) + '</title></circle>');
     });
 
-    var drawn = 0;
-    var labs = [];
-    rows.forEach(function(c, idx){
-      var hs = (c.history || []).slice().sort(function(a,b){ return a.year - b.year; });
-      if (hs.length < 2) return;
-      var col = ccolor(c);
-      var pts = hs.map(function(h){
-        var gi = years.indexOf(h.year);
-        return xi(gi).toFixed(1) + "," + yv(h.value).toFixed(1);
-      });
-      s.push('<polyline fill="none" stroke="' + col + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" points="' + pts.join(" ") + '"/>');
-      hs.forEach(function(h){
-        var gi = years.indexOf(h.year);
-        s.push('<circle cx="' + xi(gi).toFixed(1) + '" cy="' + yv(h.value).toFixed(1) + '" r="2.4" fill="' + col + '"/>');
-      });
-      var last = hs[hs.length - 1];
-      labs.push({py: yv(last.value), y: yv(last.value), col: col,
-                 txt: esc(c.iso2 || c.country) + ' ' + last.value.toFixed(2) + '%'});
-      leg.innerHTML += '<span style="color:' + col + '"><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
-      drawn++;
+    // x labels: every year when the series is short, otherwise first, middle, last
+    var idxs = (pts.length <= 8) ? pts.map(function(_, i){ return i; }) : [0, Math.round((pts.length - 1) / 2), pts.length - 1];
+    idxs.forEach(function(i){
+      var anc = (i === 0) ? "start" : (i === pts.length - 1 ? "end" : "middle");
+      s.push('<text class="ax" x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + anc + '">' + esc(pts[i].year) + '</text>');
     });
-    placeEndLabels(s, W - R, W - R + 8, T + 8, H - B - 1, labs);
-
     s.push('</svg>');
-    host.innerHTML = s.join("");
-    if (!drawn){ host.innerHTML = ""; leg.innerHTML = ""; }
+    return s.join("");
   }
 
-  // ---------- GDP block ----------
-  // Money is shown in whole US dollars for the level (a national GDP level has no
-  // meaningful cents) and to two decimals for per capita, exactly as the panel
-  // prints inflation to two decimals. The stored series is the API value; a
-  // missing year prints n/a and is never replaced by 0 or a carried-forward figure.
-  function fmtMoney0(v){
-    return (typeof v === "number") ? "$" + Math.round(v).toLocaleString("en-US") : "n/a";
+  function inflCard(c){
+    var col = ccolor(c);
+    var h = (c.history || []).slice().sort(function(a, b){ return a.year - b.year; });
+    var hasD = (typeof c.inflation === "number" && typeof c.inflation_prior === "number");
+    var dd = hasD ? (c.inflation - c.inflation_prior) : null;
+    var dcls = (dd === null) ? "" : (dd <= 0 ? "up" : "down");
+    var dstr = (dd === null) ? "n/a" : ((dd > 0 ? "+" : "") + dd.toFixed(2) + "pp");
+    var prev = (typeof c.inflation_prior === "number") ? pct(c.inflation_prior) : "n/a";
+    var cur = (String(c.exchange).toUpperCase() === ex) ? " cur" : "";
+    return '<div class="mc-card' + cur + '">' +
+      '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+        '<span style="color:' + col + '">' + esc(c.country) + '</span></span>' +
+        '<span class="exch">' + esc(c.exchange) + '</span></div>' +
+      '<div class="big" style="color:' + col + '">' + pct(c.inflation) +
+        '<span class="yr">' + esc(c.inflation_year) + '</span></div>' +
+      '<div class="sub">vs ' + esc(c.inflation_prior_year) + " " + prev +
+        ' <span class="d ' + dcls + '">' + dstr + '</span></div>' +
+      '<div class="sph">' + sparkline(h, col, pct, esc(c.country) + " annual consumer price inflation") + '</div>' +
+      '</div>';
   }
-  function fmtMoney2(v){
-    return (typeof v === "number") ? "$" + v.toLocaleString("en-US",
-      {minimumFractionDigits:2, maximumFractionDigits:2}) : "n/a";
-  }
-  function fmtPct(v){
-    return (typeof v === "number") ? v.toFixed(2) + "%" : "n/a";
-  }
-  function series(hist, key, f){
-    return (hist || []).map(function(h){
-      return '<span class="hv"><b>' + esc(h.year) + '</b>' +
-        (typeof h[key] === "number" ? f(h[key]) : "n/a") + '</span>';
+
+  // The full inflation series as an aligned matrix: rows are years, columns are
+  // the four countries. Six published years fit without a disclosure, so this is
+  // the readable home of the whole inflation history.
+  function inflMatrix(rows){
+    var years = {}, list = [];
+    rows.forEach(function(c){
+      (c.history || []).forEach(function(h){ if (!years[h.year]){ years[h.year] = 1; list.push(h.year); } });
+    });
+    list.sort(function(a, b){ return b - a; });
+    var head = '<tr><th class="l">Year</th>' + rows.map(function(c){
+      var isCur = (String(c.exchange).toUpperCase() === ex);
+      return '<th class="' + (isCur ? "cur" : "") + '">' + esc(c.country) + '</th>';
+    }).join("") + '</tr>';
+    var body = list.map(function(y){
+      return '<tr><td class="l y">' + esc(y) + '</td>' + rows.map(function(c){
+        var v = null;
+        (c.history || []).forEach(function(h){ if (h.year === y) v = h.value; });
+        return '<td' + (typeof v === "number" ? ' data-v="' + v + '"' : '') + ' style="color:' + ccolor(c) + '">' + pct(v) + '</td>';
+      }).join("") + '</tr>';
     }).join("");
+    return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+  }
+
+  // ---- GDP -----------------------------------------------------------------
+  function gdpCard(c){
+    var col = ccolor(c);
+    var h = (c.history || []).filter(function(x){ return typeof x.gdp_per_capita === "number"; })
+      .slice().sort(function(a, b){ return a.year - b.year; });
+    var pts = h.map(function(x){ return { year: x.year, value: x.gdp_per_capita }; });
+    var cur = (String(c.exchange).toUpperCase() === ex) ? " cur" : "";
+    return '<div class="mc-card' + cur + '">' +
+      '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+        '<span style="color:' + col + '">' + esc(c.country) + '</span></span>' +
+        '<span class="exch">' + esc(c.exchange) + '</span></div>' +
+      '<div class="big" style="color:' + col + '">' + money2(c.gdp_per_capita) +
+        '<span class="yr">' + esc(c.gdp_per_capita_year == null ? "n/a" : c.gdp_per_capita_year) + '</span></div>' +
+      '<div class="sub">GDP ' + money0(c.gdp) + ' &middot; growth <span class="d">' + pct(c.gdp_growth) + '</span></div>' +
+      '<div class="sph">' + sparkline(pts, col, money2, esc(c.country) + " GDP per capita, current US dollars") + '</div>' +
+      '</div>';
+  }
+
+  // The long series as a real aligned table behind a disclosure: every published
+  // year with its level, growth and per capita. One table per country.
+  function gdpHistory(c){
+    var col = ccolor(c);
+    var h = (c.history || []).slice().sort(function(a, b){ return b.year - a.year; });
+    if (!h.length) return "";
+    var ys = h.map(function(x){ return x.year; });
+    var span = Math.min.apply(null, ys) + "-" + Math.max.apply(null, ys);
+    var body = h.map(function(x){
+      return '<tr><td class="l y">' + esc(x.year) + '</td>' +
+        '<td data-v="' + x.gdp + '">' + money0(x.gdp) + '</td>' +
+        '<td data-v="' + x.gdp_growth + '">' + pct(x.gdp_growth) + '</td>' +
+        '<td data-v="' + x.gdp_per_capita + '">' + money2(x.gdp_per_capita) + '</td></tr>';
+    }).join("");
+    return '<details class="mc-dis"><summary>' +
+      '<span class="sfx"><i class="cdot" style="background:' + col + '"></i>' +
+        '<span style="color:' + col + '">' + esc(c.country) + '</span>' +
+        ' &middot; ' + h.length + ' published years (' + span + ')</span>' +
+      '<span class="caret">&gt;</span></summary>' +
+      '<div class="mc-tablewrap"><table class="mc"><thead><tr>' +
+        '<th class="l">Year</th><th>GDP (US$)</th><th>Growth (%)</th><th>Per capita (US$)</th>' +
+      '</tr></thead><tbody>' + body + '</tbody></table></div></details>';
+  }
+
+  function render(d){
+    var rows = (d && d.countries) || [];
+    var grid = document.getElementById("mcInflGrid");
+    if (!rows.length){
+      grid.innerHTML = '<div class="nodata">Inflation data is not available. The gap is shown rather than filled.</div>';
+      document.getElementById("mcInflTableHost").innerHTML = "";
+      document.getElementById("mcNote").innerHTML = "&nbsp;";
+      renderGdp(d && d.gdp);
+      return;
+    }
+    document.getElementById("mcKey").innerHTML = rows.map(function(c){
+      var col = ccolor(c);
+      return '<span style="color:' + col + '"><i style="background:' + col + '"></i>' + esc(c.country) + '</span>';
+    }).join("");
+    grid.innerHTML = rows.map(inflCard).join("");
+    document.getElementById("mcInflTableHost").innerHTML = inflMatrix(rows);
+    document.getElementById("mcNote").innerHTML =
+      esc(d.indicator_name || "Inflation, consumer prices (annual %)") + " for " +
+      rows.length + " countries. " + esc(d.note || "") + "<br>Source: " + esc(d.source || "World Bank Open Data") +
+      (d.source_last_updated ? " &middot; series last updated " + esc(d.source_last_updated) : "") +
+      (d.generated ? " &middot; retrieved " + esc(d.generated) : "") +
+      ' <a href="' + esc(d.source_url || "#") + '" target="_blank" rel="noopener">' + esc(d.source_url || "") + '</a>';
+    renderGdp(d.gdp);
   }
 
   function renderGdp(g){
-    var body = document.getElementById("mcGdpBody");
+    var body = document.getElementById("mcGdpTableBody");
     var note = document.getElementById("mcGdpNote");
+    var grid = document.getElementById("mcGdpGrid");
+    var hist = document.getElementById("mcGdpHist");
     if (!g || !g.countries || !g.countries.length){
-      body.innerHTML = '<tr><td class="l" colspan="7" style="color:var(--tx3)">' +
-        'No GDP data available. The gap is shown rather than filled.</td></tr>';
-      note.innerHTML = "&nbsp;";
-      document.getElementById("mcGdpChart").innerHTML = "";
-      document.getElementById("mcGdpLegend").innerHTML = "";
+      body.innerHTML = '<tr><td class="l" colspan="6" style="color:var(--tx3)">No GDP data available. The gap is shown rather than filled.</td></tr>';
+      note.innerHTML = "&nbsp;"; grid.innerHTML = ""; hist.innerHTML = "";
       return;
     }
-    body.innerHTML = "";
-    g.countries.forEach(function(c, ci){
-      var tr = document.createElement("tr");
-      if (String(c.exchange).toUpperCase() === ex) tr.className = "cur";
+    body.innerHTML = g.countries.map(function(c){
       var col = ccolor(c);
-      tr.innerHTML =
-        '<td class="l country" style="border-left-color:' + col + '">' + countryCell(col, c.country) + '</td>' +
-        '<td class="l code">' + esc(c.currency) + '</td>' +
+      var cur = (String(c.exchange).toUpperCase() === ex) ? "cur" : "";
+      return '<tr class="' + cur + '">' +
+        '<td class="l country" style="border-left-color:' + col + '">' +
+          '<i class="cdot" style="background:' + col + '"></i><span style="color:' + col + '">' + esc(c.country) + '</span></td>' +
         '<td class="l code">' + esc(c.exchange) + '</td>' +
         '<td class="code">' + esc(c.gdp_year == null ? "n/a" : c.gdp_year) + '</td>' +
-        '<td class="gdp g" style="color:' + col + '">' + fmtMoney0(c.gdp) + '</td>' +
-        '<td class="gdp">' + fmtPct(c.gdp_growth) + '</td>' +
-        '<td class="gdp">' + fmtMoney2(c.gdp_per_capita) + '</td>';
-      body.appendChild(tr);
-
-      var hr = document.createElement("tr");
-      hr.className = "histrow" + (String(c.exchange).toUpperCase() === ex ? " cur" : "");
-      hr.innerHTML =
-        '<td class="l hist g" colspan="7" style="color:' + col + '">' +
-          (ci === 0 ? '<div class="gcap">Recent years, by series</div>' : '') +
-          '<div class="gser"><span class="gsl">GDP (US$)</span>' + series(c.history, "gdp", fmtMoney0) + '</div>' +
-          '<div class="gser"><span class="gsl">Growth (%)</span>' + series(c.history, "gdp_growth", fmtPct) + '</div>' +
-          '<div class="gser"><span class="gsl">Per capita (US$)</span>' + series(c.history, "gdp_per_capita", fmtMoney2) + '</div>' +
-        '</td>';
-      body.appendChild(hr);
-    });
-    var yh = document.getElementById("mcGdpYearH");
-    if (g.countries[0] && g.countries[0].gdp_year) yh.textContent = String(g.countries[0].gdp_year);
-
-    drawGdpChart(g.countries);
+        '<td class="gdp" style="color:' + col + '">' + money0(c.gdp) + '</td>' +
+        '<td class="gdp">' + pct(c.gdp_growth) + '</td>' +
+        '<td class="gdp">' + money2(c.gdp_per_capita) + '</td></tr>';
+    }).join("");
+    grid.innerHTML = g.countries.map(gdpCard).join("");
+    hist.innerHTML = g.countries.map(gdpHistory).join("");
 
     var ys = [];
     g.countries.forEach(function(c){ (c.history || []).forEach(function(h){ ys.push(h.year); }); });
@@ -488,92 +463,18 @@
       (g.generated ? " &middot; retrieved " + esc(g.generated) : "");
   }
 
-  // GDP per capita, current US dollars, drawn from the history exactly as stored.
-  // Per capita is the series that makes the four countries comparable. The line
-  // joins published years and stops at the last one the source reports.
-  function drawGdpChart(rows){
-    var host = document.getElementById("mcGdpChart");
-    var leg  = document.getElementById("mcGdpLegend");
-    host.innerHTML = ""; leg.innerHTML = "";
-    if (!rows || !rows.length) return;
-
-    var years = [], seen = {};
-    rows.forEach(function(c){
-      (c.history || []).forEach(function(h){
-        if (typeof h.gdp_per_capita !== "number") return;
-        if (!seen[h.year]){ seen[h.year] = 1; years.push(h.year); }
-      });
-    });
-    years.sort(function(a,b){ return a - b; });
-    if (years.length < 2){
-      host.innerHTML = '<div style="color:var(--tx3);font-family:var(--mono);font-size:10px">Too few published years to draw a trend. The gap is shown rather than filled.</div>';
-      return;
-    }
-
-    var maxV = 0;
-    rows.forEach(function(c){ (c.history || []).forEach(function(h){
-      if (typeof h.gdp_per_capita === "number" && h.gdp_per_capita > maxV) maxV = h.gdp_per_capita;
-    }); });
-    var top = Math.ceil(maxV / 1000) * 1000;
-    if (top <= 0) top = 1000;
-
-    var W = 700, H = 250, L = 66, R = 96, T = 14, B = 26;
-    var iw = W - L - R, ih = H - T - B;
-    var xi = function(i){ return L + (years.length === 1 ? iw/2 : iw * i / (years.length - 1)); };
-    var yv = function(v){ return T + ih - (ih * (v / top)); };
-    var money = function(v){ return "$" + Math.round(v).toLocaleString("en-US"); };
-
-    var s = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="GDP per capita, current US dollars, by country">'];
-
-    var steps = 5;
-    for (var g2 = 0; g2 <= steps; g2++){
-      var val = top * g2 / steps, y = yv(val);
-      s.push('<line class="' + (g2 === 0 ? "zero" : "grid") + '" x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W - R) + '" y2="' + y.toFixed(1) + '"/>');
-      s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end">' + money(val) + '</text>');
-    }
-    years.forEach(function(yr, i){
-      if (years.length > 12 && i % 2) return;
-      s.push('<text class="ax" x="' + xi(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + yr + '</text>');
-    });
-
-    var drawn = 0;
-    var labs = [];
-    rows.forEach(function(c, idx){
-      var hs = (c.history || []).filter(function(h){ return typeof h.gdp_per_capita === "number"; })
-        .slice().sort(function(a,b){ return a.year - b.year; });
-      if (hs.length < 2) return;
-      var col = ccolor(c);
-      var pts = hs.map(function(h){
-        var gi = years.indexOf(h.year);
-        return xi(gi).toFixed(1) + "," + yv(h.gdp_per_capita).toFixed(1);
-      });
-      s.push('<polyline fill="none" stroke="' + col + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" points="' + pts.join(" ") + '"/>');
-      hs.forEach(function(h){
-        var gi = years.indexOf(h.year);
-        s.push('<circle cx="' + xi(gi).toFixed(1) + '" cy="' + yv(h.gdp_per_capita).toFixed(1) + '" r="2.2" fill="' + col + '"/>');
-      });
-      var last = hs[hs.length - 1];
-      labs.push({py: yv(last.gdp_per_capita), y: yv(last.gdp_per_capita), col: col,
-                 txt: esc(c.iso2 || c.country) + ' ' + money(last.gdp_per_capita)});
-      leg.innerHTML += '<span style="color:' + col + '"><i style="background:' + col + '"></i>' + esc(c.country) + ' (' + esc(c.currency) + ')</span>';
-      drawn++;
-    });
-    placeEndLabels(s, W - R, W - R + 8, T + 8, H - B - 1, labs);
-
-    s.push('</svg>');
-    host.innerHTML = s.join("");
-    if (!drawn){ host.innerHTML = ""; leg.innerHTML = ""; }
-  }
-
   function load(){
-    fetch(FALLBACK, { cache:"default" })
-      .then(function(r){ if(!r.ok) throw new Error("no snapshot"); return r.json(); })
+    fetch(FALLBACK, { cache: "default" })
+      .then(function(r){ if (!r.ok) throw new Error("no snapshot"); return r.json(); })
       .then(render)
-      .catch(function(e){
-        document.getElementById("mcBody").innerHTML =
-          '<tr><td class="l" colspan="7" style="color:var(--tx3)">Macro data could not be loaded from the source. Nothing is shown rather than an invented figure.</td></tr>';
-        document.getElementById("mcGdpBody").innerHTML =
-          '<tr><td class="l" colspan="7" style="color:var(--tx3)">GDP data could not be loaded from the source. Nothing is shown rather than an invented figure.</td></tr>';
+      .catch(function(){
+        document.getElementById("mcInflGrid").innerHTML =
+          '<div class="nodata">Macro data could not be loaded from the source. Nothing is shown rather than an invented figure.</div>';
+        document.getElementById("mcInflTableHost").innerHTML = "";
+        document.getElementById("mcGdpTableBody").innerHTML =
+          '<tr><td class="l" colspan="6" style="color:var(--tx3)">GDP data could not be loaded from the source. Nothing is shown rather than an invented figure.</td></tr>';
+        document.getElementById("mcGdpGrid").innerHTML = "";
+        document.getElementById("mcGdpHist").innerHTML = "";
       });
   }
 
