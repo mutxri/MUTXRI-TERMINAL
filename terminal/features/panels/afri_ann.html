@@ -127,15 +127,22 @@
   var FEED = {
     NSE: { ann:"../../static_data/nse_announcements.json",
            cal:"../../static_data/nse_corporate_actions.json",
+           calsrc:"nse.co.ke",
            src:"nse.co.ke \u00b7 audited results \u00b7 AGM \u00b7 dividends", dict:false,
            note:"Date shown is the FILING YEAR: the NSE lists each notice under a year tab and publishes no exact filing date, so a year is the most precise stamp the source gives. Rows the exchange does not put under any year tab show the year printed in the filing title, or UNDATED." },
-    NGX: { ann:"../../static_data/ngx_filings.json", cal:null,
+    NGX: { ann:"../../static_data/ngx_filings.json",
+           cal:"../../static_data/ngx_corporate_actions.json",
+           calsrc:"ngxgroup.com",
            src:"ngxgroup.com \u00b7 listed-company filings", dict:true,
            note:"Date shown is the filing's publication date on ngxgroup.com." },
-    JSE: { ann:"../../static_data/jse_announcements.json", cal:null,
+    JSE: { ann:"../../static_data/jse_announcements.json",
+           cal:"../../static_data/jse_announcements.json",
+           calsrc:"sharenet.co.za",
            src:"sharenet.co.za \u00b7 JSE SENS announcements", dict:false,
            note:"Date shown is the SENS publication date, read through the sharenet.co.za mirror." },
-    EGX: { ann:"../../static_data/egx_announcements.json", cal:null,
+    EGX: { ann:"../../static_data/egx_announcements.json",
+           cal:"../../static_data/egx_announcements.json",
+           calsrc:"mubasher.info",
            src:"mubasher.info \u00b7 Egyptian Exchange disclosures", dict:false,
            note:"Date shown is the disclosure publication date on Mubasher." }
   };
@@ -198,17 +205,21 @@
 
   function kindOf(o){
     var k = (o.kind || "").toUpperCase();
-    var t = (o.text || "");
+    var t = ((o.text || "") + " " + (o.title || ""));
     if (/CLOSURE/.test(k) || /book closure/i.test(t)) return "BOOK CLOSURE";
     if (/PAYMENT/.test(k) || /payment of/i.test(t)) return "PAYMENT";
     if (/DECLAR/i.test(k) || /declar/i.test(t)) return "DECLARATION";
     if (/AGM/i.test(k) || /annual general meeting/i.test(t)) return "AGM";
+    // Many boards file a dividend notice under a generic kind (NGX sends
+    // "CORPORATE ACTION", the JSE and EGX wires send none at all), so the
+    // row own wording decides the chip when the kind does not.
+    if (/DIVIDEND/.test(k) || /dividend/i.test(t)) return "DIVIDEND";
     return k || "NOTICE";
   }
 
   function renderDiv(){
     var srcEl = document.getElementById("calSrc"), body = document.getElementById("calBody");
-    var list = DIVACT.filter(function(o){ return EVENTISH.test((o.kind || "") + " " + (o.text || "")); });
+    var list = DIVACT.filter(function(o){ return EVENTISH.test((o.kind || "") + " " + (o.text || "") + " " + (o.title || "")); });
     list = list.map(function(o){ var d = parseDate(o.date); return { o:o, d:d }; });
     var undated = list.filter(function(x){ return !x.d; }).length;
     list = list.filter(function(x){ return x.d; });
@@ -217,7 +228,7 @@
       body.innerHTML = '<div class="empty">No dated dividend notices in the source. The gap is shown rather than filled.</div>';
       srcEl.textContent = ""; return;
     }
-    srcEl.textContent = list.length + " dated notices" + (undated ? " \u00b7 " + undated + " undated" : "") + " \u00b7 nse.co.ke";
+    srcEl.textContent = list.length + " dated notices" + (undated ? " \u00b7 " + undated + " undated" : "") + " \u00b7 " + (CFG.calsrc || "nse.co.ke");
     var out = [], cur = "";
     list.forEach(function(x){
       var lab = x.d.toLocaleString("en-GB", { month:"long", year:"numeric" }).toUpperCase();
@@ -226,8 +237,13 @@
       var mm = String(x.d.getMonth() + 1); if (mm.length < 2) mm = "0" + mm;
       var tk = x.o.ticker ? '<span class="cal-tk">' + esc(x.o.ticker) + '</span>' : '<span class="cal-tk"></span>';
       var amt = x.o.amount ? '<span class="cal-amt">' + esc(x.o.amount) + '</span>' : '<span class="cal-amt"></span>';
+      // A wire that files a notice with no company field (the EGX bond-coupon
+      // declarations do) would otherwise leave the issuer cell blank, so the
+      // row own title carries the identity rather than an empty label.
+      var who = x.o.name || x.o.company || "";
+      var ev = who ? (kindOf(x.o) + " " + who) : (x.o.title || kindOf(x.o));
       out.push('<div class="cal-row"><span class="cal-d">' + dd + '/' + mm + '/' + x.d.getFullYear() + '</span>' +
-               tk + '<span class="cal-ev">' + esc(kindOf(x.o) + " " + (x.o.name || "")) + '</span>' + amt + '</div>');
+               tk + '<span class="cal-ev">' + esc(ev) + '</span>' + amt + '</div>');
     });
     body.innerHTML = out.join("");
   }

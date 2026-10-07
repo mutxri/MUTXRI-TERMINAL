@@ -103,6 +103,10 @@ body{
 .settings-seg button{flex:1;background:none;border:0;color:var(--tx3);font-family:var(--mono);
   font-size:10px;letter-spacing:.05em;padding:6px 12px;cursor:pointer;white-space:nowrap}
 .settings-seg button.on{background:var(--acc);color:#000;font-weight:700}
+.settings-seg button+button{border-left:1px solid var(--line2)}
+.settings-seg button:hover{color:var(--tx)}
+.settings-seg button:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.settings-seg .seg-ic{display:flex;align-items:center;padding:0 9px;color:var(--tx3);font-size:10px;letter-spacing:.02em;border-right:1px solid var(--line2)}
 .settings-swatches{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:150px}
 .settings-swatch{width:20px;height:20px;border-radius:4px;border:1px solid var(--line2);cursor:pointer;padding:0;flex:0 0 auto}
 .settings-swatch:hover{border-color:var(--tx2)}
@@ -200,25 +204,12 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .tape-item .pr{color:var(--tx)}
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--tx3)}
 
-/* reader text size control: lives at the right end of the ticker bar, which is
-   full width on a phone, so it is reachable without crowding or overlapping the
-   top bar. The marquee is clipped inside .tape-scroll, so the control never
-   covers it and never displaces it. */
+/* the marquee is clipped inside .tape-scroll so it never covers or displaces
+   anything in the bar. The reader text size control now lives in
+   Settings > Theme (see .settings-seg). */
 .tape-scroll{flex:1 1 auto;min-width:0;overflow:hidden}
-.fs-ctl{flex:0 0 auto;display:flex;align-items:stretch;margin:0 var(--s3) 0 var(--s2);
-  border:1px solid var(--line2);border-radius:4px;overflow:hidden;background:var(--bg2)}
-.fs-ic{display:flex;align-items:center;padding:0 7px;color:var(--tx3);
-  font-family:var(--mono);font-size:10px;letter-spacing:.02em}
-.fs-b{background:none;border:0;border-left:1px solid var(--line2);color:var(--tx3);
-  font-family:var(--mono);font-size:10px;letter-spacing:.02em;padding:0 8px;height:22px;
-  line-height:1;cursor:pointer;transition:background .15s,color .15s}
-.fs-b:hover{color:var(--tx)}
-.fs-b.on{background:var(--acc);color:#000;font-weight:700}
-.fs-b:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
   clip:rect(0 0 0 0);white-space:nowrap;border:0}
-/* continuous control in Settings > Theme */
-.fs-range{width:96px;accent-color:var(--acc);background:transparent;cursor:pointer}
 
 /* ---------- workspace: floating windows ---------- */
 /* Windows are absolutely placed inside .main and never change parent, so
@@ -971,12 +962,19 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
               <option value="mono">Oxygen Mono</option>
             </select>
           </div>
-          <div class="settings-row" style="margin-top:10px">
-            <span class="settings-k">Text size<small>Scales every panel, on any device</small></span>
-            <span style="display:flex;align-items:center;gap:8px">
-              <input id="fsRange" class="fs-range" type="range" min="80" max="150" step="5" value="100" aria-label="Text size percent">
-              <span class="settings-badge" id="fsPct" style="min-width:34px;text-align:center">100%</span>
-            </span>
+          <div class="settings-div"></div>
+          <div class="settings-sec">
+            <div class="settings-head">Display</div>
+            <div class="settings-row">
+              <span class="settings-k">Text size<small>Scales every panel, on any device</small></span>
+              <div class="settings-seg" id="fsCtl" role="group" aria-label="Text size">
+                <span class="seg-ic" aria-hidden="true">Aa</span>
+                <button type="button" data-fs="sm" aria-label="Smaller text size" title="Smaller text" aria-pressed="false">A-</button>
+                <button type="button" data-fs="md" aria-label="Default text size" title="Default text size" aria-pressed="true">A</button>
+                <button type="button" data-fs="lg" aria-label="Larger text size" title="Larger text" aria-pressed="false">A+</button>
+              </div>
+            </div>
+            <span class="sr-only" id="fsLive" aria-live="polite"></span>
           </div>
           <div class="settings-div"></div>
           <div class="settings-head">Table</div>
@@ -1070,15 +1068,6 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   <!-- TAPE -->
   <div class="tape">
     <div class="tape-scroll"><div class="tape-inner" id="tape"></div></div>
-    <!-- reader text size: always-reachable on desktop and phone, at the end of
-         the full-width ticker bar, so it never crowds or covers the top bar. -->
-    <div class="fs-ctl" id="fsCtl" role="group" aria-label="Text size">
-      <span class="fs-ic" aria-hidden="true">Aa</span>
-      <button type="button" class="fs-b" data-fs="sm" aria-label="Smaller text size" title="Smaller text" aria-pressed="false">A-</button>
-      <button type="button" class="fs-b on" data-fs="md" aria-label="Default text size" title="Default text size" aria-pressed="true">A</button>
-      <button type="button" class="fs-b" data-fs="lg" aria-label="Larger text size" title="Larger text" aria-pressed="false">A+</button>
-    </div>
-    <span class="sr-only" id="fsLive" aria-live="polite"></span>
   </div>
 
   <!-- MAIN -->
@@ -4574,15 +4563,13 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
 </script>
 
 <script>
-/* ---- reader text size: ticker-bar steps + Settings > Theme slider ---- */
+/* ---- reader text size: Settings > Theme, one segmented control ---- */
 (function(){
   var KEY = 'mt_textsize';
   var SIZES = [0.85, 1, 1.3];        // smaller / default / larger
   var DEFAULT = 1, MIN = 0.8, MAX = 1.5;
   var ctl = document.getElementById('fsCtl');
-  var btns = ctl ? Array.prototype.slice.call(ctl.querySelectorAll('.fs-b')) : [];
-  var range = document.getElementById('fsRange');
-  var pct = document.getElementById('fsPct');
+  var btns = ctl ? Array.prototype.slice.call(ctl.querySelectorAll('[data-fs]')) : [];
   var live = document.getElementById('fsLive');
 
   function current(){
@@ -4601,8 +4588,6 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       btns[i].classList.toggle('on', on);
       btns[i].setAttribute('aria-pressed', on ? 'true' : 'false');
     }
-    if(range) range.value = String(Math.round(v * 100));
-    if(pct) pct.textContent = Math.round(v * 100) + '%';
   }
   function apply(v, quiet){
     v = Math.min(MAX, Math.max(MIN, v));
@@ -4610,8 +4595,8 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
     document.documentElement.style.setProperty('--mt-scale', String(v));
     paint(v);
     // let the shell window managers re-fit their windows: the whole shell is
-    // zoomed, so a size change is like a viewport resize. Coalesced so dragging
-    // the slider does not re-tile on every pixel.
+    // zoomed, so a size change is like a viewport resize. Coalesced so a burst
+    // of changes does not re-tile on every one.
     try{
       var relayout = function(){ try{ window.dispatchEvent(new Event('resize')); }catch(e){} };
       if(window.requestAnimationFrame){
@@ -4625,21 +4610,17 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
   function step(dir){
     var v = current(), i = presetIndex(v);
     if(i >= 0) v = SIZES[Math.min(SIZES.length - 1, Math.max(0, i + dir))];
-    else v = v + dir * 0.15;                 // nudge a slider value, then clamp
+    else v = v + dir * 0.15;                 // nudge an intermediate value, then clamp
     apply(v);
   }
   if(ctl) ctl.addEventListener('click', function(e){
-    var b = e.target && e.target.closest ? e.target.closest('.fs-b') : null;
+    var b = e.target && e.target.closest ? e.target.closest('[data-fs]') : null;
     if(!b) return;
     var k = b.getAttribute('data-fs');
     if(k === 'sm') step(-1);
     else if(k === 'lg') step(1);
     else apply(DEFAULT);
   });
-  if(range){
-    range.addEventListener('input', function(){ apply(parseFloat(range.value) / 100, true); });
-    range.addEventListener('change', function(){ apply(parseFloat(range.value) / 100); });
-  }
   paint(current());
   window.mtTextSize = { get: current, set: apply, step: step, reset: function(){ apply(DEFAULT); }, SIZES: SIZES.slice() };
 })();
