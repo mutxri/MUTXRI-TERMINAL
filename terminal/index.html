@@ -3158,7 +3158,13 @@ function renderMarketStatic(rec, info){
   // panel finds the right market file.
   try{
     var _rsym = String(rec.sym || rec.ticker || '').replace(/\//g, '_');
-    var _rex = String(rec.ex || rec.exchange || localStorage.getItem('mt_ex') || 'NSE').toUpperCase();
+    // Resolve the exchange from where the row was actually read: the shell's
+    // current market. The row came out of listing[currentEx], so currentEx IS the
+    // security's own exchange. The old fallback read a remembered/default exchange
+    // out of localStorage (mt_ex, else NSE), which pointed a JSE security's
+    // research view at afri_research.html?ex=NSE and drew a chart that does not
+    // exist. A panel embed must never resolve its exchange from storage.
+    var _rex = String(rec.ex || rec.exchange || ((typeof currentEx !== 'undefined' && currentEx) ? currentEx : 'JSE')).toUpperCase();
     window.__riResearch = { sym: _rsym, ex: _rex };
     // The market window is written more than once per click - renderMarketStatic
     // draws the fundamentals, then the financials pass rewrites the same element
