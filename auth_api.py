@@ -127,10 +127,75 @@ def _live(token):
 
 
 
+_USERS_INDEX_READY = False
+
+
+def _ensure_users_index():
+    """One account document per email, when Mongo is the store.
+
+    Nothing enforced that. Two documents could share an email (a record carried
+    over from the old users.json file sitting beside one created straight in
+    Mongo, or two racing signups), and find_one then returns whichever the
+    server reaches first - so a username written to one document reads back as
+    the original from the other. A unique index makes the account the address
+    names single and every read deterministic. Best effort: a pre-existing
+    duplicate must not stop the service from starting, so a failure is logged,
+    never raised, and a record is never deleted to force the index.
+    """
+    global _USERS_INDEX_READY
+    if _USERS_INDEX_READY or not _USE_MONGO:
+        return
+    try:
+        _DB["users"].create_index("email", unique=True, name="uniq_email")
+        _USERS_INDEX_READY = True
+    except Exception as e:
+        print("[auth] users.email unique index NOT created (duplicate rows?): "
+              "%s" % str(e)[:140], flush=True)
+
+
+def _migrate_json_into_mongo():
+    """Carry any users.json accounts into Mongo once, without clobbering.
+
+    A record already in Mongo wins; a JSON-only account (one created while the
+    store was the local file) is inserted so it is not orphaned when the file
+    is discarded. Nothing is ever overwritten or deleted, so a username already
+    stored cannot be lost to a stale file.
+    """
+    if not _USE_MONGO:
+        return
+    try:
+        data = _load_json()
+    except Exception:
+        return
+    if not isinstance(data, dict) or not data:
+        return
+    moved = 0
+    for email, rec in data.items():
+        if not isinstance(rec, dict):
+            continue
+        try:
+            rec = dict(rec)
+            rec.pop("_id", None)
+            rec["email"] = (rec.get("email") or email or "").lower().strip()
+            if not rec["email"]:
+                continue
+            if _DB["users"].find_one({"email": rec["email"]}, {"_id": 1}) is None:
+                _DB["users"].insert_one(rec)
+                moved += 1
+        except Exception:
+            continue
+    if moved:
+        print("[auth] carried %d user record(s) from users.json into Mongo"
+              % moved, flush=True)
+
+
 def _init(db, mongo_ok):
     global _DB, _USE_MONGO
     _DB = db
     _USE_MONGO = bool(mongo_ok and db is not None)
+    if _USE_MONGO:
+        _ensure_users_index()
+        _migrate_json_into_mongo()
 
 def _load_json():
     try:
@@ -146,13 +211,21 @@ def _save_json(data):
 def _find_user(email):
     email = email.lower().strip()
     if _USE_MONGO:
-        u = _DB["users"].find_one({"email": email})
+        # Newest document wins, deterministically. With a unique index there is
+        # exactly one; before it exists this stops a stale duplicate from being
+        # served one request and the live record the next.
+        u = _DB["users"].find_one({"email": email}, sort=[("created", -1), ("_id", -1)])
         return dict(u) if u else None
     return _load_json().get(email)
 
 def _save_user(record):
     if _USE_MONGO:
-        _DB["users"].replace_one({"email": record["email"]}, record, upsert=True)
+        rec = dict(record)
+        rec.pop("_id", None)   # Mongo keeps the existing _id; a stray one is a mismatch
+        # Same sort as _find_user, so the write lands on the exact document the
+        # read returns even in the pre-index window.
+        _DB["users"].find_one_and_replace(
+            {"email": rec["email"]}, rec, sort=[("created", -1), ("_id", -1)], upsert=True)
     else:
         data = _load_json()
         data[record["email"]] = record
@@ -374,9 +447,9 @@ def _send_confirmation_email(email, name):
 def signup(email, password, name="", username="", ip="", user_agent=""):
     email = (email or "").lower().strip()
     if not _EMAIL_RE.match(email):
-        return {"ok": False, "error": "valid email required"}
+        return {"ok": False, "error": "A valid email is required"}
     if not password or len(password) < 8:
-        return {"ok": False, "error": "password must be at least 8 characters"}
+        return {"ok": False, "error": "Password must be at least 8 characters"}
     _existing = _find_user(email)
     if _existing:
         # Point Google users at the door that actually opens. Deliberately NOT
@@ -386,11 +459,15 @@ def signup(email, password, name="", username="", ip="", user_agent=""):
             return {"ok": False, "oauth": _existing.get("oauth"),
                     "error": "This email already signs in with %s. Use \"Continue with %s\"."
                              % (_existing.get("oauth").title(), _existing.get("oauth").title())}
-        return {"ok": False, "error": "an account with this email already exists"}
+        return {"ok": False, "error": "An account with this email already exists"}
     record = {
         "email": email,
         "name": (name or "").strip()[:80],
         "username": (username or "").strip()[:30],
+        # A handle typed on the signup form is a deliberate choice, exactly like
+        # one set later in the Username field, so it is recorded and protected
+        # from set_name. Left blank it stays unset and stays adoptable.
+        "username_explicit": bool((username or "").strip()),
         "username_history": [],
         "pw": _hash_password(password),
         "created": time.time(),
@@ -439,13 +516,13 @@ def set_password(token, password):
     round-trip is needed. It also lets a password user rotate their password.
     """
     if not password or len(password) < 8:
-        return {"ok": False, "error": "password must be at least 8 characters"}
+        return {"ok": False, "error": "Password must be at least 8 characters"}
     s = _live(token)
     if not s:
-        return {"ok": False, "error": "session expired"}
+        return {"ok": False, "error": "Session expired", "code": "session_expired"}
     u = _find_user(s["email"])
     if not u:
-        return {"ok": False, "error": "account not found"}
+        return {"ok": False, "error": "Account not found"}
     u["pw"] = _hash_password(password)
     u["pw_set"] = True            # from here on, password login is allowed
     _save_user(u)
@@ -457,26 +534,35 @@ def set_username(token, username):
 
     This is what shows in the shared chat room instead of the account's real
     name. Falls back to name (or the email prefix) until one is set.
+
+    A successful save also RECORDS that the handle was chosen here
+    (username_explicit = True). That record - not a guess about the handle's
+    characters - is what tells set_name the handle is deliberate, so a handle
+    like '@jimmy' is never mistaken for an un-chosen email leftover.
     """
     s = _live(token)
     if not s:
-        return {"ok": False, "error": "session expired"}
+        return {"ok": False, "error": "Session expired", "code": "session_expired"}
     username = (username or "").strip()
     if not username:
-        return {"ok": False, "error": "username required"}
+        return {"ok": False, "error": "Username required"}
     if len(username) > 30:
-        return {"ok": False, "error": "username too long (30 max)"}
+        return {"ok": False, "error": "Username too long (30 max)"}
     if any(ord(c) < 32 for c in username):
-        return {"ok": False, "error": "invalid username"}
+        return {"ok": False, "error": "Invalid username"}
     u = _find_user(s["email"])
     if not u:
-        return {"ok": False, "error": "account not found"}
+        return {"ok": False, "error": "Account not found"}
     old = u.get("username", "")
     if old != username:
         hist = u.get("username_history") or []
         hist.append({"username": username, "previous": old, "ts": time.time()})
         u["username_history"] = hist[-50:]   # keep every change, capped at 50
     u["username"] = username
+    # Record the FACT of the choice, not a guess about its characters. set_name
+    # reads this to know the handle was picked here on purpose, so a handle such
+    # as '@jimmy' - which merely contains '@' - is never overwritten.
+    u["username_explicit"] = True
     _save_user(u)
     return {"ok": True, "username": username, "email": s["email"]}
 
@@ -487,33 +573,64 @@ def set_name(token, name):
     The account panel labels this field "how you appear in chat", so someone who
     types a handle here expects the room to show it - but the room only ever
     reads `username`, so the save looked like it never stuck. A save therefore
-    also sets the chat handle when the stored handle is empty or is the raw
-    account email (never a deliberate handle, and it published the address to
-    the whole room). A handle chosen explicitly in the Username field is left
-    exactly as it is.
+    also sets the chat handle only when the stored handle was NEVER deliberately
+    chosen: it is empty, or it is nothing but this account's own email address
+    (which published the address to the whole room).
+
+    Whether a handle was deliberate is read from the recorded choice
+    (`username_explicit`, written by set_username and by a signup that carried a
+    handle), never inferred from the handle's characters. So a handle the user
+    chose in the Username field - including one containing '@', such as
+    '@jimmy' - is left exactly as it is, as this docstring has always promised.
+    An account that only ever had its handle adopted records
+    `username_explicit` False, so it stays adoptable: a later Name save keeps
+    the adopted handle in step with the name. An account carried over from
+    before this change has no recorded choice at all, so it adopts only from an
+    empty handle or its own raw email - the conservative rule that cannot
+    destroy any pre-existing handle.
     """
     s = _live(token)
     if not s:
-        return {"ok": False, "error": "session expired"}
+        return {"ok": False, "error": "Session expired", "code": "session_expired"}
     name = (name or "").strip()
     if not name:
-        return {"ok": False, "error": "name required"}
+        return {"ok": False, "error": "Name required"}
     if len(name) > 80:
-        return {"ok": False, "error": "name too long (80 max)"}
+        return {"ok": False, "error": "Name too long (80 max)"}
     if any(ord(c) < 32 for c in name):
-        return {"ok": False, "error": "invalid name"}
+        return {"ok": False, "error": "Invalid name"}
     u = _find_user(s["email"])
     if not u:
-        return {"ok": False, "error": "account not found"}
+        return {"ok": False, "error": "Account not found"}
     u["name"] = name[:80]
     cur = (u.get("username") or "").strip()
-    if (not cur) or ("@" in cur):
+    explicit = u.get("username_explicit")          # True | False | None (absent)
+    chosen = (explicit is True)                    # picked in the Username field / signup
+    adopted_before = (explicit is False)           # a past Name save adopted it (recorded)
+    owns_email = cur.lower() == (u.get("email") or "").lower().strip()
+    # Adopt the real name as the chat handle ONLY for a handle that was never
+    # deliberately chosen. The RECORD decides, never the handle's characters:
+    #   * empty                         -> never chosen, adopt.
+    #   * the account's own email       -> the raw-address leftover the rule
+    #                                      exists to remove, and not chosen, adopt.
+    #   * recorded adopted (flag False) -> still following the name, adopt the new.
+    #   * anything else (flag True or absent: a plain handle, or '@jimmy') -> keep.
+    # A MIGRATED account carries NO username_explicit key, so it adopts only from
+    # empty or the raw account email. That rule cannot destroy a pre-existing
+    # handle: it never overwrites a non-empty handle that is not the account's own
+    # email - which protects a deliberate '@jimmy' and equally a pre-existing
+    # handle that merely happens to equal the old name.
+    adoptable = (not chosen) and (adopted_before or owns_email)
+    if (not cur) or adoptable:
         new_handle = name[:30]
         if new_handle and new_handle != cur:
             hist = u.get("username_history") or []
             hist.append({"username": new_handle, "previous": cur, "ts": time.time()})
             u["username_history"] = hist[-50:]
         u["username"] = new_handle
+        # Adopted, not chosen: record that, so the account STAYS adoptable and a
+        # later Name save keeps the handle in step. It is never set explicit.
+        u["username_explicit"] = False
     _save_user(u)
     return {"ok": True, "name": name, "username": u.get("username", ""),
             "email": s["email"]}
@@ -526,10 +643,10 @@ def logout(token):
 
 def me(token):
     if not token:
-        return {"ok": False, "error": "not logged in"}
+        return {"ok": False, "error": "Not logged in"}
     s = _live(token)
     if not s:
-        return {"ok": False, "error": "session expired"}
+        return {"ok": False, "error": "Session expired"}
     u = _find_user(s["email"])
     owner = _is_owner(s["email"])
     return {"ok": True, "email": s["email"], "name": (u or {}).get("name", ""),
@@ -569,7 +686,7 @@ def admin_list(key, delete_email=None, token=""):
     Authorised by the ADMIN_KEY env var OR a live owner session token.
     Never exposes password hashes."""
     if not _admin_ok(key, token):
-        return {"ok": False, "error": "unauthorized"}
+        return {"ok": False, "error": "Unauthorized"}
     if delete_email:
         delete_email = delete_email.lower().strip()
         try:
@@ -582,7 +699,7 @@ def admin_list(key, delete_email=None, token=""):
                 _save_json(data)
             return {"ok": True, "deleted": gone is not None}
         except Exception as e:
-            return {"ok": False, "error": "db error: %s" % str(e)[:80]}
+            return {"ok": False, "error": "DB error: %s" % str(e)[:80]}
     users = []
     try:
         if _USE_MONGO:
@@ -595,7 +712,7 @@ def admin_list(key, delete_email=None, token=""):
                               "username": rec.get("username", ""),
                               "created": rec.get("created"), "oauth": rec.get("oauth", "")})
     except Exception as e:
-        return {"ok": False, "error": "db error: %s" % str(e)[:80]}
+        return {"ok": False, "error": "DB error: %s" % str(e)[:80]}
     users.sort(key=lambda r: r.get("created") or 0, reverse=True)
     return {"ok": True, "count": len(users), "users": users}
 
@@ -603,7 +720,7 @@ def admin_overview(key="", token=""):
     """The owner's at-a-glance view: every account, how it was created, when
     the newest one arrived, and which store answered."""
     if not _admin_ok(key, token):
-        return {"ok": False, "error": "unauthorized"}
+        return {"ok": False, "error": "Unauthorized"}
     base = admin_list(key, token=token)
     if not base.get("ok"):
         return base
@@ -651,4 +768,4 @@ def handle_auth(path, q):
         return set_name((q.get("token") or [""])[0], (q.get("name") or [""])[0])
     if action == "me":
         return me((q.get("token") or [""])[0])
-    return {"ok": False, "error": "unknown auth action"}
+    return {"ok": False, "error": "Unknown auth action"}
