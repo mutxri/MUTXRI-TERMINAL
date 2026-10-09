@@ -92,6 +92,7 @@
   window.STATIC_MODE = true;
   var ENDPOINT="../../static_data/screener", LS="afri_screener_filters";
   var state={sort:"chgPct",dir:"desc",rows:[],ex:"JSE",dataErr:false,hasDiv:null};
+  var pendingSector=null; // sector saved by restore(), applied once the options exist
   // honor ?ex= deep-link from the terminal (landing exchange dropdown)
   try{
     var _pex=(new URLSearchParams(location.search).get("ex")||"").toUpperCase();
@@ -148,7 +149,11 @@
   }
   function body(){
     var rows=sortRows(state.rows.slice());
-    $("empty").textContent=state.dataErr?("Screener data unavailable for "+state.ex+" - no snapshot on file."):"No stocks match these filters.";
+    // "the request failed" and "no stocks match" are different facts; render
+    // them as different sentences instead of one bare empty table.
+    $("empty").textContent=state.dataErr
+      ? ("Could not load the "+state.ex+" screener snapshot - the request failed. This is a load error, not an empty result.")
+      : "No stocks match these filters.";
     $("empty").style.display=rows.length?"none":"block";
     $("body").innerHTML=rows.map(function(r){
       var cc=r.chgPct==null?"muted":(r.chgPct>=0?"up":"down");
@@ -172,29 +177,76 @@
     if(!state.dataErr){
       $("src").textContent = (state.hasDiv===false)
         ? ("Dividend yield: not on file for "+state.ex+" (no dividend feed is wired to this screener).")
-        : (window.STATIC_MODE?"":"source: /api/screener");
+        : (window.STATIC_MODE?("source: static snapshot screener_"+state.ex+".json"):"source: /api/screener");
     }
   }
-  function sectors(rows){
-    var set={};rows.forEach(function(s){if(s.sector)set[s.sector]=true;});
-    var sel=$("fSec"),cur=sel.value;
-    sel.innerHTML='<option value="">All</option>'+Object.keys(set).sort().map(function(s){return "<option>"+esc(s)+"</option>";}).join("");
-    if(cur)sel.value=cur;
+  // Build the sector picker from the rows that ACTUALLY loaded for this
+  // exchange. The snapshot holds one exchange and localFilter() matches the
+  // row sector exactly (case-insensitive), so offering a sector this exchange
+  // does not hold would only ever return zero rows - a lie. The list is the
+  // sectors present in the loaded snapshot, sorted, with "All" meaning no
+  // sector filter. `want` (a pick restored from localStorage) wins over the
+  // current select value; a pick absent from the new list falls back to "All"
+  // rather than silently selecting nothing.
+  function populateSectors(rows,want){
+    var list=[],i;
+    for(i=0;i<rows.length;i++){var s=rows[i].sector;if(s&&list.indexOf(s)<0)list.push(s);}
+    list.sort();
+    var sel=$("fSec"),keep=(want==null?"":String(want));
+    var html='<option value="">All</option>';
+    for(i=0;i<list.length;i++){html+='<option value="'+esc(list[i])+'">'+esc(list[i])+"</option>";}
+    sel.innerHTML=html;
+    sel.value=(keep&&list.indexOf(keep)>=0)?keep:"";
+    return sel.value;
   }
   function save(f){try{localStorage.setItem(LS,JSON.stringify(f));}catch(e){}}
   function restore(){try{var f=JSON.parse(localStorage.getItem(LS)||"null");if(!f)return;
-    
-    if(f.sector)$("fSec").value=f.sector;$("fPmin").value=f.price_min||"";$("fPmax").value=f.price_max||"";
+    // A saved sector cannot be written straight into the <select> here: its
+    // options are built from a snapshot that has not loaded yet, and assigning a
+    // value a select has no option for silently selects nothing. Stage it and let
+    // populateSectors() apply it once the options exist.
+    pendingSector=f.sector||"";
+    $("fPmin").value=f.price_min||"";$("fPmax").value=f.price_max||"";
     $("fCmin").value=f.chg_min||"";$("fVmin").value=f.vol_min||"";$("fDmin").value=f.div_yield_min||"";}catch(e){}}
   function q(f){var p=[];if(f.exchange.length)p.push("exchange="+encodeURIComponent(f.exchange.join(",")));
     if(f.sector)p.push("sector="+encodeURIComponent(f.sector));
     ["price_min","price_max","chg_min","vol_min","div_yield_min"].forEach(function(k){if(f[k]!==""&&f[k]!=null)p.push(k+"="+encodeURIComponent(f[k]));});
     p.push("sort="+state.sort,"dir="+state.dir);return p.join("&");}
   function run(){
-    var f=readFilters();save(f);
-    fetch((window.STATIC_MODE ? ENDPOINT+"_"+state.ex+".json" : ENDPOINT+"?"+q(f))).then(function(r){if(!r.ok)throw 0;return r.json();})
-      .then(function(d){state.dataErr=false;state.rows=d.stocks||[];state.hasDiv=state.rows.some(function(r){return r.divYield!=null;});$("src").textContent=window.STATIC_MODE?"":"source: /api/screener";sectors(state.rows);head();body();})
-      .catch(function(){state.dataErr=true;state.rows=[];$("src").textContent="no screener snapshot for "+state.ex;body();});
+    var f=readFilters();
+    // A staged saved pick (pendingSector) is the sector for this run even though
+    // the <select> does not hold it yet. Without this the first RUN filters with
+    // an empty sector and save() erases the stored pick - the picker would show
+    // the saved sector while the table showed every row.
+    if(pendingSector!=null)f.sector=pendingSector;
+    fetch((window.STATIC_MODE ? ENDPOINT+"_"+state.ex+".json" : ENDPOINT+"?"+q(f)))
+      .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(function(d){
+        var all=d.stocks||[];
+        state.dataErr=false;
+        state.hasDiv=all.some(function(r){return r.divYield!=null;});
+        // Options come from EVERY row in the snapshot, never the filtered subset,
+        // so filtering to one sector does not delete the other sectors from the
+        // picker. populateSectors returns the value it actually selected, and the
+        // filter uses THAT value, so the table and the picker can never disagree
+        // (a saved sector absent from this exchange falls back to All in both).
+        f.sector=populateSectors(all,f.sector);
+        pendingSector=null;
+        save(f);
+        // The live panel runs in STATIC_MODE: the snapshot is the whole exchange,
+        // so the filters MUST be applied here. The backend that used to filter
+        // server-side is not on this path, and localFilter() had no caller at all,
+        // so RUN refetched the same rows and the sector pick did nothing.
+        state.rows=window.STATIC_MODE?localFilter(all,f):all;
+        head();body();
+      })
+      .catch(function(){
+        // A failed request is a DIFFERENT fact from "no stocks match". Say which
+        // one happened instead of rendering both as a bare empty table.
+        state.dataErr=true;state.rows=[];
+        $("src").textContent=(window.STATIC_MODE?"static snapshot ":"api ")+"request for "+state.ex+" failed";
+        body();
+      });
   }
   function csv(){
     var rows=sortRows(state.rows.slice());if(!rows.length)return;
@@ -204,14 +256,14 @@
     a.href=URL.createObjectURL(b);a.download="afri_screener.csv";a.click();URL.revokeObjectURL(a.href);
   }
   function reset(){Array.prototype.forEach.call(document.querySelectorAll(".scr-filters input"),function(i){i.value="";});
+    pendingSector="";
     $("fSec").value="";
     try{localStorage.removeItem(LS);}catch(e){}run();}
   window.showScreener=function(){var el=$("screener");if(el)el.scrollIntoView({behavior:"smooth"});};
   function init(){
-    sectors([]);restore();head();
-    // honor ?ex= deep-link from the terminal (landing exchange dropdown) -
-    // set AFTER restore() so the URL param wins over saved filters
-    
+    // The sector <select> is populated by run() once the snapshot loads; restore()
+    // only stages the saved pick, so nothing here reads the picker.
+    restore();head();
     $("bRun").onclick=run;$("bCsv").onclick=csv;$("bReset").onclick=reset;run();}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
