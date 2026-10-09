@@ -328,10 +328,17 @@ try:
         _mongo_ok = True
         print("MongoDB Atlas connected")
     else:
-        print("MongoDB disabled (no MONGODB_URI) - using local JSON")
+        print("MongoDB OFF (no MONGODB_URI): using local JSON. WARNING - the "
+              "container filesystem is EPHEMERAL, so an account change made now "
+              "(a username edit) is LOST on the next deploy, restart or idle "
+              "spin-down. Set MONGODB_URI in the Render dashboard for a durable "
+              "store.", flush=True)
 except Exception as _e:
     _mongo_ok = False
-    print("MongoDB unavailable:", str(_e)[:80])
+    print("MongoDB UNREACHABLE (%s): falling back to the local JSON store, "
+          "which is EPHEMERAL - sign-in keeps working but any account change is "
+          "LOST on the next restart. Check MONGODB_URI / cluster status."
+          % str(_e)[:80], flush=True)
 
 def _mongo_listing(ex):
     """Load listings for an exchange from Mongo if available."""
