@@ -1088,7 +1088,7 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
         <nav class="tabs" id="centerTabs"></nav>
         
       </div>
-      <div class="stage"><iframe id="stageFrame" src="features/panels/afri_heatmap.html"></iframe></div>
+      <div class="stage"><iframe id="stageFrame" src="features/panels/mx_heatmap.html"></iframe></div>
     </section>
 
     <!-- POPUP (5th window): a second panel viewer, closed until the POP command
@@ -1320,35 +1320,35 @@ function fixMeridiem(s){
 
 // ===== Tabs (Claude's panels, untouched, embedded) =====
 let PANELS = [
-  {id:'heatmap', label:'HEATMAP', url:'features/panels/afri_heatmap.html'},
-  {id:'screener',label:'SCREENER', url:'features/panels/afri_screener.html'},
-  {id:'trade',   label:'TRADE',    url:'features/panels/afri_trade.html'},
-  {id:'financials',label:'FINANCIALS', url:'features/panels/afri_financials.html'},
-  {id:'compare',   label:'COMPARE',    url:'features/panels/afri_compare.html'},
+  {id:'heatmap', label:'HEATMAP', url:'features/panels/mx_heatmap.html'},
+  {id:'screener',label:'SCREENER', url:'features/panels/mx_screener.html'},
+  {id:'trade',   label:'TRADE',    url:'features/panels/mx_trade.html'},
+  {id:'financials',label:'FINANCIALS', url:'features/panels/mx_financials.html'},
+  {id:'compare',   label:'COMPARE',    url:'features/panels/mx_compare.html'},
   // REG and CORP still feed NEWS (which merges press headlines, the regulatory
   // wire and corporate actions), but each also ships as a standalone panel below.
-  {id:'news',    label:'NEWS',     url:'features/panels/afri_news.html'},
-  {id:'ann',     label:'ANNOUNCEMENTS', url:'features/panels/afri_ann.html'},
+  {id:'news',    label:'NEWS',     url:'features/panels/mx_news.html'},
+  {id:'ann',     label:'ANNOUNCEMENTS', url:'features/panels/mx_ann.html'},
   // BOT is the market intelligence view: each exchange's financial state
   // plus ranked news signals linked to listed securities (bot_signals.json).
-  {id:'bot',     label:'BOT',      url:'features/panels/afri_bot.html'},
-  {id:'bnd',     label:'BND',      url:'features/panels/afri_bnd.html'},
-  {id:'fx',      label:'FX',       url:'features/panels/afri_fx.html'},
+  {id:'bot',     label:'BOT',      url:'features/panels/mx_bot.html'},
+  {id:'bnd',     label:'BND',      url:'features/panels/mx_bnd.html'},
+  {id:'fx',      label:'FX',       url:'features/panels/mx_fx.html'},
   // MACRO carries annual consumer price inflation per country (World Bank Open
   // Data, FP.CPI.TOTL.ZG). Annual, not a live monthly print - the panel states
   // the series and its publication date rather than implying a current rate.
-  {id:'macro',   label:'MACRO',    url:'features/panels/afri_macro.html'},
-  {id:'portfolio', label:'PORTFOLIO', url:'features/panels/afri_portfolio.html'},
+  {id:'macro',   label:'MACRO',    url:'features/panels/mx_macro.html'},
+  {id:'portfolio', label:'PORTFOLIO', url:'features/panels/mx_portfolio.html'},
   // RESEARCH is the equity research view for one security: price history drawn
   // as a chart, valuation, growth, quality/risk, ratios and audit flags, all
   // from static_data/{market,analytics,history}. Every figure is a chart.
   // Standalone feeds, each reading a published static_data snapshot and
   // showing an honest no-data state rather than sample rows.
-  {id:'ratings', label:'RATINGS', url:'features/panels/afri_ratings.html'},
-  {id:'reg',     label:'REG',     url:'features/panels/afri_reg.html'},
-  {id:'corp',    label:'CORP',    url:'features/panels/afri_corp.html'},
-  {id:'glco',    label:'GLCO',    url:'features/panels/afri_glco.html'},
-  {id:'tas',     label:'TAS',     url:'features/panels/afri_tas.html'},
+  {id:'ratings', label:'RATINGS', url:'features/panels/mx_ratings.html'},
+  {id:'reg',     label:'REG',     url:'features/panels/mx_reg.html'},
+  {id:'corp',    label:'CORP',    url:'features/panels/mx_corp.html'},
+  {id:'glco',    label:'GLCO',    url:'features/panels/mx_glco.html'},
+  {id:'tas',     label:'TAS',     url:'features/panels/mx_tas.html'},
 ];
 // restore the user's saved tab order (workflow persistence)
 try{
@@ -3163,7 +3163,7 @@ function renderMarketStatic(rec, info){
     // current market. The row came out of listing[currentEx], so currentEx IS the
     // security's own exchange. The old fallback read a remembered/default exchange
     // out of localStorage (mt_ex, else NSE), which pointed a JSE security's
-    // research view at afri_research.html?ex=NSE and drew a chart that does not
+    // research view at mx_research.html?ex=NSE and drew a chart that does not
     // exist. A panel embed must never resolve its exchange from storage.
     var _rex = String(rec.ex || rec.exchange || ((typeof currentEx !== 'undefined' && currentEx) ? currentEx : 'JSE')).toUpperCase();
     window.__riResearch = { sym: _rsym, ex: _rex };
@@ -3184,7 +3184,7 @@ function renderMarketStatic(rec, info){
       fr.id = 'riResearch';
       fr.setAttribute('data-sym', want.sym + '|' + want.ex);
       fr.setAttribute('title', 'Research for ' + want.sym);
-      fr.src = 'features/panels/afri_research.html?ex=' + encodeURIComponent(want.ex) +
+      fr.src = 'features/panels/mx_research.html?ex=' + encodeURIComponent(want.ex) +
                '&sym=' + encodeURIComponent(want.sym);
       fr.style.cssText = 'width:100%;height:1020px;border:0;border-top:1px solid var(--line);' +
                          'margin-top:8px;display:block;background:transparent';
@@ -3387,7 +3387,7 @@ function openStock(sym){
   curSec = sym;
   if(__activePanelIdx >= 0 && PANELS[__activePanelIdx] && PANELS[__activePanelIdx].id === 'financials'){
     var _f = document.getElementById('stageFrame');
-    if(_f && _f.src.indexOf('afri_financials') >= 0){ _f.src = panelUrl(PANELS[__activePanelIdx]); }
+    if(_f && _f.src.indexOf('mx_financials') >= 0){ _f.src = panelUrl(PANELS[__activePanelIdx]); }
   }
   try{ if(new URLSearchParams(location.search).get('view') === 'watchlist'){ openChartModal(sym); return; } }catch(e){}
   const ex = currentEx;
