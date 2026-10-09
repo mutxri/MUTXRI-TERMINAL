@@ -10,7 +10,7 @@ programmatically pulling their data, and scraping it would create exactly the
 redistribution liability the licensing plan is trying to avoid. The module takes
 bars from a **data adapter you supply** (see `nse_bars_adapter.example.js`), so
 you wire it to a legitimate NSE source:
-- your own backend (`afri_server.py`) serving bars you have the right to serve,
+- your own backend (the bundled Python server) serving bars you have the right to serve,
 - the kwayisi/afx EOD endpoint you already use (confirm its terms),
 - a licensed NSE data vendor.
 
