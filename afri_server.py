@@ -5,7 +5,7 @@ Serves the terminal UI + proxies live market data (Yahoo chart API) and news RSS
 Run:  python afri_server.py   (then open http://127.0.0.1:8081/)
 Stdlib only - no pip installs needed.
 """
-import json, time, urllib.request, urllib.parse, threading, sys, os, re, datetime
+import json, time, urllib.request, urllib.parse, threading, sys, os, re, datetime, posixpath
 from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from xml.etree import ElementTree as ET
@@ -959,9 +959,51 @@ def _sanitize(obj):
     return obj
 
 
+_DENY_RE = re.compile(
+    r"(users\.json|sessions\.json|chat_messages\.json|signins\.json|"
+    r"login_events\.json|secrets[^/]*\.json|\.env|\.pem|\.key|"
+    r"\.htpasswd|/\.git/|\.git$|config\.json|admin\.json|"
+    r"\.py$|\.bak|\.yaml|\.yml|\.toml|\.ini|\.log|\.sh$|"
+    r"requirements\.txt|Dockerfile|Procfile|\.gitignore)", re.I)
+
+
+def _static_allowed(raw_path):
+    """Fail-closed allowlist for static file serving (used by GET and HEAD).
+
+    Only /admin.html and top-level /static_data/*.json are served; everything
+    else 404s. The path is normalized exactly as SimpleHTTPRequestHandler does
+    so '/static_data/../afri_server.py' cannot slip past the prefix test, and a
+    second DENY layer still blocks secrets/source/config even if an entry above
+    is ever widened by mistake."""
+    p = posixpath.normpath(urllib.parse.unquote(raw_path))
+    if _DENY_RE.search(p):
+        return False
+    if p == "/admin.html":
+        return True
+    if (p.startswith("/static_data/") and p.endswith(".json")
+            and "/" not in p[len("/static_data/"):]):
+        return True
+    return False
+
+
 class Handler(SimpleHTTPRequestHandler):
     def log_message(self, *a):  # quiet
         pass
+
+    def do_HEAD(self):
+        # HEAD must obey the same allowlist as GET, or a bare `curl -I
+        # /afri_server.py` leaks the file's existence and size. Inherited
+        # SimpleHTTPRequestHandler.do_HEAD did not go through do_GET.
+        p = urllib.parse.urlparse(self.path).path
+        if p.startswith("/api/"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            return
+        if not _static_allowed(p):
+            self.send_error(404)
+            return
+        super().do_HEAD()
 
     def do_GET(self):
         path = urllib.parse.urlparse(self.path)
@@ -1452,11 +1494,19 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self.json({"asOf": time.time(), "entries": [], "note": "indices unavailable: %s" % str(e)[:80]})
         else:
-            # static files (index.html, panels, static_data) - add CORS so the
-            # GitHub Pages origin can load them cross-origin if needed
-            # SECURITY: never serve sensitive files (users.json holds password
-            # hashes; secrets/.env/.pem/.git must never be web-accessible)
-            if re.search(r"(users\.json|sessions\.json|chat_messages\.json|login_events\.json|secrets[^/]*\.json|\.env|\.pem|\.key|\.htpasswd|/\.git/|\.git$|config\.json|admin\.json)", path.path, re.I):
+            # SECURITY: fail-closed ALLOWLIST (replaces the old blocklist).
+            # A blocklist serves every file that is not named on it, so each
+            # new commit - afri_server.py itself, render.yaml, .bak copies,
+            # stale panels - became public by default. _static_allowed() now
+            # serves only the paths this service genuinely exposes:
+            #   /admin.html          the admin page (it only calls /api/admin/*)
+            #   /static_data/*.json  market-data JSON the frontend can fetch
+            #                        from this host (company_info/ceos in API
+            #                        mode; listing_*/heatmap_*/indices in
+            #                        snapshot mode). No secrets live here.
+            # Everything else - source, deploy config, docs.html, panels,
+            # index.html, .bak copies - 404s.
+            if not _static_allowed(path.path):
                 self.send_error(404)
                 return
             super().do_GET()
