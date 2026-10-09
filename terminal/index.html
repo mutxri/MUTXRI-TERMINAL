@@ -125,6 +125,7 @@ body{
 .settings-item.danger svg{color:var(--down)}
 .settings-item.danger:hover{background:var(--bg3);color:var(--down)}
 .settings-toast{position:fixed;bottom:16px;right:16px;background:var(--bg3);border:1px solid var(--acc);color:var(--tx);font-family:var(--mono);font-size:10px;letter-spacing:.02em;padding:7px 12px;border-radius:4px;white-space:nowrap;z-index:9500}
+.settings-toast.err{border-color:var(--down);color:var(--down)}
 .settings-view{min-width:300px}
 .settings-backbar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .settings-back{width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--line2);border-radius:4px;color:var(--tx2);cursor:pointer}
@@ -4276,8 +4277,20 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
     if(!toastEl) return;
     toastEl.textContent = msg;
     toastEl.hidden = false;
+    toastEl.classList.remove("err");
     if(toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(function(){ toastEl.hidden = true; }, 2600);
+  }
+  // A refused save must not read as a success. Unlike toast(), this never
+  // auto-hides and is styled as an error, so a write the server declined - a
+  // session that idled out, most often - is unmistakable rather than a message
+  // that can be missed while the field keeps the value that was never stored.
+  function toastSticky(msg){
+    if(!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.hidden = false;
+    toastEl.classList.add("err");
+    if(toastTimer){ clearTimeout(toastTimer); toastTimer = null; }
   }
   function copyText(txt, msg){
     function done(){ toast(msg); }
@@ -4436,10 +4449,13 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
           try{ if(window.__mtChatReset) window.__mtChatReset(); }catch(e){}
           toast("Name saved - shows in chat");
         } else {
-          toast((d && d.error) || "Could not save name");
+          toastSticky(d && d.code === "session_expired"
+            ? "Session expired - username NOT saved. Sign in again."
+            : ((d && d.error) || "Could not save the username"));
+          renderAccount();   // nothing was stored: snap the field back to the real value
         }
       })
-      .catch(function(){ toast("Could not reach the server - name not saved"); });
+      .catch(function(){ toastSticky("Could not reach the server - username NOT saved"); renderAccount(); });
   }
   function saveName(v){
     v = (v || "").trim();
@@ -4462,10 +4478,13 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
           try{ if(window.__mtChatReset) window.__mtChatReset(); }catch(e){}
           toast("Name saved");
         } else {
-          toast((d && d.error) || "Could not save name");
+          toastSticky(d && d.code === "session_expired"
+            ? "Session expired - name NOT saved. Sign in again."
+            : ((d && d.error) || "Could not save the name"));
+          renderAccount();   // nothing was stored: snap the field back to the real value
         }
       })
-      .catch(function(){ toast("Could not reach the server - name not saved"); });
+      .catch(function(){ toastSticky("Could not reach the server - name NOT saved"); renderAccount(); });
   }
   var uIn = document.getElementById("acctUsername");
   if(uIn) uIn.addEventListener("change", function(){ saveHandle(uIn.value); });
