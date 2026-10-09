@@ -166,6 +166,33 @@
     return LABELS[u] || LABELS[u.split(".")[0]] || null;
   }
 
+  // ---- canonical-key resolution -------------------------------------------
+  // The shell opens this panel with ?sym=<the market row's sym>, which for EGX is
+  // the ISIN form (EGS69101C011.CA) while the statement files are keyed by the
+  // ticker the company actually trades under (HRHO). An outdated deep link can
+  // also carry a retired spelling (the provider form ALEXA.CA for Alexandria
+  // Cement, whose file is keyed ALEX.CA). Resolving the key here means a reader who
+  // opens any of those forms sees the company's real statements instead of an empty
+  // scaffold with no explanation. Statement data is never copied between keys, so a
+  // refresh of the canonical file can never leave a stale twin behind.
+  var KEY_ALIAS = {
+    "ALEXA.CA": "ALEX.CA", "ALEXA": "ALEX.CA",
+    "EGS69101C011": "HRHO", "EGS69101C011.CA": "HRHO",
+    "EGS73541C012": "CCAP", "EGS73541C012.CA": "CCAP"
+  };
+  function dataKeys(t){
+    var out = [], seen = {};
+    function add(k){ k = String(k == null ? "" : k).toUpperCase(); if(k && !seen[k]){ seen[k] = 1; out.push(k); } }
+    add(t);
+    var lab = labelFor(t);
+    if(lab && lab.ticker) add(lab.ticker);
+    var u = String(t == null ? "" : t).toUpperCase();
+    add(KEY_ALIAS[u]);
+    add(KEY_ALIAS[u.split(".")[0]]);
+    if(u.indexOf(".") >= 0) add(u.split(".")[0]);
+    return out;
+  }
+
   // ---- VERIFIED REAL FILINGS (links only, no fabricated numbers) ----------
   // Each URL was confirmed against the issuer's own domain. This panel shows
   // NO made-up financial statements: statement values render as dashes until a
@@ -315,6 +342,32 @@
         }
       });
     }
+    // A statement with no figures at all must say so in words, not render a grid
+    // of dashes a reader cannot tell from a broken site. This is the honest,
+    // named-absence state: name the company, name the statement, and say why the
+    // space is empty. Statement data is never invented to fill it.
+    var hasRows = !!(rec && rec.rows && rec.rows.length);
+    var hasVals = !!(rec && rec.values && Object.keys(rec.values).length);
+    if(!hasRows && !hasVals){
+      var who = dispTicker ? (dispTicker + (dispName ? " (" + dispName + ")" : "")) : state.ticker;
+      var aReps = ((rec && rec.reports) || []).filter(function(rp){ return rp && rp.url; });
+      var a = '<div class="empty">' + esc(STMT_TITLE()) + ' not on file for ' + esc(who) + '. ' +
+        (aReps.length
+          ? 'No figures for this statement have been extracted; open the source filing below.'
+          : 'No verified source for this statement has been collected for this security.') +
+        '</div>';
+      if(aReps.length){
+        a += '<div style="padding:10px 14px;border-top:1px solid var(--line2)">' +
+          '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>';
+        aReps.forEach(function(lk){
+          a += '<a class="filing" href="' + esc(lk.url) + '" target="_blank" rel="noopener" style="display:inline-block;margin:2px 8px 2px 0">' + esc(lk.label || "Filing") + '</a>';
+        });
+        a += '</div>';
+      }
+      document.getElementById("body").innerHTML = a;
+      return;
+    }
+
     var h='<table><thead><tr><th>'+STMT_TITLE()+(dispTicker?(' &middot; '+esc(dispTicker)):'')+(dispName?(' &middot; '+esc(dispName)):'')+'</th>';
     for(var i=0;i<per.length;i++)h+='<th>'+esc(per[i])+'</th>';
     h+='</tr></thead><tbody>';
@@ -443,11 +496,17 @@
     if(ANALYTICS[t] !== undefined){ renderAnalysis(ANALYTICS[t]); return; }
     if(ANALYTICS_INFLIGHT[t]) return;      // one request per ticker, not one per render
     ANALYTICS_INFLIGHT[t] = 1;
-    fetch('../../static_data/analytics/' + encodeURIComponent(t.replace(/\//g, '_')) + '.json')
-      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-      .then(function(d){ ANALYTICS[t] = d; if(state.ticker === t) renderAnalysis(d); })
-      .catch(function(){ ANALYTICS[t] = null; })
-      .then(function(){ delete ANALYTICS_INFLIGHT[t]; });
+    // The analytics file is keyed by the same ticker as the statement file, so try
+    // the same candidate spellings before giving up (a request carrying the ISIN
+    // form still gets the company's analytics).
+    var keys = dataKeys(t);
+    (function tryKey(i){
+      if(i >= keys.length){ ANALYTICS[t] = null; delete ANALYTICS_INFLIGHT[t]; return; }
+      fetch('../../static_data/analytics/' + encodeURIComponent(String(keys[i]).replace(/\//g, '_')) + '.json')
+        .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+        .then(function(d){ ANALYTICS[t] = d; delete ANALYTICS_INFLIGHT[t]; if(state.ticker === t) renderAnalysis(d); })
+        .catch(function(){ tryKey(i+1); });
+    })(0);
   }
 
   function render(rec){ renderScaffold(rec); loadAnalysis(); }
@@ -470,21 +529,29 @@
     // Resolve the display ticker/name (an EGX ISIN is the KEY, not the label)
     // before the first render, so the header never shows the key to a reader.
     if(!LABELS){ loadLabels().then(function(){ load(); }); return; }
-    // try the static Yahoo-financials file first (works on GitHub Pages),
-    // then the real endpoint; offline, show verified filing links + dash
-    // scaffold (NEVER fabricated statement numbers)
-    var stFile = "../../static_data/financials/" + encodeURIComponent(state.ticker.replace(/\//g, "_")) +
-                 "__" + state.statement + ".json";
-    fetch(stFile).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
-      if(d && d.available !== false){
-        // credit the real provider - JSE/EGX statements come from Yahoo, but
-        // NGX/NSE come from AfricanFinancials filings and were being labelled
-        // "Yahoo Finance" regardless
-        render(d); setStatus("");
-        return;
-      }
-      throw 0;
-    }).catch(function(){
+    // Try each candidate key the request may be spelled as (the request, the
+    // listing ticker it resolves to, a documented retired alias) until one has a
+    // statement file. Then the real endpoint; offline, the scaffold names the
+    // absence rather than rendering fabricated numbers.
+    var keys = dataKeys(state.ticker);
+    (function tryKey(i){
+      if(i >= keys.length){ apiFallback(); return; }
+      var stFile = "../../static_data/financials/" +
+                   encodeURIComponent(String(keys[i]).replace(/\//g, "_")) +
+                   "__" + state.statement + ".json";
+      fetch(stFile).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
+        if(d && d.available !== false){
+          // credit the real provider - JSE/EGX statements come from Yahoo, but
+          // NGX/NSE come from AfricanFinancials filings and were being labelled
+          // "Yahoo Finance" regardless
+          render(d); setStatus("");
+          return;
+        }
+        throw 0;
+      }).catch(function(){ tryKey(i+1); });
+    })(0);
+
+    function apiFallback(){
       var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
               "&statement="+state.statement+"&period="+state.period;
       fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
@@ -504,7 +571,7 @@
       render(fil?{name:fil.name,currency:fil.currency,ir:fil.ir,reports:fil.reports,periods:[]}:{periods:[]});
       setStatus(fil&&fil.reports&&fil.reports.length?"LINKS":"NONE",null);
     });
-    });
+    }
   }
 
   // ---- controls ----

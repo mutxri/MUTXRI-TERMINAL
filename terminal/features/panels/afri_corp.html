@@ -140,6 +140,15 @@
       .then(function(list){
         if(!list || !list.length) return;
         document.getElementById("statsSec").style.display = "";
+        // Every row is dated by the NSE's own "Statistics As of <date>" stamp
+        // (refresh_nse_market_stats.py). Print the session beside the heading so a
+        // level is never read without the day it belongs to; a file whose rows
+        // carry no date is labelled as such rather than passed off as current.
+        var asOf = "";
+        for(var i=0;i<list.length;i++){ if(list[i] && list[i].asOf){ asOf = list[i].asOf; break; } }
+        document.getElementById("statsSec").innerHTML = "Market Stats" +
+          ' <span style="color:var(--tx3);letter-spacing:.02em">' +
+          (asOf ? "as at " + esc(asOf) : "date not on file") + '</span>';
         document.getElementById("statsGrid").innerHTML = list.map(function(s){
           var up = String(s.change || "").indexOf("-") !== 0;
           var chgTxt = s.change && s.change !== "0.00" && s.change !== "0" ? s.change : "";
