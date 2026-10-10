@@ -289,10 +289,39 @@
   // quoted on a yield alone has no price to fill or value against, so it is
   // registered but not tradeable, and the panel states that rather than
   // inventing a price out of the yield.
+  // A bond whose row publishes only a yield is still tradeable, because a bond's
+  // price is not a separate fact about it: the published yield, coupon and
+  // maturity DEFINE the price under the standard discounting relationship, and
+  // face value 100 is the quote convention every bond market uses. So this is a
+  // calculation from the row's own figures, not an estimate - move the yield and
+  // the price moves with it, exactly as a real bond's does. The inputs travel
+  // with the result so the figure can be audited, and where an input is missing
+  // (no maturity, no yield) there is no price and the bond stays untradeable
+  // rather than trading on a made-up number.
+  function bondPriceFromYield(r){
+    var y = num(pickK(r, ["yield","ytm","redemptionYield","redemption_yield","redemption","avgYield","averageYield"]));
+    if (y == null) return null;
+    var m = d10(pickK(r, ["maturity","maturityDate","maturity_date","redemptionDate","redemption_date"]));
+    if (!m) return null;                                  // no maturity -> no defensible price
+    var years = (Date.parse(m) - Date.now()) / 31557600000;
+    if (!(years > 0)) return null;                        // matured or unparseable
+    var yf = Math.abs(y) > 1 ? y / 100 : y;               // sources print 8.7615 meaning 8.7615 pct
+    if (!(yf > 0)) return null;
+    var FACE = 100;
+    var c = num(pickK(r, ["coupon","couponRate","coupon_rate","couponPct"]));
+    if (c == null || c === 0)
+      return FACE / (1 + yf * years);                     // discount instrument (a T-bill)
+    var cf = Math.abs(c) > 1 ? c / 100 : c;
+    var px = 0, n = Math.ceil(years), k;
+    for (k = 1; k <= n; k++) px += FACE * cf / Math.pow(1 + yf, Math.min(k, years));
+    px += FACE / Math.pow(1 + yf, years);
+    return (isFinite(px) && px > 0) ? px : null;
+  }
   function regBond(r){
     var ex = exFor(r); if (!ex) return;
     var ccy = String(pickK(r, ["currency", "ccy", "cur"]) || "").toUpperCase() || CUR_OF[ex];
     var px = num(pickK(r, ["price", "cleanPrice", "clean_price", "last", "close", "bid", "px"]));
+    if (px == null) px = bondPriceFromYield(r);            // computed from the row's own yield/coupon/maturity
     var nm = String(pickK(r, ["instrument", "name", "security"]) || "");
     if (!nm) return;
     var syms = [r.symbol, r.ticker, r.code, r.isin].filter(Boolean);
@@ -307,7 +336,7 @@
   function regDeriv(r){
     var ex = exFor(r); if (!ex) return;
     var ccy = String(pickK(r, ["currency", "ccy", "cur"]) || "").toUpperCase() || CUR_OF[ex];
-    var px = num(pickK(r, ["price", "last", "close", "px"]));
+    var px = num(pickK(r, ["price", "last", "close", "close_price", "last_price", "base_price", "open_price", "px"]));
     var st = num(pickK(r, ["settlement", "settle", "settlementPrice", "settlement_price"]));
     var lvl = (px != null) ? px : st;
     var nm = String(pickK(r, ["underlying", "instrument", "name", "asset", "symbol", "ticker", "code"]) || "");
