@@ -12,6 +12,15 @@
   refreshes each exchange's published prices about every three hours; this page
   re-reads them every five minutes and whenever it comes back into view.
 
+  BONDS AND DERIVATIVES are paper-tradeable here too. Alongside the exchange's
+  listed equities, the exchange's bonds and derivatives are loaded from their
+  own static_data snapshots and are ordered the same way, as MARKET orders. An
+  instrument is tradeable when it carries a real PRICE (or settlement price) in
+  the account's own currency; a bond quoted only on a yield, or an instrument in
+  another currency with no FX rate modelled, is declined with the reason rather
+  than valued on an invented figure. Every order carries a class (EQ, BOND or
+  DERIV); an order written before this feature is an EQ order.
+
     * positions are marked at the END OF DAY price: the last close the exchange
       actually published for a completed session (todayClose, else prevClose, which
       is the last completed close on markets that publish only that). Day P&L is
@@ -240,6 +249,123 @@
   var KEY = "mx_paper_v1";
   var POLL_MS = 5 * 60 * 1000;
 
+  // ---- BONDS AND DERIVATIVES as paper-tradeable instruments ----------------
+  // The book stays exactly what it was: one account per EXCHANGE, in that
+  // exchange's own currency, keyed by security in `positions`. Alongside the
+  // exchange's listed equities this panel now also knows that exchange's bonds
+  // and its derivatives, from their own snapshot files, so a paper order can be
+  // placed on a bond or a derivative as well as a share. Nothing about the
+  // stored shape changes: a bond or a derivative is just another key in
+  // `positions`, and every order carries a `cls` of EQ (the default, so orders
+  // written before this change are untouched), BOND or DERIV. Reads and writes
+  // stay ADDITIVE - nothing here can reset or shrink the account.
+  //
+  // ?bonds= / ?deriv= are verification hooks only; with no override the shipped
+  // panel reads the real build output (static_data/*.json) and nothing else.
+  var BONDS_EP = Q.get("bonds") || "../../static_data/bonds.json";
+  var DERIV_EP = Q.get("deriv") || "../../static_data/derivatives.json";
+  var EXES = ["NSE", "NGX", "JSE", "EGX"];
+  var CUR_OF = {NSE: "KES", NGX: "NGN", JSE: "ZAc", EGX: "EGP"};
+  var ISO2EX = {KE: "NSE", NG: "NGX", ZA: "JSE", EG: "EGX"};
+  var INST = {};                        // UPPER symbol -> quote-shaped record (carries .cls)
+  var tickerKeys = [];                  // the listed equities, for the ticker datalist
+
+  function pickK(o, keys){
+    for (var i = 0; i < keys.length; i++){
+      var v = o[keys[i]];
+      if (v !== undefined && v !== null && v !== "") return v;
+    }
+    return null;
+  }
+  function d10(v){ var s = String(v == null ? "" : v).slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
+  function exFor(o){
+    var e = String(pickK(o, ["exchange", "ex", "market", "board"]) || "").toUpperCase();
+    return EXES.indexOf(e) >= 0 ? e : (ISO2EX[e] || null);
+  }
+  function regRec(syms, rec){
+    syms.forEach(function(s){ s = String(s || "").toUpperCase(); if (s && !INST[s]) INST[s] = rec; });
+  }
+  // A bond is tradeable only when its row carries a numeric PRICE. A bond
+  // quoted on a yield alone has no price to fill or value against, so it is
+  // registered but not tradeable, and the panel states that rather than
+  // inventing a price out of the yield.
+  function regBond(r){
+    var ex = exFor(r); if (!ex) return;
+    var ccy = String(pickK(r, ["currency", "ccy", "cur"]) || "").toUpperCase() || CUR_OF[ex];
+    var px = num(pickK(r, ["price", "cleanPrice", "clean_price", "last", "close", "bid", "px"]));
+    var nm = String(pickK(r, ["instrument", "name", "security"]) || "");
+    if (!nm) return;
+    var syms = [r.symbol, r.ticker, r.code, r.isin].filter(Boolean);
+    if (!syms.length) syms = [nm];
+    regRec(syms, {cls: "BOND", name: nm, ccy: ccy, eod: px, live: px, price: px,
+                  prev: null, high: null, low: null, open: null,
+                  date: d10(pickK(r, ["asOf", "as_of", "date", "auctionDate"])),
+                  kind: (px != null ? "px" : "yld"), file: "", ex: ex});
+  }
+  // A derivative is tradeable on its price, or its settlement price when no
+  // price is published (a settlement price IS a price).
+  function regDeriv(r){
+    var ex = exFor(r); if (!ex) return;
+    var ccy = String(pickK(r, ["currency", "ccy", "cur"]) || "").toUpperCase() || CUR_OF[ex];
+    var px = num(pickK(r, ["price", "last", "close", "px"]));
+    var st = num(pickK(r, ["settlement", "settle", "settlementPrice", "settlement_price"]));
+    var lvl = (px != null) ? px : st;
+    var nm = String(pickK(r, ["underlying", "instrument", "name", "asset", "symbol", "ticker", "code"]) || "");
+    if (!nm) return;
+    var syms = [r.symbol, r.ticker, r.code, r.contract, r.id].filter(Boolean);
+    if (!syms.length) syms = [nm];
+    regRec(syms, {cls: "DERIV", name: nm, ccy: ccy, eod: lvl, live: lvl, price: lvl,
+                  prev: null, high: null, low: null, open: null,
+                  date: d10(pickK(r, ["asOf", "as_of", "date"])),
+                  expiry: d10(pickK(r, ["expiry", "expiryDate", "expiry_date", "expiration", "maturity"])),
+                  kind: (px != null ? "px" : (st != null ? "settle" : "")), file: "", ex: ex});
+  }
+  function oldBondRows(d){
+    var out = [];
+    (d.countries || []).forEach(function(c){
+      var ex = ISO2EX[String(c.iso || "").toUpperCase()] || null;
+      (c.instruments || []).forEach(function(i){
+        out.push({exchange: ex, currency: ex ? CUR_OF[ex] : "", instrument: i.name,
+                  type: "sovereign", yield: i.yield, price: i.price, asOf: i.as_of, source: c.source});
+      });
+    });
+    return out;
+  }
+  function loadInstruments(){
+    function get(url){
+      return fetch(url + (url.indexOf("?") < 0 ? "?t=" : "&t=") + Date.now())
+        .then(function(r){ if (!r.ok) throw 0; return r.json(); });
+    }
+    return Promise.all([
+      get(BONDS_EP).then(function(d){ return {k: "b", ok: true, d: d}; }).catch(function(){ return {k: "b", ok: false}; }),
+      get(DERIV_EP).then(function(d){ return {k: "d", ok: true, d: d}; }).catch(function(){ return {k: "d", ok: false}; })
+    ]).then(function(res){
+      res.forEach(function(x){
+        if (x.k === "b"){
+          if (!x.ok) return;
+          var rows = Array.isArray(x.d) ? x.d
+                   : Array.isArray(x.d.rows) ? x.d.rows
+                   : Array.isArray(x.d.countries) ? oldBondRows(x.d) : [];
+          rows.forEach(regBond);
+        } else {
+          if (!x.ok) return;
+          var rows2 = Array.isArray(x.d) ? x.d
+                    : Array.isArray(x.d.contracts) ? x.d.contracts
+                    : Array.isArray(x.d.rows) ? x.d.rows : [];
+          rows2.forEach(regDeriv);
+        }
+      });
+      renderTickers();
+    }).catch(function(){});
+  }
+  function renderTickers(){
+    var keys = {};
+    tickerKeys.forEach(function(k){ keys[k] = 1; });
+    Object.keys(INST).forEach(function(k){ keys[k] = 1; });
+    var list = Object.keys(keys).filter(function(k){ return k.indexOf(".") < 0; }).sort();
+    $("tickers").innerHTML = list.map(function(t){ return "<option value='" + esc(t) + "'>"; }).join("");
+  }
+
   // What it takes to buy real shares on each market. Each entry is what that
   // market's exchange, depository and regulator publish; checked 2026-09-14.
   // A broker's own checklist is final.
@@ -307,14 +433,20 @@
     if(a.realised == null) a.realised = 0;
     a.equity = a.equity || [];
     a.seq = a.seq || a.orders.length;
-    a.orders.forEach(function(o){ if(!o.status){ o.status = "FILLED"; o.type = o.type || "MKT"; } });
+    a.orders.forEach(function(o){ if(!o.status){ o.status = "FILLED"; o.type = o.type || "MKT"; } o.cls = o.cls || "EQ"; });
+    a.working.forEach(function(o){ o.cls = o.cls || "EQ"; });   // additive default; an old order is an equity order
     all[EX] = a;
     return all;
   }
   function save(all){ try{ localStorage.setItem(KEY, JSON.stringify(all)); }catch(e){} }
 
   // ---------------- prices ----------------
-  function quote(t){ t = String(t || "").toUpperCase(); return quotes[t] || quotes[t.split(".")[0]] || null; }
+  function quote(t){
+    t = String(t || "").toUpperCase();
+    // listed equities first, exactly as before; then the bonds and derivatives
+    // this exchange offers, so a bond/derivative key resolves to its record.
+    return quotes[t] || quotes[t.split(".")[0]] || INST[t] || INST[t.split(".")[0]] || null;
+  }
   // MARK PRICE = END OF DAY (2026-09-28). The paper book is valued at the last price
   // the exchange actually published for a COMPLETED session, never at an intraday tick:
   // todayClose where the exchange publishes a close (NSE), else prevClose, which IS the
@@ -383,8 +515,8 @@
       quotes = next;
       listed = rows.length;
       checkedAt = Date.now();
-      $("tickers").innerHTML = Object.keys(next).filter(function(k){ return k.indexOf(".") < 0; }).sort()
-        .map(function(t){ return "<option value='" + esc(t) + "'>"; }).join("");
+      tickerKeys = Object.keys(next).filter(function(k){ return k.indexOf(".") < 0; });
+      renderTickers();
     });
   }
 
@@ -735,7 +867,8 @@
       mv += val != null ? val : book;
       if(pl != null) unr += pl;
       if(dp != null){ day += dp; dayKnown = true; }
-      return "<tr><td>" + esc(t) + (p.qty < 0 ? " <span class='tag'>SHORT</span>" : "") +
+      var ctag = (r && r.cls && r.cls !== "EQ") ? " <span class='tag'>" + r.cls + "</span>" : "";
+      return "<tr><td>" + esc(t) + ctag + (p.qty < 0 ? " <span class='tag'>SHORT</span>" : "") +
              " <span class='dim'>" + esc(((r && r.name) || "").slice(0, 24)) + "</span></td>" +
              "<td class='" + (p.qty < 0 ? "down" : "") + "'>" + fmt(p.qty, 0) + "</td><td>" + fmt(p.avg) + "</td><td>" + fmt(px) + "</td>" +
              "<td class='" + (p.qty < 0 ? "down" : "") + "'>" + fmt(val) + "</td>" +
@@ -769,7 +902,7 @@
         a.working.map(function(o){
           return "<tr><td>" + esc(new Date(o.t).toLocaleString()) + "</td>" +
                  "<td class='" + (o.side === "BUY" ? "up" : "down") + "'>" + o.side + "</td>" +
-                 "<td>" + esc(o.sym) + "</td><td>" + fmt(o.qty, 0) + "</td><td>" + typeName(o) + "</td>" +
+                 "<td>" + esc(o.sym) + (o.cls && o.cls !== "EQ" ? " <span class='tag'>" + esc(o.cls) + "</span>" : "") + "</td><td>" + fmt(o.qty, 0) + "</td><td>" + typeName(o) + "</td>" +
                  "<td>" + (o.type === "STP" || o.type === "STPLMT" ? fmt(o.stp) : "-") + "</td>" +
                  "<td>" + (o.type === "LMT" || o.type === "STPLMT" ? fmt(o.lmt) : "-") + "</td>" +
                  "<td>" + esc(o.tif) + "</td><td>" + fmt(lastOf(o.sym)) + "</td>" +
@@ -787,7 +920,7 @@
           var filled = o.status === "FILLED";
           return "<tr><td>" + esc(new Date(o.done || o.t).toLocaleString()) + "</td>" +
                  "<td class='" + (o.side === "BUY" ? "up" : "down") + "'>" + o.side + "</td>" +
-                 "<td>" + esc(o.sym) + "</td><td>" + fmt(o.qty, 0) + "</td><td>" + typeName(o) + "</td>" +
+                 "<td>" + esc(o.sym) + (o.cls && o.cls !== "EQ" ? " <span class='tag'>" + esc(o.cls) + "</span>" : "") + "</td><td>" + fmt(o.qty, 0) + "</td><td>" + typeName(o) + "</td>" +
                  "<td><span class='tag " + esc(o.status) + "'" + (o.reason ? " title='" + esc(o.reason) + "'" : "") + ">" +
                  esc(o.status) + "</span></td>" +
                  "<td>" + (filled ? fmt(o.px) : "-") + "</td><td>" + (filled ? fmt(o.qty * o.px) : "-") + "</td>" +
@@ -881,6 +1014,14 @@
   // local time, derived from UTC so the machine's clock is irrelevant, with each
   // exchange's own week: NSE, NGX and JSE trade Monday to Friday, the EGX trades
   // Sunday to Thursday. Hours are each exchange's published session.
+  //
+  // BONDS AND DERIVATIVES reuse their exchange's own session (and its week),
+  // by design. In all four markets the debt and derivative venues are the same
+  // exchange whose calendar is encoded here, and no separate fixed-income or
+  // derivatives session is published by these boards in any source this terminal
+  // holds. Inventing separate hours would be fabrication; the conservative,
+  // honest choice for a safety gate is the venue's own published session, so a
+  // bond or a derivative is gated exactly as the exchange it is listed on.
   var HOURS = {
     NSE: {open: 9 * 60,  close: 15 * 60,      days: [1, 2, 3, 4, 5], tz: 3},  // 09:00-15:00 EAT
     NGX: {open: 10 * 60, close: 14 * 60 + 20, days: [1, 2, 3, 4, 5], tz: 1},  // 10:00-14:20 WAT
@@ -924,6 +1065,22 @@
     if(!t) return say("Enter a ticker.", true);
     if(!quote(t)) return say(t + " is not listed on " + EX + ".", true);
     if(!n || n <= 0) return say("Quantity must be a whole number above zero.", true);
+    // For a bond or a derivative the tradeable figure is a PRICE (a settlement
+    // price counts), in the account's own currency. A bond quoted on a yield
+    // alone has no price to fill against, an instrument in another currency has
+    // no FX rate modelled, and neither has a daily high/low bar to rest a limit
+    // or stop against - so each of those is declined with its reason rather than
+    // papered over. Equities are untouched: cls is EQ and the path below is the
+    // same code it always was.
+    var q = quote(t), cls = (q && q.cls) || "EQ";
+    if(cls !== "EQ"){
+      if(q.kind === "yld") return say(t + " is quoted on a yield basis; it has no tradeable price on file.", true);
+      var ic = String(q.ccy || "").toUpperCase();
+      if(ic && cur && ic !== cur.toUpperCase())
+        return say(t + " is quoted in " + ic + " but this account is in " + cur + "; no FX conversion is modelled here, so it cannot be placed.", true);
+      if(type !== "MKT")
+        return say("Bonds and derivatives are placed as MARKET orders here: the data carries no daily high or low for a limit or stop to rest against.", true);
+    }
     var px = lastOf(t);
     if(px == null) return say(t + " has no price in the latest data, so it cannot trade.", true);
     if((type === "LMT" || type === "STPLMT") && !(lmt > 0)) return say("Enter a limit price above zero.", true);
@@ -938,7 +1095,7 @@
     var all = load(), a = all[EX], date = sessionOf(t);
     var o = {id: ++a.seq, t: Date.now(), side: side, sym: t, qty: n, type: type, tif: tif,
              lmt: (type === "LMT" || type === "STPLMT") ? lmt : null,
-             stp: (type === "STP" || type === "STPLMT") ? stp : null, session: date};
+             stp: (type === "STP" || type === "STPLMT") ? stp : null, session: date, cls: cls};
     if(side === "SELL"){
       var free = ((a.positions[t] || {}).qty || 0) - reservedQty(a, t);
       if(free < n) return say("You have " + fmt(Math.max(free, 0), 0) + " " + t + " free to sell" +
@@ -1084,7 +1241,10 @@
     })).then(function(){ render(load()); });
   })();
   render();
-  refresh().then(function(){
+  // Load the exchange's bonds and derivatives alongside its equities, so a
+  // bond/derivative key is resolvable before a PRESET or an ORDER command uses
+  // it. Both promises resolve before the preset/order handling below.
+  Promise.all([refresh(), loadInstruments()]).then(function(){
     if(PRESET && quote(PRESET)) $("sym").value = PRESET;
     if(ORDER){
       var p = ORDER.split(":");

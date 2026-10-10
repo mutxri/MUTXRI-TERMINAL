@@ -1333,6 +1333,12 @@ let PANELS = [
   // plus ranked news signals linked to listed securities (bot_signals.json).
   {id:'bot',     label:'BOT',      url:'features/panels/mx_bot.html'},
   {id:'bnd',     label:'BND',      url:'features/panels/mx_bnd.html'},
+  // DER is the derivatives board for the selected exchange: underlying,
+  // contract type, expiry (with days to expiry computed from the real date)
+  // and the price or settlement, each row carrying its own as-of date and
+  // source. It reads its own static_data/derivatives.json and shows an honest
+  // not-available state when that file is absent rather than sample contracts.
+  {id:'der',     label:'DER',      url:'features/panels/mx_der.html'},
   {id:'fx',      label:'FX',       url:'features/panels/mx_fx.html'},
   // MACRO carries annual consumer price inflation per country (World Bank Open
   // Data, FP.CPI.TOTL.ZG). Annual, not a live monthly print - the panel states
@@ -2792,8 +2798,9 @@ window.__getRecents = function(){
 // ===== Command bar =====
 // ===== Command bar:  "TICKER FUNCTION" =====
 const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'financials', CN:'news', NEWS:'news', REG:'news',
-                     HP:'financials', EQS:'screener', RV:'financials', SPLC:'info', CMP:'compare', CMPR:'compare', TR:'trade',
-                     PORTFOLIO:'portfolio', PF:'portfolio'};
+                      HP:'financials', EQS:'screener', RV:'financials', SPLC:'info', CMP:'compare', CMPR:'compare', TR:'trade',
+                      DERIV:'der', DERIVATIVES:'der', BOND:'bnd', BONDS:'bnd',
+                      PORTFOLIO:'portfolio', PF:'portfolio'};
 // Every market's tickers, fetched once at boot (39 KB gzipped for all four) so
 // a ticker resolves no matter which board is on screen. Before this, typing a
 // Nairobi ticker while on the JSE board just answered "unknown".
