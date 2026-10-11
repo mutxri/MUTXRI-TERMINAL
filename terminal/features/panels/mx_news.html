@@ -197,12 +197,15 @@
   //      security) matching the query SGL, and EQUITY GROUP stops the headline
   //      "Britam expands ... with global equity ... funds" matching Equity.
   //   3. The query resolves to a security from static_data/listing_<EX>.json
-  //      when it equals that security's ticker (ignoring a market suffix such
-  //      as .CA or .JO), equals its ISIN, is a contiguous whole-word run inside
-  //      its name or name PHRASE, or is one of the issuer's former or alternate
-  //      names (RENAMES below). The query's LAST word may be a partial word so
-  //      the picker can reach Safaricom from "safa"; row matching below never
-  //      uses a partial word.
+  //      in a fixed order. An EXACT ticker (ignoring a market suffix such as
+  //      .CA or .JO) or an EXACT ISIN wins outright and resolves to that one
+  //      security ALONE. Only when nothing matches exactly does the name rule
+  //      run: a contiguous whole-word run inside the security's name or name
+  //      PHRASE, or one of its evidenced former or alternate names (RENAMES
+  //      below). The name rule is never partial: a partial word only offers a
+  //      suggestion in the picker (so "safa" offers Safaricom for the reader to
+  //      choose) and can never silently narrow the panel to a set. Row matching
+  //      below never uses a partial word either.
   //   4. A row belongs to that security when the row's own ticker field equals
   //      the security ticker, the row's ISIN equals the security ISIN, or the
   //      row text carries the security TICKER as a whole word, the security's
@@ -214,10 +217,19 @@
   // rows. A query that resolves to no security shows the explicit empty state
   // and no rows; it never falls back to listing everything as though the filter
   // were off.
+  // The feed writes most entities with their terminating semicolon, but a few
+  // labels lose it ("I&amp M", the I&M Group rows), so the entity never decodes
+  // and the label reads I AMP M instead of I M. Decode the semicolon form first,
+  // then the same entities when the semicolon is missing, but only where the
+  // entity is followed by a non-alphanumeric or the end, so a real word that
+  // merely starts "amp..." is never cut.
   function unesc(s){
     return String(s == null ? "" : s)
       .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-      .replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/&apos;/g, "'");
+      .replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+      .replace(/&amp(?![A-Za-z0-9])/g, "&").replace(/&lt(?![A-Za-z0-9])/g, "<")
+      .replace(/&gt(?![A-Za-z0-9])/g, ">").replace(/&quot(?![A-Za-z0-9])/g, "\"")
+      .replace(/&apos(?![A-Za-z0-9])/g, "'").replace(/&#39(?![0-9])/g, "'");
   }
   function norm(s){
     return unesc(s).toUpperCase().replace(/[^A-Z0-9]+/g, " ").replace(/^\s+|\s+$/g, "");
@@ -262,14 +274,42 @@
   //          "TransCentury".
   // An entry only ADDS search words to the current listing; the row still has to
   // carry the phrase, and an issuer with no listed successor is left alone.
+  //
+  // The second block below covers companies the feed files under a former or
+  // shortened name that the phrase rule cannot reach. Each is a genuine variant
+  // of exactly one STILL-LISTED issuer, evidenced by the feed's own label or by
+  // the filing title, so the successor is the current listing and no row is
+  // mislabelled. A delisted issuer with no successor is deliberately absent.
+  //   IMH  : I&M Holdings Plc renamed I&M Group Plc; the feed labels the rows
+  //          "I&amp M" (a malformed entity) and their titles read "I&M Holdings
+  //          Plc". The "IM Holdings" form is the hyphenated slug.
+  //   TOTL : Total Kenya Plc renamed TotalEnergies Marketing Kenya Plc (2022).
+  //   LKL  : Longhorn Kenya Limited renamed Longhorn Publishers Plc; one batch
+  //          is misspelled "Lonhorn".
+  //   SCAN : WPP Scangroup Plc;  KPLC : Kenya Power & Lighting Company Plc.
+  //   EVRD : Eveready East Africa Limited;  KNRE : Kenya Re-Insurance.
+  //   CTUM : Centum Investment Company Plc;  CARB : Carbacid Investments Ltd.
+  //   HFCB : Housing Finance Company of Kenya (HFCK);  BAMB : Bamburi Cement.
+  //   SMER : Sameer Africa Plc (the feed files the one-word "SameerAfrica").
   var RENAMES = {
     ABSA: ["Barclays", "Barclays Bank of Kenya"],
-    HFCB: ["Housing Finance", "Housing Finance Company of Kenya", "HF Group"],
+    HFCB: ["Housing Finance", "Housing Finance Company of Kenya", "HF Group", "HFC", "HFCK"],
     NCBA: ["NIC", "NIC Bank", "NIC Group"],
     SBIC: ["CfC Stanbic", "CfC Stanbic Holdings"],
     SLAM: ["Pan Africa Insurance", "Pan Africa Insurance Holdings"],
     EQTY: ["Equity Bank", "Equity Bank Limited", "Equity Bank Group"],
-    TCL:  ["TransCentury"]
+    TCL:  ["TransCentury"],
+    IMH:  ["I&M", "I&M Holdings", "I&M Group", "IM Holdings"],
+    TOTL: ["Total Kenya", "TotalEnergies Marketing"],
+    LKL:  ["Longhorn", "Lonhorn Kenya"],
+    SCAN: ["Scangroup"],
+    KPLC: ["Kenya Power"],
+    EVRD: ["Eveready East Africa", "Eveready EA", "Eveready"],
+    KNRE: ["Kenya Reinsurance", "Kenya Re"],
+    CTUM: ["Centum"],
+    CARB: ["Carbacid Investment", "Carbacid"],
+    BAMB: ["Bamburi"],
+    SMER: ["SameerAfrica"]
   };
   function addAlt(s, words){
     if (!s || !words || !words.length) return;
@@ -278,6 +318,8 @@
     s.alt.push(words);
   }
   var SEC = [];   // the securities static_data/listing_<EX>.json knows about
+  var SECLOADED = false;   // false until the directory answers (or fails), so a
+                           // query is never resolved against a half-built list
   function loadSecurities(){
     fetch("../../static_data/listing_" + CUR + ".json")
       .then(function(r){ if(!r.ok) throw 0; return r.json(); })
@@ -290,12 +332,16 @@
           (RENAMES[tk] || []).forEach(function(x){ addAlt(s, toks(x)); });
           return s;
         }).filter(function(s){ return s.tk; });
-        // a query typed before the directory arrived re-resolves against it now
-        if (qEl.value.trim()) onQuery();
+        // A query typed before the directory arrived re-resolves against it now,
+        // whether or not the box holds text: the panel must never keep a count,
+        // or an empty state, computed against a half-loaded directory.
+        SECLOADED = true;
+        onQuery();
       })
-      // a missing directory does not break the filter: resolveSec below still
-      // accepts a ticker the feeds carry themselves, and no other query matches
-      .catch(function(){ SEC = []; });
+      // A missing directory does not break the filter: resolveSec below still
+      // accepts a ticker the feeds carry themselves, and no other query matches.
+      // SECLOADED is still set so the panel stops waiting and answers honestly.
+      .catch(function(){ SEC = []; SECLOADED = true; onQuery(); });
   }
   function rowTickers(r){
     var out = [];
@@ -326,9 +372,25 @@
     }
     return false;
   }
+  // The resolution order is deliberate, and the order IS the fix:
+  //   1. an EXACT ticker or ISIN resolves to that one security and STOPS. It is
+  //      never widened by the name rule, because a ticker is also a prefix of a
+  //      longer name: the exact ticker BRIT (Britam) is the first four letters
+  //      of BRITISH AMERICAN TOBACCO, so a name rule allowed to run alongside
+  //      the ticker dragged BAT's rows into BRIT's. An exact code cannot be
+  //      ambiguous, so nothing else may join it.
+  //   2. only if nothing matched exactly, a whole-word company name or an
+  //      evidenced former/alternate name may resolve. The LAST word is NOT
+  //      allowed to be partial here, so a partial word can never silently
+  //      narrow the panel to a set; a partial word only ever offers a
+  //      suggestion (suggHits below), which the reader picks.
+  //   3. the directory may not list a security the feeds still file under; an
+  //      EXACT ticker the rows carry themselves is still that security.
   function resolveSec(qraw){
     var raw = String(qraw == null ? "" : qraw).trim();
     if (!raw) return null;
+    var base = baseTicker(raw);
+    var isinU = raw.toUpperCase().replace(/\s/g, "");
     var qt = toks(raw), out = [];
     // A query made only of legal, place or structural words names no security,
     // so it never resolves through a name or an alias.
@@ -337,24 +399,29 @@
       for (var i = 0; i < out.length; i++) if (out[i].tk === s.tk) return;
       out.push(s);
     }
+    // 1. EXACT ticker, then EXACT ISIN: one security, alone, and stop.
+    var hitTk = null, hitIsin = null;
     SEC.forEach(function(s){
-      if (s.tk === baseTicker(raw)) { push(s); return; }                    // ticker
-      if (s.isin && s.isin === raw.toUpperCase().replace(/\s/g, "")) { push(s); return; }   // ISIN
-      if (qt.length && qt[0].length >= 2 && !qAllStop){                      // company name
-        // the words of the name, the last of them allowed to be a partial word
-        if (hasRun(s.phrase, qt, true) || hasRun(s.name, qt, true)){ push(s); return; }
-        for (var i = 0; i < s.alt.length; i++)
-          if (hasRun(s.alt[i], qt, true)){ push(s); return; }               // former/alternate name
-      }
+      if (!hitTk && s.tk === base) hitTk = s;
+      if (!hitIsin && s.isin && s.isin === isinU) hitIsin = s;
     });
+    if (hitTk) return [hitTk];
+    if (hitIsin) return [hitIsin];
+    // 2. a whole-word name, phrase or evidenced alternate name (no partial)
+    var qlen = norm(raw).replace(/ /g, "").length;
+    if (!qAllStop && qlen >= 2){
+      SEC.forEach(function(s){
+        if (hasRun(s.phrase, qt) || hasRun(s.name, qt)) { push(s); return; }
+        for (var i = 0; i < s.alt.length; i++)
+          if (hasRun(s.alt[i], qt)) { push(s); return; }                   // former/alternate name
+      });
+    }
     if (out.length) return out;
-    // The directory may not list a security the feeds still file under (a
-    // renamed or delisted issuer). An EXACT ticker the rows carry themselves is
-    // still that security; anything looser is not, so it yields no match.
+    // 3. an EXACT ticker the rows carry themselves (a renamed or delisted issuer)
     NEWSROWS.forEach(function(r){
       rowTickers(r).forEach(function(t){
-        if (t === baseTicker(raw))
-          push({ tk: t, name: r.company || r.publisher || "", phrase: namePhrase(r.company || ""), isin: "", alt: [] });
+        if (t === base)
+          push({ tk: t, name: r.company || r.publisher || "", phrase: namePhrase(r.company || r.name || ""), isin: "", alt: [] });
       });
     });
     return out.length ? out : null;
@@ -379,13 +446,14 @@
     if (!q) return [];
     var qt = q.split(" "), base = baseTicker(raw), hits = [];
     var qAllStop = qt.length > 0 && qt.every(function(w){ return QUERY_STOP[w]; });
+    var qlen = q.replace(/ /g, "").length;   // a one-letter query suggests nothing
     SEC.forEach(function(s){
       var sc = -1;
       if (s.tk === base) sc = 0;
       else if (s.isin && s.isin === raw.replace(/\s/g, "")) sc = 1;
       else if (s.tk.indexOf(base) === 0) sc = 2;
-      else if (qt.length && qt[0].length >= 2 && !qAllStop && hasRun(s.phrase, qt, true)) sc = 3;
-      if (sc < 0 && qt.length && qt[0].length >= 2 && !qAllStop && hasRun(s.name, qt, true)) sc = 4;
+      else if (qlen >= 2 && !qAllStop && hasRun(s.phrase, qt, true)) sc = 3;
+      if (sc < 0 && qlen >= 2 && !qAllStop && hasRun(s.name, qt, true)) sc = 4;
       if (sc < 0 && !qAllStop)
         for (var i = 0; i < s.alt.length; i++)
           if (hasRun(s.alt[i], qt, true)){ sc = 4; break; }
@@ -634,6 +702,11 @@
   function renderNews(){
     if(!READY){ el.innerHTML = '<div class="empty">loading…</div>'; return; }
     var qraw = qEl.value.trim();
+    // A filter must not answer from half its inputs: while the listing
+    // directory is still in flight a query cannot be resolved, and the panel
+    // waits (the directory's arrival re-renders) instead of showing a count or
+    // an empty state that a later file could contradict.
+    if (qraw && !SECLOADED) return;
     var secs = qraw ? resolveSec(qraw) : null;
     chip(qraw, secs);
     var shown;
