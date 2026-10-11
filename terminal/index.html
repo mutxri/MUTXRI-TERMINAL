@@ -60,7 +60,7 @@ body{
 }
 
 /* ---------- top bar ---------- */
-.topbar{display:flex;align-items:center;gap:var(--s5);padding:0 var(--s4);height:52px;
+.topbar{position:relative;display:flex;align-items:center;gap:var(--s5);padding:0 var(--s4);height:52px;
   border-bottom:1px solid var(--line2);background:var(--bg2)}
 .brand{display:flex;align-items:center;gap:var(--s3);cursor:pointer}
 .mark{width:30px;height:30px;border:1.5px solid var(--acc);border-radius:3px;
@@ -71,14 +71,23 @@ body{
   font-weight:600;margin-top:-2px}
 /* The market is part of what you type, not a row of tabs: one finder covers
    every listing on every board, so a new market costs nothing up here. */
-.search{position:relative;margin-left:auto;display:flex;align-items:center;gap:var(--s2);
+/* The finder sits in the exact middle of the bar: absolutely placed at 50% so its
+   centre is the bar's centre no matter how wide the clock, the workspace tabs or
+   the account button happen to be. Its width is capped against the viewport so it
+   cannot reach either side's controls, and below 720px it returns to the flow
+   instead of overlapping them. */
+.search{position:absolute;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:var(--s2);
   background:var(--bg3);border:1px solid var(--line2);border-radius:3px;
-  padding:var(--s2) var(--s3);flex:1 1 420px;max-width:560px;transition:border-color .15s}
+  padding:var(--s2) var(--s3);width:min(560px,46vw);transition:border-color .15s}
 .search:focus-within{border-color:var(--mint-line)}
 .search span{color:var(--tx3);font-size:11px}
 .search input{background:none;border:0;outline:0;color:var(--tx);font-family:var(--mono);
   font-size:12px;width:100%}
 .search input::placeholder{color:var(--tx3)}
+@media (max-width:720px){
+  .search{position:static;transform:none;width:auto;flex:1 1 auto;min-width:0}
+}
 .acct{display:flex;align-items:center;gap:6px}
 .acct button{background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
   font-family:inherit;font-size:10px;padding:var(--s1) 10px;border-radius:2px;cursor:pointer;
@@ -265,7 +274,7 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
   border-right:2px solid var(--line2);border-bottom:2px solid var(--line2)}
 .rail:hover .wrs-se::after,.panel:hover .wrs-se::after{border-color:var(--acc)}
 /* workspace tabs live in the top bar, not in a bottom strip */
-.wstabs{display:flex;align-items:center;gap:3px;margin-left:var(--s3)}
+.wstabs{display:flex;align-items:center;gap:3px;margin-left:auto}
 .wstabs button{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
   font-size:9.5px;letter-spacing:.08em;padding:3px 8px;border-radius:2px;cursor:pointer;max-width:120px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -795,12 +804,10 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
 </script>
 <div class="term">
 
-  <!-- TOP BAR -->
+  <!-- TOP BAR: no brand block here. The mark and wordmark carried no
+       information the title bar and the sign-in gate do not already carry,
+       and their width was pushing the finder off centre. -->
   <header class="topbar">
-    <div class="brand" onclick="location.href='/'">
-      <div class="mark">MX</div>
-      <div class="brandname">MUTXRI<small>TERMINAL</small></div>
-    </div>
     <label class="search">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
       <input id="q" placeholder="Ticker, company or market - SCOM, MTN JSE, FA…" autocomplete="off" aria-label="Search">
