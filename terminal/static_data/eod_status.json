@@ -1,5 +1,5 @@
 {
- "checkedAt": "2026-10-10T10:01:30+00:00",
+ "checkedAt": "2026-10-11T21:10:02+00:00",
  "exchanges": {
   "NSE": {
    "exchange": "NSE",
@@ -21,7 +21,7 @@
    "future": [],
    "integrity": {},
    "integrityExamples": [],
-   "snapshotAsOf": "NSE 09/10/2026 17:03 GMT+3 (closed)",
+   "snapshotAsOf": "2026-10-09",
    "snapshotAgrees": true,
    "note": null
   },
@@ -35,12 +35,12 @@
    "counts": {
     "current": 146,
     "lagging": 27,
-    "illiquid": 26,
-    "dormant": 194,
+    "illiquid": 24,
+    "dormant": 196,
     "nodata": 0,
     "future": 0
    },
-   "currentPct": 73.4,
+   "currentPct": 74.1,
    "lagging": [
     "AFRINSURE",
     "AFROMEDIA",
@@ -166,7 +166,7 @@
    ],
    "future": [],
    "integrity": {
-    "implausible_move": 3
+    "implausible_move": 4
    },
    "integrityExamples": [
     {
@@ -177,6 +177,15 @@
      "h": 4170.0,
      "l": 4170.0,
      "c": 4170.0
+    },
+    {
+     "id": "MHB.JO",
+     "issue": "implausible_move",
+     "session": "2026-10-01",
+     "o": 511.00001335144043,
+     "h": 511.00001335144043,
+     "l": 511.00001335144043,
+     "c": 511.00001335144043
     },
     {
      "id": "SCD.JO",
@@ -203,10 +212,10 @@
   },
   "EGX": {
    "exchange": "EGX",
-   "expectedSession": "2026-10-08",
+   "expectedSession": "2026-10-11",
    "observedSession": "2026-10-07",
    "status": "behind",
-   "sessionsBehind": 1,
+   "sessionsBehind": 2,
    "securities": 371,
    "counts": {
     "current": 218,
@@ -276,8 +285,112 @@
    "integrityExamples": [],
    "snapshotAsOf": "2026-10-07",
    "snapshotAgrees": true,
-   "note": "no security has the 2026-10-08 session yet - either it has not been fetched or it was a market holiday (holidays are not modelled)"
+   "note": "no security has the 2026-10-11 session yet - either it has not been fetched or it was a market holiday (holidays are not modelled)"
   }
  },
- "allCurrent": false
+ "allCurrent": false,
+ "run": {
+  "startedAt": "2026-10-11T21:06:00+00:00",
+  "seconds": 260.3,
+  "exchanges": [
+   "NSE",
+   "NGX",
+   "JSE",
+   "EGX"
+  ],
+  "collected": [
+   "NSE",
+   "NGX",
+   "JSE",
+   "EGX"
+  ],
+  "steps": [
+   {
+    "step": "NSE IR feed backfill (merges)",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 4.8,
+    "tail": [
+     "  NSE: 3016 bars",
+     "  KQ: 7454 bars",
+     "DONE: 22/22 symbols"
+    ]
+   },
+   {
+    "step": "NSE official board",
+    "rc": "skipped",
+    "attempt": 0,
+    "seconds": 0,
+    "tail": [
+     "board not closed (HTTPError: HTTP Error 500: Internal Server Error) - no intraday price recorded as a close"
+    ]
+   },
+   {
+    "step": "NGX official price lists",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 7.5,
+    "tail": [
+     "  01-10-2026: no file",
+     "",
+     "DONE: 0 days fetched, 0 symbols with >=2 bars saved"
+    ]
+   },
+   {
+    "step": "JSE/EGX Yahoo top-up",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 78.4,
+    "tail": [
+     "  650 topped up | daily 627 kept 4",
+     "  700 topped up | daily 640 kept 4",
+     "DONE: daily 642 written, max 0 written, 57 no-data, 4 kept (fetch was worse)"
+    ]
+   },
+   {
+    "step": "label history basis",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 48.0,
+    "tail": []
+   },
+   {
+    "step": "rebuild market snapshots",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 15.7,
+    "tail": [
+     "NGX: 146/146 covered | sessions 2026-06-26 .. 2026-10-09 (11 distinct) -> market_NGX.json",
+     "NSE: 63/63 covered | sessions 2026-10-09 .. 2026-10-09 (1 distinct) -> market_NSE.json",
+     "TOTAL: 855/912"
+    ]
+   },
+   {
+    "step": "retry 322 lagging JSE/EGX securities",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 70.5,
+    "tail": [
+     "daily 322 written, 0 kept, 0 no-data"
+    ],
+    "outcome": {
+     "retried": 322,
+     "recovered": 213,
+     "stillLagging": 109
+    }
+   },
+   {
+    "step": "rebuild market snapshots",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 17.5,
+    "tail": [
+     "NGX: 146/146 covered | sessions 2026-06-26 .. 2026-10-09 (11 distinct) -> market_NGX.json",
+     "NSE: 63/63 covered | sessions 2026-10-09 .. 2026-10-09 (1 distinct) -> market_NSE.json",
+     "TOTAL: 855/912"
+    ]
+   }
+  ],
+  "failedSteps": []
+ }
 }
