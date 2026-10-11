@@ -56,6 +56,27 @@
     border-radius:3px;color:var(--tx2);font-family:var(--mono);font-size:11px;cursor:pointer}
   .more:hover{color:var(--acc);border-color:var(--acc)}
 
+  /* SECURITY FILTER: the search box, its suggestion list, and the chip that
+     names the security the panel is currently narrowed to. */
+  .sbox{position:relative;flex:1}
+  .sbox .search{width:100%}
+  .sugg{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:9;background:var(--bg3);
+    border:1px solid var(--line2);border-radius:3px;max-height:224px;overflow:auto;display:none}
+  .sugg.on{display:block}
+  .sugg div{font-family:var(--mono);font-size:11px;color:var(--tx2);padding:6px 9px;cursor:pointer;
+    display:flex;gap:8px;align-items:baseline}
+  .sugg div:hover,.sugg div.sel{background:var(--bg4);color:var(--acc)}
+  .sugg b{color:var(--acc);min-width:56px;display:inline-block}
+  .sugg span{color:var(--tx3);font-size:10px}
+  .active{display:flex;align-items:center;gap:8px;padding:0 0 8px}
+  .active .pill{font-family:var(--mono);font-size:10px;color:#000;background:var(--acc);
+    border-radius:2px;padding:2px 7px;letter-spacing:.06em}
+  .active .pill.no{background:transparent;color:var(--tx3);border:1px solid var(--line2)}
+  .active .an{font-family:var(--mono);font-size:10px;color:var(--tx2)}
+  .active .clr{margin-left:auto;background:transparent;border:1px solid var(--line2);border-radius:2px;
+    color:var(--tx2);font-family:var(--mono);font-size:9px;padding:2px 8px;cursor:pointer}
+  .active .clr:hover{border-color:var(--acc);color:var(--acc)}
+
   /* dividend calendar */
   .cal { border-bottom:1px solid var(--line2); padding:10px 12px 4px; }
   .cal-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
@@ -84,9 +105,14 @@
   </div>
 
   <div class="bar">
-    <input class="search" id="q" placeholder="search company or filing…  (e.g. safaricom, dividend, results)" />
+    <div class="sbox">
+      <input class="search" id="q" autocomplete="off" spellcheck="false"
+        placeholder="filter to one security:  ticker, ISIN or company  (e.g. SCOM, Safaricom)" />
+      <div class="sugg" id="sugg"></div>
+    </div>
     <select id="yr"><option value="all">ALL YEARS</option></select>
   </div>
+  <div class="active" id="active" style="display:none"></div>
   <div class="cal">
     <div class="cal-head">
       <span class="cal-t">DIVIDEND CALENDAR</span>
@@ -109,7 +135,9 @@
       qEl = document.getElementById("q"),
       yrEl = document.getElementById("yr"),
       countEl = document.getElementById("count"),
-      moreEl = document.getElementById("more");
+      moreEl = document.getElementById("more"),
+      suggEl = document.getElementById("sugg"),
+      actEl = document.getElementById("active");
   var ALL = [];
   var PAGE = 150;
 
@@ -151,19 +179,372 @@
 
   function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
+  // ---- SECURITY FILTER ---------------------------------------------------
+  // One control narrows this panel to a single security's items. The rule is
+  // deliberately literal, so it can be read rather than guessed at:
+  //
+  //   1. The query and every piece of row text are normalised to UPPERCASE
+  //      with each run of non-alphanumerics collapsed to one space, and the
+  //      HTML entities a feed leaves inside a label ("I&amp;M") are decoded
+  //      first, so "kcb-group", "KCB Group" and "KCB GROUP" compare equal and
+  //      an EGX ticker written "MFSC.CA" compares as "MFSC CA".
+  //   2. A company name is a SEQUENCE of words, not a bag of words. The name is
+  //      reduced to its PHRASE: its leading words in order, stopped before the
+  //      first legal suffix (Ltd, Plc, Co), the market's own country (Kenya,
+  //      Nigeria) or Holdings/Holding. So "Standard Group Plc" reduces to
+  //      STANDARD GROUP, "Equity Group Holdings Limited" to EQUITY GROUP,
+  //      "Safaricom Plc" to SAFARICOM and "British American Tobacco Kenya Plc"
+  //      to BRITISH AMERICAN TOBACCO. Keeping the word Group inside the phrase
+  //      is the fix: no name can collapse to one generic word, so a single
+  //      industry word can never stand for a company. That is why the phrase
+  //      STANDARD GROUP stops "Standard Chartered Bank Kenya" (a different
+  //      security) matching the query SGL, and EQUITY GROUP stops the phrase
+  //      "Changes in Equity" matching Equity Group Holdings.
+  //   3. The query resolves to a security from static_data/listing_<EX>.json
+  //      when it equals that security's ticker (ignoring a market suffix such
+  //      as .CA or .JO), equals its ISIN, is a contiguous whole-word run inside
+  //      its name or name PHRASE, or is one of the issuer's former or alternate
+  //      names (RENAMES below, plus the label aliases buildAliases ties to the
+  //      feed's own labels). The query's LAST word may be a partial word so the
+  //      picker can reach Safaricom from "safa"; row matching below never uses
+  //      a partial word.
+  //   4. A row belongs to that security when the row's own ticker field equals
+  //      the security ticker, the row's ISIN equals the security ISIN, or the
+  //      row text carries the security TICKER as a whole word, the security's
+  //      name PHRASE as a contiguous whole-word run, or one of its alternate
+  //      name phrases as a contiguous whole-word run.
+  //
+  // WHOLE WORDS only, never substrings. That is the point of the rule: a
+  // substring filter for "bat" matched those letters inside unrelated words and
+  // rows, which is why the owner typed BAT and still saw SCM, CRWN, CGEN, LBTY,
+  // EQTY and NMG. A query that resolves to no security shows the explicit empty
+  // state and no rows; it never falls back to listing everything as though the
+  // filter were off.
+  // The feed writes most entities with their terminating semicolon, but a few
+  // labels lose it ("I&amp M", the I&M Group rows), so the entity never decodes
+  // and the label reads I AMP M instead of I M. Decode the semicolon form first,
+  // then the same entities when the semicolon is missing, but only where the
+  // entity is followed by a non-alphanumeric or the end, so a real word that
+  // merely starts "amp..." is never cut.
+  function unesc(s){
+    return String(s == null ? "" : s)
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+      .replace(/&amp(?![A-Za-z0-9])/g, "&").replace(/&lt(?![A-Za-z0-9])/g, "<")
+      .replace(/&gt(?![A-Za-z0-9])/g, ">").replace(/&quot(?![A-Za-z0-9])/g, "\"")
+      .replace(/&apos(?![A-Za-z0-9])/g, "'").replace(/&#39(?![0-9])/g, "'");
+  }
+  function norm(s){
+    return unesc(s).toUpperCase().replace(/[^A-Z0-9]+/g, " ").replace(/^\s+|\s+$/g, "");
+  }
+  function toks(s){ var n = norm(s); return n ? n.split(" ") : []; }
+  function baseTicker(s){ return String(s == null ? "" : s).toUpperCase().split(".")[0].trim(); }
+  function isISIN(s){ return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(String(s == null ? "" : s).toUpperCase().trim()); }
+  // Words that END a company's phrase: legal suffixes, the market's own country
+  // and Holdings/Holding, which the feeds drop. GROUP does not end it, which is
+  // what keeps a name from collapsing to one generic word.
+  var LEGAL_STOP = {LTD:1,LIMITED:1,PLC:1,CO:1,COMPANY:1,CORPORATION:1,CORP:1,INC:1,
+                    INCORPORATED:1,SA:1,AG:1,BV:1,NV:1,PL:1};
+  var PLACE_STOP = {KENYA:1,NIGERIA:1,EGYPT:1,GHANA:1,TANZANIA:1,UGANDA:1,RWANDA:1,AFRICA:1,SOUTH:1};
+  var HOLD_STOP = {HOLDINGS:1,HOLDING:1};
+  function isStop(w){ return !!(LEGAL_STOP[w] || PLACE_STOP[w] || HOLD_STOP[w]); }
+  // A query made only of these words names no company: they are legal, place or
+  // structural words, so "group", "bank", "ltd" or "kenya" resolve to nothing
+  // rather than to every issuer that carries the word.
+  var QUERY_STOP = {LTD:1,LIMITED:1,PLC:1,CO:1,COMPANY:1,CORPORATION:1,CORP:1,INC:1,
+                    INCORPORATED:1,SA:1,AG:1,BV:1,NV:1,PL:1,GROUP:1,HOLDINGS:1,HOLDING:1,
+                    BANK:1,THE:1,OF:1,AND:1,
+                    KENYA:1,NIGERIA:1,EGYPT:1,GHANA:1,TANZANIA:1,UGANDA:1,RWANDA:1,AFRICA:1,SOUTH:1};
+  // Industry vocabulary. A single feed label that is one of these, or is itself
+  // a lone word shorter than four letters, is never tied to a security, so the
+  // word "equity" or "standard" can never drag in another company's rows.
+  var GENERIC = {BANK:1,GROUP:1,HOLDINGS:1,HOLDING:1,COMPANY:1,INVESTMENT:1,INVESTMENTS:1,
+    INSURANCE:1,FINANCIAL:1,FINANCE:1,SERVICES:1,SERVICE:1,CAPITAL:1,KENYA:1,NIGERIA:1,
+    AFRICA:1,EGYPT:1,GHANA:1,EAST:1,WEST:1,NORTH:1,SOUTH:1,NATIONAL:1,INTERNATIONAL:1,
+    GENERAL:1,UNITED:1,STANDARD:1,EQUITY:1,COMMERCIAL:1,TRUST:1,ASSURANCE:1,CENTRAL:1,
+    LIMITED:1,LTD:1,PLC:1,CO:1,AND:1,OF:1,THE:1,FOR:1};
+  function namePhrase(name){
+    var t = toks(name), out = [];
+    for (var i = 0; i < t.length; i++){
+      if (i > 0 && isStop(t[i])) break;
+      out.push(t[i]);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }
+  // EVIDENCED alternate and former names for the issuers on this exchange. Each
+  // is a rename or merger the issuer itself published, never a guess:
+  //   ABSA : Barclays Bank of Kenya renamed Absa Bank Kenya PLC, 10 Feb 2020.
+  //   HFCB : Housing Finance / HF Group renamed HFCB Group Plc, May 2026.
+  //   NCBA : NIC Group merged with CBA and renamed NCBA Group Plc, Oct 2019.
+  //   SBIC : CfC Stanbic Holdings renamed Stanbic Holdings Plc, Aug 2016.
+  //   SLAM : Pan Africa Insurance Holdings renamed Sanlam Kenya Plc, 2016.
+  //   EQTY : the listed entity was Equity Bank Limited before its Dec 2014
+  //          conversion into Equity Group Holdings Limited.
+  //   TCL  : the NSE spells it "Trans-Century Plc"; the feed writes
+  //          "TransCentury".
+  // An entry only ADDS search words to the current listing; the row still has to
+  // carry the phrase, and an issuer with no listed successor is left alone.
+  var RENAMES = {
+    ABSA: ["Barclays", "Barclays Bank of Kenya"],
+    HFCB: ["Housing Finance", "Housing Finance Company of Kenya", "HF Group"],
+    NCBA: ["NIC", "NIC Bank", "NIC Group"],
+    SBIC: ["CfC Stanbic", "CfC Stanbic Holdings"],
+    SLAM: ["Pan Africa Insurance", "Pan Africa Insurance Holdings"],
+    EQTY: ["Equity Bank", "Equity Bank Limited", "Equity Bank Group"],
+    TCL:  ["TransCentury"]
+  };
+  function addAlt(s, words){
+    if (!s || !words || !words.length) return;
+    for (var i = 0; i < s.alt.length; i++)
+      if (s.alt[i].join(" ") === words.join(" ")) return;
+    s.alt.push(words);
+  }
+  // The announcement feed files many rows under a label the listing directory
+  // does not carry ("TransCentury", "Eveready East Africa", "amp Lighting"), so
+  // the label never resolved and those rows were unreachable by query. A label
+  // is tied to a security here only on evidence the data gives: it is a
+  // contiguous whole-word run inside exactly one listed name ("Sameer Africa"
+  // in "Sameer Africa Plc"), or its letters spell exactly one listed name once
+  // hyphens and spaces are ignored ("TransCentury" for "Trans-Century Plc"). A
+  // one-word label is tied only when that word is not industry vocabulary and
+  // spells exactly one name. Any label that is ambiguous, or names no listed
+  // issuer, maps nowhere, so no row is ever mislabelled.
+  var ALIASATTEMPTED = false;
+  function buildAliases(){
+    if (ALIASATTEMPTED || !SECLOADED || !ANNLODADED) return;
+    ALIASATTEMPTED = true;
+    var labels = {}, i;
+    for (i = 0; i < ALL.length; i++){
+      var lab = norm(ALL[i].company);
+      if (lab) labels[lab] = 1;
+    }
+    Object.keys(labels).forEach(function(lab){
+      var lt = lab.split(" "), hit = null, ties = 0;
+      if (lt.length === 1){
+        var w = lt[0];
+        if (w.length < 4 || GENERIC[w]) return;
+        SEC.forEach(function(s){
+          if (w === toks(s.name).join("") || w === s.phrase.join("")){ hit = s; ties++; }
+        });
+      } else {
+        SEC.forEach(function(s){
+          if (hasRun(s.name, lt)){ hit = s; ties++; }
+        });
+        if (!hit){
+          var tight = lt.join("");
+          if (tight.length >= 6)
+            SEC.forEach(function(s){
+              if (toks(s.name).join("") === tight){ hit = s; ties++; }
+            });
+        }
+      }
+      if (hit && ties === 1) addAlt(hit, lt);
+    });
+  }
+
+  var SEC = [];   // the securities static_data/listing_<EX>.json knows about
+  var SECLOADED = false;
+  var ANNLODADED = false, CALLOADED = false;   // a keystroke before the feeds land
+                                               // must not leave a stale empty state
+  function loadSecurities(){
+    fetch("../../static_data/listing_" + EX + ".json")
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){
+        SEC = ((d && d.stocks) || []).map(function(r){
+          var tk = baseTicker(r.ticker || r.code || r.sym);
+          var isin = isISIN(r.code) ? String(r.code).toUpperCase()
+                   : (isISIN(r.sym) ? String(r.sym).toUpperCase() : "");
+          var s = { tk: tk, name: String(r.name || ""), phrase: namePhrase(r.name), isin: isin, alt: [] };
+          (RENAMES[tk] || []).forEach(function(x){ addAlt(s, toks(x)); });
+          return s;
+        }).filter(function(s){ return s.tk; });
+        SECLOADED = true;
+        buildAliases();
+        // a query typed before the directory arrived re-resolves against it now
+        if (qEl.value.trim()) onQuery();
+      })
+      // a missing directory does not break the filter: resolveSec below still
+      // accepts a ticker the feeds carry themselves, and no other query matches
+      .catch(function(){ SEC = []; });
+  }
+  function rowTickers(r){
+    var out = [];
+    [].concat(r.tickers || [], r.ticker || [], r.symbol || []).forEach(function(t){
+      if (t) out.push(baseTicker(t));
+    });
+    return out;
+  }
+  function rowText(r){
+    return [r.title, r.company, r.name, r.text, r.headline].filter(function(x){ return x; }).join(" ");
+  }
+  // true when words appears as a contiguous run of whole words inside s. With
+  // partialLast, the final word only has to BEGIN the row's word, which is what
+  // lets "safa" reach Safaricom in the suggestion list while "BAT" still never
+  // reaches a row that merely contains those letters inside another word.
+  function hasRun(s, words, partialLast){
+    if (!words || !words.length) return false;
+    var t = (typeof s === "string") ? norm(s).split(" ") : s;
+    if (!t.length || t[0] === "") return false;
+    for (var j = 0; j + words.length <= t.length; j++){
+      var ok = true;
+      for (var k = 0; k < words.length; k++){
+        if (partialLast && k === words.length - 1){
+          if (t[j + k].indexOf(words[k]) !== 0){ ok = false; break; }
+        } else if (t[j + k] !== words[k]){ ok = false; break; }
+      }
+      if (ok) return true;
+    }
+    return false;
+  }
+  function resolveSec(qraw){
+    var raw = String(qraw == null ? "" : qraw).trim();
+    if (!raw) return null;
+    var qt = toks(raw), out = [];
+    // A query made only of legal, place or structural words names no security,
+    // so it never resolves through a name, an alias or the feed's tickers.
+    var qAllStop = qt.length > 0 && qt.every(function(w){ return QUERY_STOP[w]; });
+    function push(s){
+      for (var i = 0; i < out.length; i++) if (out[i].tk === s.tk) return;
+      out.push(s);
+    }
+    SEC.forEach(function(s){
+      if (s.tk === baseTicker(raw)) { push(s); return; }                    // ticker
+      if (s.isin && s.isin === raw.toUpperCase().replace(/\s/g, "")) { push(s); return; }   // ISIN
+      if (qt.length && qt[0].length >= 2 && !qAllStop){                     // company name
+        // the words of the name, the last of them allowed to be a partial word
+        if (hasRun(s.phrase, qt, true) || hasRun(s.name, qt, true)){ push(s); return; }
+        for (var i = 0; i < s.alt.length; i++)
+          if (hasRun(s.alt[i], qt, true)){ push(s); return; }               // former/alternate name
+      }
+    });
+    if (out.length) return out;
+    // The directory may not list a security the feeds still file under (a
+    // renamed or delisted issuer). An EXACT ticker the rows carry themselves is
+    // still that security; anything looser is not, so it yields no match.
+    ALL.concat(DIVACT).forEach(function(r){
+      rowTickers(r).forEach(function(t){
+        if (t === baseTicker(raw))
+          push({ tk: t, name: r.company || r.name || "", phrase: namePhrase(r.company || r.name || ""), isin: "", alt: [] });
+      });
+    });
+    return out.length ? out : null;
+  }
+  function rowMatch(r, secs){
+    var tk = rowTickers(r), isin = String(r.isin || "").toUpperCase(), text = rowText(r);
+    for (var i = 0; i < secs.length; i++){
+      var s = secs[i];
+      for (var j = 0; j < tk.length; j++) if (tk[j] === s.tk) return true;
+      if (s.isin && isin && isin === s.isin) return true;
+      if (hasRun(text, [s.tk])) return true;    // the ticker used as the short label
+      if (hasRun(text, s.phrase)) return true;  // the company's name phrase
+      for (var k = 0; k < s.alt.length; k++)    // a former or alternate name
+        if (hasRun(text, s.alt[k])) return true;
+    }
+    return false;
+  }
+  var SUGSEL = -1;
+  function suggHits(qraw){
+    var raw = String(qraw || "").trim().toUpperCase();
+    var q = norm(raw);
+    if (!q) return [];
+    var qt = q.split(" "), base = baseTicker(raw), hits = [];
+    var qAllStop = qt.length > 0 && qt.every(function(w){ return QUERY_STOP[w]; });
+    SEC.forEach(function(s){
+      var sc = -1;
+      if (s.tk === base) sc = 0;
+      else if (s.isin && s.isin === raw.replace(/\s/g, "")) sc = 1;
+      else if (s.tk.indexOf(base) === 0) sc = 2;
+      else if (qt.length && qt[0].length >= 2 && !qAllStop && hasRun(s.phrase, qt, true)) sc = 3;
+      if (sc < 0 && qt.length && qt[0].length >= 2 && !qAllStop && hasRun(s.name, qt, true)) sc = 4;
+      if (sc < 0 && !qAllStop)
+        for (var i = 0; i < s.alt.length; i++)
+          if (hasRun(s.alt[i], qt, true)){ sc = 4; break; }
+      if (sc < 0 && base.length >= 3 && s.tk.indexOf(base) >= 0) sc = 5;
+      if (sc >= 0) hits.push({ s: s, sc: sc });
+    });
+    hits.sort(function(a, b){ return a.sc - b.sc || (a.s.tk < b.s.tk ? -1 : 1); });
+    return hits.slice(0, 8);
+  }
+  function hideSugg(){ suggEl.className = "sugg"; suggEl.innerHTML = ""; SUGSEL = -1; }
+  function drawSugg(qraw){
+    var hits = suggHits(qraw);
+    if (!hits.length){ hideSugg(); return; }
+    if (SUGSEL >= hits.length) SUGSEL = -1;
+    suggEl.innerHTML = hits.map(function(h, i){
+      return '<div data-tk="' + h.s.tk + '"' + (i === SUGSEL ? ' class="sel"' : '') + '>' +
+             '<b>' + esc(h.s.tk) + '</b><span>' + esc(h.s.name) + '</span></div>';
+    }).join("");
+    suggEl.className = "sugg on";
+    var rows = suggEl.querySelectorAll("div");
+    for (var i = 0; i < rows.length; i++){
+      rows[i].addEventListener("mousedown", function(e){
+        e.preventDefault();
+        qEl.value = this.getAttribute("data-tk");
+        hideSugg(); onQuery();
+      });
+    }
+  }
+  function pickSugg(delta){
+    var hits = suggHits(qEl.value);
+    if (!hits.length) return;
+    SUGSEL = (SUGSEL + delta + hits.length) % hits.length;
+    drawSugg(qEl.value);
+  }
+  // The chip names the security the panel is narrowed to, and CLEAR lifts it.
+  function chip(qraw, secs){
+    if (!qraw){ actEl.style.display = "none"; actEl.innerHTML = ""; return; }
+    actEl.style.display = "flex";
+    // A query that named no security still gets a chip, so the state is visible
+    // and can be cleared rather than leaving the reader with a dead box.
+    var head = secs ? secs.slice(0, 4).map(function(s){
+      return '<span class="pill">' + esc(s.tk) + '</span>' +
+             (s.name ? '<span class="an">' + esc(s.name) + '</span>' : "");
+    }).join('<span class="an">+</span>')
+      : '<span class="pill no">NO MATCH</span><span class="an">' + esc(qraw) + '</span>';
+    actEl.innerHTML = head + '<button class="clr" id="clrQ">CLEAR</button>';
+    document.getElementById("clrQ").addEventListener("click", clearQ);
+  }
+  function clearQ(){ qEl.value = ""; hideSugg(); onQuery(); }
+  function onQuery(){ SUGSEL = -1; render(); renderDiv(); drawSugg(qEl.value); }
+
   function render(){
-    var q = qEl.value.trim().toLowerCase();
+    if(!ANNLODADED) return;
+    var qraw = qEl.value.trim();
     var yr = yrEl.value;
+    var secs = qraw ? resolveSec(qraw) : null;
+    // No query: the whole feed, exactly as this panel has always shown it. With
+    // a query: the rows of the resolved security alone, or none at all when the
+    // query names no listed security. Never a fallback to everything.
     var list = ALL.filter(function(o){
       if(yr === "undated" && o.year) return false;
       if(yr !== "all" && yr !== "undated" && String(o.year) !== yr) return false;
-      if(!q) return true;
-      return (o.title || "").toLowerCase().indexOf(q) >= 0 || (o.company || "").toLowerCase().indexOf(q) >= 0;
+      if(!qraw) return true;
+      return secs ? rowMatch(o, secs) : false;
     });
-    countEl.textContent = list.length + " of " + ALL.length + " filings";
+    chip(qraw, secs);
+    if(!qraw){
+      countEl.textContent = list.length + " of " + ALL.length + " filings";
+    } else if(secs){
+      countEl.textContent = list.length + " of " + ALL.length + " filings for " +
+        secs.map(function(s){ return s.tk; }).join(" + ");
+    } else {
+      countEl.textContent = "no listed security matches " + qraw;
+    }
     var shown = list.slice(0, PAGE);
     moreEl.style.display = list.length > PAGE ? "block" : "none";
-    if(!shown.length){ el.innerHTML = '<div class="empty">no filings match</div>'; return; }
+    if(!shown.length){
+      el.innerHTML = qraw
+        ? '<div class="empty">Nothing for ' + esc(qraw) + ' in these filings.' +
+          (secs ? '<br><br>No announcement in this window belongs to ' +
+                    esc(secs.map(function(s){ return s.tk; }).join(" + ")) + '.'
+                : '<br><br>No listed security in this market matched this query. ' +
+                    'The filing feed may file this company under another or a former name, ' +
+                    'so nothing is shown rather than another company&#39;s rows.') +
+          '</div>'
+        : '<div class="empty">no filings match</div>';
+      return;
+    }
     el.innerHTML = shown.map(function(o){
       // A feed may carry a full ISO date (the JSE SENS and EGX disclosure
       // wires) or only a filing year (nse_announcements). Show the most precise
@@ -186,7 +567,17 @@
     render();
   }
 
-  qEl.addEventListener("input", render);
+  qEl.addEventListener("input", onQuery);
+  qEl.addEventListener("keydown", function(e){
+    if(e.key === "ArrowDown"){ e.preventDefault(); pickSugg(1); }
+    else if(e.key === "ArrowUp"){ e.preventDefault(); pickSugg(-1); }
+    else if(e.key === "Escape"){ hideSugg(); }
+    else if(e.key === "Enter"){
+      var hits = suggHits(qEl.value);
+      if(hits.length && SUGSEL >= 0){ e.preventDefault(); qEl.value = hits[SUGSEL].s.tk; hideSugg(); onQuery(); }
+    }
+  });
+  qEl.addEventListener("blur", function(){ setTimeout(hideSugg, 120); });
   yrEl.addEventListener("change", render);
   moreEl.addEventListener("click", more);
 
@@ -219,13 +610,23 @@
 
   function renderDiv(){
     var srcEl = document.getElementById("calSrc"), body = document.getElementById("calBody");
+    if(!CALLOADED) return;   // the "loading" line stands until the source answers
+    var qraw = qEl.value.trim();
+    var secs = qraw ? resolveSec(qraw) : null;
     var list = DIVACT.filter(function(o){ return EVENTISH.test((o.kind || "") + " " + (o.text || "") + " " + (o.title || "")); });
+    // The calendar answers to the same query as the filing list above it. With
+    // a security selected this section shows that security's notices alone, and
+    // says so in words when it has none, rather than silently showing the whole
+    // board (the defect the owner hit) or silently vanishing.
+    if (qraw) list = list.filter(function(o){ return secs ? rowMatch(o, secs) : false; });
     list = list.map(function(o){ var d = parseDate(o.date); return { o:o, d:d }; });
     var undated = list.filter(function(x){ return !x.d; }).length;
     list = list.filter(function(x){ return x.d; });
     list.sort(function(a, b){ return b.d - a.d; });
     if (!list.length){
-      body.innerHTML = '<div class="empty">No dated dividend notices in the source. The gap is shown rather than filled.</div>';
+      body.innerHTML = qraw
+        ? '<div class="empty">Nothing for ' + esc(qraw) + ' in the dividend calendar.</div>'
+        : '<div class="empty">No dated dividend notices in the source. The gap is shown rather than filled.</div>';
       srcEl.textContent = ""; return;
     }
     srcEl.textContent = list.length + " dated notices" + (undated ? " \u00b7 " + undated + " undated" : "") + " \u00b7 " + (CFG.calsrc || "nse.co.ke");
@@ -261,7 +662,7 @@
     }
     fetch(CFG.cal)
       .then(function(r){ if (!r.ok) throw 0; return r.json(); })
-      .then(function(d){ DIVACT = d || []; renderDiv(); })
+      .then(function(d){ DIVACT = d || []; CALLOADED = true; renderDiv(); })
       .catch(function(){
         document.getElementById("calBody").innerHTML =
           '<div class="empty">Dividend notices could not be loaded. Nothing is shown rather than an invented date.</div>';
@@ -331,11 +732,14 @@
         var u = document.createElement("option");
         u.value = "undated"; u.textContent = "UNDATED";
         yrEl.appendChild(u);
+        ANNLODADED = true;
+        buildAliases();
         render();
       })
       .catch(function(){ el.innerHTML = '<div class="empty">failed to load announcements</div>'; });
   }
 
+  loadSecurities();
   loadCalendar();
   loadAnnouncements();
 })();
