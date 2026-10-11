@@ -351,10 +351,16 @@
     if(!hasRows && !hasVals){
       var who = dispTicker ? (dispTicker + (dispName ? " (" + dispName + ")" : "")) : state.ticker;
       var aReps = ((rec && rec.reports) || []).filter(function(rp){ return rp && rp.url; });
+      // If the statement file itself says WHY it holds nothing (an ETF or ETN
+      // that publishes no statements, a cash flow the issuer does not disclose),
+      // print that reason; otherwise fall back to the generic absence line.
+      var note = (rec && rec.reason)
+        ? esc(rec.reason)
+        : (aReps.length
+            ? 'No figures for this statement have been extracted; open the source filing below.'
+            : 'No verified source for this statement has been collected for this security.');
       var a = '<div class="empty">' + esc(STMT_TITLE()) + ' not on file for ' + esc(who) + '. ' +
-        (aReps.length
-          ? 'No figures for this statement have been extracted; open the source filing below.'
-          : 'No verified source for this statement has been collected for this security.') +
+        note +
         '</div>';
       if(aReps.length){
         a += '<div style="padding:10px 14px;border-top:1px solid var(--line2)">' +
@@ -534,6 +540,11 @@
     // statement file. Then the real endpoint; offline, the scaffold names the
     // absence rather than rendering fabricated numbers.
     var keys = dataKeys(state.ticker);
+    // A statement file that exists but carries available:false states its OWN
+    // reason (an ETF/ETN that publishes no statements, a cash flow the issuer
+    // does not disclose). Keep that reason so the panel names the real cause
+    // instead of a generic "no verified source" line.
+    var noDataReason = null;
     (function tryKey(i){
       if(i >= keys.length){ apiFallback(); return; }
       var stFile = "../../static_data/financials/" +
@@ -547,6 +558,7 @@
           render(d); setStatus("");
           return;
         }
+        if(d && (d.source_note || d.note)) noDataReason = d.source_note || d.note;
         throw 0;
       }).catch(function(){ tryKey(i+1); });
     })(0);
@@ -558,7 +570,7 @@
       var fil=filingsFor(state.ticker)||{};
       if(!d||d.available===false){
         render({periods:[],name:d&&d.name||fil.name,currency:d&&d.currency||fil.currency,
-                ir:(d&&d.ir_url)||fil.ir,reports:fil.reports||[]});
+                ir:(d&&d.ir_url)||fil.ir,reports:fil.reports||[],reason:noDataReason});
         setStatus(fil.reports&&fil.reports.length?"LINKS":"NONE",null);
         return;
       }
@@ -568,7 +580,7 @@
       setStatus(d.source||"FILED",d.filedAsOf);
     }).catch(function(){
       var fil=filingsFor(state.ticker);
-      render(fil?{name:fil.name,currency:fil.currency,ir:fil.ir,reports:fil.reports,periods:[]}:{periods:[]});
+      render(fil?{name:fil.name,currency:fil.currency,ir:fil.ir,reports:fil.reports,periods:[],reason:noDataReason}:{periods:[],reason:noDataReason});
       setStatus(fil&&fil.reports&&fil.reports.length?"LINKS":"NONE",null);
     });
     }
