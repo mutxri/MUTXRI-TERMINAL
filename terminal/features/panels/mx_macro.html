@@ -216,6 +216,34 @@
   .mc-rate .rv { font-family:var(--mono); font-size:15px; font-variant-numeric:tabular-nums;
                  white-space:nowrap; }
   .mc-rate .rv .u { font-size:10px; color:var(--tx3); margin-left:2px; }
+  .mc-rate .rv .tv { font-size:11px; color:var(--tx2); font-family:var(--ui); white-space:normal; }
+
+  /* a source URL or a long figure label must break rather than force its
+     card wider than the frame: only these new blocks carry such tokens */
+  .mc-src, .mc-note, .mc-hint, .mc-na > .why, .mc-cellna .why, .mc-rate .rn,
+  .mc-card .sub, .mc-taxh, .mc-taxstruct,
+  #mcRateDecHost table.mc td, #mcTaxHost table.mc td,
+  #mcFxChangeHost table.mc td, #mcFiscalTableHost table.mc td { overflow-wrap:anywhere; }
+
+  /* the new tables carry prose (a decision sentence, a source URL, a tax
+     headline), so their cells wrap inside the frame instead of forcing the
+     whole column wider than the panel and being clipped */
+  #mcRateDecHost table.mc td, #mcRateDecHost table.mc th,
+  #mcTaxHost table.mc td, #mcTaxHost table.mc th,
+  #mcFxChangeHost table.mc td, #mcFxChangeHost table.mc th,
+  #mcFxMatrixHost table.mc td, #mcFxMatrixHost table.mc th,
+  #mcFiscalTableHost table.mc td, #mcFiscalTableHost table.mc th { white-space:normal; }
+  #mcTaxHost table.mc td.hd, #mcRateDecHost table.mc td.hd { word-break:break-word; }
+
+  /* the tax macro cell: a headline, a progressive band ladder, or a rate */
+  .mc-taxh { color:var(--tx); font-size:11px; line-height:1.4; margin-bottom:3px; white-space:normal; }
+  .mc-taxstruct { color:var(--tx2); font-size:10px; line-height:1.45; margin-bottom:3px; white-space:normal; }
+  .mc-taxrate { margin-bottom:3px; }
+  ul.mc-bands { list-style:none; margin:0 0 3px; padding:0; }
+  ul.mc-bands li { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--line); padding:2px 0; }
+  ul.mc-bands li:last-child { border-bottom:0; }
+  ul.mc-bands .bnd { color:var(--tx2); font-size:10px; white-space:normal; }
+  ul.mc-bands .brt { color:var(--tx); font-family:var(--mono); font-size:11px; white-space:nowrap; }
 
   /* the tax matrix reads as one object: heading down, country across */
   table.mc.mtx td, table.mc.mtx th { vertical-align:top; }
@@ -335,22 +363,21 @@
 
   <!-- ==================================================================
        CURRENCY FLUCTUATIONS AND EXCHANGE RATES
-       Reads static_data/fx.json. That file, as it exists today, carries a
-       currency list and a cross-rate matrix and NO quote timestamp and NO
-       source field, so the panel prints the timestamp and the source slot
-       as explicitly not stated rather than inventing either, and states
-       the file's own derivation note. It also carries no series, so no
-       period change and no chart of the series is drawn: a change against
-       a number the file does not contain would be an invented figure.
+       Reads static_data/fx.json. That file carries an fx_rates block: a
+       current quote per currency with its own as_of, source and fetched_at,
+       the dated series the changes and the volatility were computed from,
+       the period changes, and the cross rates. The panel prints the quote
+       time and the source the file supplies, the official reference where
+       the file carries one and the file's own stated reason where it does
+       not, and draws the dated series per currency.
        ================================================================== -->
   <div class="mc-sec mc-new" id="mcFxSec">
     <div class="mc-sec-h"><b>Currency</b> &middot; exchange rates against the US dollar</div>
     <div class="mc-lead">
-      The local currency units one US dollar buys, for each of the four markets, taken from the
-      cross-rate matrix the source file publishes. Every card states what the file does and does not
-      carry: the rate, the quote timestamp, the source and the derivation. Where the file gives no
-      timestamp, the panel shows the timestamp slot as not stated instead of a date it does not have,
-      because a rate with an invented time is worse than a rate with no time.
+      The local currency units one US dollar buys, for each of the four markets. Every card carries the
+      rate the file publishes with its own quote time, its source and when it was fetched, and the
+      official reference beside it where the file carries one. Where the file marks a field absent, the
+      panel shows the file's own reason rather than a date or a source it does not have.
     </div>
     <div class="mc-block-h"><b>Spot</b> &middot; local currency units per US dollar</div>
     <div class="mc-grid" id="mcFxGrid"><div class="nodata">Loading&hellip;</div></div>
@@ -783,6 +810,55 @@
     if (Math.abs(v - Math.round(v)) < 1e-9) return String(Math.round(v));
     return v.toFixed(2);
   }
+  /* a field name from a file, turned into the words a reader can read; the
+     words come from the file's own key, never from this panel's guess */
+  function humanKey(k){
+    return String(k == null ? "" : k).replace(/_/g, " ").replace(/\s+/g, " ").trim()
+      .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }
+  /* one dated period change, with the sign and the direction word the file
+     itself gives, so a movement is never printed without either */
+  function chgCell(ch){
+    if (!ch || typeof ch !== "object") return null;
+    var pc = num(ch.pct_change);
+    if (pc == null) return null;
+    return { pct: pc, cls: pc > 0 ? "up" : (pc < 0 ? "down" : ""),
+             txt: (pc > 0 ? "+" : "") + pc.toFixed(2) + "%",
+             from: txt(ch.from_date), to: txt(ch.to_date), dir: txt(ch.local_currency) };
+  }
+  /* fx history points are stored as [date, value] pairs; this turns them into
+     the point objects the chart reads, without changing a single value */
+  function fxSeriesPts(points){
+    if (!Array.isArray(points)) return [];
+    var rows = [];
+    points.forEach(function(p){
+      if (Array.isArray(p)) rows.push({ date: p[0], value: p[1] });
+      else if (p && typeof p === "object")
+        rows.push({ date: first(p, ["date","as_of","day","period","label"]),
+                    value: num(first(p, ["value","rate","close"])) });
+    });
+    return seriesPts(rows, ["value"], ["date","as_of","day","period","label"]);
+  }
+  /* a country history is either one value per date (a plain policy path) or
+     several named rate columns per date (a corridor history). Both are read:
+     the corridor yields one series per named rate rather than a merged number */
+  function rateSeriesFromHistory(hist){
+    var out = [];
+    if (!Array.isArray(hist) || !hist.length) return out;
+    var single = seriesPts(hist, RATE_VAL_KEYS, RATE_ASOF_KEYS);
+    if (single.length >= 2){ return [{ name: null, pts: single, unit: null }]; }
+    var cols = [];
+    hist.forEach(function(p){
+      if (!p || typeof p !== "object") return;
+      Object.keys(p).forEach(function(k){ if (typeof p[k] === "number" && cols.indexOf(k) < 0) cols.push(k); });
+    });
+    cols.forEach(function(k){
+      var sub = hist.map(function(p){ return { date: p.date, value: p[k] }; });
+      var pts = seriesPts(sub, ["value"], RATE_ASOF_KEYS);
+      if (pts.length >= 2) out.push({ name: humanKey(k), pts: pts, unit: null });
+    });
+    return out;
+  }
   function fxNum(v){
     if (v == null || !isFinite(v)) return "n/a";
     if (v === 0) return "0";
@@ -933,7 +1009,11 @@
     } else {
       s.push('<path class="step" stroke="' + col + '" d="' + segD(0, pts.length - 1) + '"/>');
     }
+    /* on a long series the per-point markers are thinned so the drawn line
+       stays readable; the line itself uses every published point */
+    var mkStep = pts.length > 120 ? Math.ceil(pts.length / 120) : 1;
     pts.forEach(function(p, i){
+      if (mkStep > 1 && i % mkStep !== 0 && i !== pts.length - 1) return;
       s.push('<circle class="' + (p.projected ? "proj" : "") + '" cx="' + x(i).toFixed(1) + '" cy="' + y(p.value).toFixed(1) +
         '" r="2.8" fill="' + (p.projected ? "none" : col) + '" stroke="' + col + '">' +
         '<title>' + esc(p.label) + ': ' + esc(fmt(p.value)) + '</title></circle>');
@@ -1012,10 +1092,50 @@
     return out;
   }
   function rateEntries(c){
-    var out = [], raw = first(c, ["rates","policy_rates","rate_list","rates_corridor","corridor"]);
-    if (Array.isArray(raw)){ out = raw.slice(); }
-    else if (raw && typeof raw === "object"){
-      if (first(raw, RATE_VAL_KEYS) != null){ out = [raw]; }
+    var out = [];
+    /* The file's own shape: the headline policy rate is one object under
+       policy_rate, and every further rate the bank publishes sits in a
+       facilities block. A corridor is not one number: when policy_rate carries
+       a `rates` object with each leg named, every leg is shown rather than one
+       merged figure. */
+    var pr = (c && c.policy_rate && typeof c.policy_rate === "object") ? c.policy_rate : null;
+    if (pr){
+      if (pr.rates && typeof pr.rates === "object" && !Array.isArray(pr.rates)){
+        Object.keys(pr.rates).forEach(function(k){
+          if (pr.rates[k] == null || pr.rates[k] === "") return;
+          out.push({ name: humanKey(k), value: pr.rates[k],
+                     as_of: first(pr, RATE_ASOF_KEYS), unit: first(pr, ["unit"]),
+                     source: first(pr, ["source","publisher"]) || null,
+                     source_url: first(pr, ["source_url","url"]) });
+        });
+      } else if (num(first(pr, RATE_VAL_KEYS)) != null){
+        out.push(pr);
+      }
+    }
+    var fac = (c && c.facilities && typeof c.facilities === "object") ? c.facilities : null;
+    if (fac){
+      Object.keys(fac).forEach(function(k){
+        var v = fac[k];
+        /* a facility's value is sometimes a number and sometimes a stated
+           structure (a corridor in basis points, a reserve-ratio ladder); both
+           are read here, so a stated structure is never dropped or called absent */
+        if (v && typeof v === "object" && first(v, RATE_VAL_KEYS) != null){
+          var o = {}, q;
+          for (q in v){ if (Object.prototype.hasOwnProperty.call(v, q)) o[q] = v[q]; }
+          if (first(o, RATE_NAME_KEYS) == null) o.name = k;
+          out.push(o);
+        } else if (v != null && v !== ""){
+          out.push({ name: k, value: v });
+        }
+      });
+    }
+    /* then any other shape a producer might use, so an older or differently
+       spelled file still resolves */
+    var raw = first(c, ["rates","policy_rates","rate_list","rates_corridor","corridor"]);
+    if (Array.isArray(raw)){
+      out = out.concat(raw);
+    } else if (raw && typeof raw === "object"){
+      if (first(raw, RATE_VAL_KEYS) != null){ out = out.concat([raw]); }
       else {
         Object.keys(raw).forEach(function(k){
           var v = raw[k];
@@ -1063,25 +1183,35 @@
       html += '<div class="mc-rates">' + naCell('the file gives no rate for this country') + '</div>';
     } else {
       html += '<div class="mc-rates">' + entries.map(function(e){
-        var v = num(first(e, RATE_VAL_KEYS));
+        var rawVal = first(e, RATE_VAL_KEYS);
+        var v = num(rawVal);
         var unit = txt(first(e, ["unit","units"]));
         var asof = txt(first(e, RATE_ASOF_KEYS));
         var esrc = txt(first(e, RATE_SRC_KEYS));
+        var eurl = txt(first(e, ["source_url","url"]));
+        var srcBit = esrc
+          ? (eurl ? '<a href="' + esc(eurl) + '" target="_blank" rel="noopener">' + esc(esrc) + '</a>' : esc(esrc))
+          : (eurl ? '<a href="' + esc(eurl) + '" target="_blank" rel="noopener">' + esc(eurl) + '</a>'
+                  : '<span class="sec">the file states no source for this rate</span>');
         var meta = 'as of ' + (asof ? esc(asof) : '<span class="sec">the file states no date for this rate</span>') +
-          ' &middot; ' + (esrc ? esc(esrc) : '<span class="sec">the file states no source for this rate</span>');
+          ' &middot; ' + srcBit;
         return '<div class="mc-rate"' + (isProjected(e) ? ' data-projected="1"' : '') + '>' +
           '<span class="rn">' + esc(txt(first(e, RATE_NAME_KEYS)) || "rate name not stated in source file") +
             (isProjected(e) ? PROJ_TAG : "") +
             '<span class="mc-src">' + meta + '</span></span>' +
-          '<span class="rv">' + (v == null
+          '<span class="rv">' + (rawVal == null
               ? naCell('the file gives no value for this rate')
-              : fmtRate(v, unit) + (unit == null ? ' <span class="u">unit not stated in source</span>' : '')) +
+              : (v != null ? fmtRate(v, unit) + (unit == null ? ' <span class="u">unit not stated in source</span>' : '')
+                           : '<span class="tv">' + esc(String(rawVal)) + '</span>')) +
           '</span></div>';
       }).join("") + '</div>';
     }
-    html += srcLine(txt(first(c, ["source","publisher"])),
-                    txt(first(c, ["as_of","asof","generated","updated"])),
-                    null, txt(first(c, ["source_url","url"])));
+    var prInfo = (c.policy_rate && typeof c.policy_rate === "object") ? c.policy_rate : {};
+    var src0 = (Array.isArray(c.sources) && c.sources.length) ? c.sources[0] : {};
+    html += srcLine(txt(first(c, ["source","publisher"])) || txt(prInfo.source_note) || txt(first(src0, ["what","name"])),
+                    txt(first(c, ["as_of","asof","generated","updated"])) || txt(first(prInfo, ["as_of","asof"])) || txt(first(src0, ["fetched"])),
+                    null,
+                    txt(first(c, ["source_url","url"])) || txt(first(prInfo, ["source_url","url"])) || txt(first(src0, ["url"])));
     html += '</div>';
     return html;
   }
@@ -1090,25 +1220,28 @@
   function ratePathCards(c){
     var col = txt(first(c, ["color"])) || "#33e29a";
     var cname = txt(c.country) || txt(c.name) || "Country not named in source file";
+    var prInfo = (c.policy_rate && typeof c.policy_rate === "object") ? c.policy_rate : {};
+    var cunit = txt(first(prInfo, ["unit","units"])) || txt(first(c, ["unit","units"]));
     var blocks = [];
-    var entries = rateEntries(c);
-    entries.forEach(function(e){
+    rateEntries(c).forEach(function(e){
       var pts = seriesPts(first(e, RATE_HIST_KEYS), RATE_VAL_KEYS, RATE_ASOF_KEYS);
       if (pts.length < 2) return;
-      var unit = txt(first(e, ["unit","units"]));
+      var unit = txt(first(e, ["unit","units"])) || cunit;
       blocks.push({ name: txt(first(e, RATE_NAME_KEYS)) || "rate", pts: pts,
                     fmt: (function(u){ return function(v){ return unitPct(u) ? v.toFixed(2) + "%" : v.toFixed(2); }; })(unit) });
     });
-    var cpts = seriesPts(first(c, RATE_HIST_KEYS), RATE_VAL_KEYS, RATE_ASOF_KEYS);
-    if (cpts.length >= 2){
-      var cu = txt(first(c, ["unit","units"])) || txt(first(entries[0] || {}, ["unit","units"]));
-      blocks.push({ name: "published policy path", pts: cpts,
-                    fmt: (function(u){ return function(v){ return unitPct(u) ? v.toFixed(2) + "%" : v.toFixed(2); }; })(cu) });
-    }
+    /* the country history is the published policy path: one series when each
+       point carries a single value, one series per named rate when the file
+       publishes a corridor history with several columns per date */
+    rateSeriesFromHistory(first(c, RATE_HIST_KEYS)).forEach(function(b){
+      var unit = b.unit || cunit;
+      blocks.push({ name: b.name || "published policy path", pts: b.pts,
+                    fmt: (function(u){ return function(v){ return unitPct(u) ? v.toFixed(2) + "%" : v.toFixed(2); }; })(unit) });
+    });
     if (!blocks.length){
-      return '<div class="mc-na"><b>' + esc(cname) + '</b><span class="why">The file gives no published history for ' +
-        'this country, so no path is drawn. A line drawn from a single rate would be a drawing of one point, and the ' +
-        'gap is shown rather than filled.</span></div>';
+      return '<div class="mc-na"><b>' + esc(cname) + '</b><span class="why">The file carries no published history for ' +
+        'this country under any history field, so no path is drawn. A line drawn from a single rate would be a ' +
+        'drawing of one point, and the gap is shown rather than filled.</span></div>';
     }
     return blocks.map(function(b){
       var span = b.pts.length ? ' <span class="mc-src">' + b.pts.length + ' published points, ' +
@@ -1125,25 +1258,20 @@
     var head = '<tr><th class="l">Country</th><th class="l">Action</th><th class="l">Stance</th>' +
                '<th class="l">Meeting date</th><th class="l">Source</th></tr>';
     var body = rows.map(function(c){
-      var dec = first(c, ["decision","last_decision","monetary_policy","policy_decision"]);
-      var action, stance, meet, src, url;
-      if (dec && typeof dec === "object" &&
-          (txt(first(dec, ["action","decision","change","direction"])) ||
-           txt(first(dec, ["stance","bias","guidance","forward_guidance"])))){
-        action = txt(first(dec, ["action","decision","change","direction"]));
-        stance = txt(first(dec, ["stance","bias","guidance","forward_guidance"]));
-        meet   = txt(first(dec, ["meeting_date","meeting","date","announced"]));
-        src    = txt(first(dec, ["source","publisher"])) || txt(first(c, ["source","publisher"]));
-        url    = txt(first(dec, ["source_url","url"])) || txt(first(c, ["source_url","url"]));
-      } else {
-        action = txt(first(c, ["decision","policy_action","action"])) ||
-                 (typeof dec === "string" ? txt(dec) : null);
-        stance = txt(first(c, ["stance","bias","guidance"]));
-        meet   = txt(first(c, ["meeting_date","meeting","decision_date"]));
-        src    = txt(first(c, ["source","publisher"]));
-        url    = txt(first(c, ["source_url","url"]));
-      }
-      var projected = isProjected(dec) || isProjected(c);
+      var pr = (c.policy_rate && typeof c.policy_rate === "object") ? c.policy_rate : {};
+      var decs = Array.isArray(c.decisions) ? c.decisions : [];
+      var last = decs.length ? decs[decs.length - 1] : null;
+      var decision = txt(first(pr, ["decision"])) || (typeof pr.decision === "string" ? txt(pr.decision) : null);
+      var shortAct = last ? txt(first(last, ["action","decision","change","direction"])) : null;
+      var action = shortAct || decision || txt(first(c, ["decision","policy_action","action"]));
+      var stance = txt(first(pr, ["stance","bias","guidance","forward_guidance"])) ||
+                   txt(first(c, ["stance","bias","guidance"]));
+      var meet   = txt(first(pr, ["last_decision_date","meeting_date","decision_date","as_of"])) ||
+                   (last ? txt(first(last, ["meeting_date","date","announced"])) : null) ||
+                   txt(first(c, ["meeting_date","decision_date"]));
+      var src    = txt(first(pr, ["source","publisher"])) || txt(c.central_bank);
+      var url    = txt(first(pr, ["source_url","url"])) || txt(first(c, ["source_url","url"]));
+      var projected = isProjected(pr) || isProjected(last) || isProjected(c);
       function cell(v, why){ return v ? esc(v) : naCell(why); }
       return '<tr>' +
         '<td class="l hd">' + esc(txt(c.country) || txt(c.name) || "Country not named in source file") +
@@ -1151,9 +1279,10 @@
         '<td class="l">' + cell(action, 'the file gives no decision for this country') + '</td>' +
         '<td class="l">' + cell(stance, 'the file gives no stance for this country') + '</td>' +
         '<td class="l mc-mid">' + cell(meet, 'the file gives no meeting date for this country') + '</td>' +
-        '<td class="l">' + (src
-            ? (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener" style="color:var(--acc);text-decoration:none">' + esc(src) + '</a>' : esc(src))
-            : naCell('the file states no source for this country')) + '</td></tr>';
+        '<td class="l">' + (url
+            ? '<a href="' + esc(url) + '" target="_blank" rel="noopener" style="color:var(--acc);text-decoration:none">' +
+              esc(src || url) + '</a>'
+            : (src ? esc(src) : naCell('the file states no source for this country'))) + '</td></tr>';
     }).join("");
     return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
   }
@@ -1186,9 +1315,12 @@
     decHost.innerHTML = rateDecTable(rows);
     histHost.innerHTML = rows.map(ratePathCards).join("");
     note.innerHTML = "Policy rates and monetary policy for " + rows.length + " countries, every figure carrying the " +
-      "source and the as-of date the file supplies. " +
-      secSrcLine(txt(d.source), txt(first(d, ["as_of","generated","updated"])), txt(d.note)) +
-      " &middot; file " + code(res.path) +
+      "source and the as-of date the file supplies for it. " +
+      "Provenance: each country's rates carry their own central-bank source URL; the file names these authorities: " +
+      rows.map(function(c){ return esc(txt(c.central_bank) || txt(c.iso2) || ""); }).join(", ") + ". " +
+      (txt(d.note) ? esc(txt(d.note)) + " " : "") +
+      (d.generated ? "&middot; file generated " + esc(d.generated) + " " : "") +
+      "&middot; file " + code(res.path) +
       (res.lm ? " &middot; file last modified per server: " + esc(res.lm) : "") +
       " &middot; retrieved by this panel at " + esc(RETRIEVED) + ".";
   }
@@ -1196,29 +1328,92 @@
   /* ==================================================================
      2. CURRENCY FLUCTUATIONS AND EXCHANGE RATES
      ================================================================== */
+  /* One accent colour per currency, matching the country colour used above */
+  var FXCOL = { KES:"#FFB000", NGN:"#3FA9F5", ZAR:"#FF6FB5", EGP:"#B18CFF", USD:"#9a9a9a", EUR:"#9a9a9a", GBP:"#9a9a9a" };
+  /* The file now carries an fx_rates block: a per-currency current quote with
+     its own as_of, source and fetched_at, the dated series it was computed
+     from, the period changes and the volatility. This reads that block. If a
+     snapshot predates it the older cross-rate matrix shape is still read, so
+     the panel does not go blank on an older file. */
+  function fxRateList(d){
+    var fr = (d && d.fx_rates && typeof d.fx_rates === "object") ? d.fx_rates : null;
+    return (fr && Array.isArray(fr.rates) && fr.rates.length) ? fr : null;
+  }
   function fxCards(d, lm){
+    var fr = fxRateList(d);
+    if (!fr){ return fxCardsMatrix(d, lm); }
+    return fr.rates.map(function(r){
+      var code = txt(r.code) || txt(r.name) || "";
+      var col = FXCOL[String(code).toUpperCase()] || "#B18CFF";
+      var cur = (r.current && typeof r.current === "object") ? r.current : {};
+      var mk = (cur.market && typeof cur.market === "object") ? cur.market : {};
+      var v = num(mk.value);
+      var tsBits = [];
+      tsBits.push('Quote time: ' + (txt(mk.as_of) ? esc(txt(mk.as_of))
+        : '<span class="sec">the file states no as_of for this currency</span>'));
+      tsBits.push(mk.source
+        ? (mk.source_url ? '<a href="' + esc(mk.source_url) + '" target="_blank" rel="noopener">' + esc(mk.source) + '</a>' : esc(mk.source))
+        : '<span class="sec">the file states no source for this currency</span>');
+      if (txt(mk.fetched_at)) tsBits.push('fetched ' + esc(txt(mk.fetched_at)));
+      if (txt(mk.value_type)) tsBits.push(esc(txt(mk.value_type)));
+      /* the official reference, where the file carries one, and its own stated
+         reason where it does not; both are printed rather than a blank slot */
+      var offBits = '';
+      ["official","official_nfem"].forEach(function(k){
+        var o = cur[k];
+        if (!o || typeof o !== "object") return;
+        var olab = (k === "official_nfem") ? "NFEM official reference" : "Official reference";
+        if (num(o.value) != null){
+          offBits += '<div class="mc-rate"><span class="rn">' + olab +
+            '<span class="mc-src">as of ' + (txt(o.as_of) ? esc(txt(o.as_of))
+              : '<span class="sec">the file states no date for this field</span>') + ' &middot; ' +
+            (o.source ? (o.source_url ? '<a href="' + esc(o.source_url) + '" target="_blank" rel="noopener">' + esc(o.source) + '</a>' : esc(o.source))
+                      : '<span class="sec">the file states no source for this field</span>') +
+            (txt(o.series) ? ' &middot; ' + esc(txt(o.series)) : '') + '</span></span>' +
+            '<span class="rv">' + esc(fxNum(num(o.value))) + '</span></div>';
+        } else if (o.absent){
+          offBits += '<div class="mc-rate"><span class="rn">' + olab +
+            '<span class="mc-src">' + esc(txt(o.reason) || 'the file marks this field absent and gives no reason') +
+            '</span></span><span class="rv"><span class="mc-cellna">absent</span></span></div>';
+        }
+      });
+      return '<div class="mc-card">' +
+        '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+          '<span style="color:' + col + '">' + esc(txt(r.name) || code) + '</span></span>' +
+          '<span class="exch">' + esc(code) + '/USD</span></div>' +
+        '<div class="big" style="color:' + col + '">' +
+          (v != null ? esc(fxNum(v)) + '<span class="yr">' + esc(code) + ' per USD</span>' + (isProjected(mk) ? PROJ_TAG : '')
+                     : naCell('the file gives no current market value for ' + code)) + '</div>' +
+        '<div class="sub">' + esc(txt(fr.quote_convention) || 'units of the listed currency per 1 US dollar') + '</div>' +
+        '<span class="mc-src">' + tsBits.join(' &middot; ') + '</span>' +
+        offBits +
+        '</div>';
+    }).join("");
+  }
+  /* the older shape, kept so a pre-extension snapshot still reads */
+  function fxCardsMatrix(d, lm){
     var usd = null;
     (d.matrix || []).forEach(function(r){
       if (r && String(r.base).toUpperCase() === "USD") usd = r;
     });
+    if (!usd){
+      return naBlock("Spot rates not available",
+        'The file ' + code(FX_FILE) + ' carries neither an <code>fx_rates</code> block nor a matrix row with base ' +
+        'USD, so there is no dollar rate to read. Nothing is shown here rather than an invented figure.');
+    }
     var want = ["KES","NGN","ZAR","EGP"];
     var names = {};
     (d.currencies || []).forEach(function(c){ if (c && c.code) names[String(c.code).toUpperCase()] = txt(c.name); });
-    if (!usd){
-      return naBlock("Spot rates not available",
-        'The file ' + code(FX_FILE) + ' carries no matrix row with base USD, so there is no dollar rate to read. ' +
-        'Nothing is shown here rather than an invented figure.');
-    }
     var cells = {};
     (usd.cells || []).forEach(function(c){ if (c && c.to) cells[String(c.to).toUpperCase()] = c; });
     var note = txt(d.note);
-    var tsLine = '<span class="mc-src">Quote time: <span class="sec">the file states no timestamp</span> &middot; ' +
-      'the file carries no <code>as_of</code>, <code>timestamp</code> or <code>generated</code> field, so no quote ' +
-      'time is printed here' + (lm ? ' &middot; snapshot file last modified per server: ' + esc(lm) +
-      ', which is when the file was written, not when the rate was quoted' : '') + '</span>';
+    var gen = txt(first(d, ["generated","as_of","timestamp"]));
+    var tsLine = '<span class="mc-src">Quote time: ' + (gen ? esc(gen)
+      : '<span class="sec">the file states no generated, as_of or timestamp field</span>') +
+      (lm ? ' &middot; snapshot file last modified per server: ' + esc(lm) : '') + '</span>';
     return want.map(function(cu){
       var cell = cells[cu];
-      var col = cu === "KES" ? "#FFB000" : cu === "NGN" ? "#3FA9F5" : cu === "ZAR" ? "#FF6FB5" : "#B18CFF";
+      var col = FXCOL[cu] || "#B18CFF";
       var v = cell ? num(cell.rate) : null;
       var has = cell ? (cell.has_rate === undefined ? v != null : (cell.has_rate !== false && v != null)) : false;
       return '<div class="mc-card">' +
@@ -1236,18 +1431,37 @@
     }).join("");
   }
   function fxChangeBlock(d){
-    var hasSeries = false;
-    ["history","series","daily","changes","period_changes"].forEach(function(k){ if (d[k]) hasSeries = true; });
-    (d.matrix || []).forEach(function(r){ ["history","series","changes"].forEach(function(k){ if (r && r[k]) hasSeries = true; }); });
-    if (hasSeries) return null;
-    return naBlock("Period changes not available",
-      'The source file ' + code(FX_FILE) + ' carries a currency list, a single cross-rate matrix and a note. It ' +
-      'carries no series and no prior observations, so a change over 1 day, 1 month or 1 year cannot be computed ' +
-      'from it. A change printed against a rate the file does not contain would be an invented figure, so the field ' +
-      'is left absent rather than filled.');
+    var fr = fxRateList(d);
+    if (!fr){ return null; }
+    var WINS = [["d1","1 day"],["w1","1 week"],["m1","1 month"],["y1","1 year"],["ytd","year to date"]];
+    var any = false;
+    var rows = fr.rates.map(function(r){
+      var ch = (r.changes && typeof r.changes === "object") ? r.changes : {};
+      var code = txt(r.code) || "";
+      var col = FXCOL[String(code).toUpperCase()] || "#B18CFF";
+      var cells = WINS.map(function(w){
+        var c = chgCell(ch[w[0]]);
+        if (c) any = true;
+        if (!c) return '<td>' + naCell('the file states no change for this window') + '</td>';
+        var tt = (c.from && c.to) ? esc(c.from + ' to ' + c.to) : '';
+        return '<td><span class="d ' + c.cls + '">' + esc(c.txt) + '</span>' +
+          '<span class="mc-src">' + tt + (c.dir ? ' &middot; ' + esc(c.dir) : '') + '</span></td>';
+      }).join("");
+      return '<tr><td class="l hd" style="color:' + col + '">' + esc(code) + '</td>' + cells + '</tr>';
+    }).join("");
+    if (!any){ return null; }
+    var head = '<tr><th class="l">Currency</th>' + WINS.map(function(w){ return '<th>' + esc(w[1]) + '</th>'; }).join("") + '</tr>';
+    var basis = txt((fr.rates[0].changes || {}).basis) || txt(fr.method);
+    return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + rows +
+      '</tbody></table></div><div class="mc-hint">Percentage change over each window, computed by the file from the ' +
+      'dated series it holds' + (basis ? ': ' + esc(basis) : '') + '. Each cell also names the two dated observations ' +
+      'the change was taken between.</div>';
   }
   function fxMatrix(d){
     var rows = (d.matrix || []).filter(function(r){ return r && r.base; });
+    var derived = (d.fx_rates && d.fx_rates.cross_derived && Array.isArray(d.fx_rates.cross_derived.rows))
+      ? d.fx_rates.cross_derived.rows.filter(function(r){ return r && r.base; }) : null;
+    if (!rows.length && derived){ rows = derived; }
     if (!rows.length){
       return naBlock("Cross rates not available",
         'The file ' + code(FX_FILE) + ' carries no matrix, so there is no cross rate to show.');
@@ -1292,37 +1506,73 @@
       return;
     }
     var d = res.json || {};
+    var fr = fxRateList(d);
     grid.innerHTML = fxCards(d, res.lm);
-    var chgHtml = fxChangeBlock(d);
-    chg.innerHTML = chgHtml || "";
-    var seriesHosted = [];
-    (d.matrix || []).forEach(function(r){
-      var s = first(r, RATE_HIST_KEYS);
-      if (Array.isArray(s) && s.length >= 2) seriesHosted.push({ base: r.base, name: r.name, pts: s });
-    });
-    if (!seriesHosted.length){
+    chg.innerHTML = fxChangeBlock(d) || "";
+    /* the dated series the file holds, one chart per currency: the market
+       series always, and the official series where the file carries one */
+    var seriesCards = [];
+    if (fr){
+      fr.rates.forEach(function(r){
+        var code = txt(r.code) || "";
+        var col = FXCOL[String(code).toUpperCase()] || "#B18CFF";
+        var hist = (r.history && typeof r.history === "object") ? r.history : {};
+        [["market","market close"],["official","official reference"],["official_nfem","official NFEM"]].forEach(function(hk){
+          var h = hist[hk[0]];
+          if (!h || !Array.isArray(h.points)) return;
+          var pts = fxSeriesPts(h.points);
+          if (pts.length < 2) return;
+          var lbl = code + " " + hk[1];
+          var volLine = "";
+          if (hk[0] === "market" && r.volatility && r.volatility.windows){
+            var ws = r.volatility.windows, vs = [];
+            Object.keys(ws).forEach(function(k){
+              if (ws[k] && num(ws[k].annualised_pct) != null) vs.push(k + " " + num(ws[k].annualised_pct).toFixed(2) + "%");
+            });
+            if (vs.length) volLine = '<span class="mc-src">volatility, annualised' +
+              (txt(r.volatility.method) ? ' (' + esc(txt(r.volatility.method)) + ')' : '') + ': ' + esc(vs.join(", ")) + '</span>';
+          }
+          seriesCards.push('<div class="mc-card"><div class="cname"><span class="nm">' +
+            '<i class="cdot" style="background:' + col + '"></i>' +
+            '<span style="color:var(--tx)">' + esc(lbl) + '</span></span>' +
+            '<span class="exch">' + esc(pts.length) + ' points</span></div>' +
+            '<div class="sph">' + pathChart(pts, col, function(v){ return fxNum(v); }, esc(lbl + " exchange rate series"), "line") + '</div>' +
+            '<span class="mc-src">' + (txt(h.source)
+              ? (h.source_url ? 'Source: <a href="' + esc(h.source_url) + '" target="_blank" rel="noopener">' + esc(h.source) + '</a>' : 'Source: ' + esc(h.source))
+              : 'the file states no source for this series') +
+              (txt(h.start) && txt(h.end) ? ' &middot; ' + esc(h.start) + ' to ' + esc(h.end) : '') +
+              (txt(h.granularity) ? ' &middot; ' + esc(h.granularity) : '') +
+              (h.stale ? ' &middot; the file marks this series stale' : '') + '</span>' +
+            volLine + '</div>');
+        });
+      });
+    }
+    if (!seriesCards.length){
       ser.innerHTML = naBlock("Rate series not available",
-        'The source file ' + code(FX_FILE) + ' carries no series for any currency, so no chart of a series can be ' +
-        'drawn. Rather than draw a flat line from a single snapshot, the chart is left absent.');
+        'The file ' + code(FX_FILE) + ' carries no dated rate series to draw.');
     } else {
-      ser.innerHTML = '<div class="mc-grid">' + seriesHosted.map(function(o){
-        var pts = seriesPts(o.pts, ["rate","value","close"], ["date","as_of","day","period"]);
-        return '<div class="mc-card"><div class="cname"><span class="nm"><span style="color:var(--tx)">' +
-          esc(String(o.base).toUpperCase()) + '</span></span><span class="exch">' + esc(txt(o.name) || "") + '</span></div>' +
-          '<div class="sph">' + pathChart(pts, "#33e29a", function(v){ return fxNum(v); },
-            esc(String(o.base).toUpperCase()) + " exchange rate series", "line") + '</div>' +
-          (hasProjected(pts) ? '<div class="mc-why">Dashed: a period the source marks as a projection, not a reported ' +
-            'result.' + PROJ_TAG + '</div>' : '') + '</div>';
-      }).join("") + '</div>';
+      ser.innerHTML = '<div class="mc-grid">' + seriesCards.join("") + '</div>';
     }
     mtx.innerHTML = fxMatrix(d);
-    note.innerHTML = "Exchange rates read from " + code(res.path) + " as it stands. That file carries a currency " +
-      "list, one cross-rate matrix and a note, and it carries <b>no quote timestamp and no source field</b>, so this " +
-      "panel prints the timestamp slot and the source slot as not stated rather than inventing either: a rate with an " +
-      "invented time is worse than a rate with no time. " +
-      (txt(d.note) ? "The file's own note, reproduced: " + esc(txt(d.note)) + " " : "") +
-      (res.lm ? "File last modified per server: " + esc(res.lm) + ", which is when the file was written, not when the " +
-        "rate was quoted. " : "") + "Retrieved by this panel at " + esc(RETRIEVED) + ".";
+    /* the note states what the file genuinely carries and names every source
+       it used, rather than asserting an absence that is not there */
+    var noteParts = ["Exchange rates read from " + code(res.path) + " as it stands."];
+    if (fr){
+      noteParts.push("The file's <code>fx_rates</code> block carries a generated stamp of " +
+        (txt(fr.generated) ? esc(txt(fr.generated)) : '<span class="sec">no generated field</span>') +
+        ", and each currency's current quote carries its own as_of, source and fetched_at, printed on the card.");
+      if (txt(fr.quote_convention)) noteParts.push("Quote convention: " + esc(txt(fr.quote_convention)) + ".");
+      if (txt(fr.method)) noteParts.push("Method: " + esc(txt(fr.method)));
+      if (Array.isArray(fr.unreachable) && fr.unreachable.length)
+        noteParts.push("Sources the file records as unreachable: " + esc(fr.unreachable.join("; ")) + ".");
+      if (Array.isArray(fr.validation) && fr.validation.length)
+        noteParts.push("The file cross-checks the market close against the official reference where both exist; " +
+          fr.validation.length + " such comparison(s) are recorded in the file.");
+    }
+    if (txt(d.note)) noteParts.push("The file's own note, reproduced: " + esc(txt(d.note)));
+    if (res.lm) noteParts.push("File last modified per server: " + esc(res.lm) + ", which is when the file was written.");
+    noteParts.push("Retrieved by this panel at " + esc(RETRIEVED) + ".");
+    note.innerHTML = noteParts.join(" ");
   }
 
   /* ==================================================================
@@ -1358,8 +1608,14 @@
     var col = "#33e29a";
     var debt = metric(c, DEBT_KEYS);
     var bal  = metric(c, BAL_KEYS);
-    var pts = seriesPts(first(c, ["history","series","trajectory","debt_history"]),
-                        DEBT_KEYS.concat(RATE_VAL_KEYS), ["year","date","period","as_of","fy"]);
+    /* the trajectory lives inside the debt block: each point carries its own
+       year, value and projected flag. Where a file instead gives a flat
+       country-level history it is used, and a country-level projections list is
+       appended for the tail. */
+    var debtBlock = (c.debt_ratio && typeof c.debt_ratio === "object") ? c.debt_ratio : null;
+    var histArr = (debtBlock && Array.isArray(debtBlock.history)) ? debtBlock.history
+                : first(c, ["history","series","trajectory","debt_history"]);
+    var pts = seriesPts(histArr, DEBT_KEYS.concat(RATE_VAL_KEYS), ["year","date","period","as_of","fy"]);
     var tail = seriesPts(first(c, ["projections","projection","forecast"]),
                          DEBT_KEYS.concat(RATE_VAL_KEYS), ["year","date","period","as_of","fy"]);
     var cname = txt(c.country) || txt(c.name) || "Country not named in source file";
@@ -1398,8 +1654,11 @@
       h += '<div class="nodata" style="padding:6px 0">No published trajectory for this country in the source file, so ' +
         'no path is drawn. The gap is shown rather than filled.</div>';
     }
-    h += srcLine(txt(first(c, ["source","publisher"])),
-                 txt(first(c, ["as_of","generated","updated"])), null, txt(first(c, ["source_url","url"])));
+    var src0 = (Array.isArray(c.sources) && c.sources.length) ? c.sources[0] : {};
+    h += srcLine(txt(debtBlock && debtBlock.source) || txt(first(src0, ["name","what"])),
+                 txt(first(c, ["as_of","generated","updated"])) || txt(debtBlock && debtBlock.source_last_updated) || txt(first(src0, ["fetched"])),
+                 null,
+                 txt(debtBlock && debtBlock.source_url) || txt(first(src0, ["url"])));
     h += '</div>';
     return h;
   }
@@ -1417,7 +1676,9 @@
         return '<span class="v">' + esc(fmtNum(m.value)) + '</span><span class="mc-src">' +
           (m.unit ? esc(m.unit) : 'unit not stated in source') + '</span>';
       }
-      var src = txt(first(c, ["source","publisher"])), url = txt(first(c, ["source_url","url"]));
+      var src0 = (Array.isArray(c.sources) && c.sources.length) ? c.sources[0] : {};
+      var src = (debt && debt.source) || txt(first(src0, ["name","what"])) || txt(first(c, ["source","publisher"]));
+      var url = (debt && debt.url) || txt(first(src0, ["url"])) || txt(first(c, ["source_url","url"]));
       return '<tr><td class="l hd">' + esc(txt(c.country) || txt(c.name) || "Country not named in source file") +
         '<span class="hk">' + esc(txt(first(c, ["iso2","code"])) || "") + '</span></td>' +
         '<td>' + val(debt, "debt ratio") + '</td><td>' + yr(debt, "debt ratio") + '</td>' +
@@ -1461,8 +1722,12 @@
     }
     tableHost.innerHTML = fiscalTable(rows);
     grid.innerHTML = rows.map(fiscalCountry).join("");
+    var prov = (Array.isArray(d.sources) && d.sources.length) ? d.sources.slice(0, 4).join("; ") : (txt(d.source) || "");
     note.innerHTML = "Sovereign debt and the fiscal balance for " + rows.length + " countries, read from " +
-      code(res.path) + ". " + secSrcLine(txt(d.source), txt(first(d, ["as_of","generated","updated"])), txt(d.note)) +
+      code(res.path) + ". Provenance recorded by the file: " +
+      (prov ? esc(prov) : '<span class="sec">the file states no sources list</span>') + ". " +
+      (txt(d.note) ? esc(txt(d.note)) + " " : "") +
+      (d.generated ? "&middot; file generated " + esc(d.generated) + " " : "") +
       (res.lm ? " &middot; file last modified per server: " + esc(res.lm) : "") +
       " &middot; retrieved by this panel at " + esc(RETRIEVED) + ".";
   }
@@ -1503,6 +1768,23 @@
       var k = String(iso).toUpperCase();
       if (!map[k]) map[k] = {};
       if (!map[k][hk]) map[k][hk] = cell;
+    }
+    /* the file's own shape: one block per country, its headings under
+       countries[].taxes[heading] */
+    if (Array.isArray(d.countries)){
+      d.countries.forEach(function(c){
+        if (!c || typeof c !== "object") return;
+        var iso = txt(first(c, ["iso2","code","iso"])) || txt(first(c, ["country","name"]));
+        var taxes = c.taxes || c.rates || c.tax_rates || null;
+        if (!iso || !taxes || typeof taxes !== "object") return;
+        Object.keys(taxes).forEach(function(hk){
+          var h = headingFor(hk);
+          if (!h) return;
+          var cell = taxes[hk];
+          if (cell && typeof cell === "object") put(iso, h.key, cell);
+          else if (cell != null) put(iso, h.key, { rate: cell });
+        });
+      });
     }
     var cand = d.cells || d.matrix || null;
     if (cand && typeof cand === "object" && !Array.isArray(cand)){
@@ -1571,34 +1853,47 @@
     if (!cell){
       return naCell('the source file carries no figure for this heading and country');
     }
-    var rateRaw = first(cell, ["rate","value","percent","level","tax_rate"]);
-    var rateS = txt(rateRaw);
-    var rateN = num(rateRaw);
-    var unit = txt(first(cell, ["unit","units"]));
-    var year = txt(first(cell, ["as_of","year","effective_year","asof","period","fy","year_of_assessment"]));
+    var verdict = txt(first(cell, ["verdict","status"]));
+    var headline = txt(cell.headline);
+    var asof = txt(first(cell, ["as_of","year","effective_year","asof","period","fy","year_of_assessment"]));
     var src  = txt(first(cell, ["source","publisher","primary_source"]));
-    var sec  = txt(first(cell, ["secondary_source","via","derived_from"]));
     var url  = txt(first(cell, ["source_url","url"]));
-    var why  = txt(first(cell, ["reason","note","unavailable","why","comment"]));
-    var na   = truthy(first(cell, ["not_available","unavailable","absent","missing"]));
-    if (na || (rateN == null && rateS == null)){
-      return naCell(esc(why || 'the source file carries no rate for this heading and country'));
+    var note = txt(first(cell, ["note","unresolved","reason","why","comment"]));
+    var bandList = (Array.isArray(cell.bands) && cell.bands.length) ? cell.bands : null;
+    var rateRaw = first(cell, ["rate","value","percent","level","tax_rate"]);
+    var structure = txt(first(cell, ["rate_or_structure","structure","standard_rate","rate_resident"]));
+    /* the file states an absence in its own words: reproduce that, and keep
+       the source and the as-of date beside it rather than a bare blank */
+    var absent = (verdict && /absent/i.test(verdict)) || (headline && /^absent\b/i.test(headline));
+    var meta = 'as of ' + (asof ? esc(asof) : '<span class="sec">the file states no as-of date for this cell</span>') +
+      ' &middot; ' + (src
+        ? (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(src) + '</a>' : esc(src))
+        : '<span class="sec">the file states no source for this cell</span>') +
+      (verdict ? ' &middot; verdict: ' + esc(verdict) : '') +
+      (note ? ' &middot; ' + esc(note) : '');
+    if (absent){
+      var reason = headline ? headline.replace(/^ABSENT[:,]?\s*/i, "")
+                            : (note || 'the file states this cell is absent and gives no reason');
+      return '<span class="mc-cellna">absent<span class="why">' + esc(reason) + '</span></span>' +
+        '<span class="mc-src">' + meta + '</span>';
     }
-    var rateHtml;
-    if (rateN == null){
-      rateHtml = '<span class="v">' + esc(rateS) + '</span>';
-    } else if (unitPct(unit) || unit == null){
-      rateHtml = '<span class="v">' + esc(fmtNum(rateN)) + (unitPct(unit) ? '%' : '') + '</span>' +
-        (unit == null ? '<span class="mc-cellna" style="font-style:normal"> unit not stated in source</span>' : '');
-    } else {
-      rateHtml = '<span class="v">' + esc(fmtNum(rateN)) + ' ' + esc(unit) + '</span>';
+    var body = '';
+    if (headline) body += '<div class="mc-taxh">' + esc(headline) + '</div>';
+    if (bandList){
+      /* a progressive scale is a ladder, not one number: every band is shown,
+         so a top rate is never printed as the rate everyone pays */
+      body += '<ul class="mc-bands">' + bandList.map(function(b){
+        var lab = txt(first(b, ["band","bracket","range","from","label"])) || "";
+        var rt  = txt(first(b, ["rate","value","percent"])) || "";
+        return '<li><span class="bnd">' + esc(lab) + '</span><span class="brt">' + esc(rt) + '</span></li>';
+      }).join("") + '</ul>';
+      if (txt(cell.top_marginal_rate)) body += '<div class="mc-src">top marginal rate: ' + esc(cell.top_marginal_rate) + '</div>';
+    } else if (rateRaw != null){
+      body += '<div class="mc-taxrate"><span class="v">' + esc(String(rateRaw)) + '</span></div>';
+    } else if (structure){
+      body += '<div class="mc-taxstruct">' + esc(structure) + '</div>';
     }
-    var meta = 'as of ' + (year ? esc(year) : '<span class="sec">the file states no year</span>') + ' &middot; ' +
-      (src ? (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(src) + '</a>' : esc(src))
-           : '<span class="sec">the file states no source</span>') +
-      (sec ? ' &middot; secondary: ' + esc(sec) : '') +
-      (why ? ' &middot; ' + esc(why) : '');
-    return rateHtml + '<span class="mc-src">' + meta + '</span>' + (isProjected(cell) ? PROJ_TAG : '');
+    return body + '<span class="mc-src">' + meta + '</span>' + (isProjected(cell) ? PROJ_TAG : '');
   }
   function renderTax(res){
     var host = document.getElementById("mcTaxHost");
@@ -1633,17 +1928,20 @@
     host.innerHTML = '<div class="mc-tablewrap"><table class="mc mtx" id="mcTaxTable"><thead>' + head +
       '</thead><tbody>' + body + '</tbody></table></div>' +
       '<div class="mc-hint">One matrix: the six headings down the side, the four countries across the top. Every cell ' +
-      'prints its rate, the year the rate was in force and the source it came from. A cell reading ' +
-      '<span class="mc-cellna" style="font-style:italic">not available</span> is a gap the source file does not fill, ' +
-      'with the reason given next to it; it is never a dash, because a dash reads as a zero. On a narrow screen this ' +
+      'prints its rate, the year the rate was in force and the source it came from. A cell the file itself marks ' +
+      '<span class="mc-cellna" style="font-style:italic">absent</span> is a gap the source file does not fill, with ' +
+      'the reason given next to it; it is never a dash, because a dash reads as a zero. On a narrow screen this ' +
       'matrix is wider than the frame, so scroll it sideways rather than letting a column clip.</div>';
     note.innerHTML = (anyCell
       ? "Tax rates for " + countries.length + " countries under " + TAX_HEADINGS.length + " headings, every cell " +
-        "carrying its own as-of year and source as the file supplies them. "
+        "carrying its own as-of year, source and verdict as the file supplies them. "
       : "The tax file was read but no cell in it resolved to one of the six headings and four countries, so every " +
         "cell says so rather than showing a figure. ") +
-      secSrcLine(txt(d.source), txt(first(d, ["as_of","generated","updated"])), txt(d.note)) +
-      " &middot; file " + code(res.path) +
+      (txt(d.note) ? esc(txt(d.note)) + " " : "") +
+      (Array.isArray(d.authority_domains) && d.authority_domains.length
+        ? "Revenue authority domains the file drew from: " + esc(d.authority_domains.join(", ")) + ". " : "") +
+      (d.generated ? "&middot; file generated " + esc(d.generated) + " " : "") +
+      "&middot; file " + code(res.path) +
       (res.lm ? " &middot; file last modified per server: " + esc(res.lm) : "") +
       " &middot; retrieved by this panel at " + esc(RETRIEVED) + ".";
   }

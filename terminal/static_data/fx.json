@@ -63,7 +63,9 @@
      "to": "GBP",
      "rate": 0.00583
     }
-   ]
+   ],
+   "kind": "spot snapshot (undated by /api/fx; stamped with the refresh run time)",
+   "as_of": "2026-10-12T09:10:20+00:00"
   },
   {
    "base": "NGN",
@@ -98,7 +100,9 @@
      "to": "GBP",
      "rate": 0.000569
     }
-   ]
+   ],
+   "kind": "spot snapshot (undated by /api/fx; stamped with the refresh run time)",
+   "as_of": "2026-10-12T09:10:20+00:00"
   },
   {
    "base": "ZAR",
@@ -133,7 +137,9 @@
      "to": "GBP",
      "rate": 0.045619
     }
-   ]
+   ],
+   "kind": "spot snapshot (undated by /api/fx; stamped with the refresh run time)",
+   "as_of": "2026-10-12T09:10:20+00:00"
   },
   {
    "base": "EGP",
@@ -168,7 +174,9 @@
      "to": "GBP",
      "rate": 0.014342
     }
-   ]
+   ],
+   "kind": "spot snapshot (undated by /api/fx; stamped with the refresh run time)",
+   "as_of": "2026-10-12T09:10:20+00:00"
   },
   {
    "base": "USD",
@@ -203,7 +211,9 @@
      "to": "GBP",
      "rate": 0.755401
     }
-   ]
+   ],
+   "kind": "spot snapshot (undated by /api/fx; stamped with the refresh run time)",
+   "as_of": "2026-10-12T09:10:20+00:00"
   },
   {
    "base": "EUR",
@@ -238,7 +248,9 @@
      "to": "GBP",
      "rate": 0.845747
     }
-   ]
+   ],
+   "kind": "spot snapshot (undated by /api/fx; stamped with the refresh run time)",
+   "as_of": "2026-10-12T09:10:20+00:00"
   },
   {
    "base": "GBP",
@@ -273,7 +285,9 @@
      "to": "GBP",
      "rate": 1.0
     }
-   ]
+   ],
+   "kind": "spot snapshot (undated by /api/fx; stamped with the refresh run time)",
+   "as_of": "2026-10-12T09:10:20+00:00"
   }
  ],
  "note": "Cross rates triangulated via USD. Currencies without a source rate show blank cells rather than an estimate.",
@@ -15506,5 +15520,51 @@
     }
    ]
   }
- }
+ },
+ "matrix_provenance": {
+  "producer": "live backend /api/fx -> fx_api.build_matrix, written into this file by refresh_live_data.py",
+  "source": "the backend FX quote feed (Yahoo Finance): USDKES=X, USDNGN=X, USDZAR=X, USDEGP=X, EURUSD=X, GBPUSD=X",
+  "kind": "spot snapshot",
+  "as_of": "2026-10-12T09:10:20+00:00",
+  "as_of_basis": "the refresh run that captured it; the /api/fx payload carries no timestamp of its own, so the matrix is stamped with the run time of the companion fx_rates block",
+  "note": "The matrix is a cross-rate snapshot triangulated through USD. The fx_rates block below is a separate producer (fetch_fx_rates.py) and every figure in it carries the source's own timestamp. Where the two differ for the same pair, the matrix cell is the earlier undated snapshot and fx_rates is the timestamped quote; the matrix is not refreshed to the second."
+ },
+ "matrix_reconciliation": [
+  {
+   "pair": "USD->KES",
+   "matrix": 129.58,
+   "matrix_as_of": "2026-10-12T09:10:20+00:00",
+   "fx_rates_market": 129.58,
+   "fx_rates_as_of": "2026-10-12T09:00:28+00:00",
+   "status": "consistent",
+   "note": "matrix cell and fx_rates quote agree"
+  },
+  {
+   "pair": "USD->NGN",
+   "matrix": 1328.39,
+   "matrix_as_of": "2026-10-12T09:10:20+00:00",
+   "fx_rates_market": 1328.39,
+   "fx_rates_as_of": "2026-10-12T02:54:24+00:00",
+   "status": "consistent",
+   "note": "matrix cell and fx_rates quote agree"
+  },
+  {
+   "pair": "USD->ZAR",
+   "matrix": 16.559,
+   "matrix_as_of": "2026-10-12T09:10:20+00:00",
+   "fx_rates_market": 16.5553,
+   "fx_rates_as_of": "2026-10-12T09:10:26+00:00",
+   "status": "differs",
+   "note": "matrix is the earlier snapshot; fx_rates is the timestamped quote for the same day"
+  },
+  {
+   "pair": "USD->EGP",
+   "matrix": 52.67,
+   "matrix_as_of": "2026-10-12T09:10:20+00:00",
+   "fx_rates_market": 52.68,
+   "fx_rates_as_of": "2026-10-12T09:10:27+00:00",
+   "status": "differs",
+   "note": "matrix is the earlier snapshot; fx_rates is the timestamped quote for the same day"
+  }
+ ]
 }
