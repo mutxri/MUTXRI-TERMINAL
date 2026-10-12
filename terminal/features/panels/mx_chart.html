@@ -73,11 +73,12 @@
   .up{color:var(--up);} .down{color:var(--down);} .flat{color:var(--tx2);} .nofig{color:var(--tx3);} .warn{color:var(--warn);}
 
   /* the owner's layout: a toolbar row, then a left tool rail beside the chart */
-  .ch-toolbar{display:flex;align-items:center;gap:14px;padding:7px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .ch-toolbar{display:flex;align-items:center;gap:14px;padding:7px 12px;border-bottom:1px solid var(--line);
+    flex-wrap:wrap;min-height:38px;}
   .grp{display:flex;gap:3px;align-items:center;}
   .gl{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase;padding-right:3px;}
   .tb{font-family:var(--mono);font-size:10px;color:var(--tx3);background:var(--bg2);border:1px solid var(--line2);
-    padding:3px 9px;border-radius:2px;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;}
+    padding:3px 9px;border-radius:2px;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;}
   .tb:hover{color:var(--tx2);border-color:var(--tx3);}
   .tb.on{color:var(--acc);border-color:var(--acc);}
   .tb[disabled]{opacity:.4;cursor:default;}
@@ -162,7 +163,7 @@
     <div class="grp">
       <span class="gl">drawings</span>
       <button class="tb" id="drawClear" type="button">clear all</button>
-      <span class="tb" id="drawCount" style="cursor:default;">0 drawings</span>
+      <span class="tb" id="drawCount" style="cursor:default;width:220px;text-align:left;overflow:hidden;text-overflow:ellipsis;">0 drawings</span>
     </div>
     <div class="grp">
       <span class="gl">basis</span>
@@ -611,18 +612,23 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     var n = TA ? TA.count() : 0;
     var words = n + (n === 1 ? " drawing" : " drawings");
     var box = $("drawCount");
+    var full = words, short = words;
     if(!window.MXChartTools){
-      box.textContent = "tools unavailable";
+      short = full = "tools unavailable";
       box.classList.add("warnb");
     } else if(TA && window.MXChartTools.drawingsReadOnly && window.MXChartTools.drawingsReadOnly()){
-      box.textContent = words + ", not saved: this browser holds a newer drawings format";
+      short = words + ", not saved";
+      full = words + ", not saved: this browser holds a newer drawings format";
     } else {
       box.classList.remove("warnb");
-      if(!TA || t === "none") box.textContent = words;
-      else if(t === "erase") box.textContent = "click a drawing to remove it, Esc to stop (" + words + ")";
-      else if(t === "hline" || t === "vline") box.textContent = "click the chart to place it, Esc to stop (" + words + ")";
-      else box.textContent = "drag across the chart to draw, Esc to stop (" + words + ")";
+      // the badge is a fixed width so it can never resize the toolbar and shift
+      // the chart under a drag; the full sentence rides in the title
+      if(TA && t === "erase"){ short = "click a drawing (" + words + ")"; full = "click a drawing to remove it, Esc to stop (" + words + ")"; }
+      else if(TA && (t === "hline" || t === "vline")){ short = "click the chart (" + words + ")"; full = "click the chart to place it, Esc to stop (" + words + ")"; }
+      else if(TA && t !== "none"){ short = "drag to draw (" + words + ")"; full = "drag across the chart to draw, Esc to stop (" + words + ")"; }
     }
+    box.textContent = short;
+    box.title = full;
     var dead = !window.MXChartTools;
     Array.prototype.forEach.call(document.querySelectorAll("[data-tool],#railClear,#drawClear"), function(b){
       b.disabled = dead;
