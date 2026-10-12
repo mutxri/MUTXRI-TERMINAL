@@ -147,6 +147,41 @@
   .next a,.link{color:var(--acc);text-decoration:none;cursor:pointer;background:none;border:0;padding:0;font:inherit;}
   .next a:hover,.link:hover{text-decoration:underline;}
   .next .fine{color:var(--tx3);font-size:11px;margin-top:6px;}
+  /* ORDER BOOK (the panel's default view). Top of book only: the best bid and
+     the best offer with the quantity resting at that one price, plus the last
+     trades the source published. Nothing here is modelled, so a level appears
+     only where an exchange or its data vendor published one. */
+  .bkbar{display:flex;align-items:center;gap:12px;margin:2px 0 10px;}
+  .tview{display:flex;border:1px solid var(--line2);border-radius:2px;overflow:hidden;}
+  .tview button{background:var(--bg3);color:var(--tx3);border:0;padding:6px 16px;font-family:var(--mono);
+                font-size:11px;letter-spacing:.1em;cursor:pointer;}
+  .tview button.on{background:var(--bg4);color:var(--acc);}
+  .tview button:focus-visible{outline:1px solid var(--acc);}
+  .bkbar .hint{font-family:var(--mono);font-size:10.5px;color:var(--tx3);}
+  .book{border:1px solid var(--line2);border-radius:3px;overflow:hidden;background:var(--bg2);}
+  .book .hdrow{display:flex;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--tx3);}
+  .book .hdrow div{flex:1;padding:7px 12px;}
+  .book .hdrow div:last-child{text-align:right;}
+  .book .hdrow div:last-child{border-left:1px solid var(--line2);}
+  .book .pxrow{display:flex;border-top:1px solid var(--line2);}
+  .book .pxrow > div{flex:1;padding:10px 12px;}
+  .book .pxrow > div:last-child{text-align:right;border-left:1px solid var(--line2);}
+  .book .px{font-family:var(--mono);font-size:20px;line-height:1.15;}
+  .book .qty{font-family:var(--mono);font-size:11px;color:var(--tx2);display:block;margin-top:4px;}
+  .book .midrow{font-family:var(--mono);font-size:10.5px;color:var(--tx3);border-top:1px solid var(--line2);
+                padding:7px 12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .bid .px{color:var(--up);} .ask .px{color:var(--down);}
+  .bksrc{font-family:var(--mono);font-size:10.5px;color:var(--tx3);line-height:1.7;margin:8px 0 0;}
+  .bksrc b{color:var(--tx2);font-weight:400;}
+  .bksrc a{color:var(--acc);text-decoration:none;}
+  .none{font-family:var(--mono);font-size:11.5px;color:var(--tx2);line-height:1.7;
+        border:1px solid var(--line2);border-left:2px solid var(--warn);border-radius:3px;
+        background:var(--bg2);padding:11px 13px;}
+  .none b.hd{color:var(--warn);font-weight:400;font-family:var(--mono);font-size:10.5px;
+             letter-spacing:.1em;display:block;margin-bottom:6px;}
+  .none ul{margin:6px 0 0 16px;padding:0;}
+  .none li{color:var(--tx3);font-size:10.5px;line-height:1.6;}
+  .none a{color:var(--acc);text-decoration:none;word-break:break-all;}
 </style>
 </head>
 <body>
@@ -215,8 +250,27 @@
     <h2>Working orders</h2>
     <div id="working"></div>
 
-    <h2>Account value by session</h2>
-    <div id="equity"></div>
+    <div class="bkbar">
+      <div class="tview" role="tablist" aria-label="Trade view">
+        <button type="button" role="tab" data-tview="book" class="on" aria-selected="true">ORDER BOOK</button>
+        <button type="button" role="tab" data-tview="chart" aria-selected="false">CHART</button>
+      </div>
+      <span class="hint" id="bkHint">What buyers bid, what sellers ask, and what actually traded. The book is the default view; the account chart is one click away.</span>
+    </div>
+
+    <!-- ================= ORDER BOOK (default view) ================= -->
+    <section id="bookView">
+      <h2 id="bkHead">Order book</h2>
+      <div id="book"></div>
+      <h2 id="volHead">Traded volume by session</h2>
+      <div id="vol"></div>
+    </section>
+
+    <!-- ================= CHART ================= -->
+    <section id="chartView" hidden>
+      <h2>Account value by session</h2>
+      <div id="equity"></div>
+    </section>
 
     <h2>Order history</h2>
     <div id="orders"></div>
@@ -571,6 +625,7 @@
       _add(EX + "_" + _bare);
     }else{
       var _suf = EX === "JSE" ? ".JO" : ".CA";
+      _add(r.file);          // the market row's own sym, which IS the archive key
       _add(r.sym);
       _add(r.ticker);
       _add(/\.(JO|CA)$/.test(_tk) ? _tk : _bare + _suf);
@@ -942,6 +997,11 @@
 
     $("equity").innerHTML = spark(a.equity) + equityNote();
 
+    // The order book is the panel's default content, so it is painted with the
+    // rest of the panel on every render. The chart stays exactly as it was, one
+    // click away behind CHART.
+    try{ renderBook(); }catch(e){}
+
     $("orders").innerHTML = a.orders.length
       ? "<div class='tablewrap'><table><tr><th>WHEN</th><th>SIDE</th><th>SECURITY</th><th>QTY</th><th>TYPE</th><th>STATUS</th>" +
         "<th>FILL</th><th>VALUE</th><th>REALISED</th><th>SESSION</th></tr>" +
@@ -961,6 +1021,253 @@
     $("asof").textContent = listed ? listed + " securities on " + EX + " · market orders fill at each security's latest price" : "";
     updLine();
     estimate();
+  }
+
+  // ================= ORDER BOOK (the panel's default view) =================
+  // WHAT THIS DRAWS, AND WHAT IT REFUSES TO DRAW.
+  // A bid, an ask or a level quantity is drawn ONLY where the security's own
+  // exchange, or the vendor that carries that exchange's data, published it.
+  // Nothing is derived here: no level is interpolated from a price and a
+  // volume, no ladder is spread out from a top of book, no depth curve is
+  // invented. Where nothing is published the panel says so in words.
+  //
+  // The source is static_data/book_<EX>.json, built by build_order_book.py.
+  // That file carries its own provenance (who published what, at what
+  // granularity, with what delay, checked on what date, and the pages it was
+  // checked against), so the honest empty state can name the exchange and the
+  // document instead of shrugging. A book the file does not carry does not
+  // exist on screen: the panel never invents the missing half of a book, and
+  // when a level is absent it prints an absent level.
+  //
+  // Traded volume is a different fact from resting interest and is drawn
+  // separately, labelled as traded volume: it comes from the daily archive the
+  // rest of this panel already uses. It is never shown as depth.
+  var BOOK = null, BOOK_ERR = "", BOOK_PAINT = {sym: "", book: null};
+  function bookFile(){
+    return fetch("../../static_data/book_" + EX + ".json?t=" + Math.floor(Date.now() / 3600000))
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){ BOOK = (d && typeof d === "object") ? d : null; BOOK_ERR = ""; })
+      .catch(function(){ BOOK = null; BOOK_ERR = "static_data/book_" + EX + ".json could not be loaded"; });
+  }
+  // The security the book follows: the ticket's ticker box, else the ticker the
+  // panel was opened with, else nothing (and then the panel states the
+  // exchange's own position on bids and offers, which is a real answer).
+  function bookSym(){
+    var t = String(($("sym") && $("sym").value) || "").trim().toUpperCase();
+    if(t) return t;                       // what the ticket is pointed at, known or not
+    if(PRESET) return PRESET;
+    return "";
+  }
+  function bookRec(sym){
+    if(!BOOK || !BOOK.books) return null;
+    var k = String(sym || "").toUpperCase();
+    return BOOK.books[k] || BOOK.books[k.split(".")[0]] || null;
+  }
+  function symLabel(sym){
+    var r = quote(sym);
+    return sym + (r && r.name ? " " + r.name : "");
+  }
+  // Traded volume, session by session, from the same daily archive the panel
+  // already reads for its end-of-day marks. This is shares that CHANGED HANDS,
+  // which is why it is labelled traded volume and never depth.
+  var VOL = {};
+  function histKeys(t){
+    var _tk = String(t || "").toUpperCase(), r = quote(t) || {};
+    var _bare = _tk.replace(/\.(JO|CA)$/, "").split(".")[0];
+    var cands = [];
+    function _add(k){ k = String(k == null ? "" : k).toUpperCase(); if(k && cands.indexOf(k) < 0) cands.push(k); }
+    if(EX === "NSE" || EX === "NGX"){
+      _add(EX + "_" + _bare);
+    }else{
+      var _suf = EX === "JSE" ? ".JO" : ".CA";
+      // rec.file is the market row's own `sym`, which IS the archive key
+      // (the EGX mixes the bare ticker with the ISIN, e.g. EGS60121C018.CA).
+      // Without it the EGX looked up "COMI.CA", which does not exist.
+      _add(r.file); _add(r.sym); _add(r.ticker);
+      _add(/\.(JO|CA)$/.test(_tk) ? _tk : _bare + _suf);
+      _add(_bare);
+    }
+    return cands;
+  }
+  function volumeOf(t){
+    var cands = histKeys(t), ck = EX + "::" + cands.join(",");
+    if(VOL[ck]) return VOL[ck];
+    VOL[ck] = (function(){
+      var i = 0;
+      function next(){
+        if(i >= cands.length) return Promise.resolve(null);
+        var k = cands[i++];
+        return fetch("../../static_data/history/" + encodeURIComponent(k) + ".json?t=" + Math.floor(Date.now() / 3600000))
+          .then(function(res){ if(!res.ok) throw 0; return res.json(); })
+          .then(function(d){
+            if(!d || !d.bars || !d.bars.length) return next();
+            var bars = d.bars.map(function(b){
+              var tv = b.t;
+              var date = (typeof tv === "number") ? new Date((tv + 43200) * 1000).toISOString().slice(0, 10)
+                                                  : String(tv).slice(0, 10);
+              return {date: date, price: num(b.c), vol: num(b.v)};
+            }).filter(function(b){ return b.date && b.vol != null; });
+            return bars.length ? {key: k, bars: bars} : next();
+          })
+          .catch(next);
+      }
+      return next();
+    })();
+    return VOL[ck];
+  }
+
+  function renderBook(force){
+    var host = $("book"), vhost = $("vol"), head = $("bkHead"), vhead = $("volHead");
+    if(!host) return;
+    var sym = bookSym();
+    if(!force && sym === BOOK_PAINT.sym && BOOK === BOOK_PAINT.book) return;
+    BOOK_PAINT.sym = sym; BOOK_PAINT.book = BOOK;
+
+    head.textContent = sym ? "Order book · " + symLabel(sym) : "Order book";
+    vhead.textContent = sym ? "Traded volume by session · " + sym : "Traded volume by session";
+
+    if(!BOOK){
+      host.innerHTML = "<div class='none'><b class='hd'>NO ORDER BOOK DATA ON THIS SITE YET</b>" +
+        esc(BOOK_ERR || ("static_data/book_" + EX + ".json is not on the site")) +
+        ". Nothing is drawn for it: a book is shown only where a source published one.</div>";
+    } else if(BOOK.published === false){
+      host.innerHTML = noBookState(sym);
+    } else {
+      var rec = sym ? bookRec(sym) : null;
+      if(!sym){
+        host.innerHTML = "<div class='none'><b class='hd'>" + esc(EX) + " ORDER BOOK</b>" +
+          "Choose a ticker in the order ticket above and its book is drawn here." +
+          " " + esc(BOOK.source || "") + "</div>";
+      } else if(!rec){
+        var known = !!quote(sym);
+        host.innerHTML = known
+          ? "<div class='none'><b class='hd'>NO BID OR ASK PUBLISHED FOR " + esc(sym) + " ON " + esc(EX) + "</b>" +
+            "This source carries a published top of book for " + (BOOK.count || 0) + " " + esc(EX) +
+            " securities, and " + esc(sym) + " is not one of them, so no price and no quantity is shown for it." +
+            " Nothing is estimated to fill the gap. The traded volume that IS published for this security is below.</div>"
+          : "<div class='none'><b class='hd'>NO " + esc(EX) + " SECURITY CALLED " + esc(sym) + "</b>" +
+            "This panel has no listed security under that key on " + esc(EX) + ", so there is no book and no traded volume to show." +
+            " Check the ticker, or pick one from the list in the order ticket.</div>";
+      } else {
+        host.innerHTML = bookBoard(sym, rec);
+      }
+    }
+    renderVol(vhost, sym);
+  }
+
+  // The exchange's own position, quoted from the book file so the words and the
+  // evidence travel together. This is what is shown in place of a book for NSE,
+  // NGX and EGX, and it names the document that was checked.
+  function noBookState(sym){
+    var ev = (BOOK.evidence || []).map(function(u){
+      return "<li><a href='" + esc(u) + "' target='_blank' rel='noopener'>" + esc(u) + "</a></li>"; }).join("");
+    return "<div class='none'><b class='hd'>NO BID AND NO ASK IS PUBLISHED BY " + esc(EX) + "</b>" +
+      esc(BOOK.reason || "") +
+      (ev ? "<div style='color:var(--tx3);font-size:10.5px;margin-top:8px'>Checked " + esc(BOOK.checked || "") +
+            " against:</div><ul>" + ev + "</ul>" : "") +
+      "<div style='margin-top:8px'>" + (sym
+        ? "For " + esc(symLabel(sym)) + " the published traded volume is below. A resting quantity is not published, so none is shown."
+        : "Choose a ticker to see the traded volume that this exchange does publish.") + "</div></div>";
+  }
+
+  // The board itself: ONE level per side, exactly the ratio the source
+  // published, then the source's own last trades. No second level is invented
+  // and the level quantity is never spread over an imagined ladder.
+  function bookBoard(sym, rec){
+    var unit = BOOK.unit ? BOOK.unit : "";
+    var ushow = unit === "ZAR" ? "R" : unit;
+    function px(v){ return v == null ? "-" : fmt(v, 2); }
+    function qty(v){ return v == null ? "not published" : fmt(v, 0) + " shares at this price"; }
+    var html = "<div class='book'>" +
+      "<div class='hdrow'><div>BID · WHAT BUYERS ARE PAYING</div><div>ASK · WHAT SELLERS ARE ASKING</div></div>" +
+      "<div class='pxrow'>" +
+        "<div class='bid'><span class='px'>" + (ushow ? esc(ushow) + " " : "") + px(rec.bid) + "</span>" +
+          "<span class='qty'>" + qty(rec.bidQty) + "</span></div>" +
+        "<div class='ask'><span class='px'>" + (ushow ? esc(ushow) + " " : "") + px(rec.ask) + "</span>" +
+          "<span class='qty'>" + qty(rec.askQty) + "</span></div>" +
+      "</div>";
+    var mid = [];
+    if(rec.bid != null && rec.ask != null){
+      var sp = rec.ask - rec.bid, spc = sp / ((rec.ask + rec.bid) / 2) * 100;
+      mid.push("Spread " + fmt(sp, 2) + (ushow ? " " + esc(ushow) : "") + " (" + fmt(spc, 2) + "%)");
+    } else if(rec.bid == null && rec.ask != null){
+      mid.push("No bid is published at this refresh; the ask above is what is published.");
+    } else if(rec.ask == null && rec.bid != null){
+      mid.push("No ask is published at this refresh; the bid above is what is published.");
+    }
+    if(rec.last != null) mid.push("Last trade " + fmt(rec.last, 2) + (rec.tradeTime ? " at " + esc(String(rec.tradeTime).replace(/^As at /, "")) : ""));
+    if(rec.dayTrades != null) mid.push(fmt(rec.dayTrades, 0) + " trades today");
+    if(rec.volumeTradedPublished) mid.push("Volume traded " + esc(rec.volumeTradedPublished) + " as published");
+    if(rec.valueTraded) mid.push("Value traded " + esc(rec.valueTraded));
+    html += "<div class='midrow'>" + (mid.length ? mid.map(function(m){ return "<span>" + m + "</span>"; }).join("") : "<span>Only the two levels above are published.</span>") + "</div>";
+    html += "</div>";
+
+    if(rec.trades && rec.trades.length){
+      html += "<h2 style='margin-top:14px'>Last trades · " + esc(sym) + "</h2>" +
+        "<div class='tablewrap'><table><tr><th>TIME</th><th>PRICE</th><th>VOLUME</th></tr>" +
+        rec.trades.map(function(t){
+          return "<tr><td>" + esc(t.time || "") + "</td><td>" + (t.price == null ? "-" : fmt(t.price, 2)) +
+                 "</td><td>" + (t.volume == null ? "-" : fmt(t.volume, 0)) + "</td></tr>"; }).join("") +
+        "</table></div><div class='bksrc'>Time and sales: the individual prints this source published," +
+        " each with the volume that traded AT THAT PRINT. This is traded volume, not a resting quantity.</div>";
+    }
+
+    var extra = "";
+    if(BOOK.unitNote) extra += " " + esc(BOOK.unitNote);
+    if(BOOK.note) extra += " " + esc(BOOK.note);
+    return html + "<div class='bksrc'>" +
+      "<b>Levels published: " + esc(BOOK.granularity || "not stated") + "</b><br>" +
+      "Source: " + esc(BOOK.source || "") + ". " + esc(BOOK.timestamp || "") +
+      (rec.asAt ? ", the page states " + esc(rec.asAt) : "") + "." + extra +
+      " <a href='" + esc(String(BOOK.sourceUrl || "").replace("<JSE CODE>", sym)) + "' target='_blank' rel='noopener'>Source page for " + esc(sym) + "</a>. Checked " + esc(BOOK.checked || "") + ".</div>";
+  }
+
+  // Traded volume by session, from the daily archive. Honest about which of the
+  // two published figures it is showing and about a session with no volume.
+  function renderVol(host, sym){
+    if(!host) return;
+    if(!sym){
+      host.innerHTML = "<div class='empty'>Choose a ticker to see its traded volume by session.</div>";
+      return;
+    }
+    host.innerHTML = "<div class='empty'>Loading traded volume for " + esc(sym) + " ...</div>";
+    var want = sym;
+    volumeOf(sym).then(function(v){
+      if(BOOK_PAINT.sym !== want) return;                 // the ticker moved on
+      if(!v || !v.bars || !v.bars.length){
+        host.innerHTML = "<div class='empty'>No session archive with volume exists for " + esc(want) +
+          " on this site, so no traded volume is shown for it. A blank is honest here; a figure that was not published would not be.</div>";
+        return;
+      }
+      var last = v.bars.slice(-12).reverse();
+      var mn = Math.max.apply(null, last.map(function(b){ return b.vol || 0; })) || 1;
+      host.innerHTML = "<div class='tablewrap'><table><tr><th>SESSION</th><th>CLOSE</th><th>VOLUME TRADED</th><th style='width:38%'>SHARE OF THE LAST 12 SESSIONS</th></tr>" +
+        last.map(function(b){
+          var w = Math.round((b.vol || 0) / mn * 100);
+          return "<tr><td>" + esc(b.date) + "</td><td>" + (b.price == null ? "-" : fmt(b.price, 2)) + "</td>" +
+                 "<td>" + fmt(b.vol, 0) + "</td>" +
+                 "<td><span style='display:inline-block;height:8px;width:" + w + "%;max-width:100%;background:var(--acc);opacity:.45;border-radius:1px'></span></td></tr>";
+        }).join("") + "</table></div>" +
+        "<div class='bksrc'>Traded volume: shares that changed hands in each published session, from this site's own session archive (" +
+        esc(v.key) + "). Bars are drawn from the volume itself, so the width is the volume. This is traded volume and NOT resting orders: nothing here says anything about how much is bid or offered." +
+        (BOOK && BOOK.tradedVolumeIsPublished === false ? " This exchange publishes no traded volume either." : "") + "</div>";
+    }).catch(function(){
+      host.innerHTML = "<div class='empty'>Traded volume could not be read for " + esc(want) + ".</div>";
+    });
+  }
+
+  function setTradeView(v, save){
+    var book = v !== "chart";
+    var bv = $("bookView"), cv = $("chartView");
+    if(!bv || !cv) return;
+    bv.hidden = !book; cv.hidden = book;
+    Array.prototype.forEach.call(document.querySelectorAll(".tview button"), function(b){
+      var on = b.getAttribute("data-tview") === (book ? "book" : "chart");
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if(save){ try{ localStorage.setItem("mx_trade_view", book ? "book" : "chart"); }catch(e){} }
+    if(book) renderBook(true);
   }
 
   function spark(e){
@@ -1015,6 +1322,9 @@
 
   function estimate(){
     var t = ($("sym").value || "").trim().toUpperCase(), n = parseInt($("qty").value, 10), type = $("otype").value;
+    // The order book follows the ticker box, so it is kept in step with whatever
+    // security the ticket is pointed at, whether or not a quantity has been set.
+    try{ renderBook(); }catch(e){}
     var px = lastOf(t), lmt = num($("lmt").value), stp = num($("stp").value), txt = "";
     if(!t || !n || n <= 0){ $("est").textContent = ""; return; }
     if(!quote(t)){ $("est").textContent = ""; return; }
@@ -1198,6 +1508,11 @@
   Array.prototype.forEach.call(document.querySelectorAll(".mode button"), function(b){
     b.onclick = function(){ setMode(b.getAttribute("data-mode")); };
   });
+  // The TRADE view toggle: the order book is the default, the account chart is
+  // kept behind the second button so nothing that worked is lost.
+  Array.prototype.forEach.call(document.querySelectorAll(".tview button"), function(b){
+    b.onclick = function(){ setTradeView(b.getAttribute("data-tview"), true); };
+  });
   document.addEventListener("click", function(e){
     var g = e.target.closest && e.target.closest("[data-goto]");
     if(g) setMode(g.getAttribute("data-goto"));
@@ -1249,6 +1564,12 @@
 
   setMode(Q.get("mode") === "live" ? "live" : "paper");
   syncTicket();
+  // The book view is the default. The last choice is remembered so the panel
+  // reopens the way it was left, and the book file is loaded once here. Its
+  // arrival repaints, which is what fills the view when a ticker was preset.
+  setTradeView((function(){ try{ return localStorage.getItem("mx_trade_view") === "chart" ? "chart" : "book"; }
+                             catch(e){ return "book"; } })(), false);
+  bookFile().then(function(){ try{ renderBook(true); }catch(e){} });
   // END OF DAY marks, taken from the daily bar archive rather than the snapshot.
   // Runs after the first paint so a slow or missing archive never holds the panel up,
   // then re-renders once the marks land. A security with no archive keeps whatever

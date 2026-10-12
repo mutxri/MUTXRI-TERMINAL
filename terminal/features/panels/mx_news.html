@@ -146,11 +146,15 @@
   // Each exchange draws on its official/collector feed plus the market-bot scan.
   // JSE had headlines in jse_news.json all along that this panel never loaded,
   // and EGX had no feed at all - the scan reaches it through three sources.
+  // EGX now has its own headline file too (egx_news.json): the Egyptian business
+  // desks (Enterprise, Daily News Egypt, Egypt Independent) became reachable, so
+  // news_collect_egx.py builds it and the sweep keeps it current. Both EGX files
+  // are loaded; they are deduped against each other by URL and headline.
   var EX_FILE = {
     "NSE": ["nse_news.json", "bot_news_NSE.json"],
     "NGX": ["ngx_news.json", "bot_news_NGX.json"],
     "JSE": ["jse_news.json", "bot_news_JSE.json"],
-    "EGX": ["bot_news_EGX.json"]
+    "EGX": ["egx_news.json", "bot_news_EGX.json"]
   };
   var EX_NAME = { "NSE": "NSE", "NGX": "NGX", "JSE": "JSE", "EGX": "EGX" };
   var MONTHS = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
@@ -309,7 +313,14 @@
     CTUM: ["Centum"],
     CARB: ["Carbacid Investment", "Carbacid"],
     BAMB: ["Bamburi"],
-    SMER: ["SameerAfrica"]
+    SMER: ["SameerAfrica"],
+    // The feed writes "Car & General" and "Laptrust Imara I-REIT": the
+    // ampersand normalises away and the REIT's "INCOME" is absent, so these two
+    // listed issuers' rows were unreachable by their own ticker. Same rule as
+    // above: an entry only ADDS search words, and the row still has to carry
+    // the phrase.
+    CGEN: ["Car General"],
+    LAPR: ["Laptrust Imara I"]
   };
   function addAlt(s, words){
     if (!s || !words || !words.length) return;

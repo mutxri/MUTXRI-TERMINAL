@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - HOLDERS panel (shareholder information).
+
+  Reads the sourced shareholding records for the selected exchange:
+    ../../static_data/shareholders_<EX>.json
+
+  Every table is printed with the document it came from and the printed as-of date.
+  A security with no record gets an honest "no shareholder information published"
+  state that names the coverage, never an empty table that looks broken.
+
+  Vanilla JS, exact terminal tokens, no build step. Standalone-viewable with
+  ?ex=NGX&sym=DANGCEM
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - HOLDERS</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+  :root {
+    --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
+    --line:#1a1a1a; --line2:#262626;
+    --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
+    --up:#33e29a; --down:#f87171; --acc:#33e29a;
+    --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx); font-family:var(--ui); font-size:13px; }
+  .h-wrap { border:1px solid var(--line2); border-radius:2px; background:var(--bg2); max-width:960px; margin:18px auto; }
+  .h-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:10px 14px; border-bottom:1px solid var(--line2); flex-wrap:wrap; }
+  .h-title { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
+  .h-title b { color:var(--acc); font-weight:700; }
+  .h-sym { font-family:var(--mono); font-size:12px; color:var(--tx); }
+  .h-sym .muted { margin-left:8px; }
+  .h-meta { padding:8px 14px; border-bottom:1px solid var(--line2); color:var(--tx2); font-family:var(--mono); font-size:11px; line-height:1.6; }
+  .h-meta b { color:var(--tx); font-weight:500; }
+  .h-sec { padding:10px 14px; border-bottom:1px solid var(--line); }
+  .h-sec h3 { margin:0 0 6px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--tx3); font-weight:600; }
+  table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12px; }
+  th { text-align:left; color:var(--tx3); font-weight:400; font-size:10px; text-transform:uppercase; padding:4px 6px; border-bottom:1px solid var(--line2); }
+  th.r, td.r { text-align:right; }
+  td { padding:4px 6px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  td.name { font-family:var(--ui); color:var(--tx); }
+  .sub { color:var(--tx3); font-size:10px; }
+  .empty { padding:26px 16px; color:var(--tx3); font-family:var(--mono); font-size:12px; line-height:1.7; }
+  .empty b { color:var(--tx2); font-weight:500; }
+  .foot { padding:8px 14px; border-top:1px solid var(--line); color:var(--tx3); font-family:var(--mono); font-size:10px; line-height:1.6; }
+  .warn { color:#d9b26a; }
+</style>
+</head>
+<body>
+
+<div class="h-wrap" id="holders">
+  <div class="h-head">
+    <div class="h-title"><b>HOLDERS</b> · Shareholding</div>
+    <div class="h-sym" id="hSym"></div>
+  </div>
+  <div class="h-meta" id="hMeta"></div>
+  <div id="hBody"></div>
+  <div class="foot" id="hFoot">-</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var Q = new URLSearchParams(location.search);
+  var EX = (Q.get("ex") || "NGX").toUpperCase();
+  var REQ = (Q.get("sym") || Q.get("symbol") || "").toUpperCase();
+  var VALID = { NGX:1, NSE:1, JSE:1, EGX:1 };
+  var LABEL = { NGX:"NGX Lagos", NSE:"NSE Nairobi", JSE:"JSE Johannesburg", EGX:"EGX Cairo" };
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" })[c]; }); }
+  function num(v){ return v == null ? '<span class="sub">-</span>' :
+    Number(v).toLocaleString(undefined, { maximumFractionDigits:0 }); }
+  function pct(v){ return v == null ? '<span class="sub">-</span>' :
+    Number(v).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:4 }) + "%"; }
+  function srcLine(rec){
+    var s = rec && rec.source;
+    if(!s) return "-";
+    if(s.file) return esc("static_data/" + s.file + (s.page ? " p." + s.page : ""));
+    return esc(s.url || "-") + (s.note ? ' <span class="sub">(' + esc(s.note) + ")</span>" : "");
+  }
+  function dateLine(rec){
+    if(rec && rec.asOf) return "as of " + esc(rec.asOf) +
+      (rec.asOfBasis ? ' <span class="sub">(' + esc(rec.asOfBasis) + ")</span>" : "");
+    if(rec && rec.asOfBasis) return 'date: <span class="warn">' + esc(rec.asOfBasis) + "</span>" +
+      (rec.retrieved ? " (retrieved " + esc(rec.retrieved) + ")" : "");
+    return 'date: <span class="warn">not printed by the source</span>';
+  }
+
+  function holderTable(rows, cap){
+    if(!rows || !rows.length) return "";
+    var hasShares = rows.some(function(r){ return r.holding != null; });
+    var hasPrev = rows.some(function(r){ return r.previous && r.previous.pct != null; });
+    var h = '<div class="h-sec"><h3>' + esc(cap) + " (" + rows.length + ")</h3>" +
+      '<table><thead><tr><th>Holder</th>' +
+      (hasShares ? '<th class="r">Shares</th>' : "") +
+      '<th class="r">%</th>' +
+      (hasPrev ? '<th class="r">Prior %</th>' : "") +
+      "</tr></thead><tbody>";
+    rows.forEach(function(r){
+      h += "<tr><td class=\"name\">" + esc(r.name) + "</td>" +
+        (hasShares ? '<td class="r">' + num(r.holding) + "</td>" : "") +
+        '<td class="r">' + pct(r.pct) + "</td>" +
+        (hasPrev ? '<td class="r sub">' + (r.previous && r.previous.pct != null ? pct(r.previous.pct) : "-") + "</td>" : "") +
+        "</tr>";
+    });
+    return h + "</tbody></table></div>";
+  }
+
+  function render(file, rec){
+    var cov = (file && file.coverage) || {};
+    $("hSym").innerHTML = esc(REQ || EX) + '<span class="muted">' + esc(LABEL[EX] || EX) + "</span>";
+    var body = $("hBody");
+
+    if(!rec){
+      body.innerHTML = '<div class="empty">' +
+        "<b>No shareholder information published</b> for " + esc(REQ || "(no security selected)") +
+        " in the terminal's sources.<br>" +
+        "Coverage on " + esc(LABEL[EX] || EX) + ": <b>" + (cov.securitiesWithRecord || 0) + "</b> of <b>" +
+        (cov.securitiesListed || 0) + "</b> listed securities carry a sourced shareholding record; <b>" +
+        (cov.noShareholderInformationPublished || 0) + "</b> do not.<br>" +
+        '<span class="sub">' + esc(cov.basis || "") + "</span></div>";
+      $("hMeta").innerHTML = "";
+      $("hFoot").textContent = "Coverage " + (cov.securitiesWithRecord || 0) + "/" + (cov.securitiesListed || 0) +
+        " · generated " + ((file && file.generated) || "-");
+      return;
+    }
+
+    var m = [];
+    m.push("<b>" + esc(rec.name || REQ) + "</b>");
+    m.push("as-of: <b>" + (rec.asOf ? esc(rec.asOf) : '<span class="warn">not printed by the source</span>') + "</b>");
+    if(rec.retrieved) m.push("retrieved " + esc(rec.retrieved));
+    m.push("source: <b>" + srcLine(rec) + "</b>");
+    if(rec.tableHeading) m.push("table: " + esc(rec.tableHeading));
+    $("hMeta").innerHTML = m.join(" &nbsp;·&nbsp; ");
+
+    var h = "";
+    var st = [];
+    if(rec.issued) st.push("issued shares (as printed in the table): <b>" + num(rec.issued) + "</b>");
+    if(rec.freeFloat && rec.freeFloat.pct != null)
+      st.push("free float: <b>" + pct(rec.freeFloat.pct) + "</b>" +
+        (rec.freeFloat.units ? " (" + num(rec.freeFloat.units) + " shares)" : "") +
+        (rec.freeFloat.basis ? ' <span class="sub">(' + esc(rec.freeFloat.basis) + ")</span>" : ""));
+    if(rec.shareStructure && rec.shareStructure.registerDate)
+      st.push("register date: <b>" + esc(rec.shareStructure.registerDate) + "</b>");
+    if(st.length) h += '<div class="h-sec"><h3>Share structure</h3><div>' + st.join("<br>") + "</div></div>";
+
+    h += holderTable(rec.substantial, "Substantial holders (5% and above)");
+    h += holderTable(rec.promoters, "Promoters and close relatives");
+    h += holderTable(rec.other, "Other influential holdings");
+    h += holderTable(rec.directors, "Directors (direct and indirect)");
+
+    if(!h) h = '<div class="empty">A record exists for this security but the source printed no holder table.</div>';
+    if(rec.issuedConflict)
+      h += '<div class="h-sec warn">The printed table and shares_outstanding.json disagree on the issued count (' +
+        num(rec.issuedConflict.table) + " vs " + num(rec.issuedConflict.sharesOutstandingFile) + ").</div>";
+    body.innerHTML = h;
+
+    $("hFoot").textContent = "Coverage " + (cov.securitiesWithRecord || 0) + "/" + (cov.securitiesListed || 0) +
+      " on " + (LABEL[EX] || EX) + " · generated " + ((file && file.generated) || "-") +
+      " · percentages and share counts are exactly as printed in the named source";
+  }
+
+  function load(sym){
+    if(sym) REQ = String(sym).toUpperCase();
+    if(!VALID[EX]) EX = "NGX";
+    fetch("../../static_data/shareholders_" + EX + ".json", { cache:"no-store" })
+      .then(function(r){ if(!r.ok) throw new Error("no file"); return r.json(); })
+      .then(function(f){
+        var s = (f && f.securities) || {};
+        var rec = REQ ? s[REQ] : null;
+        if(!rec && REQ){
+          // the terminal may hand us the ticker while the record is keyed on the ISIN sym
+          Object.keys(s).forEach(function(k){
+            if(!rec && String(s[k].ticker || "").toUpperCase() === REQ) rec = s[k];
+          });
+        }
+        render(f, rec);
+      })
+      .catch(function(){
+        $("hSym").innerHTML = esc(REQ || EX) + '<span class="muted">' + esc(LABEL[EX] || EX) + "</span>";
+        $("hMeta").innerHTML = "";
+        $("hBody").innerHTML = '<div class="empty"><b>No shareholder file</b> for ' + esc(LABEL[EX] || EX) +
+          ". Nothing is shown rather than a fabricated table.</div>";
+        $("hFoot").textContent = "-";
+      });
+  }
+
+  window.showHolders = function(symbol){ load(symbol); };
+  window.showShareholders = window.showHolders;
+
+  function init(){ load(); }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>

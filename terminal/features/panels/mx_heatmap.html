@@ -113,7 +113,14 @@
   .cp-ind.dim{opacity:.35;pointer-events:none;}
   .cp-reset{font-family:var(--mono);font-size:9px;color:var(--tx2);background:var(--bg3);border:1px solid var(--line2);border-radius:2px;padding:3px 8px;cursor:pointer;letter-spacing:.05em;margin-left:auto;}
   .cp-reset:hover{border-color:var(--acc);color:var(--acc);}
-  .cp-legend{font-family:var(--mono);font-size:9px;color:var(--tx3);display:flex;gap:10px;flex-wrap:wrap;padding:0 18px 8px;}
+  /* drawing-tool row: the tools the reader places on the candles themselves */
+  .cp-tools{display:flex;gap:4px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding:8px 18px;margin:0 18px;width:calc(100% - 36px);box-sizing:border-box;}
+  .cp-lbl{font-family:var(--mono);font-size:8px;color:var(--tx3);letter-spacing:.12em;margin-right:2px;}
+  .cp-len{font-family:var(--mono);font-size:10px;color:var(--tx);background:var(--bg3);border:1px solid var(--line2);border-radius:2px;padding:2px 4px;width:46px;text-align:center;}
+  .cp-len:focus{outline:none;border-color:var(--acc);}
+  .cp-dcount{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-left:auto;letter-spacing:.04em;}
+  .cp-legend{font-family:var(--mono);font-size:9px;color:var(--tx3);display:flex;gap:12px;flex-wrap:wrap;padding:0 18px 8px;min-height:11px;}
+  .cp-legend .na{color:#e0a340;}
   .cp-stat{font-family:var(--mono);font-size:11px;color:var(--tx2);margin-left:auto;}
   .cp-chart{height:420px;position:relative;margin:10px 18px 18px;}
   @media(max-width:700px){.cp-chart{height:300px;}}
@@ -185,17 +192,30 @@
       </div>
       <div class="cp-stat" id="cpStat">-</div>
     </div>
+    <div class="cp-tools" id="cpTools">
+      <span class="cp-lbl">DRAW</span>
+      <button class="cp-ind" data-tool="trend" onclick="cpSetTool('trend')" title="Click, then drag to the second point. The line is anchored to the bars it was drawn from, so it stays on that price as the chart pans and zooms.">TRENDLINE</button>
+      <button class="cp-ind" data-tool="ray" onclick="cpSetTool('ray')" title="A trendline extended to the right, as a projection ray">RAY</button>
+      <button class="cp-ind" data-tool="hline" onclick="cpSetTool('hline')" title="Horizontal line at a price: support or resistance. Click the chart to place it.">H-LINE</button>
+      <button class="cp-ind" data-tool="vline" onclick="cpSetTool('vline')" title="Vertical line on one bar. Click the chart to place it.">V-LINE</button>
+      <button class="cp-ind" data-tool="zone" onclick="cpSetTool('zone')" title="Rectangle zone: drag from one corner to the other">ZONE</button>
+      <button class="cp-ind" data-tool="erase" onclick="cpSetTool('erase')" title="Click a drawing to remove it">ERASE</button>
+      <button class="cp-reset" onclick="cpClearDrawings()" title="Remove every drawing for this security">CLEAR ALL</button>
+      <span class="cp-dcount" id="cpDrawCount">0 drawings</span>
+    </div>
     <div class="cp-inds" id="cpInds">
-      <button class="cp-ind" data-ind="sma20" onclick="cpToggleInd('sma20')">SMA20</button>
-      <button class="cp-ind" data-ind="sma50" onclick="cpToggleInd('sma50')">SMA50</button>
-      <button class="cp-ind" data-ind="sma200" onclick="cpToggleInd('sma200')">SMA200</button>
-      <button class="cp-ind" data-ind="ema20" onclick="cpToggleInd('ema20')">EMA20</button>
-      <button class="cp-ind" data-ind="bb" onclick="cpToggleInd('bb')">BBANDS</button>
-      <button class="cp-ind" data-ind="vol" onclick="cpToggleInd('vol')">VOL</button>
-      <button class="cp-ind" data-ind="rsi" onclick="cpToggleInd('rsi')">RSI</button>
-      <button class="cp-ind" data-ind="macd" onclick="cpToggleInd('macd')">MACD</button>
+      <span class="cp-lbl">IND</span>
+      <button class="cp-ind" data-ind="sma" onclick="cpToggleInd('sma')" title="Simple moving average of the closes">SMA</button>
+      <input class="cp-len" id="cpSmaLen" type="number" min="2" max="500" step="1" value="20" onchange="cpSetLen('sma',this.value)" title="SMA length in bars. Nothing is drawn until this many bars exist.">
+      <button class="cp-ind" data-ind="ema" onclick="cpToggleInd('ema')" title="Exponential moving average of the closes">EMA</button>
+      <input class="cp-len" id="cpEmaLen" type="number" min="2" max="500" step="1" value="20" onchange="cpSetLen('ema',this.value)" title="EMA length in bars. Nothing is drawn until this many bars exist.">
+      <button class="cp-ind" data-ind="bb" onclick="cpToggleInd('bb')" title="Bollinger bands: 20 bar SMA with 2 standard deviations">BBANDS</button>
+      <button class="cp-ind" data-ind="vol" onclick="cpToggleInd('vol')" title="Published volume per bar. A bar with no published volume plots nothing.">VOL</button>
+      <button class="cp-ind" data-ind="rsi" onclick="cpToggleInd('rsi')" title="Wilder RSI, 14 bars">RSI</button>
+      <button class="cp-ind" data-ind="macd" onclick="cpToggleInd('macd')" title="MACD 12/26/9">MACD</button>
       <button class="cp-reset" onclick="cpResetZoom()">RESET ZOOM</button>
     </div>
+    <div class="cp-legend" id="cpLegend"></div>
     <div class="cp-chart" id="cpChart"></div>
   </div>
 </div>
@@ -213,6 +233,15 @@
   </div>
 </div>
 <script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
+<!-- drawing tools + indicator maths for the candlestick chart (shared module) -->
+<script src="../../static_data/mx_chart_tools.js"></script>
+<script>
+// The deploy ships static_data/ (which carries mx_chart_tools.js) but a fresh
+// checkout has not copied it there yet, so fall back to the tracked source that
+// sits beside this panel. Without either copy the panel still runs: it hides the
+// promise of tools it cannot deliver and says so on the indicator line.
+if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/script>'); }
+</script>
 <script src="../../static_data/nse_heatmap_charts.js"></script>
 <script src="../../static_data/nse_ir_adapter.js"></script>
 <script>
@@ -533,7 +562,19 @@
     // ===== Security chart (candles/line, 1D/1M/1Y/ALL) - reliable in-house
   // renderer using static_data/history (no third-party iframe) =====
   var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpDivBars=[], cpName="", cpTkr="", cpCellPrice=null, cpCellChg=null, cpCellCur="", cpCellVol=null, cpBothDone=false, cpBasis="", cpBasisMode="splits",
-      cpInds={sma20:false,sma50:false,sma200:false,ema20:false,bb:false,vol:false,rsi:false,macd:false};
+      cpHistoryKey="", cpTA=null,
+      cpInds={sma:false,smaLen:20,ema:false,emaLen:20,bb:false,vol:false,rsi:false,macd:false};
+  // Indicator choices and lengths persist per browser under a NEW key
+  // (mt_chart_inds_v1). No existing key is renamed, so nothing a reader already
+  // saved is invalidated. Absent or unreadable state simply keeps the defaults.
+  (function(){
+    try{
+      var I = window.MXChartTools && window.MXChartTools.loadInds && window.MXChartTools.loadInds();
+      if(!I) return;
+      ["sma","ema","bb","vol","rsi","macd"].forEach(function(k){ if(I[k] != null) cpInds[k] = !!I[k]; });
+      ["smaLen","emaLen"].forEach(function(k){ var n = Math.round(Number(I[k])); if(isFinite(n) && n >= 2 && n <= 500) cpInds[k] = n; });
+    }catch(e){}
+  })();
   // The archive is drawn exactly as TradingView draws its default chart: split
   // adjusted, NOT dividend adjusted. Every series file states its own basis
   // ("splits"). The basis is shown by the SPLIT/+DIV toggle's selected state, and
@@ -607,12 +648,22 @@
         var k = keys[i++];
         return fetch("../../static_data/history/" + encodeURIComponent(k) + (suffix || "") + ".json")
           .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-          .then(function(d){ return (d && d.bars && d.bars.length) ? d : next(); })
+          .then(function(d){
+            if(!(d && d.bars && d.bars.length)) return next();
+            // Whichever history file for this security loads first (the daily
+            // series, or its .div / .max sidecar, all of which name the same
+            // security) fixes the key the drawings are filed under. Doing it on
+            // the first load rather than only on the daily one stops a drawing
+            // made in the first moments from being filed under a fallback name.
+            if(!cpHistoryKey) cpHistoryKey = k;
+            return d;
+          })
           .catch(next);
       }
       return next();
     }
-    cpBarsDaily = []; cpBarsMax = []; cpDivBars = []; cpBothDone = false; cpBasis = ""; cpBasisMode = "splits";
+    cpBarsDaily = []; cpBarsMax = []; cpDivBars = []; cpBothDone = false; cpBasis = ""; cpBasisMode = "splits"; cpHistoryKey = "";
+    if(cpTA){ try{ cpTA.destroy(); }catch(e){} cpTA = null; }
     cpPaintBasisBtns();
     phFetch("")
       .then(function(d){ cpBarsDaily = (d && d.bars) || []; cpBasis = (d && (d.basis || d.adjusted)) || ""; cpBothDone = true; cpRender(); })
@@ -664,74 +715,146 @@
     if(cpRange === "1W") return pick(7, 1);
     return pick(5, 1); // 1D - last week of EOD bars (no free intraday feed)
   }
-  // ===== Technical-analysis indicator helpers (computed over the visible bars) =====
-  function smaOf(vals, n){
-    var out = new Array(vals.length).fill(null), sum = 0;
-    for(var i = 0; i < vals.length; i++){
-      sum += vals[i];
-      if(i >= n) sum -= vals[i - n];
-      if(i >= n - 1) out[i] = sum / n;
+  // ===== Technical-analysis indicators =====
+  // The maths lives in the shared module (mx_chart_tools.js) so this panel and any
+  // other chart draw the same numbers. Every function there returns null where a
+  // window is not filled: an SMA of length 50 has no value for the first 49 bars.
+  function TA(){ return (window.MXChartTools && window.MXChartTools.indicators) || null; }
+  // The window the indicators are computed over is the WHOLE active series, then
+  // projected onto the bars on screen. Computing them over the visible slice alone
+  // blanked a 50 bar average on a 1D view (5 bars) even though 260 bars exist,
+  // which reads as a broken indicator rather than an honest one. Values still come
+  // out null where the window is short, so nothing is invented.
+  function cpIndStack(bars){
+    var I = TA();
+    var full = cpActiveDaily();
+    var useFull = !!(full && full.length >= bars.length && bars.length);
+    var src = useFull ? full : bars;
+    var n = src.length;
+    if(!I) return {missing:true, full:n, shown:bars.length};
+    var closes = src.map(function(b){ var c = Number(b.c); return isFinite(c) ? c : NaN; });
+    var pos = null;
+    function project(arr){
+      if(!useFull) return (arr || []).slice(0, bars.length);
+      if(!pos){ pos = {}; for(var i = 0; i < n; i++) pos[String(src[i].t)] = i; }
+      return bars.map(function(b){ var k = pos[String(b.t)]; return (k == null) ? null : arr[k]; });
     }
-    return out;
-  }
-  function emaOf(vals, n){
-    var out = new Array(vals.length).fill(null), k = 2 / (n + 1), prev = null;
-    for(var i = 0; i < vals.length; i++){
-      prev = (prev == null) ? vals[i] : (vals[i] * k + prev * (1 - k));
-      out[i] = prev;
-    }
-    return out;
-  }
-  function rsiOf(vals, n){
-    var out = new Array(vals.length).fill(null), g = 0, l = 0;
-    for(var i = 1; i < vals.length; i++){
-      var ch = vals[i] - vals[i-1];
-      var up = ch > 0 ? ch : 0, dn = ch < 0 ? -ch : 0;
-      if(i <= n){
-        g += up; l += dn;
-        if(i === n){ var rs = (l === 0) ? 100 : (g / l); out[i] = (l === 0) ? 100 : (100 - 100 / (1 + rs)); }
-      } else {
-        g = (g * (n - 1) + up) / n; l = (l * (n - 1) + dn) / n;
-        var rs2 = (l === 0) ? 100 : (g / l); out[i] = (l === 0) ? 100 : (100 - 100 / (1 + rs2));
-      }
-    }
-    return out;
-  }
-  function macdOf(vals, fast, slow, sig){
-    var emaF = emaOf(vals, fast), emaS = emaOf(vals, slow);
-    var line = vals.map(function(_, i){ return (emaF[i] != null && emaS[i] != null) ? (emaF[i] - emaS[i]) : null; });
-    var clean = line.filter(function(v){ return v != null; });
-    var signalClean = emaOf(clean, sig);
-    var signal = new Array(vals.length).fill(null), hist = new Array(vals.length).fill(null);
-    var si = 0;
-    for(var i = 0; i < vals.length; i++){
-      if(line[i] != null){
-        signal[i] = signalClean[si];
-        hist[i] = line[i] - signal[i];
-        si++;
-      }
-    }
-    return {line: line, signal: signal, hist: hist};
-  }
-  function bbOf(vals, n, k){
-    var mid = smaOf(vals, n);
-    var up = new Array(vals.length).fill(null), lo = new Array(vals.length).fill(null);
-    for(var i = n - 1; i < vals.length; i++){
-      var s = 0;
-      for(var j = i - n + 1; j <= i; j++) s += Math.pow(vals[j] - mid[i], 2);
-      var sd = Math.sqrt(s / n);
-      up[i] = mid[i] + k * sd; lo[i] = mid[i] - k * sd;
-    }
-    return {upper: up, middle: mid, lower: lo};
+    var smaLen = Math.max(2, Math.min(500, Math.round(cpInds.smaLen) || 20));
+    var emaLen = Math.max(2, Math.min(500, Math.round(cpInds.emaLen) || 20));
+    var bb = I.bollinger(closes, 20, 2);
+    var mac = I.macd(closes, 12, 26, 9);
+    return {
+      missing:false, full:n, shown:bars.length, smaLen:smaLen, emaLen:emaLen,
+      sma: project(I.sma(closes, smaLen)),
+      ema: project(I.ema(closes, emaLen)),
+      bb: { upper: project(bb.upper), middle: project(bb.middle), lower: project(bb.lower) },
+      rsi: project(I.rsi(closes, 14)),
+      macd: { line: project(mac.line), signal: project(mac.signal), hist: project(mac.hist) },
+      vol: project(I.volume(src))
+    };
   }
   function fmt(v){ return v >= 1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : (v >= 100 ? v.toFixed(1) : v.toFixed(2)); }
+  function cpPaintInds(){
+    Array.prototype.forEach.call(document.querySelectorAll(".cp-ind[data-ind]"), function(b){
+      b.classList.toggle("on", !!cpInds[b.getAttribute("data-ind")]);
+    });
+    var s = document.getElementById("cpSmaLen"); if(s) s.value = cpInds.smaLen;
+    var e = document.getElementById("cpEmaLen"); if(e) e.value = cpInds.emaLen;
+  }
+  function cpSaveInds(){
+    if(!(window.MXChartTools && window.MXChartTools.saveInds)) return;
+    window.MXChartTools.saveInds({ sma:!!cpInds.sma, smaLen:cpInds.smaLen, ema:!!cpInds.ema, emaLen:cpInds.emaLen,
+      bb:!!cpInds.bb, vol:!!cpInds.vol, rsi:!!cpInds.rsi, macd:!!cpInds.macd });
+  }
   function cpToggleInd(name){
+    if(!(name in cpInds)) return;
     cpInds[name] = !cpInds[name];
-    Array.prototype.forEach.call(document.querySelectorAll(".cp-ind"), function(b){ b.classList.toggle("on", !!cpInds[b.getAttribute("data-ind")]); });
+    cpSaveInds();
+    cpPaintInds();
+    cpRender();
+  }
+  function cpSetLen(kind, val){
+    var n = Math.round(Number(val));
+    if(!isFinite(n)) n = 20;
+    n = Math.max(2, Math.min(500, n));
+    if(kind === "ema") cpInds.emaLen = n; else cpInds.smaLen = n;
+    cpSaveInds();
+    cpPaintInds();
     cpRender();
   }
   function cpResetZoom(){
     if(cpChart){ try{ cpChart.timeScale().fitContent(); }catch(e){} }
+    if(cpTA) cpTA.redraw();
+  }
+  // ===== Drawing tools (the module does the work; this is the panel wiring) =====
+  function cpPaintTools(){
+    var t = cpTA ? cpTA.toolName() : "none";
+    Array.prototype.forEach.call(document.querySelectorAll(".cp-ind[data-tool]"), function(b){
+      b.classList.toggle("on", b.getAttribute("data-tool") === t);
+    });
+    var box = document.getElementById("cpDrawCount");
+    if(!box) return;
+    var n = cpTA ? cpTA.count() : 0;
+    var words = n + (n === 1 ? " drawing" : " drawings");
+    if(!window.MXChartTools) box.textContent = "drawing tools unavailable";
+    else if(cpTA && window.MXChartTools.drawingsReadOnly && window.MXChartTools.drawingsReadOnly())
+      box.textContent = words + ", not saved: this browser holds a newer drawings format";
+    else if(!cpTA || t === "none") box.textContent = words;
+    else if(t === "erase") box.textContent = "click a drawing to remove it, Esc to stop (" + words + ")";
+    else if(t === "hline" || t === "vline") box.textContent = "click the chart to place it, Esc to stop (" + words + ")";
+    else box.textContent = "drag across the chart to draw, Esc to stop (" + words + ")";
+  }
+  function cpSetTool(name){
+    if(!cpTA) return;
+    cpTA.setTool(name);
+    cpPaintTools();
+  }
+  function cpClearDrawings(){
+    if(!cpTA) return;
+    cpTA.clearAll();
+    cpPaintTools();
+  }
+  // The drawings of one security are filed under the history key that loaded, so
+  // they come back for the same series and never appear on another security.
+  function cpSecKey(){
+    if(cpHistoryKey) return cpHistoryKey;
+    var t = String(cpTkr || cpName || "").toUpperCase();
+    return t ? (activeEx + ":" + t) : "";
+  }
+  // The newest bar we actually hold, and how old it is. A chart that silently
+  // shows month old bars as the current price is the failure this prevents.
+  function cpStaleness(){
+    var arr = cpActiveDaily();
+    if(!arr || !arr.length) return "";
+    var t = arr[arr.length - 1].t, iso = null;
+    if(typeof t === "number"){ iso = new Date(t * 1000).toISOString().slice(0, 10); }
+    else { var s = String(t).slice(0, 10); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) iso = s; }
+    if(!iso) return "";
+    var ms = Date.parse(iso + "T00:00:00Z");
+    if(!isFinite(ms)) return "";
+    var days = Math.floor((Date.now() - ms) / 86400000);
+    if(days <= 5) return "";
+    return "history ends " + iso + " (" + days + " days old)";
+  }
+  function cpAttachTools(bars){
+    if(cpTA){ try{ cpTA.destroy(); }catch(e){} cpTA = null; }
+    var host = document.getElementById("cpChart");
+    if(!(window.MXChartTools && window.MXChartTools.attach && cpChart && cpSeries && host && bars.length)){
+      cpPaintTools(); return;
+    }
+    // The time domain the anchors are indexed against is the whole active series,
+    // so a line drawn on 1Y is still there (and still anchored to its own bars)
+    // after switching to 1D, exactly as it stays put while panning and zooming.
+    var full = cpActiveDaily();
+    var times = ((full && full.length >= bars.length) ? full : bars).map(function(b){ return String(b.t); });
+    try{
+      cpTA = window.MXChartTools.attach({
+        chart: cpChart, series: cpSeries, host: host,
+        key: cpSecKey(), bars: bars, times: times,
+        onChange: function(){ cpPaintTools(); }
+      });
+    }catch(e){ cpTA = null; }
+    cpPaintTools();
   }
   function cpRender(){
     var bars = cpBarsForRange();
@@ -786,11 +909,14 @@
       }
       return;
     }
+    if(cpTA){ try{ cpTA.destroy(); }catch(e){} cpTA = null; }
     if(cpChart){ try{cpChart.remove();}catch(e){} cpChart = null; }
     box.innerHTML = ''; // clear any EOD/loading placeholder before drawing
     var mapped = bars.map(function(b){ return {time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, value: b.c, volume: b.v}; });
-    var closes = bars.map(function(b){ return Number(b.c) || 0; });
-    var hasVol = bars.some(function(b){ return b.v != null && Number(b.v) > 0; });
+    // a bar with no published close stays null, so every indicator that would
+    // need it comes out null as well instead of being fed a zero
+    var hasVol = bars.some(function(b){ return b.v != null && b.v !== "" && isFinite(Number(b.v)) && Number(b.v) > 0; });
+    var IND = cpIndStack(bars);
     var MINT = "#33e29a", RED = "#f87171";
     var w = Math.max(box.clientWidth || 800, 200);
     var h = Math.max(box.clientHeight || 400, 200);
@@ -798,7 +924,7 @@
       layout:{background:{color:"transparent"},textColor:"#9a9a9a",fontFamily:"Oxygen Mono, monospace",fontSize:10},
       grid:{vertLines:{color:"rgba(38,38,38,.5)"},horzLines:{color:"rgba(38,38,38,.5)"}},
       rightPriceScale:{borderColor:"#262626"},
-      timeScale:{borderColor:"#262626",timeVisible:false,rightOffset:4,barSpacing:9,minBarSpacing:0.001},
+      timeScale:{borderColor:"#262626",timeVisible:false,rightOffset:1,barSpacing:9,minBarSpacing:0.001},
       crosshair:{mode:1},
       handleScroll:true,
       handleScale:true,
@@ -822,44 +948,56 @@
       cpSeries.setData(mapped.map(function(b){ return {time:b.time, value:b.close}; }));
     }
     // ---- overlay indicators (drawn on the price pane, above the candles) ----
+    // addLine drops every null, so a window that is not filled plots nothing at
+    // all rather than a line started from a value built out of missing bars.
     function addLine(valsArr, color, width, style){
+      if(!valsArr) return null;
       var s = cpChart.addSeries(LightweightCharts.LineSeries, {color:color, lineWidth:width||1, lineStyle:style||0, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false});
-      s.setData(mapped.map(function(b, i){ return {time:b.time, value: valsArr[i]}; }).filter(function(p){ return p.value != null; }));
+      var data = [];
+      for(var i = 0; i < mapped.length; i++){
+        var v = valsArr[i];
+        if(v == null || !isFinite(v)) continue;
+        data.push({time: mapped[i].time, value: v});
+      }
+      s.setData(data);
       return s;
     }
-    if(cpInds.sma20) addLine(smaOf(closes, 20), "#4da6ff", 1);
-    if(cpInds.sma50) addLine(smaOf(closes, 50), "#e6a23c", 1);
-    if(cpInds.sma200) addLine(smaOf(closes, 200), "#d967ff", 1);
-    if(cpInds.ema20) addLine(emaOf(closes, 20), "#2ee6a8", 1, 2);
-    if(cpInds.bb){
-      var bb = bbOf(closes, 20, 2);
-      addLine(bb.upper, "#4da6ff", 1, 2);
-      addLine(bb.middle, "#9a9a9a", 1);
-      addLine(bb.lower, "#4da6ff", 1, 2);
+    if(!IND.missing){
+      if(cpInds.sma) addLine(IND.sma, "#4da6ff", 1);
+      if(cpInds.ema) addLine(IND.ema, "#2ee6a8", 1, 2);
+      if(cpInds.bb){
+        addLine(IND.bb.upper, "#4da6ff", 1, 2);
+        addLine(IND.bb.middle, "#9a9a9a", 1);
+        addLine(IND.bb.lower, "#4da6ff", 1, 2);
+      }
     }
     // ---- subchart indicators (each in its own pane below the price) ----
     var paneIdx = 1;
     if(cpInds.vol && hasVol){
       var vp = cpChart.addSeries(LightweightCharts.HistogramSeries, {priceFormat:{type:"volume"}}, paneIdx++);
-      vp.setData(mapped.map(function(b, i){
-        var up = (bars[i].c >= bars[i].o);
-        return {time:b.time, value: Number(b.volume) || 0, color: up ? "rgba(51,226,154,.45)" : "rgba(248,113,113,.45)"};
-      }));
+      var vdata = [];
+      for(var vi = 0; vi < mapped.length; vi++){
+        var vv = IND.missing ? null : IND.vol[vi];
+        /* no published volume for this bar: plot nothing, never a drawn zero */
+        if(vv == null || !isFinite(vv)) continue;
+        vdata.push({time: mapped[vi].time, value: vv,
+          color: (Number(bars[vi].c) >= Number(bars[vi].o)) ? "rgba(51,226,154,.45)" : "rgba(248,113,113,.45)"});
+      }
+      vp.setData(vdata);
     }
-    if(cpInds.rsi){
-      var r = rsiOf(closes, 14);
+    if(cpInds.rsi && !IND.missing){
       var rp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#4da6ff", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, paneIdx++);
-      rp.setData(mapped.map(function(b, i){ return {time:b.time, value: r[i]}; }).filter(function(p){ return p.value != null; }));
+      rp.setData(mapped.map(function(b, i){ return {time:b.time, value: IND.rsi[i]}; }).filter(function(p){ return p.value != null && isFinite(p.value); }));
     }
-    if(cpInds.macd){
-      var m = macdOf(closes, 12, 26, 9);
+    if(cpInds.macd && !IND.missing){
+      var m = IND.macd;
       var macdPane = paneIdx++;
       var hp = cpChart.addSeries(LightweightCharts.HistogramSeries, {}, macdPane);
-      hp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.hist[i], color: (m.hist[i] != null && m.hist[i] >= 0) ? "rgba(51,226,154,.5)" : "rgba(248,113,113,.5)"}; }).filter(function(p){ return p.value != null; }));
+      hp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.hist[i], color: (m.hist[i] != null && m.hist[i] >= 0) ? "rgba(51,226,154,.5)" : "rgba(248,113,113,.5)"}; }).filter(function(p){ return p.value != null && isFinite(p.value); }));
       var mp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#4da6ff", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, macdPane);
-      mp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.line[i]}; }).filter(function(p){ return p.value != null; }));
+      mp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.line[i]}; }).filter(function(p){ return p.value != null && isFinite(p.value); }));
       var sp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#e6a23c", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, macdPane);
-      sp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.signal[i]}; }).filter(function(p){ return p.value != null; }));
+      sp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.signal[i]}; }).filter(function(p){ return p.value != null && isFinite(p.value); }));
     }
     // give the price pane the most height; share the rest among subcharts
     try{
@@ -873,28 +1011,73 @@
     }catch(e){}
     cpChart.timeScale().fitContent();
     var first = mapped[0].close, last = mapped[mapped.length-1].close;
-    var pct = first ? ((last - first) / first * 100) : 0;
+    var pct = (first != null && isFinite(first) && first) ? ((last - first) / first * 100) : 0;
     var sign = pct >= 0 ? "+" : "";
-    // live indicator values in the status line
-    var legendParts = [];
-    if(cpInds.sma20){ var a20 = smaOf(closes,20), v = a20[a20.length-1]; if(v != null) legendParts.push("SMA20 "+fmt(v)); }
-    if(cpInds.sma50){ var a50 = smaOf(closes,50); v = a50[a50.length-1]; if(v != null) legendParts.push("SMA50 "+fmt(v)); }
-    if(cpInds.sma200){ var a200 = smaOf(closes,200); v = a200[a200.length-1]; if(v != null) legendParts.push("SMA200 "+fmt(v)); }
-    if(cpInds.ema20){ var e20 = emaOf(closes,20); v = e20[e20.length-1]; if(v != null) legendParts.push("EMA20 "+fmt(v)); }
-    if(cpInds.bb){ var bbb = bbOf(closes,20,2); var lu = bbb.lower[bbb.lower.length-1], uu = bbb.upper[bbb.upper.length-1]; if(lu != null) legendParts.push("BB "+fmt(lu)+"/"+fmt(uu)); }
-    if(cpInds.rsi){ var rr = rsiOf(closes,14); v = rr[rr.length-1]; if(v != null) legendParts.push("RSI14 "+v.toFixed(1)); }
-    if(cpInds.macd){ var mm = macdOf(closes,12,26,9); v = mm.line[mm.line.length-1]; if(v != null) legendParts.push("MACD "+fmt(v)); }
+    // ---- legend: the value each switched-on indicator is plotting right now,
+    //      and an explicit note where it is plotting nothing at all ----
+    var legendParts = [], notes = [];
+    function tail(a){
+      if(!a || !a.length) return null;
+      for(var i = a.length - 1; i >= 0; i--){ if(a[i] != null && isFinite(a[i])) return a[i]; }
+      return null;
+    }
+    if(IND.missing){
+      notes.push("indicator engine not loaded");
+    } else {
+      if(cpInds.sma){
+        var vs = tail(IND.sma);
+        if(vs != null) legendParts.push("SMA" + IND.smaLen + " " + fmt(vs));
+        else notes.push("SMA" + IND.smaLen + " not plotted: " + IND.full + " bars of history, the window needs " + IND.smaLen);
+      }
+      if(cpInds.ema){
+        var ve = tail(IND.ema);
+        if(ve != null) legendParts.push("EMA" + IND.emaLen + " " + fmt(ve));
+        else notes.push("EMA" + IND.emaLen + " not plotted: " + IND.full + " bars of history, the window needs " + IND.emaLen);
+      }
+      if(cpInds.bb){
+        var lu = tail(IND.bb.lower), uu = tail(IND.bb.upper);
+        if(lu != null) legendParts.push("BB " + fmt(lu) + "/" + fmt(uu));
+        else notes.push("BBANDS not plotted: " + IND.full + " bars of history, the window needs 20");
+      }
+      if(cpInds.vol){
+        var vv20 = tail(IND.vol);
+        if(vv20 != null) legendParts.push("VOL " + fmt(vv20));
+        else notes.push("VOL not plotted: no published volume for these bars");
+      }
+      if(cpInds.rsi){
+        var vr = tail(IND.rsi);
+        if(vr != null) legendParts.push("RSI14 " + vr.toFixed(1));
+        else notes.push("RSI14 not plotted: " + IND.full + " bars of history, the window needs 15");
+      }
+      if(cpInds.macd){
+        var vm = tail(IND.macd.line), vg = tail(IND.macd.signal);
+        if(vm != null) legendParts.push("MACD " + fmt(vm) + (vg != null ? (" signal " + fmt(vg)) : ""));
+        else notes.push("MACD not plotted: " + IND.full + " bars of history, the window needs 34");
+      }
+    }
+    var lbox = document.getElementById("cpLegend");
+    if(lbox){
+      lbox.innerHTML = legendParts.map(function(p){ return "<span>" + esc(p) + "</span>"; }).join("") +
+        notes.map(function(p){ return "<span class=\"na\">" + esc(p) + "</span>"; }).join("");
+    }
     function ym(t){ if(t == null) return ""; if(typeof t === "number"){ var d = new Date(t * 1000); return d.getUTCFullYear() + "-" + String(d.getUTCMonth()+1).padStart(2,"0"); } return String(t).slice(0,7); }
     // The bar count is deliberately NOT shown. It stated how many bars the window
     // holds, which is an implementation detail of the fetch rather than anything a
     // reader acts on, and it led the line with a number that looked like a price.
     var statText = sign + pct.toFixed(2) + "% · " + (cpRange === "ALL" ? ("since " + ym(bars[0].t)) : cpRange);
-    if(legendParts.length) statText += "  |  " + legendParts.join(" · ");
-    $("cpStat").textContent = statText;
+    // Honesty: a chart holding bars that stopped weeks ago says so, rather than
+    // letting a reader take a month old close for the current price.
+    var stale = cpStaleness();
+    var statHTML = esc(statText);
+    if(stale) statHTML += ' <span style="color:#e0a340">' + esc(stale) + '</span>';
+    $("cpStat").innerHTML = statHTML;
+    // ---- drawing tools on the candles (trendline, ray, lines, zone) ----
+    cpAttachTools(bars);
     var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(function(){ try{ if(cpChart) cpChart.applyOptions({width: Math.max(box.clientWidth||800,200)}); }catch(e){} }, 150); });
   }
 
-  // close on Escape
+  // close on Escape (unless a drawing tool is armed: then Escape only disarms it,
+  // which the chart-tools module handles in the capture phase before this runs)
   document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeChartPanel(); });
   // expose chart functions for the inline onclick handlers (they live in the IIFE scope)
   window.openChart = openChart;
@@ -904,8 +1087,15 @@
   window.cpSetBasis = cpSetBasis;
   window.cpRender = cpRender;
   window.cpToggleInd = cpToggleInd;
+  window.cpSetLen = cpSetLen;
   window.cpResetZoom = cpResetZoom;
+  window.cpSetTool = cpSetTool;
+  window.cpClearDrawings = cpClearDrawings;
+  window.cpDrawCount = function(){ return cpTA ? cpTA.count() : 0; };
+  window.cpToolsHandle = function(){ return cpTA; };
   window.hmSetView = hmSetView;
+  cpPaintInds();
+  cpPaintTools();
 })();
 </script>
 </body>
