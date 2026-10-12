@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - FOCUS panel: the quote card for ONE security.
+
+  A Bloomberg-style FOCUS card drawn in this terminal's own language: header with
+  the panel name and the selected security, the ticker large, the price huge, then
+  the change percent and the change in levels, both coloured by sign.
+
+  DATA (the same sources the rest of the terminal reads):
+    ../../static_data/market_<EX>.json    the published quote for the security
+    ../../static_data/history/<KEY>.json  the real exchange bars, used to date a
+                                          security whose quote is absent or stale
+
+  HONESTY RULES this panel enforces:
+    - the as-of date of the quote is always shown; a price with no date is not
+      presented as current.
+    - a security with no published quote shows "no current quote" and NO price,
+      NO percent and NO change. The last published bar, if any, is shown as a
+      bar with its own date, never as the current price.
+    - a quote whose as-of sits behind the exchange's own session (more than 5
+      days) is marked STALE and the lag is stated on the card.
+    - the change in levels is price - prevClose and is printed ONLY when the
+      row's own chgPct agrees with that arithmetic (tolerance 0.02pt). A row
+      whose prevClose does not belong to the quoted session would disagree, and
+      then no level change is printed rather than a cross-session number.
+    - the NSE board writes `chg` as a duplicate of chgPct (percent, not a level),
+      so that field is never used as an absolute change.
+
+  Vanilla JS, exact Godel tokens (mint #33e29a on black, Oxygen Mono, uppercase
+  labels), no provider credits, no injected LIVE/EOD badges, no build step.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - FOCUS</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* each panel is its own document, so the shell's scrollbar CSS cannot reach in */
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;--tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--warn:#e0a340;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#000;color:var(--tx);font-family:var(--ui);font-size:13px;padding:16px;}
+
+  .fx{border:1px solid var(--line2);background:var(--bg2);border-radius:2px;max-width:760px;margin:0 auto;}
+  .fx-head{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line2);gap:12px;flex-wrap:wrap;}
+  .fx-head .t{font-size:12px;letter-spacing:.08em;color:var(--tx2);text-transform:uppercase;}
+  .fx-head .t b{color:var(--acc);font-weight:700;}
+  /* the selected-security field: the shell owns selection, so this field reports
+     the security it was handed rather than pretending to be an input */
+  .fx-sec{display:flex;align-items:center;gap:7px;border:1px solid var(--line2);background:var(--bg);
+    padding:5px 12px;border-radius:2px;font-family:var(--mono);font-size:12px;color:var(--acc);}
+  .fx-sec .pin{width:11px;height:11px;flex:0 0 auto;opacity:.85;}
+  .fx-sec.empty{color:var(--tx3);}
+  .fx-body{padding:26px 20px 20px;background:#000;}
+  .fx-tkr{font-family:var(--mono);font-weight:700;color:var(--tx);font-size:52px;line-height:1;letter-spacing:.01em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fx-nm{font-size:12px;color:var(--tx3);padding-top:6px;letter-spacing:.02em;}
+  .fx-px{font-family:var(--mono);font-weight:700;font-size:78px;line-height:1.02;padding-top:10px;
+    font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fx-cur{font-family:var(--mono);font-size:13px;color:var(--tx3);letter-spacing:.06em;padding-left:6px;}
+  .fx-chg{font-family:var(--mono);font-weight:700;font-size:30px;line-height:1.1;padding-top:2px;font-variant-numeric:tabular-nums;}
+  .fx-abs{font-family:var(--mono);font-weight:700;font-size:24px;line-height:1.1;padding-top:5px;font-variant-numeric:tabular-nums;}
+  .fx-pct-unit{font-size:20px;}
+  .up{color:var(--up);} .down{color:var(--down);} .flat{color:var(--tx2);} .nofig{color:var(--tx3);} .warn{color:var(--warn);}
+  .fx-foot{border-top:1px solid var(--line);padding:9px 16px;font-family:var(--mono);font-size:10px;color:var(--tx3);
+    line-height:1.75;letter-spacing:.03em;}
+  .fx-foot b{color:var(--tx2);font-weight:400;}
+  .fx-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);}
+  .fx-cell{background:var(--bg2);padding:8px 12px;}
+  .fx-k{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3);}
+  .fx-v{font-family:var(--mono);font-size:12px;color:var(--tx);padding-top:3px;font-variant-numeric:tabular-nums;}
+  /* the honest empty state: no price, no percent, no change is shown */
+  .fx-np{font-family:var(--mono);font-weight:700;font-size:34px;line-height:1.1;color:var(--warn);padding-top:14px;letter-spacing:.02em;}
+  .fx-why{font-family:var(--mono);font-size:11px;color:var(--tx2);padding-top:12px;line-height:1.8;}
+  .fx-bar{font-family:var(--mono);font-size:11px;color:var(--tx2);padding-top:10px;line-height:1.8;}
+  @media (max-width:560px){
+    .fx-tkr{font-size:36px;} .fx-px{font-size:52px;} .fx-chg{font-size:22px;} .fx-abs{font-size:18px;}
+    .fx-grid{grid-template-columns:repeat(2,1fr);} .fx-np{font-size:24px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="fx" id="fx">
+  <div class="fx-head">
+    <div class="t"><b>FOCUS</b> &middot; <span id="fxEx">-</span></div>
+    <div class="fx-sec empty" id="fxSec">
+      <svg class="pin" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.6 1.2 10.8 4.4 9.3 4.9 8.6 5.6 6.4 9.3 5.1 8.0 2.0 11.1 0.9 10.0 4.0 6.9 2.7 5.6 6.4 3.4 7.1 2.7 Z" fill="currentColor"/></svg>
+      <span id="fxSecTxt">no security</span>
+    </div>
+  </div>
+
+  <div class="fx-body" id="fxBody"></div>
+
+  <div class="fx-grid" id="fxGrid" style="display:none;"></div>
+
+  <div class="fx-foot" id="fxFoot">-</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var BASE = "../../static_data/";
+  var Q = new URLSearchParams(location.search);
+  var EX = (Q.get("ex") || "JSE").toUpperCase();
+  var REQ = (Q.get("sym") || Q.get("symbol") || "").trim();
+  var STALE_DAYS = 5;          // the same threshold the chart uses for a stale history
+  var PCT_TOL = 0.02;          // chgPct must agree with price/prevClose within this
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+  function num(v){ if(v === null || v === undefined || v === "") return null; var n = Number(v); return isNaN(n) ? null : n; }
+  function fmtPx(a){ return Number(a).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function get(u){ return fetch(u, {cache:"default"}).then(function(r){
+    if(!r.ok) throw new Error(String(r.status)); return r.json(); }); }
+
+  // A session date out of either shape the tree uses: "2026-10-09" (NGX/JSE/EGX)
+  // or "NSE 12/10/2026 17:04 GMT+3 (closed)" (the NSE live board's stamp).
+  function asDate(s){
+    if(s == null) return null;
+    var t = String(s).trim();
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+    if(m) return {iso: t, ms: Date.parse(t + "T00:00:00Z")};
+    m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(t);
+    if(m){ var iso = m[3] + "-" + m[2] + "-" + m[1]; return {iso: iso, ms: Date.parse(iso + "T00:00:00Z")}; }
+    return null;
+  }
+  function daysBetween(a, b){ return (a && b && isFinite(a.ms) && isFinite(b.ms)) ? Math.round((b.ms - a.ms) / 86400000) : null; }
+  function todayUTC(){ var d = new Date(); return Date.parse(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString()); }
+
+  // The history archive is keyed several ways: NSE/NGX use EX_<bare ticker>, the
+  // JSE uses <bare>.JO, the EGX uses either the bare ticker or the ISIN. The
+  // market row's own `sym` IS a file key on the JSE/EGX, so it is tried first.
+  function histKeys(row, sym){
+    var given = String(sym == null ? "" : sym).toUpperCase(), bare = given.split(".")[0], out = [];
+    function push(k){ if(k && out.indexOf(k) < 0) out.push(k); }
+    if(EX === "NSE" || EX === "NGX"){ push(EX + "_" + bare); return out; }
+    if(row && row.sym) push(String(row.sym).toUpperCase());
+    if(/^\S+\.[A-Za-z]{2}$/.test(given)) push(given);
+    var sfx = EX === "JSE" ? ".JO" : (EX === "EGX" ? ".CA" : "");
+    if(sfx) push(bare + sfx);
+    push(bare);
+    return out;
+  }
+  function getHist(row, sym){
+    var keys = histKeys(row, sym), i = 0;
+    function next(){
+      if(i >= keys.length) return Promise.resolve(null);
+      var k = keys[i++];
+      return get(BASE + "history/" + encodeURIComponent(k) + ".json")
+        .then(function(d){ return (d && d.bars && d.bars.length) ? d : next(); })
+        .catch(next);
+    }
+    return next();
+  }
+  function lastBar(hist){
+    if(!hist || !hist.bars || !hist.bars.length) return null;
+    var b = hist.bars[hist.bars.length - 1];
+    return { t: b && b.t != null ? String(b.t).slice(0, 10) : null, c: b ? num(b.c) : null };
+  }
+
+  function matchRow(rows, sym){
+    var s = String(sym).toUpperCase(), bare = s.split(".")[0];
+    function exact(r){ return String(r.sym || "").toUpperCase() === s || String(r.ticker || "").toUpperCase() === s; }
+    function bareSame(r){
+      return String(r.sym || "").toUpperCase().split(".")[0] === bare ||
+             String(r.ticker || "").toUpperCase().split(".")[0] === bare;
+    }
+    for(var i = 0; i < rows.length; i++){ if(exact(rows[i])) return rows[i]; }
+    for(var j = 0; j < rows.length; j++){ if(bareSame(rows[j])) return rows[j]; }
+    return null;
+  }
+  // the display ticker: the exchange's own ticker, never a fixed one
+  function tickerOf(r, fallback){
+    var t = String(r && (r.ticker || r.sym) || fallback || "").toUpperCase();
+    return t;
+  }
+
+  // ---- states -------------------------------------------------------------
+  // Every state that is not a current quote says so in words and shows no figure.
+  function renderNoSecurity(){
+    $("fxSec").className = "fx-sec empty";
+    $("fxSecTxt").textContent = "no security";
+    $("fxBody").innerHTML =
+      '<div class="fx-tkr nofig">NO SECURITY</div>' +
+      '<div class="fx-np">NO SECURITY SELECTED</div>' +
+      '<div class="fx-why">Pick a security first: click a row in the watchlist or on the BOARD, ' +
+      'or type a ticker in the command line. This card quotes one security at a time, and it does ' +
+      'not carry a price of its own to fall back on.</div>';
+    $("fxGrid").style.display = "none";
+    $("fxFoot").innerHTML = "<b>" + esc(EX) + "</b> &middot; no security selected";
+  }
+  function renderNoMarket(reason){
+    $("fxSec").className = "fx-sec";
+    $("fxSecTxt").textContent = String(REQ || "").toUpperCase() + " " + EX;
+    $("fxBody").innerHTML =
+      '<div class="fx-tkr nofig">' + esc(tickerOf(null, REQ) || "NO MARKET") + '</div>' +
+      '<div class="fx-np">NO CURRENT QUOTE</div>' +
+      '<div class="fx-why">The ' + esc(EX) + ' market snapshot could not be read' +
+      (reason ? " (" + esc(reason) + ")" : "") + ', so no price, percent or change is shown here. ' +
+      'Nothing is estimated or carried over from an earlier session.</div>';
+    $("fxGrid").style.display = "none";
+    $("fxFoot").innerHTML = "<b>" + esc(EX) + "</b> &middot; no quote source";
+  }
+  function renderNoQuote(sym, board, row, hist){
+    var last = lastBar(hist);
+    var parts = [];
+    parts.push("<div class='fx-tkr'>" + esc(tickerOf(row, sym)) + "</div>");
+    if(row && row.name) parts.push("<div class='fx-nm'>" + esc(row.name) + "</div>");
+    // A WITHHELD price is its own fact, not a missing one: the exchange snapshot
+    // carries the reason it held the price back, and the archive's stored value
+    // for such a security IS the value the snapshot declined to call a session
+    // price, so it is not printed here either.
+    var withheld = !!(row && (row.priceWithheld || row.asOfWithheld || row.withhold_reason));
+    var reason = row && (row.withhold_reason || row.priceNote) ? String(row.withhold_reason || row.priceNote) : "";
+    $("fxSec").className = "fx-sec";
+    $("fxSecTxt").textContent = tickerOf(row, sym) + " " + EX;
+    parts.push("<div class='fx-np'>" + (withheld ? "PRICE WITHHELD" : "NO CURRENT QUOTE") + "</div>");
+    var why;
+    if(withheld){
+      why = "This exchange's snapshot holds this security's price back" + (reason ? ": " + esc(reason) : "") +
+        ". No price, percent or change is shown, and the archive's stored value for this security is the same " +
+        "value the snapshot withholds, so it is not printed here either.";
+      if(last && last.t){
+        why += "<div class='fx-bar'>The archive's last bar for this security is dated <b>" + esc(last.t) +
+          "</b> and carries no session close to quote.</div>";
+      }
+    } else {
+      why = "This security is carried by the " + esc(EX) + " snapshot, but it has no published " +
+        "price for the " + esc(board && board.asOf ? board.asOf : "current") + " session, so no price, " +
+        "percent or change is shown. A blank is the honest answer here; a figure would be invented.";
+      if(last && last.t){
+        var age = daysBetween(asDate(last.t), {ms: todayUTC()});
+        why += "<div class='fx-bar'>LAST PUBLISHED BAR <b>" + esc(last.t) + "</b>" +
+          (last.c != null ? " close " + esc(fmtPx(last.c)) + (row && row.currency ? " " + esc(row.currency) : "") : "") +
+          (age != null ? " &middot; " + age + " days old" : "") +
+          " &middot; a historical bar, not the current price.</div>";
+      } else {
+        why += "<div class='fx-bar'>The price history holds no bars for this security either, so there is " +
+          "no last close to date.</div>";
+      }
+    }
+    parts.push("<div class='fx-why'>" + why + "</div>");
+    $("fxBody").innerHTML = parts.join("");
+    renderGrid(row, null, null, null, null, withheld);
+    $("fxFoot").innerHTML = "<b>" + tickerOf(row, sym) + " " + esc(EX) + "</b> &middot; " +
+      (row && row.asOf ? "as of " + esc(row.asOf) : "as-of not stated") +
+      " &middot; " + (withheld ? "price withheld, " : "") + "no current quote" +
+      " &middot; no change is shown without a dated current price";
+  }
+  function renderAbsent(sym, board, hist){
+    var last = lastBar(hist);
+    $("fxSec").className = "fx-sec";
+    $("fxSecTxt").textContent = String(sym || "").toUpperCase() + " " + EX;
+    var parts = [];
+    parts.push("<div class='fx-tkr nofig'>" + esc(String(sym || "").toUpperCase()) + "</div>");
+    parts.push("<div class='fx-np'>NOT IN THE SNAPSHOT</div>");
+    var why = "The " + esc(EX) + " market snapshot does not carry this security, so it has no quote " +
+      "here and nothing is shown in its place.";
+    if(last && last.t){
+      var age = daysBetween(asDate(last.t), {ms: todayUTC()});
+      why += "<div class='fx-bar'>The price history still holds bars: LAST PUBLISHED BAR <b>" + esc(last.t) + "</b>" +
+        (last.c != null ? " close " + esc(fmtPx(last.c)) : "") +
+        (age != null ? " &middot; " + age + " days old" : "") +
+        " &middot; history is not a quote.</div>";
+    }
+    parts.push("<div class='fx-why'>" + why + "</div>");
+    $("fxBody").innerHTML = parts.join("");
+    $("fxGrid").style.display = "none";
+    $("fxFoot").innerHTML = "<b>" + esc(String(sym || "").toUpperCase()) + " " + esc(EX) +
+      "</b> &middot; not carried by this exchange snapshot" +
+      (board && board.asOf ? " &middot; snapshot as of " + esc(board.asOf) : "");
+  }
+
+  function renderGrid(row, px, level, pct, asOf, withheld){
+    var cells = [];
+    function cell(k, v){
+      cells.push("<div class='fx-cell'><div class='fx-k'>" + esc(k) + "</div><div class='fx-v'>" + v + "</div></div>");
+    }
+    cell("as of", asOf ? esc(asOf) : "<span class='nofig'>not stated</span>");
+    cell("prev close", withheld ? "<span class='nofig'>withheld</span>"
+      : (row && num(row.prevClose) != null ? esc(fmtPx(num(row.prevClose))) : "<span class='nofig'>not stated</span>"));
+    cell("volume", row && num(String(row.volume == null ? "" : row.volume).replace(/,/g, "")) != null
+      ? esc(num(String(row.volume).replace(/,/g, "")).toLocaleString("en-US")) : "<span class='nofig'>not stated</span>");
+    cell("sector", row && row.sector ? esc(row.sector) : "<span class='nofig'>not stated</span>");
+    $("fxGrid").innerHTML = cells.join("");
+    $("fxGrid").style.display = "";
+  }
+
+  function renderQuote(sym, board, row, hist){
+    var px = num(row.price);
+    var asOf = asDate(row.asOf);
+    var pct = num(row.chgPct);
+    var prev = num(row.prevClose);
+    var boardDate = asDate(board && board.asOf);
+    var lag = daysBetween(asOf, boardDate);
+    // "behind the board's own session" is measured against the session the
+    // exchange's snapshot is priced at, so a stale security is named without
+    // relying on the reader's clock.
+    var stale = (lag != null && lag > STALE_DAYS);
+    var behindToday = daysBetween(asOf, {ms: todayUTC()});
+
+    // The level change is only printed when the row's own chgPct agrees with
+    // price - prevClose. If prevClose belonged to a different session the two
+    // would disagree, and then no level change is printed.
+    var level = null, agree = null;
+    if(px != null && prev != null && pct != null && prev !== 0){
+      var calc = (px - prev) / prev * 100.0;
+      agree = Math.abs(calc - pct) <= PCT_TOL;
+      level = Math.round((px - prev) * 100) / 100;
+    } else if(px != null && prev != null && pct == null){
+      // no percent in the source: the level change cannot be checked against
+      // anything, so it is not printed as a change
+      agree = false;
+    }
+    var dir = pct == null ? "nofig" : (pct > 0 ? "up" : (pct < 0 ? "down" : "flat"));
+    var pxCls = pct == null ? "" : (pct >= 0 ? " up" : " down");
+
+    $("fxSec").className = "fx-sec";
+    $("fxSecTxt").textContent = tickerOf(row, sym) + " " + EX;
+
+    var h = [];
+    h.push("<div class='fx-tkr'>" + esc(tickerOf(row, sym)) + "</div>");
+    if(row.name) h.push("<div class='fx-nm'>" + esc(row.name) + "</div>");
+    h.push("<div class='fx-px" + pxCls + "'>" + esc(fmtPx(px)) +
+      (row.currency ? "<span class='fx-cur'>" + esc(row.currency) + "</span>" : "") + "</div>");
+    if(pct != null){
+      h.push("<div class='fx-chg " + dir + "'>" + (pct >= 0 ? "+" : "") + pct.toFixed(2) +
+        "<span class='fx-pct-unit'>%</span></div>");
+    } else {
+      h.push("<div class='fx-chg nofig'>change percent not stated</div>");
+    }
+    if(level != null && agree){
+      h.push("<div class='fx-abs " + dir + "'>" + (level >= 0 ? "+" : "") + fmtPx(level) + "</div>");
+    } else {
+      h.push("<div class='fx-abs nofig'>change in levels not stated</div>");
+    }
+    $("fxBody").innerHTML = h.join("");
+
+    renderGrid(row, px, level, pct, row.asOf);
+
+    // ---- footer: the as-of stamp first, then anything that qualifies it ----
+    var foot = [];
+    foot.push("<b>" + esc(asOf ? asOf.iso : "as-of not stated") + "</b>");
+    if(lag != null){
+      if(stale){
+        foot.push("<span class='warn'>STALE: " + lag + " days behind the " + esc(boardDate ? boardDate.iso : "") + " board session</span>");
+      } else if(lag === 0){
+        foot.push("current for the <b>" + esc(boardDate ? boardDate.iso : "") + "</b> session");
+      } else {
+        foot.push(lag + " day" + (lag === 1 ? "" : "s") + " behind the " + esc(boardDate ? boardDate.iso : "") + " board session");
+      }
+      // a lag against the reader's own clock is stated separately, and only when
+      // it says something the session lag does not
+      if(behindToday != null && behindToday > STALE_DAYS && behindToday !== lag){
+        foot.push("<span class='warn'>" + behindToday + " days before today</span>");
+      }
+    } else {
+      foot.push("<span class='warn'>as-of date not stated, so it is not treated as current</span>");
+    }
+    if(agree === false && px != null && prev != null){
+      foot.push("<span class='warn'>chgPct disagrees with price - prevClose, so no level change is shown</span>");
+    }
+    var lb = lastBar(hist);
+    if(lb && lb.t && asOf){
+      // the bars date the quote independently: say so when they disagree
+      if(lb.t > asOf.iso){
+        foot.push("price history holds a later bar: <b>" + esc(lb.t) + "</b>");
+      } else if(lb.t < asOf.iso){
+        foot.push("history ends <b>" + esc(lb.t) + "</b>");
+      }
+    }
+    foot.push("no interpolated or carried-over values");
+    $("fxFoot").innerHTML = foot.join(" &middot; ");
+  }
+
+  function render(sym, board, hist, marketError){
+    if(!sym){ renderNoSecurity(); return; }
+    if(!board){ renderNoMarket(marketError); return; }
+    var row = matchRow(board.stocks || [], sym);
+    if(!row){ renderAbsent(sym, board, hist); return; }
+    if(num(row.price) == null){ renderNoQuote(sym, board, row, hist); return; }
+    renderQuote(sym, board, row, hist);
+  }
+
+  function init(){
+    $("fxEx").textContent = EX;
+    if(!REQ){
+      renderNoSecurity();
+      return;
+    }
+    $("fxSecTxt").textContent = String(REQ).toUpperCase();
+    get(BASE + "market_" + encodeURIComponent(EX) + ".json")
+      .then(function(board){
+        return getHist(null, REQ).then(function(hist){ render(REQ, board, hist, null); });
+      })
+      .catch(function(e){ render(REQ, null, null, e && e.message ? e.message : "unreadable"); });
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>

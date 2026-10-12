@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - CHART panel: the candlestick chart for ONE security, on its
+  own, with its own commands.
+
+  The chart renderer is the terminal's own: the same Lightweight Charts build the
+  heatmap draws with, the same ../../static_data/history/<KEY>.json bars, and the
+  same shared tools module ../../static_data/mx_chart_tools.js. Nothing here is a
+  second implementation of anything: the drawing tools and every indicator are
+  MXChartTools' own, and this panel only supplies the axis, the bars, the menus
+  and the command surface.
+
+  MXChartTools surface this panel calls (read from static_data/mx_chart_tools.js):
+    MXChartTools.attach({chart, series, host, key, bars, times, onChange}) -> handle
+       handle.setTool('none'|'trend'|'ray'|'hline'|'vline'|'zone'|'erase')
+       handle.toolName(), handle.redraw(), handle.removeById(id), handle.clearAll(),
+       handle.items(), handle.count(), handle.setContext({...}), handle.destroy()
+    MXChartTools.indicators = {sma, ema, bollinger, rsi, macd, volume, blankReason}
+    MXChartTools.loadInds() / .saveInds(obj)   (localStorage mt_chart_inds_v1)
+    MXChartTools.drawingsReadOnly() / .drawingsUnreadable()
+
+  INDICATORS ARE COMPUTED OVER THE WHOLE SERIES AND PROJECTED ONTO THE VISIBLE
+  BARS. A range button narrows which bars are drawn; it never narrows the series
+  the maths runs on. That is the fix a prior session made in the heatmap (the
+  full-series compute plus a time-keyed projection), and it is preserved here: a
+  length 50 average keeps its value on a 5 bar view when 282 bars exist, because
+  the window is filled from the bars the file actually holds.
+
+  HONESTY: a bar that is not in the file is not drawn. An indicator whose window
+  the series cannot fill plots nothing at all and says why, using the module's own
+  blankReason. A security with no history says so rather than drawing an empty
+  frame. The quote strip shows the market file's own last price with its as-of
+  date, and shows no price, no percent and no change when the row has no current
+  quote.
+
+  Vanilla JS, Godel tokens (mint #33e29a on black, Oxygen Mono, uppercase labels),
+  no provider credits, no injected LIVE/EOD badges, no build step.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - CHART</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;--tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--warn:#e0a340;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#000;color:var(--tx);font-family:var(--ui);font-size:13px;padding:16px;}
+
+  .ch{border:1px solid var(--line2);background:var(--bg2);border-radius:2px;max-width:1280px;margin:0 auto;}
+  .ch-head{display:flex;align-items:center;gap:16px;padding:10px 14px;border-bottom:1px solid var(--line2);flex-wrap:wrap;}
+  .ch-head .t{font-size:12px;letter-spacing:.08em;color:var(--tx2);text-transform:uppercase;white-space:nowrap;}
+  .ch-head .t b{color:var(--acc);font-weight:700;}
+  .ch-sym{display:flex;align-items:baseline;gap:9px;min-width:0;}
+  .ch-sym .tk{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--tx);letter-spacing:.02em;}
+  .ch-sym .nm{font-size:11px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;}
+  .ch-quote{display:flex;align-items:baseline;gap:14px;margin-left:auto;font-family:var(--mono);flex-wrap:wrap;}
+  .ch-quote .q{display:flex;align-items:baseline;gap:6px;}
+  .ch-quote .k{font-size:9px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase;}
+  .ch-quote .v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .ch-quote .v.big{font-size:22px;}
+  .ch-quote .v.sm{font-size:11px;font-weight:400;color:var(--tx2);}
+  .up{color:var(--up);} .down{color:var(--down);} .flat{color:var(--tx2);} .nofig{color:var(--tx3);} .warn{color:var(--warn);}
+
+  /* the owner's layout: a toolbar row, then a left tool rail beside the chart */
+  .ch-toolbar{display:flex;align-items:center;gap:14px;padding:7px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .grp{display:flex;gap:3px;align-items:center;}
+  .gl{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase;padding-right:3px;}
+  .tb{font-family:var(--mono);font-size:10px;color:var(--tx3);background:var(--bg2);border:1px solid var(--line2);
+    padding:3px 9px;border-radius:2px;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;}
+  .tb:hover{color:var(--tx2);border-color:var(--tx3);}
+  .tb.on{color:var(--acc);border-color:var(--acc);}
+  .tb[disabled]{opacity:.4;cursor:default;}
+  .tb.warnb{color:var(--warn);border-color:var(--warn);}
+  .ch-menu{position:relative;}
+  .ch-menu .panel{display:none;position:absolute;z-index:30;top:26px;left:0;min-width:230px;background:var(--bg2);
+    border:1px solid var(--line2);border-radius:2px;padding:8px 10px;}
+  .ch-menu.open .panel{display:block;}
+  .ch-menu .row{display:flex;align-items:center;gap:8px;padding:3px 0;font-family:var(--mono);font-size:10px;color:var(--tx2);}
+  .ch-menu .row input[type=checkbox]{accent-color:#33e29a;}
+  .ch-menu .row input[type=number]{width:56px;background:var(--bg);border:1px solid var(--line2);color:var(--tx);
+    font-family:var(--mono);font-size:10px;padding:2px 4px;}
+  .ch-menu .row .lk{margin-left:auto;color:var(--tx3);font-size:9px;}
+  .ch-menu .hdr{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--acc);text-transform:uppercase;
+    padding:2px 0 6px;border-bottom:1px solid var(--line);margin-bottom:5px;}
+  .ch-menu .note{font-family:var(--mono);font-size:9px;color:var(--tx3);line-height:1.6;padding-top:6px;border-top:1px solid var(--line);margin-top:5px;}
+
+  .ch-body{display:flex;align-items:stretch;background:#000;}
+  .ch-rail{width:44px;flex:0 0 44px;border-right:1px solid var(--line2);padding:6px 0;display:flex;flex-direction:column;
+    align-items:center;gap:4px;}
+  .rt{width:32px;height:28px;display:flex;align-items:center;justify-content:center;background:var(--bg2);
+    border:1px solid var(--line2);border-radius:2px;cursor:pointer;color:var(--tx3);font-family:var(--mono);font-size:11px;}
+  .rt:hover{color:var(--tx2);border-color:var(--tx3);}
+  .rt.on{color:var(--acc);border-color:var(--acc);}
+  .rt[disabled]{opacity:.35;cursor:default;}
+  .ch-rail .sep{width:24px;height:1px;background:var(--line2);margin:3px 0;}
+  .ch-main{flex:1 1 auto;min-width:0;}
+  .ch-chart{position:relative;width:100%;height:520px;background:#000;}
+  .ch-bottom{display:flex;align-items:center;gap:14px;padding:6px 12px;border-top:1px solid var(--line2);flex-wrap:wrap;}
+  .ch-legend{font-family:var(--mono);font-size:10px;color:var(--tx3);padding:6px 12px;border-top:1px solid var(--line);
+    line-height:1.8;letter-spacing:.02em;}
+  .ch-legend b{color:var(--tx2);font-weight:400;}
+  .ch-legend .warn{color:var(--warn);}
+  .ch-empty{padding:26px 20px;font-family:var(--mono);font-size:11px;color:var(--tx2);line-height:1.9;}
+  .ch-empty .np{color:var(--warn);font-size:15px;letter-spacing:.04em;padding-bottom:8px;}
+  .ch-clock{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-left:auto;letter-spacing:.05em;}
+  @media (max-width:700px){ .ch-chart{height:360px;} .ch-sym .nm{display:none;} }
+</style>
+</head>
+<body>
+
+<div class="ch" id="ch">
+  <div class="ch-head">
+    <div class="t"><b>CHART</b> &middot; <span id="chEx">-</span></div>
+    <div class="ch-sym">
+      <span class="tk" id="chTkr">no security</span>
+      <span class="nm" id="chName"></span>
+    </div>
+    <div class="ch-quote" id="chQuote"></div>
+  </div>
+
+  <div class="ch-toolbar">
+    <div class="grp">
+      <span class="gl">series</span>
+      <button class="tb on" id="tyCandle" data-ty="candle" type="button">candles</button>
+      <button class="tb" id="tyLine" data-ty="line" type="button">line</button>
+      <button class="tb" id="tyArea" data-ty="area" type="button">area</button>
+    </div>
+    <div class="grp">
+      <span class="gl">range</span>
+      <button class="tb" data-rng="1M" type="button">1M</button>
+      <button class="tb on" data-rng="6M" type="button">6M</button>
+      <button class="tb" data-rng="1Y" type="button">1Y</button>
+      <button class="tb" data-rng="ALL" type="button">ALL</button>
+    </div>
+    <div class="grp ch-menu" id="indMenu">
+      <button class="tb" id="indBtn" type="button">indicators</button>
+      <div class="panel" id="indPanel">
+        <div class="hdr">indicators</div>
+        <div class="row"><label><input type="checkbox" data-ind="sma" id="ckSma"> SMA</label>
+          <span class="lk">length</span><input type="number" id="lenSma" min="2" max="500" step="1" value="20"></div>
+        <div class="row"><label><input type="checkbox" data-ind="ema" id="ckEma"> EMA</label>
+          <span class="lk">length</span><input type="number" id="lenEma" min="2" max="500" step="1" value="20"></div>
+        <div class="row"><label><input type="checkbox" data-ind="bb" id="ckBb"> BOLLINGER BANDS (20, 2)</label></div>
+        <div class="row"><label><input type="checkbox" data-ind="vol" id="ckVol"> VOLUME PANE</label></div>
+        <div class="row"><label><input type="checkbox" data-ind="rsi" id="ckRsi"> RSI (14)</label></div>
+        <div class="row"><label><input type="checkbox" data-ind="macd" id="ckMacd"> MACD (12, 26, 9)</label></div>
+        <div class="note">Indicator choices and lengths are shared with the heatmap's chart through
+          the module's own mt_chart_inds_v1 key.</div>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="gl">drawings</span>
+      <button class="tb" id="drawClear" type="button">clear all</button>
+      <span class="tb" id="drawCount" style="cursor:default;">0 drawings</span>
+    </div>
+    <div class="grp">
+      <span class="gl">basis</span>
+      <span class="tb" id="chBasis" style="cursor:default;">-</span>
+    </div>
+  </div>
+
+  <div class="ch-body">
+    <div class="ch-rail" id="chRail">
+      <button class="rt on" data-tool="none" title="Crosshair: no drawing tool armed" type="button">+</button>
+      <div class="sep"></div>
+      <button class="rt" data-tool="trend" title="Trendline: drag between two points" type="button">\</button>
+      <button class="rt" data-tool="ray" title="Ray: a trendline extended to the right" type="button">/</button>
+      <button class="rt" data-tool="hline" title="Horizontal line at a price: click the chart" type="button">-</button>
+      <button class="rt" data-tool="vline" title="Vertical line on a bar: click the chart" type="button">|</button>
+      <button class="rt" data-tool="zone" title="Zone: drag from one corner to the other" type="button">#</button>
+      <div class="sep"></div>
+      <button class="rt" data-tool="erase" title="Erase: click a drawing to remove it" type="button">x</button>
+      <button class="rt" id="railClear" title="Clear every drawing for this security" type="button">*</button>
+    </div>
+    <div class="ch-main">
+      <div class="ch-chart" id="chChart"></div>
+    </div>
+  </div>
+
+  <div class="ch-bottom">
+    <div class="grp">
+      <span class="gl">range</span>
+      <button class="tb" data-rng="5D" type="button">5D</button>
+      <button class="tb" data-rng="1M" type="button">1M</button>
+      <button class="tb" data-rng="3M" type="button">3M</button>
+      <button class="tb on" data-rng="6M" type="button">6M</button>
+      <button class="tb" data-rng="1Y" type="button">1Y</button>
+      <button class="tb" data-rng="5Y" type="button">5Y</button>
+      <button class="tb" data-rng="ALL" type="button">ALL</button>
+    </div>
+    <div class="grp">
+      <span class="gl">scale</span>
+      <button class="tb" id="scPct" type="button">%</button>
+      <button class="tb" id="scLog" type="button">log</button>
+      <button class="tb on" id="scAuto" type="button">auto</button>
+    </div>
+    <span class="ch-clock" id="chClock">local time</span>
+  </div>
+
+  <div class="ch-legend" id="chLegend">-</div>
+</div>
+
+<script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
+<!-- drawing tools + indicator maths for the candlestick chart (shared module) -->
+<script src="../../static_data/mx_chart_tools.js"></script>
+<script>
+// The deploy ships static_data/ (which carries mx_chart_tools.js) but a fresh
+// checkout has not copied it there yet, so fall back to the tracked source that
+// sits beside this panel. Without either copy the panel still runs: it disables
+// the toolbar and says on the legend line that the module did not load, rather
+// than presenting buttons that cannot do anything.
+if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/script>'); }
+</script>
+<script>
+(function () {
+  "use strict";
+  var BASE = "../../static_data/";
+  var Q = new URLSearchParams(location.search);
+  var EX = (Q.get("ex") || "JSE").toUpperCase();
+  var SYM = (Q.get("sym") || Q.get("symbol") || "").trim();
+  var STALE_DAYS = 5;
+  var PCT_TOL = 0.02;
+
+  var TYPE = "candle";
+  var RANGE = "6M";
+  var BARS = [];            // the whole published daily series, oldest first
+  var FALLBACK = [];        // the monthly aggregate, used only when no daily series exists
+  var HISTKEY = "";         // the history key that loaded: also the drawings key
+  var MONTHLY_ONLY = false;
+  var BOARD = null, STOCK = null, HASVOL = false;
+  var WITHHELD = false, WITHHOLD_REASON = "";   // the snapshot declined to call this a session price
+  var CHART = null, SERIES = null, TA = null;
+  var INDS = {sma:false, smaLen:20, ema:false, emaLen:20, bb:false, vol:true, rsi:false, macd:false};
+  var IND_KEYS = ["sma","ema","bb","vol","rsi","macd"];
+  var SCALE = {pct:false, log:false};   // auto is the resting state
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+  function num(v){ if(v === null || v === undefined || v === "") return null; var n = Number(v); return isNaN(n) ? null : n; }
+  function fmtPx(a){ return Number(a).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function get(u){ return fetch(u, {cache:"default"}).then(function(r){
+    if(!r.ok) throw new Error(String(r.status)); return r.json(); }); }
+  function TAAPI(){ return (window.MXChartTools && window.MXChartTools.indicators) || null; }
+
+  // A session date out of either shape the tree uses: "2026-10-09" or the NSE
+  // board's stamp "NSE 12/10/2026 17:04 GMT+3 (closed)".
+  function asDate(s){
+    if(s == null) return null;
+    var t = String(s).trim();
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+    if(m) return {iso: t, ms: Date.parse(t + "T00:00:00Z")};
+    m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(t);
+    if(m){ var iso = m[3] + "-" + m[2] + "-" + m[1]; return {iso: iso, ms: Date.parse(iso + "T00:00:00Z")}; }
+    return null;
+  }
+  function todayMs(){ var d = new Date(); return Date.parse(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString()); }
+
+  // ---- bars ------------------------------------------------------------------
+  // The archive is keyed per exchange: NSE/NGX are EX_<bare ticker>, the JSE is
+  // <bare>.JO, the EGX is either the bare ticker or the ISIN. The market row's own
+  // sym IS a file key on the JSE/EGX, so its forms are tried first.
+  function histKeys(){
+    var out = [], bare = String(SYM).toUpperCase().split(".")[0];
+    function add(k){ k = String(k == null ? "" : k).replace(/\//g, "_").toUpperCase(); if(k && out.indexOf(k) < 0) out.push(k); }
+    if(EX === "NSE" || EX === "NGX"){ add(EX + "_" + bare); return out; }
+    if(STOCK){ add(STOCK.sym); add(STOCK.ticker); }
+    add(SYM);
+    var sfx = EX === "JSE" ? ".JO" : (EX === "EGX" ? ".CA" : "");
+    if(sfx) add(bare + sfx);
+    add(bare);
+    return out;
+  }
+  function fetchKey(k, suffix){
+    return get(BASE + "history/" + encodeURIComponent(k) + (suffix || "") + ".json")
+      .then(function(d){ return (d && d.bars && d.bars.length) ? d : null; });
+  }
+  function loadHistory(){
+    var keys = histKeys(), i = 0;
+    function next(){
+      if(i >= keys.length) return Promise.resolve(null);
+      var k = keys[i++];
+      return fetchKey(k, "").then(function(d){
+        if(!d) return next();
+        HISTKEY = k; MONTHLY_ONLY = false; return d;
+      }).catch(next);
+    }
+    return next().then(function(d){
+      if(d) return d;
+      // no daily series: the monthly aggregate is the only published history, and
+      // the legend says so rather than letting it pass for a daily series
+      var j = 0;
+      function nextMax(){
+        if(j >= keys.length) return null;
+        var k = keys[j++];
+        return fetchKey(k, ".max").then(function(m){
+          if(!m) return nextMax();
+          HISTKEY = k + ".max"; MONTHLY_ONLY = true; return m;
+        }).catch(nextMax);
+      }
+      return nextMax();
+    });
+  }
+
+  // ---- indicator maths over the WHOLE series, projected onto the visible bars --
+  function indStack(visible){
+    var I = TAAPI();
+    var src = BARS.length ? BARS : visible;
+    if(!I) return {missing:true, full:src.length, shown:visible.length};
+    var n = src.length;
+    var closes = src.map(function(b){ var c = num(b.c); return c == null ? NaN : c; });
+    var pos = null;
+    function project(arr){
+      if(!arr) return null;
+      if(!pos){ pos = {}; for(var i = 0; i < n; i++) pos[String(src[i].t)] = i; }
+      return visible.map(function(b){ var k = pos[String(b.t)]; return (k == null) ? null : arr[k]; });
+    }
+    var smaLen = Math.max(2, Math.min(500, Math.round(INDS.smaLen) || 20));
+    var emaLen = Math.max(2, Math.min(500, Math.round(INDS.emaLen) || 20));
+    var bb = I.bollinger(closes, 20, 2);
+    var mac = I.macd(closes, 12, 26, 9);
+    return {
+      missing:false, full:n, shown:visible.length, smaLen:smaLen, emaLen:emaLen,
+      sma: project(I.sma(closes, smaLen)),
+      ema: project(I.ema(closes, emaLen)),
+      bb: {upper: project(bb.upper), middle: project(bb.middle), lower: project(bb.lower)},
+      rsi: project(I.rsi(closes, 14)),
+      macd: {line: project(mac.line), signal: project(mac.signal), hist: project(mac.hist)},
+      vol: project(I.volume(src))
+    };
+  }
+  function lastValue(arr){
+    if(!arr) return null;
+    for(var i = arr.length - 1; i >= 0; i--){ if(arr[i] != null && isFinite(arr[i])) return arr[i]; }
+    return null;
+  }
+
+  // ---- ranges ----------------------------------------------------------------
+  var RANGE_BARS = {"5D":5, "1M":21, "3M":63, "6M":126, "1Y":252, "5Y":1260};
+  function visibleBars(){
+    var src = BARS.length ? BARS : FALLBACK;
+    if(!src.length) return [];
+    if(RANGE === "ALL") return src;
+    var n = RANGE_BARS[RANGE] || 126;
+    var v = src.slice(-n);
+    return v.length ? v : src.slice(-1);   // one real bar still draws as one honest candle
+  }
+
+  // ---- quote strip (market_<EX>.json, with its own as-of) ---------------------
+  function renderQuote(){
+    var box = $("chQuote");
+    if(!SYM){ box.innerHTML = ""; return; }
+    if(!BOARD){ box.innerHTML = '<span class="v sm warn">no quote source</span>'; return; }
+    var row = STOCK;
+    if(WITHHELD){
+      var asO = row && row.asOf ? row.asOf : "not stated";
+      box.innerHTML = '<span class="q"><span class="k">last</span><span class="v warn">price withheld</span></span>' +
+        '<span class="q"><span class="k">as of</span><span class="v sm">' + esc(asO) + '</span></span>' +
+        '<span class="q"><span class="k">reason</span><span class="v sm warn" title="' + esc(WITHHOLD_REASON) + '">' +
+        esc(String(WITHHOLD_REASON).slice(0, 96)) + '</span></span>';
+      return;
+    }
+    if(!row || num(row.price) == null){
+      box.innerHTML = '<span class="q"><span class="k">last</span><span class="v nofig">no current quote</span></span>' +
+        (row && row.asOf ? '<span class="q"><span class="k">as of</span><span class="v sm">' + esc(row.asOf) + '</span></span>' : '') ;
+      return;
+    }
+    var px = num(row.price), prev = num(row.prevClose), pct = num(row.chgPct);
+    var dir = pct == null ? "nofig" : (pct > 0 ? "up" : (pct < 0 ? "down" : "flat"));
+    var level = null;
+    if(prev != null && pct != null && prev !== 0 && Math.abs(((px - prev) / prev * 100.0) - pct) <= PCT_TOL)
+      level = Math.round((px - prev) * 100) / 100;
+    var vol = num(String(row.volume == null ? "" : row.volume).replace(/,/g, ""));
+    var h = [];
+    h.push('<span class="q"><span class="k">last</span><span class="v big ' + dir + '">' + esc(fmtPx(px)) + '</span>' +
+      (row.currency ? '<span class="v sm">' + esc(row.currency) + '</span>' : '') + '</span>');
+    h.push('<span class="q"><span class="k">chg</span><span class="v ' + dir + '">' +
+      (level == null ? "not stated" : esc((level >= 0 ? "+" : "") + fmtPx(level))) + '</span></span>');
+    h.push('<span class="q"><span class="k">chg %</span><span class="v ' + dir + '">' +
+      (pct == null ? "not stated" : esc((pct >= 0 ? "+" : "") + pct.toFixed(2) + "%")) + '</span></span>');
+    h.push('<span class="q"><span class="k">vol</span><span class="v sm">' +
+      (vol == null ? "not stated" : esc(vol.toLocaleString("en-US"))) + '</span></span>');
+    var asD = asDate(row.asOf), bd = asDate(BOARD && BOARD.asOf);
+    var lag = (asD && bd) ? Math.round((bd.ms - asD.ms) / 86400000) : null;
+    var stale = (lag != null && lag > STALE_DAYS);
+    h.push('<span class="q"><span class="k">as of</span><span class="v sm' + (stale ? " warn" : "") + '">' +
+      esc(row.asOf || "not stated") +
+      (stale ? esc(" · stale, " + lag + " days behind the " + bd.iso + " session") : "") + '</span></span>');
+    box.innerHTML = h.join("");
+  }
+
+  // ---- chart -----------------------------------------------------------------
+  function destroyChart(){
+    if(TA){ try{ TA.destroy(); }catch(e){} TA = null; }
+    if(CHART){ try{ CHART.remove(); }catch(e){} CHART = null; }
+    SERIES = null;
+    var box = $("chChart");
+    if(box) box.innerHTML = "";
+  }
+  function applyScale(){
+    if(!CHART) return;
+    var mode = SCALE.log ? 1 : (SCALE.pct ? 2 : 0);
+    try{ CHART.priceScale("right").applyOptions({mode: mode}); }catch(e){}
+    try{ if(SERIES) SERIES.priceScale().applyOptions({mode: mode}); }catch(e){}
+    $("scPct").classList.toggle("on", SCALE.pct);
+    $("scLog").classList.toggle("on", SCALE.log);
+    $("scAuto").classList.toggle("on", !SCALE.pct && !SCALE.log);
+  }
+  function paintType(){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-ty]"), function(b){
+      b.classList.toggle("on", b.getAttribute("data-ty") === TYPE);
+    });
+  }
+  function paintRange(){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-rng]"), function(b){
+      b.classList.toggle("on", b.getAttribute("data-rng") === RANGE);
+    });
+  }
+
+  function render(){
+    if(!SYM){ $("chTkr").textContent = "no security"; renderEmpty("NO SECURITY SELECTED",
+      "Pick a security first: click a row in the watchlist or type a ticker in the command line. " +
+      "This panel charts one security at a time."); return; }
+    if(WITHHELD){
+      // The snapshot states outright that the stored value is not a session
+      // price. Drawing the archive's bars for it would put that value on a price
+      // axis, so nothing is drawn and the reason is stated instead.
+      renderEmpty("PRICE WITHHELD", "This exchange's snapshot holds this security's price back: " +
+        esc(WITHHOLD_REASON || "no reason recorded") + ". The archive's bars for it carry the same value " +
+        "the snapshot declined to call a session price, so no candles are drawn from them.");
+      return;
+    }
+    if(!BARS.length && !FALLBACK.length){
+      if(!BOARD){
+        // The snapshot failing and the security having no history are different
+        // facts: an unreadable snapshot says nothing about this security's bars.
+        renderEmpty("NO MARKET SNAPSHOT", "The <b>" + esc(EX) + "</b> market snapshot could not be read, so this " +
+          "is either not one of the exchanges this terminal carries or its snapshot is not published. " +
+          "The history archive holds nothing under any key tried for <b>" + esc(SYM) + "</b> either, " +
+          "so nothing is drawn here.");
+      } else {
+        renderEmpty("NO PRICE HISTORY", "No bars are published for <b>" + esc(HISTKEY || SYM) +
+          "</b> in the archive, so nothing is drawn. An empty frame would suggest a flat line.");
+      }
+      return;
+    }
+    var bars = visibleBars();
+    var box = $("chChart");
+    destroyChart();
+    box.innerHTML = "";
+    var MINT = "#33e29a", RED = "#f87171";
+    var mapped = bars.map(function(b){
+      return {time: b.t, open: num(b.o), high: num(b.h), low: num(b.l), close: num(b.c), value: num(b.c), volume: num(b.v)};
+    });
+    if(!mapped.length){ renderEmpty("NO BARS IN RANGE", "The published history holds no bar for this range."); return; }
+    HASVOL = bars.some(function(b){ var v = num(b.v); return v != null && v > 0; });
+    var IND = indStack(bars);
+    var w = Math.max(box.clientWidth || 900, 260);
+    var h = Math.max(box.clientHeight || 520, 220);
+    try{
+      CHART = LightweightCharts.createChart(box, {
+        layout:{background:{color:"transparent"},textColor:"#9a9a9a",fontFamily:"Oxygen Mono, monospace",fontSize:10},
+        grid:{vertLines:{color:"rgba(38,38,38,.5)"},horzLines:{color:"rgba(38,38,38,.5)"}},
+        rightPriceScale:{borderColor:"#262626"},
+        timeScale:{borderColor:"#262626",timeVisible:false,rightOffset:1,barSpacing:9,minBarSpacing:0.001},
+        crosshair:{mode:1},
+        handleScroll:true,
+        handleScale:true,
+        localization:{priceFormatter:function(p){ return p >= 1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2); }},
+        width:w, height:h
+      });
+    }catch(e){
+      renderEmpty("CHART ENGINE UNAVAILABLE", "The charting library did not load, so no chart is drawn here.");
+      return;
+    }
+
+    if(TYPE === "candle"){
+      SERIES = CHART.addSeries(LightweightCharts.CandlestickSeries, {
+        upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
+        wickUpColor:MINT, wickDownColor:RED,
+        // the level at the last price, drawn dashed with its label on the right axis
+        priceLineVisible:true, priceLineColor:MINT, priceLineWidth:1, priceLineStyle:2
+      });
+      SERIES.setData(mapped.map(function(b){
+        return {time:b.time, open:b.open, high:b.high, low:b.low, close:b.close};
+      }).filter(function(p){ return p.open != null && p.high != null && p.low != null && p.close != null; }));
+    } else if(TYPE === "area"){
+      SERIES = CHART.addSeries(LightweightCharts.AreaSeries, {
+        lineColor:MINT, topColor:"rgba(51,226,154,.25)", bottomColor:"rgba(51,226,154,0)",
+        lineWidth:2, priceLineVisible:true, priceLineColor:MINT, priceLineStyle:2
+      });
+      SERIES.setData(mapped.filter(function(p){ return p.close != null; })
+        .map(function(p){ return {time:p.time, value:p.close}; }));
+    } else {
+      SERIES = CHART.addSeries(LightweightCharts.LineSeries, {
+        color:MINT, lineWidth:2, priceLineVisible:true, priceLineColor:MINT, priceLineStyle:2
+      });
+      SERIES.setData(mapped.filter(function(p){ return p.close != null; })
+        .map(function(p){ return {time:p.time, value:p.close}; }));
+    }
+
+    // overlay indicators: addLine drops every null, so a window the series cannot
+    // fill plots NOTHING rather than a line started from missing bars
+    function addLine(valsArr, color, width, style){
+      if(!valsArr) return null;
+      var s = CHART.addSeries(LightweightCharts.LineSeries, {
+        color:color, lineWidth:width||1, lineStyle:style||0,
+        priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false
+      });
+      var data = [];
+      for(var i = 0; i < mapped.length; i++){
+        var v = valsArr[i];
+        if(v == null || !isFinite(v)) continue;
+        data.push({time: mapped[i].time, value: v});
+      }
+      s.setData(data);
+      return s;
+    }
+    if(!IND.missing){
+      if(INDS.sma) addLine(IND.sma, "#4da6ff", 1);
+      if(INDS.ema) addLine(IND.ema, "#2ee6a8", 1, 2);
+      if(INDS.bb){
+        addLine(IND.bb.upper, "#4da6ff", 1, 2);
+        addLine(IND.bb.middle, "#9a9a9a", 1);
+        addLine(IND.bb.lower, "#4da6ff", 1, 2);
+      }
+    }
+    // subpanes: volume, then any oscillator, each in its own pane below the price
+    var paneIdx = 1;
+    if(INDS.vol && HASVOL){
+      var vp = CHART.addSeries(LightweightCharts.HistogramSeries, {priceFormat:{type:"volume"}}, paneIdx++);
+      var vdata = [];
+      for(var vi = 0; vi < mapped.length; vi++){
+        var vv = IND.missing ? null : IND.vol[vi];
+        if(vv == null || !isFinite(vv)) continue;    // no published volume: plot nothing, never a zero
+        vdata.push({time: mapped[vi].time, value: vv,
+          color: (num(bars[vi].c) != null && num(bars[vi].o) != null && Number(bars[vi].c) >= Number(bars[vi].o))
+            ? "rgba(51,226,154,.45)" : "rgba(248,113,113,.45)"});
+      }
+      vp.setData(vdata);
+    }
+    if(INDS.rsi && !IND.missing){
+      var rp = CHART.addSeries(LightweightCharts.LineSeries, {color:"#4da6ff", lineWidth:1,
+        priceLineVisible:false, lastValueVisible:true, crosshairMarkerVisible:false}, paneIdx++);
+      rp.setData(mapped.map(function(b, i){ return {time:b.time, value: IND.rsi[i]}; })
+        .filter(function(p){ return p.value != null && isFinite(p.value); }));
+    }
+    if(INDS.macd && !IND.missing){
+      var mp = paneIdx++;
+      var hl = CHART.addSeries(LightweightCharts.HistogramSeries, {priceLineVisible:false, lastValueVisible:false}, mp);
+      hl.setData(mapped.map(function(b, i){ return {time:b.time, value: IND.macd.hist[i]}; })
+        .filter(function(p){ return p.value != null && isFinite(p.value); }));
+      var ml = CHART.addSeries(LightweightCharts.LineSeries, {color:"#4da6ff", lineWidth:1,
+        priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, mp);
+      ml.setData(mapped.map(function(b, i){ return {time:b.time, value: IND.macd.line[i]}; })
+        .filter(function(p){ return p.value != null && isFinite(p.value); }));
+      var ms = CHART.addSeries(LightweightCharts.LineSeries, {color:"#e6a23c", lineWidth:1,
+        priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, mp);
+      ms.setData(mapped.map(function(b, i){ return {time:b.time, value: IND.macd.signal[i]}; })
+        .filter(function(p){ return p.value != null && isFinite(p.value); }));
+    }
+    try{ CHART.timeScale().fitContent(); }catch(e){}
+    applyScale();
+    attachTools(bars, IND);
+    paintLegend(bars, IND);
+  }
+
+  function renderEmpty(title, why){
+    destroyChart();
+    var box = $("chChart");
+    box.innerHTML = '<div class="ch-empty"><div class="np">' + esc(title) + '</div>' + why + '</div>';
+    $("chLegend").innerHTML = why + (HISTKEY ? " &middot; <b>" + esc(HISTKEY) + "</b>" : "");
+  }
+
+  // ---- drawing tools: MXChartTools does the work, this panel wires it --------
+  function attachTools(bars, IND){
+    var host = $("chChart");
+    if(!(window.MXChartTools && window.MXChartTools.attach && CHART && SERIES && host && bars.length)){
+      paintTools(); return;
+    }
+    // The time domain the anchors are indexed against is the WHOLE active series,
+    // so a line drawn on a 1Y view stays on its own bars after switching to 5D.
+    var full = (BARS.length ? BARS : FALLBACK);
+    var times = ((full && full.length >= bars.length) ? full : bars).map(function(b){ return String(b.t); });
+    try{
+      TA = window.MXChartTools.attach({
+        chart: CHART, series: SERIES, host: host,
+        key: HISTKEY || (EX + ":" + String(SYM).toUpperCase()),
+        bars: bars, times: times,
+        onChange: function(){ paintTools(); }
+      });
+    }catch(e){ TA = null; }
+    paintTools();
+  }
+  function paintTools(){
+    var t = TA ? TA.toolName() : "none";
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tool]"), function(b){
+      b.classList.toggle("on", b.getAttribute("data-tool") === t);
+    });
+    var n = TA ? TA.count() : 0;
+    var words = n + (n === 1 ? " drawing" : " drawings");
+    var box = $("drawCount");
+    if(!window.MXChartTools){
+      box.textContent = "tools unavailable";
+      box.classList.add("warnb");
+    } else if(TA && window.MXChartTools.drawingsReadOnly && window.MXChartTools.drawingsReadOnly()){
+      box.textContent = words + ", not saved: this browser holds a newer drawings format";
+    } else {
+      box.classList.remove("warnb");
+      if(!TA || t === "none") box.textContent = words;
+      else if(t === "erase") box.textContent = "click a drawing to remove it, Esc to stop (" + words + ")";
+      else if(t === "hline" || t === "vline") box.textContent = "click the chart to place it, Esc to stop (" + words + ")";
+      else box.textContent = "drag across the chart to draw, Esc to stop (" + words + ")";
+    }
+    var dead = !window.MXChartTools;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tool],#railClear,#drawClear"), function(b){
+      b.disabled = dead;
+    });
+  }
+  function setTool(name){
+    if(!TA) return;
+    TA.setTool(name);
+    paintTools();
+  }
+  function clearDrawings(){
+    if(!TA) return;
+    TA.clearAll();
+    paintTools();
+  }
+
+  // ---- legend: the state of the data and of every window ---------------------
+  function paintLegend(bars, IND){
+    var parts = [], warn = [];
+    var src = BARS.length ? BARS : FALLBACK;
+    parts.push("<b>" + esc(HISTKEY || SYM) + "</b>");
+    parts.push("bars in view <b>" + bars.length + "</b> of <b>" + src.length + "</b> published");
+    if(MONTHLY_ONLY) warn.push("only a monthly aggregate is archived for this security, so each bar is a month");
+    var lastT = src.length ? String(src[src.length - 1].t) : null;
+    if(lastT) parts.push("last bar <b>" + esc(lastT) + "</b>");
+    if(!window.MXChartTools){
+      warn.push("the shared chart-tools module did not load, so the drawing tools are disabled here");
+    }
+    var I = TAAPI();
+    if(!I){
+      warn.push("no indicator module: nothing is plotted for an indicator this build cannot compute");
+    } else {
+      if(INDS.sma){
+        var v = lastValue(IND.sma);
+        if(v == null) warn.push(esc(I.blankReason("SMA(" + IND.smaLen + ")", IND.smaLen, IND.full)));
+        else parts.push("SMA(" + IND.smaLen + ") <b>" + v.toFixed(2) + "</b>");
+      }
+      if(INDS.ema){
+        var ve = lastValue(IND.ema);
+        if(ve == null) warn.push(esc(I.blankReason("EMA(" + IND.emaLen + ")", IND.emaLen, IND.full)));
+        else parts.push("EMA(" + IND.emaLen + ") <b>" + ve.toFixed(2) + "</b>");
+      }
+      if(INDS.bb){
+        var vb = lastValue(IND.bb.middle);
+        if(vb == null) warn.push(esc(I.blankReason("BOLLINGER(20)", 20, IND.full)));
+        else parts.push("BB(20,2) mid <b>" + vb.toFixed(2) + "</b>");
+      }
+      if(INDS.rsi){
+        var vr = lastValue(IND.rsi);
+        if(vr == null) warn.push(esc(I.blankReason("RSI(14)", 15, IND.full)));
+        else parts.push("RSI(14) <b>" + vr.toFixed(1) + "</b>");
+      }
+      if(INDS.macd){
+        var vm = lastValue(IND.macd.line);
+        if(vm == null) warn.push(esc(I.blankReason("MACD(12,26,9)", 26, IND.full)));
+        else parts.push("MACD line <b>" + vm.toFixed(4) + "</b>");
+      }
+      if(INDS.vol){
+        if(!HASVOL) warn.push("no volume is published for these bars, so the volume pane is not drawn");
+        else parts.push("volume by bar direction");
+      }
+    }
+    // staleness: a chart holding bars that stopped weeks ago says so
+    if(lastT){
+      var d = asDate(lastT);
+      if(d){
+        var age = Math.round((todayMs() - d.ms) / 86400000);
+        if(age > STALE_DAYS) warn.push("history ends " + d.iso + " (" + age + " days old)");
+      }
+    }
+    parts.push("ESC releases a tool");
+    $("chLegend").innerHTML = parts.join(" &middot; ") +
+      warn.map(function(x){ return '<div class="warn">' + x + "</div>"; }).join("");
+  }
+
+  // ---- indicator menu --------------------------------------------------------
+  function loadIndState(){
+    try{
+      var I = window.MXChartTools && window.MXChartTools.loadInds && window.MXChartTools.loadInds();
+      if(!I) return;
+      IND_KEYS.forEach(function(k){ if(I[k] != null) INDS[k] = !!I[k]; });
+      ["smaLen","emaLen"].forEach(function(k){
+        var n = Math.round(Number(I[k]));
+        if(isFinite(n) && n >= 2 && n <= 500) INDS[k] = n;
+      });
+    }catch(e){}
+  }
+  function saveIndState(){
+    if(!(window.MXChartTools && window.MXChartTools.saveInds)) return;
+    window.MXChartTools.saveInds({sma:!!INDS.sma, smaLen:INDS.smaLen, ema:!!INDS.ema, emaLen:INDS.emaLen,
+      bb:!!INDS.bb, vol:!!INDS.vol, rsi:!!INDS.rsi, macd:!!INDS.macd});
+  }
+  function paintIndMenu(){
+    $("ckSma").checked = !!INDS.sma; $("ckEma").checked = !!INDS.ema;
+    $("ckBb").checked = !!INDS.bb; $("ckVol").checked = !!INDS.vol;
+    $("ckRsi").checked = !!INDS.rsi; $("ckMacd").checked = !!INDS.macd;
+    $("lenSma").value = INDS.smaLen; $("lenEma").value = INDS.emaLen;
+  }
+
+  // ---- boot ------------------------------------------------------------------
+  function matchRow(rows, sym){
+    var s = String(sym).toUpperCase(), bare = s.split(".")[0];
+    function exact(r){ return String(r.sym || "").toUpperCase() === s || String(r.ticker || "").toUpperCase() === s; }
+    function bareSame(r){
+      return String(r.sym || "").toUpperCase().split(".")[0] === bare ||
+             String(r.ticker || "").toUpperCase().split(".")[0] === bare;
+    }
+    for(var i = 0; i < rows.length; i++){ if(exact(rows[i])) return rows[i]; }
+    for(var j = 0; j < rows.length; j++){ if(bareSame(rows[j])) return rows[j]; }
+    return null;
+  }
+
+  function wire(){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-ty]"), function(b){
+      b.addEventListener("click", function(){ TYPE = b.getAttribute("data-ty"); paintType(); render(); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-rng]"), function(b){
+      b.addEventListener("click", function(){ RANGE = b.getAttribute("data-rng"); paintRange(); render(); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tool]"), function(b){
+      b.addEventListener("click", function(){ setTool(b.getAttribute("data-tool")); });
+    });
+    $("railClear").addEventListener("click", clearDrawings);
+    $("drawClear").addEventListener("click", clearDrawings);
+    $("indBtn").addEventListener("click", function(){ $("indMenu").classList.toggle("open"); });
+    document.addEventListener("click", function(e){
+      if(!$("indMenu").contains(e.target)) $("indMenu").classList.remove("open");
+    });
+    IND_KEYS.forEach(function(k){
+      var el = $("ck" + k.charAt(0).toUpperCase() + k.slice(1));
+      if(el) el.addEventListener("change", function(){ INDS[k] = !!el.checked; saveIndState(); render(); });
+    });
+    $("lenSma").addEventListener("change", function(){ INDS.smaLen = Math.max(2, Math.min(500, Math.round(Number(this.value) || 20))); saveIndState(); paintIndMenu(); render(); });
+    $("lenEma").addEventListener("change", function(){ INDS.emaLen = Math.max(2, Math.min(500, Math.round(Number(this.value) || 20))); saveIndState(); paintIndMenu(); render(); });
+    $("scPct").addEventListener("click", function(){ SCALE.pct = !SCALE.pct; SCALE.log = false; applyScale(); });
+    $("scLog").addEventListener("click", function(){ SCALE.log = !SCALE.log; SCALE.pct = false; applyScale(); });
+    $("scAuto").addEventListener("click", function(){ SCALE.pct = false; SCALE.log = false; applyScale(); try{ CHART.priceScale("right").applyOptions({autoScale:true}); }catch(e){} });
+    // Escape releases an armed tool (the module also listens, in the capture phase;
+    // this keeps the rail in step when the module's own handler runs first)
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape") paintTools(); });
+    var rt;
+    window.addEventListener("resize", function(){
+      clearTimeout(rt);
+      rt = setTimeout(function(){ try{ if(CHART) CHART.applyOptions({width: Math.max($("chChart").clientWidth || 900, 260)}); }catch(e){} }, 150);
+    });
+  }
+
+  function clock(){
+    function tick(){
+      var d = new Date();
+      function p(n){ return (n < 10 ? "0" : "") + n; }
+      $("chClock").textContent = "local " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+    }
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  // the proof surface: what the panel believes, readable from the DOM
+  window.__mtChartState = function(){
+    var mode = null;
+    try{ mode = CHART.priceScale("right").options().mode; }catch(e){}
+    return {
+      tools: !!window.MXChartTools,
+      indicatorNames: window.MXChartTools ? Object.keys(window.MXChartTools.indicators || {}) : [],
+      type: TYPE, range: RANGE, priceScaleMode: mode,
+      barsInView: visibleBars().length, barsPublished: (BARS.length ? BARS.length : FALLBACK.length),
+      histKey: HISTKEY, seriesPlotted: !!(SERIES && typeof SERIES.options === "function"),
+      tool: TA ? TA.toolName() : null, drawings: TA ? TA.count() : null,
+      drawingsItems: TA ? TA.items() : null, inds: INDS
+    };
+  };
+  window.__mtSetLen = function(k, n){ INDS[k] = n; saveIndState(); paintIndMenu(); render(); };
+  window.__mtSetTool = setTool;
+  window.__mtRender = render;
+
+  function init(){
+    $("chEx").textContent = EX;
+    loadIndState();
+    paintType(); paintRange(); paintIndMenu();
+    wire();
+    clock();
+    if(!window.MXChartTools) paintTools();
+    if(!SYM){ renderQuote(); render(); return; }
+    $("chTkr").textContent = String(SYM).toUpperCase();
+    Promise.all([
+      get(BASE + "market_" + encodeURIComponent(EX) + ".json").catch(function(){ return null; })
+    ]).then(function(res){
+      BOARD = res[0];
+      STOCK = BOARD ? matchRow(BOARD.stocks || [], SYM) : null;
+      WITHHELD = !!(STOCK && (STOCK.priceWithheld || STOCK.asOfWithheld || STOCK.withhold_reason));
+      WITHHOLD_REASON = STOCK && (STOCK.withhold_reason || STOCK.priceNote)
+        ? String(STOCK.withhold_reason || STOCK.priceNote) : "";
+      if(STOCK){
+        $("chTkr").textContent = String(STOCK.ticker || STOCK.sym || SYM).toUpperCase();
+        $("chName").textContent = (STOCK.name || "") + (STOCK.sector ? " \u00b7 " + STOCK.sector : "");
+      }
+      renderQuote();
+      return loadHistory();
+    }).then(function(hist){
+      if(hist && hist.bars && hist.bars.length){
+        BARS = hist.bars.map(function(b){
+          return {t: b.t, o: num(b.o), h: num(b.h), l: num(b.l), c: num(b.c), v: num(b.v)};
+        }).filter(function(b){ return b.t != null && num(b.c) != null; });
+        if(MONTHLY_ONLY){ FALLBACK = BARS; BARS = []; }
+        var basis = hist.basis || hist.adjusted;
+        $("chBasis").textContent = basis === "splits"
+          ? "split adjusted, dividends not adjusted"
+          : (basis ? String(basis) : "basis not stated by the file");
+      } else {
+        $("chBasis").textContent = "basis not stated by the file";
+      }
+      render();
+    }).catch(function(){
+      render();
+      renderEmpty("NO PRICE HISTORY", "The history archive could not be read, so nothing is drawn.");
+    });
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>
