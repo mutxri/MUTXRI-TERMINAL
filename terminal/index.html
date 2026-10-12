@@ -1410,15 +1410,25 @@ let PANELS = [
   {id:'corp',    label:'CORP',    url:'features/panels/mx_corp.html'},
   {id:'glco',    label:'GLCO',    url:'features/panels/mx_glco.html'},
   {id:'tas',     label:'TAS',     url:'features/panels/mx_tas.html'},
-  // RESEARCH and BOT both ship in the build - assemble_deploy.py's STATIC_PANELS
-  // lists mx_research.html and mx_bot.html - but neither was ever registered
-  // here, so nothing could reach them: no window, no command, no picker. The
+  // RESEARCH ships in the build - assemble_deploy.py's STATIC_PANELS lists
+  // mx_research.html - but it was never registered here, so nothing could reach
+  // it: no window, no command, no picker. The
   // panel picker below is generated from THIS list, so this list has to be the
-  // real shipped set (19 panels) or the picker offers a stale subset. The tab
-  // strip is display:none (_tabbar_removed), so registering two more panels
+  // real shipped set or the picker offers a stale subset. The tab
+  // strip is display:none (_tabbar_removed), so registering more panels
   // changes nothing visible there; it makes them reachable from the picker.
   {id:'research',label:'RESEARCH',url:'features/panels/mx_research.html'},
-  {id:'bot',     label:'BOT',     url:'features/panels/mx_bot.html'},
+  // BOT IS NOT A PANEL. The news and announcement fetching runs on a schedule in
+  // the background (MUTXRI_NewsSweep and the refresh chain); a panel showing the
+  // bot's own runs told the reader about the machinery rather than the market, so
+  // the owner asked for it to be taken out. mx_bot.html still ships in the build
+  // (assemble_deploy.py's STATIC_PANELS) but is deliberately NOT reachable from
+  // the picker or any command. Do not re-register it here.
+  // FOCUS and CHART are the owner's two new panels: a standalone quote card for
+  // the selected security, and a dedicated candlestick/line chart with its own
+  // toolbar, so the chart no longer has to live inside the heatmap.
+  {id:'focus',   label:'FOCUS',   url:'features/panels/mx_focus.html'},
+  {id:'chart',   label:'CHART',   url:'features/panels/mx_chart.html'},
 ];
 // restore the user's saved tab order (workflow persistence)
 try{
