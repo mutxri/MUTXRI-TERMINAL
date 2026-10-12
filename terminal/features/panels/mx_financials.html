@@ -73,6 +73,8 @@
   .an-chip.md{color:#c8a24a;border-color:#4a3a18}
   .an-chip.ok{color:var(--acc);border-color:#1c4d3a}
   .an-note{font-size:9.5px;color:var(--tx3);margin-top:8px;line-height:1.55}
+  .an-wd{font-size:9.5px;color:var(--tx3);margin-top:6px;line-height:1.5;border-left:2px solid var(--line2);padding-left:7px}
+  .an-wd b{color:var(--tx2);font-weight:600}
   .empty a{color:var(--acc)}
 </style>
 </head>
@@ -490,6 +492,24 @@
     if(v.peCrossCheck && v.peCrossCheck !== 'agree') notes.push('P/E cross-check: ' + v.peCrossCheck);
     if(v.note) notes.push(v.note);
     if(notes.length) h += '<div class="an-note">' + notes.join(' &middot; ') + '</div>';
+    // A withheld multiple is absent above (never a zero). Say WHY, so the blank
+    // is a decision the reader can see rather than a gap: every withheld metric
+    // carries its own reason in the analytics file. A withheld P/E is listed
+    // here and never as an agreement - an absent multiple cannot agree with
+    // anything, and its cross-check flag (when set) is 'withheld', never 'agree'.
+    var wd = [];
+    [['P/E','pe'],['P/B','pb'],['P/S','ps'],['Earnings yield','earnings_yield'],
+     ['EV/EBIT','ev_ebit']].forEach(function(p){
+      if(v[p[1]] == null && v[p[1]+'_withheld'] === true && v[p[1]+'_withheld_reason'])
+        wd.push('<div class="an-wd"><b>' + esc(p[0]) + ' withheld</b> ' +
+                esc(String(v[p[1]+'_withheld_reason']).replace(/^Withheld:\s*/i,'')) + '</div>');
+    });
+    (a.ratios || []).forEach(function(r){
+      if(r && r.withheld === true && r.value == null && r.withheld_reason)
+        wd.push('<div class="an-wd"><b>' + esc(r.label || r.key) + ' withheld</b> ' +
+                esc(String(r.withheld_reason).replace(/^Withheld:\s*/i,'')) + '</div>');
+    });
+    if(wd.length) h += wd.join('');
     h += '</div>';
     body.insertAdjacentHTML('beforeend', h);
   }
