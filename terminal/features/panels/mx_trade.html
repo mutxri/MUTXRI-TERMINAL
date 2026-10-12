@@ -1042,7 +1042,7 @@
   // Traded volume is a different fact from resting interest and is drawn
   // separately, labelled as traded volume: it comes from the daily archive the
   // rest of this panel already uses. It is never shown as depth.
-  var BOOK = null, BOOK_ERR = "", BOOK_PAINT = {sym: "", book: null};
+  var BOOK = null, BOOK_ERR = "", BOOK_PAINT = {sym: "", book: null, at: 0};
   function bookFile(){
     return fetch("../../static_data/book_" + EX + ".json?t=" + Math.floor(Date.now() / 3600000))
       .then(function(r){ if(!r.ok) throw 0; return r.json(); })
@@ -1111,7 +1111,10 @@
           })
           .catch(next);
       }
-      return next();
+      // A miss is not cached: the candidate keys depend on the price files, which
+      // may not have landed on the first call, so a later paint must be able to
+      // resolve the archive the panel knows about now.
+      return next().then(function(v){ if(!v) delete VOL[ck]; return v; });
     })();
     return VOL[ck];
   }
@@ -1120,8 +1123,10 @@
     var host = $("book"), vhost = $("vol"), head = $("bkHead"), vhead = $("volHead");
     if(!host) return;
     var sym = bookSym();
-    if(!force && sym === BOOK_PAINT.sym && BOOK === BOOK_PAINT.book) return;
-    BOOK_PAINT.sym = sym; BOOK_PAINT.book = BOOK;
+    // checkedAt moves when the price files land, and the book's own words depend
+    // on whether the panel knows the ticker, so a repaint is owed then too.
+    if(!force && sym === BOOK_PAINT.sym && BOOK === BOOK_PAINT.book && checkedAt === BOOK_PAINT.at) return;
+    BOOK_PAINT.sym = sym; BOOK_PAINT.book = BOOK; BOOK_PAINT.at = checkedAt;
 
     head.textContent = sym ? "Order book · " + symLabel(sym) : "Order book";
     vhead.textContent = sym ? "Traded volume by session · " + sym : "Traded volume by session";
