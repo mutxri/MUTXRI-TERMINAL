@@ -104,11 +104,11 @@
   <div class="controls">
     <input class="tk" id="inToks" placeholder="SCOM, ABG.JO, KCB" maxlength="160">
     <button class="go" id="goBtn">COMPARE</button>
-    <span class="hint">2 to 4 tickers, comma or space separated. A row is dropped unless at least two carry a value.</span>
+    <span class="hint">2 to 4 tickers, comma or space separated.</span>
   </div>
   <div class="peers" id="peers" style="display:none"></div>
   <div id="body">
-    <div class="err">Enter two or more tickers and hit COMPARE, e.g. <b>SCOM, ABG.JO</b>.</div>
+    <div class="err">Enter two or more tickers.</div>
   </div>
   <div class="status" id="status">loading&hellip;</div>
 </div>
@@ -410,7 +410,7 @@ function renderChart(secs, series){
   svg += '<text x="'+L+'" y="'+(H-6)+'" fill="#6a6a6a" font-size="9" text-anchor="start">'+pts[0]+'</text>';
   svg += '<text x="'+(W-R)+'" y="'+(H-6)+'" fill="#6a6a6a" font-size="9" text-anchor="end">'+pts[pts.length-1]+'</text>';
   svg += '</svg>';
-  var winTxt = 'common window ' + d0 + ' to ' + dN + ' (' + pts.length + ' points). Each series is rebased to 100 at the start, so a line is percent return, not price; currencies differ across markets, but a return is unit-free.';
+  var winTxt = 'common window ' + d0 + ' to ' + dN + ' (' + pts.length + ' points).';
   var legend = '';
   seriesPct.forEach(function(sp, k){
     if(!sp) return;
@@ -497,7 +497,7 @@ function renderTable(secs){
       return (pm!=null && r!=null) ? (pm*r) : null;
     });
     if(conv.filter(function(x){ return x!=null; }).length >= 2){
-      var note = 'to '+target+' at fx.json' + (FX_ASOF ? (' as of '+FX_ASOF) : '') + ', JSE cents divided by 100 first';
+      var note = 'to '+target + (FX_ASOF ? (' as of '+FX_ASOF) : '');
       body += '<tr><td class="item">Price, converted <span class="per">'+esc(note)+'</span></td>';
       conv.forEach(function(x){ body += '<td>'+(x!=null ? (fmtNum(x)+' '+esc(target)) : DASH())+'</td>'; });
       body += '</tr>';
@@ -565,7 +565,7 @@ function verdict(secs, rets){
       p.push('<b>'+esc(have[0].s.ticker||have[0].s.sym)+'</b> trades on the lower P/E (<b>'+have[0].c.v.toFixed(1)+'x</b> vs '+have[have.length-1].c.v.toFixed(1)+'x'+(have[0].c.period?', both on '+esc(have[0].c.period):'')+').');
     }
   });
-  if(!p.length) return 'Not enough shared, period-aligned data to draw a comparison.';
+  if(!p.length) return 'Not enough shared, period-aligned data.';
   return p.join(' ');
 }
 
@@ -641,7 +641,7 @@ async function compare(tokArg){
   var toks = dedupeCap(parseToks(tokArg));
   $('inToks').value = toks.join(', ');
   if(toks.length < 2){
-    $('body').innerHTML = '<div class="err">A comparison needs at least two securities. Add another ticker.</div>';
+    $('body').innerHTML = '<div class="err">At least two tickers.</div>';
     $('status').textContent = 'need two or more';
     return;
   }
@@ -652,7 +652,7 @@ async function compare(tokArg){
     if(r) resolved.push(r); else missing.push(toks[i]);
   }
   if(missing.length){
-    $('body').innerHTML = '<div class="err">Could not resolve <b>'+esc(missing.join(', '))+'</b>. Check the ticker(s) and try again.</div>';
+    $('body').innerHTML = '<div class="err">Could not resolve <b>'+esc(missing.join(', '))+'</b>.</div>';
     $('status').textContent = 'not found';
     return;
   }
@@ -673,10 +673,8 @@ async function compare(tokArg){
     var ccys = [];
     secs.forEach(function(s){ var l = ccyLabel(s.quoteCcy); if(l && ccys.indexOf(l)<0) ccys.push(l); });
     var anyCents = secs.some(function(s){ return isCents(s.quoteCcy); });
-    html += '<div class="banner"><b>Currencies differ: '+esc(ccys.join(', '))+'.</b> '
-          + 'Each figure is labelled with its own currency and nothing is converted in the table itself; '
-          + 'a converted price row follows, built from fx.json. '
-          + (anyCents ? 'The JSE quotes in cents, so 100 ZAc equals 1 ZAR and a JSE price reads 100x a rand figure by design.' : '') + '</div>';
+    html += '<div class="banner"><b>Currencies differ: '+esc(ccys.join(', '))+'.</b>'
+          + (anyCents ? ' 100 ZAc = 1 ZAR.' : '') + '</div>';
   }
 
   // period banner: the newest period each security reports on, and the basis
@@ -687,8 +685,7 @@ async function compare(tokArg){
     return esc(s.ticker||s.sym)+' newest '+esc(newest)+', multiples on '+esc(base);
   });
   html += '<div class="banner" style="border-color:#122a20;background:#03170f;color:#7fd7b0">'
-        + '<b>Periods.</b> '+perBits.join(' &middot; ')+'. '
-        + 'A row whose securities sit on one period names it once; a row that mixes periods is marked and prints each period under its own number.</div>';
+        + '<b>Periods.</b> '+perBits.join(' &middot; ')+'</div>';
 
   var series = secs.map(function(s){
     if(!s.hist) return null;
@@ -699,22 +696,19 @@ async function compare(tokArg){
   var tbl = renderTable(secs);
   html += tbl.html;
   if(tbl.cmpRows === 0){
-    html += '<div class="notes"><div class="nt">No shared fundamental metric</div>'
-          + '<div class="wn">The selected securities share no fundamental metric carrying at least two values '
-          + '(a security with no analytics on file, or metrics that do not overlap), so only price and day change are shown. '
-          + 'Nothing is filled in from a peer.</div></div>';
+    html += '<div class="notes"><div class="nt">No shared fundamental metric</div></div>';
   }
 
   var wd = collectWithheld(secs, rows);
   if(wd.length){
-    html += '<div class="notes"><div class="nt">Withheld metrics (stated, not zero and not a peer value)</div>';
+    html += '<div class="notes"><div class="nt">Withheld metrics</div>';
     wd.forEach(function(w){ html += '<div class="wn"><b>'+esc(w.tag)+'</b> '+esc(w.metric)+': '+esc(w.reason)+'</div>'; });
     html += '</div>';
   }
 
   html += '<div class="verdict">'+verdict(secs, chart.rets)+'</div>';
   $('body').innerHTML = html;
-  $('status').textContent = 'source: static_data/analytics (multiples, ratios, growth), static_data/listing (quote). Nothing is estimated; a blank is a blank.';
+  $('status').textContent = 'Source: company filings and exchange listings.';
 }
 
 /* ---- controls / boot -------------------------------------------------- */
@@ -733,7 +727,7 @@ $('inToks').addEventListener('keydown', function(e){ if(e.key==='Enter') $('goBt
   if(toks.length === 1){
     var one = await resolveStock(toks[0]);
     if(!one){
-      $('body').innerHTML = '<div class="err">Could not resolve <b>'+esc(toks[0])+'</b>. Type a ticker the board lists, e.g. <b>SCOM</b> or <b>ABG.JO</b>.</div>';
+      $('body').innerHTML = '<div class="err">Could not resolve <b>'+esc(toks[0])+'</b>.</div>';
       $('status').textContent = 'not found';
       return;
     }
@@ -757,7 +751,7 @@ $('inToks').addEventListener('keydown', function(e){ if(e.key==='Enter') $('goBt
       return;
     }
     renderPeers([secOne]);
-    $('body').innerHTML = '<div class="err">Comparing <b>'+esc(secOne.ticker||secOne.sym)+'</b>. Add a second ticker (or pick a peer above) and hit COMPARE.</div>';
+    $('body').innerHTML = '<div class="err">Comparing <b>'+esc(secOne.ticker||secOne.sym)+'</b>.</div>';
     $('status').textContent = 'ready';
     return;
   }

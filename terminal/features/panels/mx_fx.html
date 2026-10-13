@@ -91,6 +91,7 @@
              ["EGP","Egyptian Pound"],["USD","US Dollar"],["EUR","Euro"],["GBP","British Pound"]];
 
   var usdRates = {};   // current source rates
+  var fxAsOf = "";     // as-of date carried by the snapshot
   function $(id){ return document.getElementById(id); }
 
   function rate(frm, to) {
@@ -148,6 +149,8 @@
   // one real rate was read, so the caller can fall through to the next source.
   function applyFx(data) {
     usdRates = {};
+    fxAsOf = String((data && (data.as_of || (data.matrix_provenance && data.matrix_provenance.as_of) ||
+              (data.matrix && data.matrix[0] && data.matrix[0].as_of))) || "").slice(0, 10);
     if (data && data.usd_rates) { usdRates = data.usd_rates; }
     else if (data && data.matrix) {
       var usdRow = data.matrix.filter(function (r) { return r.base === "USD"; })[0];
@@ -163,7 +166,7 @@
       .then(function (r) { if (!r.ok) throw new Error("no endpoint"); return r.json(); })
       .then(function (data) {
         if (!applyFx(data)) throw new Error("no rates");
-        $("fxFoot").textContent = (data.note || "live");
+        $("fxFoot").textContent = "live" + (fxAsOf ? " - " + fxAsOf : "");
         refreshAll();
       })
       .catch(function () { loadStatic(); });
@@ -177,12 +180,12 @@
       .then(function (r) { if (!r.ok) throw new Error("no snapshot"); return r.json(); })
       .then(function (data) {
         if (!applyFx(data)) throw new Error("no rates");
-        $("fxFoot").textContent = "snapshot" + (data.note ? " · " + data.note : "");
+        $("fxFoot").textContent = "snapshot" + (fxAsOf ? " - " + fxAsOf : "");
         refreshAll();
       })
       .catch(function () {
         usdRates = {};
-        $("fxFoot").textContent = "rates unavailable - no live feed and no snapshot on file";
+        $("fxFoot").textContent = "not available";
         refreshAll();
       });
   }

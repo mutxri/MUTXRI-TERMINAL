@@ -191,19 +191,14 @@
       <button type="button" role="tab" data-mode="paper" class="on" aria-selected="true">PAPER</button>
       <button type="button" role="tab" data-mode="live" aria-selected="false">LIVE</button>
     </div>
-    <span class="hint" id="modeHint">Practise with real prices. Nothing is sent to a broker, and this account is kept in this browser only.</span>
+    <span class="hint" id="modeHint"></span>
   </div>
 
   <!-- ================= PAPER ================= -->
   <section id="paperView">
     <div class="demo">
       <b>PAPER</b>
-      <span>Simulated orders at real exchange prices. Nothing is sent to a broker and no money moves.
-            This account is stored in THIS BROWSER ONLY - it is not saved to your MUTXRI login, so it will
-            not follow you to another device and clearing site data resets it.
-            Prices refresh about every 3 hours; positions revalue and working orders are checked each time.
-            No fees or taxes are modelled. You can sell short (SHORT sells shares you do not own and keeps
-            the proceeds as cash); borrowing and margin are not modelled.</span>
+      <span>Simulated orders at real exchange prices. Nothing is sent to a broker and no money moves.</span>
     </div>
 
     <div class="bar">
@@ -255,7 +250,7 @@
         <button type="button" role="tab" data-tview="book" class="on" aria-selected="true">ORDER BOOK</button>
         <button type="button" role="tab" data-tview="chart" aria-selected="false">CHART</button>
       </div>
-      <span class="hint" id="bkHint">What buyers bid, what sellers ask, and what actually traded. The book is the default view; the account chart is one click away.</span>
+      <span class="hint" id="bkHint"></span>
     </div>
 
     <!-- ================= ORDER BOOK (default view) ================= -->
@@ -285,9 +280,8 @@
   <section id="liveView" hidden>
     <div class="livebox">
       <b>LIVE TRADING IS NOT AVAILABLE YET</b>
-      <p>MX Terminal is not a broker, and a real order needs an account with a licensed broker in that market.
-         Live orders are in development and will route through licensed brokers. Until then, practise in
-         <button type="button" class="link" data-goto="paper">PAPER</button>: same prices, no money at risk.</p>
+      <p>MX Terminal is not a broker. A real order needs an account with a licensed broker in that market.
+         Until then, practise in <button type="button" class="link" data-goto="paper">PAPER</button>.</p>
     </div>
     <!-- what a real account needs on THIS market; filled from REQS for ?ex= -->
     <div class="next" id="next"></div>
@@ -488,6 +482,10 @@
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
     return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  // Short forms for a source line: the file's own attribution, cut to one
+  // sentence, so a package name never arrives with a paragraph attached.
+  function firstSentence(s){ s = String(s == null ? "" : s); var i = s.indexOf(". "); return (i < 0 ? s : s.slice(0, i)).trim(); }
+  function firstClause(s){ s = String(s == null ? "" : s); var i = s.indexOf(":"); return (i < 0 ? s : s.slice(0, i)).trim(); }
   function fmt(n, dp){
     if(n === null || n === undefined || isNaN(n)) return "-";
     dp = dp === undefined ? 2 : dp;
@@ -700,7 +698,7 @@
       }
     }else if(o.side === "SELL"){
       if(q < n){
-        if(q < 0) return "you are short " + fmt(-q, 0) + " " + o.sym + " - buy to cover, or SHORT more";
+        if(q < 0) return "you are short " + fmt(-q, 0) + " " + o.sym;
         return "you hold " + fmt(q, 0) + " " + o.sym + ", not " + fmt(n, 0);
       }
       a.cash += val;
@@ -709,7 +707,7 @@
       q -= n;
       if(q === 0) delete a.positions[o.sym]; else { pos.qty = q; a.positions[o.sym] = pos; }
     }else{                                        // SHORT: sell shares you do not own
-      if(q > 0) return "you are long " + fmt(q, 0) + " " + o.sym + " - SELL to close first";
+      if(q > 0) return "you are long " + fmt(q, 0) + " " + o.sym;
       a.cash += val;                              // keep the sale proceeds
       var shortQ = -q;                            // shares already short (>= 0)
       pos.avg = (avg * shortQ + px * n) / (shortQ + n);
@@ -964,7 +962,7 @@
     $("positions").innerHTML = keys.length
       ? "<div class='tablewrap'><table><tr><th>SECURITY</th><th>QTY</th><th>AVG</th><th>LAST</th><th>VALUE</th>" +
         "<th>DAY P&amp;L</th><th>UNREALISED</th><th>%</th><th>SESSION</th></tr>" + body + "</table></div>"
-      : "<div class='empty'>No positions yet. Place a paper order above.</div>";
+      : "<div class='empty'>No positions yet.</div>";
 
     var bp = a.cash - reservedCash(a);
     $("vNet").textContent = money(a.cash + mv);
@@ -993,7 +991,7 @@
                  "<td><span class='tag WORKING'>WORKING</span>" + (o.note ? " <span class='dim'>" + esc(o.note) + "</span>" : "") + "</td>" +
                  "<td><button type='button' class='cxl' data-cancel='" + o.id + "'>CANCEL</button></td></tr>";
         }).join("") + "</table></div>"
-      : "<div class='empty'>No working orders. Limit, stop and stop-limit orders wait here until a new session reaches their price.</div>";
+      : "<div class='empty'>No working orders.</div>";
 
     $("equity").innerHTML = spark(a.equity) + equityNote();
 
@@ -1018,7 +1016,7 @@
         }).join("") + "</table></div>"
       : "<div class='empty'>No orders yet.</div>";
 
-    $("asof").textContent = listed ? listed + " securities on " + EX + " · market orders fill at each security's latest price" : "";
+    $("asof").textContent = listed ? listed + " securities on " + EX : "";
     updLine();
     estimate();
   }
@@ -1133,26 +1131,21 @@
 
     if(!BOOK){
       host.innerHTML = "<div class='none'><b class='hd'>NO ORDER BOOK DATA ON THIS SITE YET</b>" +
-        esc(BOOK_ERR || ("static_data/book_" + EX + ".json is not on the site")) +
-        ". Nothing is drawn for it: a book is shown only where a source published one.</div>";
+        "No order book data is published for " + esc(EX) + ".</div>";
     } else if(BOOK.published === false){
       host.innerHTML = noBookState(sym);
     } else {
       var rec = sym ? bookRec(sym) : null;
       if(!sym){
         host.innerHTML = "<div class='none'><b class='hd'>" + esc(EX) + " ORDER BOOK</b>" +
-          "Choose a ticker in the order ticket above and its book is drawn here." +
-          " " + esc(BOOK.source || "") + "</div>";
+          "Choose a ticker.</div>";
       } else if(!rec){
         var known = !!quote(sym);
         host.innerHTML = known
           ? "<div class='none'><b class='hd'>NO BID OR ASK PUBLISHED FOR " + esc(sym) + " ON " + esc(EX) + "</b>" +
-            "This source carries a published top of book for " + (BOOK.count || 0) + " " + esc(EX) +
-            " securities, and " + esc(sym) + " is not one of them, so no price and no quantity is shown for it." +
-            " Nothing is estimated to fill the gap. The traded volume that IS published for this security is below.</div>"
+            "Top of book is published for " + (BOOK.count || 0) + " " + esc(EX) + " securities; " + esc(sym) + " is not one of them.</div>"
           : "<div class='none'><b class='hd'>NO " + esc(EX) + " SECURITY CALLED " + esc(sym) + "</b>" +
-            "This panel has no listed security under that key on " + esc(EX) + ", so there is no book and no traded volume to show." +
-            " Check the ticker, or pick one from the list in the order ticket.</div>";
+            "No listed security under that key on " + esc(EX) + ".</div>";
       } else {
         host.innerHTML = bookBoard(sym, rec);
       }
@@ -1164,15 +1157,12 @@
   // evidence travel together. This is what is shown in place of a book for NSE,
   // NGX and EGX, and it names the document that was checked.
   function noBookState(sym){
-    var ev = (BOOK.evidence || []).map(function(u){
-      return "<li><a href='" + esc(u) + "' target='_blank' rel='noopener'>" + esc(u) + "</a></li>"; }).join("");
     return "<div class='none'><b class='hd'>NO BID AND NO ASK IS PUBLISHED BY " + esc(EX) + "</b>" +
-      esc(BOOK.reason || "") +
-      (ev ? "<div style='color:var(--tx3);font-size:10.5px;margin-top:8px'>Checked " + esc(BOOK.checked || "") +
-            " against:</div><ul>" + ev + "</ul>" : "") +
+      esc(firstSentence(BOOK.source || "No source found.")) +
+      (BOOK.checked ? " - " + esc(BOOK.checked) : "") + "." +
       "<div style='margin-top:8px'>" + (sym
-        ? "For " + esc(symLabel(sym)) + " the published traded volume is below. A resting quantity is not published, so none is shown."
-        : "Choose a ticker to see the traded volume that this exchange does publish.") + "</div></div>";
+        ? "For " + esc(symLabel(sym)) + " the published traded volume is below."
+        : "Choose a ticker.") + "</div></div>";
   }
 
   // The board itself: ONE level per side, exactly the ratio the source
@@ -1196,9 +1186,9 @@
       var sp = rec.ask - rec.bid, spc = sp / ((rec.ask + rec.bid) / 2) * 100;
       mid.push("Spread " + fmt(sp, 2) + (ushow ? " " + esc(ushow) : "") + " (" + fmt(spc, 2) + "%)");
     } else if(rec.bid == null && rec.ask != null){
-      mid.push("No bid is published at this refresh; the ask above is what is published.");
+      mid.push("No bid published.");
     } else if(rec.ask == null && rec.bid != null){
-      mid.push("No ask is published at this refresh; the bid above is what is published.");
+      mid.push("No ask published.");
     }
     if(rec.last != null) mid.push("Last trade " + fmt(rec.last, 2) + (rec.tradeTime ? " at " + esc(String(rec.tradeTime).replace(/^As at /, "")) : ""));
     if(rec.dayTrades != null) mid.push(fmt(rec.dayTrades, 0) + " trades today");
@@ -1213,18 +1203,14 @@
         rec.trades.map(function(t){
           return "<tr><td>" + esc(t.time || "") + "</td><td>" + (t.price == null ? "-" : fmt(t.price, 2)) +
                  "</td><td>" + (t.volume == null ? "-" : fmt(t.volume, 0)) + "</td></tr>"; }).join("") +
-        "</table></div><div class='bksrc'>Time and sales: the individual prints this source published," +
-        " each with the volume that traded AT THAT PRINT. This is traded volume, not a resting quantity.</div>";
+        "</table></div>";
     }
 
-    var extra = "";
-    if(BOOK.unitNote) extra += " " + esc(BOOK.unitNote);
-    if(BOOK.note) extra += " " + esc(BOOK.note);
     return html + "<div class='bksrc'>" +
-      "<b>Levels published: " + esc(BOOK.granularity || "not stated") + "</b><br>" +
-      "Source: " + esc(BOOK.source || "") + ". " + esc(BOOK.timestamp || "") +
-      (rec.asAt ? ", the page states " + esc(rec.asAt) : "") + "." + extra +
-      " <a href='" + esc(String(BOOK.sourceUrl || "").replace("<JSE CODE>", sym)) + "' target='_blank' rel='noopener'>Source page for " + esc(sym) + "</a>. Checked " + esc(BOOK.checked || "") + ".</div>";
+      "<b>Levels published: " + esc(firstClause(BOOK.granularity || "not stated")) + "</b><br>" +
+      "Source: <a href='" + esc(String(BOOK.sourceUrl || "").replace("<JSE CODE>", sym)) + "' target='_blank' rel='noopener'>" +
+      esc(firstSentence(BOOK.source || "")) + "</a>" +
+      (BOOK.checked ? " - " + esc(BOOK.checked) : "") + "</div>";
   }
 
   // Traded volume by session, from the daily archive. Honest about which of the
@@ -1232,7 +1218,7 @@
   function renderVol(host, sym){
     if(!host) return;
     if(!sym){
-      host.innerHTML = "<div class='empty'>Choose a ticker to see its traded volume by session.</div>";
+      host.innerHTML = "<div class='empty'>Choose a ticker.</div>";
       return;
     }
     host.innerHTML = "<div class='empty'>Loading traded volume for " + esc(sym) + " ...</div>";
@@ -1240,8 +1226,7 @@
     volumeOf(sym).then(function(v){
       if(BOOK_PAINT.sym !== want) return;                 // the ticker moved on
       if(!v || !v.bars || !v.bars.length){
-        host.innerHTML = "<div class='empty'>No session archive with volume exists for " + esc(want) +
-          " on this site, so no traded volume is shown for it. A blank is honest here; a figure that was not published would not be.</div>";
+        host.innerHTML = "<div class='empty'>No session archive with volume for " + esc(want) + ".</div>";
         return;
       }
       var last = v.bars.slice(-12).reverse();
@@ -1252,10 +1237,7 @@
           return "<tr><td>" + esc(b.date) + "</td><td>" + (b.price == null ? "-" : fmt(b.price, 2)) + "</td>" +
                  "<td>" + fmt(b.vol, 0) + "</td>" +
                  "<td><span style='display:inline-block;height:8px;width:" + w + "%;max-width:100%;background:var(--acc);opacity:.45;border-radius:1px'></span></td></tr>";
-        }).join("") + "</table></div>" +
-        "<div class='bksrc'>Traded volume: shares that changed hands in each published session, from this site's own session archive (" +
-        esc(v.key) + "). Bars are drawn from the volume itself, so the width is the volume. This is traded volume and NOT resting orders: nothing here says anything about how much is bid or offered." +
-        (BOOK && BOOK.tradedVolumeIsPublished === false ? " This exchange publishes no traded volume either." : "") + "</div>";
+        }).join("") + "</table></div>";
     }).catch(function(){
       host.innerHTML = "<div class='empty'>Traded volume could not be read for " + esc(want) + ".</div>";
     });
@@ -1277,7 +1259,7 @@
 
   function spark(e){
     if(!e || e.length < 2){
-      return "<div class='empty'>Your account value is rebuilt from each session's published close, and the points this browser recorded live are kept. The chart fills in as sessions are published.</div>";
+      return "<div class='empty'>No account value recorded yet.</div>";
     }
     var w = 600, h = 90, vs = e.map(function(x){ return x.v; });
     var mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs), span = (mx - mn) || 1;
@@ -1298,20 +1280,20 @@
     if(!equityAudit) return "";
     var bits = [];
     if(equityAudit.recovered > 0){
-      bits.push("Rebuilt from the published session closes: " + equityAudit.recovered +
+      bits.push(equityAudit.recovered +
                 " session" + (equityAudit.recovered === 1 ? "" : "s") + " restored.");
     }
     if(equityAudit.unpriced.length){
       var up = equityAudit.unpriced;
-      bits.push(up.length + " session" + (up.length === 1 ? " is" : "s are") +
-                " not on the curve, no published close for a held security: " +
+      bits.push(up.length + " session" + (up.length === 1 ? "" : "s") +
+                " not on the curve: " +
                 up.map(function(u){ return u.d + " (" + u.missing.join(", ") + ")"; }).join("; ") + ".");
     }
     if(equityAudit.conflicts.length){
       var cf = equityAudit.conflicts;
-      bits.push(cf.length + " session" + (cf.length === 1 ? " kept" : "s kept") +
-                " the recorded value where the derivation disagreed: " +
-                cf.map(function(c){ return c.d + " (recorded " + fmt(c.recorded) + " vs derived " + fmt(c.derived) + ")"; }).join("; ") + ".");
+      bits.push(cf.length + " session" + (cf.length === 1 ? "" : "s") +
+                " recorded live: " +
+                cf.map(function(c){ return c.d + " (" + fmt(c.recorded) + " vs " + fmt(c.derived) + ")"; }).join("; ") + ".");
     }
     if(!bits.length) return "";
     return "<div class='empty' style='padding-top:6px'>" + esc(bits.join(" ")) + "</div>";
@@ -1320,8 +1302,7 @@
   function updLine(){
     $("upd").textContent = checkedAt
       ? "Prices: " + (asOf ? EX + " data to " + asOf : EX) + " · checked " +
-        new Date(checkedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) +
-        " · the site refreshes prices about every 3 hours and this page checks every 5 minutes"
+        new Date(checkedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})
       : "Loading " + EX + " prices...";
   }
 
@@ -1418,12 +1399,12 @@
     // same code it always was.
     var q = quote(t), cls = (q && q.cls) || "EQ";
     if(cls !== "EQ"){
-      if(q.kind === "yld") return say(t + " is quoted on a yield basis; it has no tradeable price on file.", true);
+      if(q.kind === "yld") return say(t + " has no tradeable price on file.", true);
       var ic = String(q.ccy || "").toUpperCase();
       if(ic && cur && ic !== cur.toUpperCase())
-        return say(t + " is quoted in " + ic + " but this account is in " + cur + "; no FX conversion is modelled here, so it cannot be placed.", true);
+        return say(t + " is quoted in " + ic + "; this account is in " + cur + ".", true);
       if(type !== "MKT")
-        return say("Bonds and derivatives are placed as MARKET orders here: the data carries no daily high or low for a limit or stop to rest against.", true);
+        return say("Bonds and derivatives are placed as MARKET orders here.", true);
     }
     var px = lastOf(t);
     if(px == null) return say(t + " has no price in the latest data, so it cannot trade.", true);
@@ -1435,7 +1416,7 @@
     // exchange published, so an order placed at a shut market would fill against a
     // stale session and report a P&L that never happened.
     if(!sessionOpen()) return say(EX + " is closed. " + sessionText() +
-      ". Orders can only be placed while the exchange is in session.", true);
+      ".", true);
     var all = load(), a = all[EX], date = sessionOf(t);
     var o = {id: ++a.seq, t: Date.now(), side: side, sym: t, qty: n, type: type, tif: tif,
              lmt: (type === "LMT" || type === "STPLMT") ? lmt : null,
@@ -1447,7 +1428,7 @@
     }
     if(side === "SHORT"){
       var held = ((a.positions[t] || {}).qty || 0);
-      if(held > 0) return say("You are long " + fmt(held, 0) + " " + t + ". SELL to close your long before shorting.", true);
+      if(held > 0) return say("You are long " + fmt(held, 0) + " " + t + ".", true);
     }
     function now(p){
       var err = fill(a, o, p, date);
@@ -1471,7 +1452,7 @@
     }
     a.working.push(o);
     save(all);
-    say("Working: " + describe(o) + ". It is checked against each new session's high and low.", false);
+    say("Working: " + describe(o) + ".", false);
     $("qty").value = ""; render(all);
   }
 
@@ -1505,9 +1486,7 @@
     });
     $("paperView").hidden = m !== "paper";
     $("liveView").hidden = m !== "live";
-    // keep in step with #modeHint in the markup above - a stale copy here
-    // silently reverts the hint the moment the user switches tabs
-    $("modeHint").textContent = m === "paper" ? "Practise with real prices. Nothing is sent to a broker, and this account is kept in this browser only."
+    $("modeHint").textContent = m === "paper" ? ""
                                               : "What a real account on " + EX + " needs.";
   }
   Array.prototype.forEach.call(document.querySelectorAll(".mode button"), function(b){
@@ -1564,7 +1543,7 @@
       "<div class='hd'><b>REAL ACCOUNT</b><span>To buy real shares on " + esc(r.market) + " you need:</span></div>" +
       "<ul>" + r.items.map(function(t){ return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" +
       "<div class='reg'>" + esc(r.reg) + " <a href='" + esc(r.link[1]) + "' target='_blank' rel='noopener'>" + esc(r.link[0]) + " &rarr;</a></div>" +
-      "<div class='fine'>Requirements checked 2026-09-14; your broker's own checklist is final.</div>";
+      "<div class='fine'>Requirements checked 2026-09-14.</div>";
   })();
 
   setMode(Q.get("mode") === "live" ? "live" : "paper");

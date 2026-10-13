@@ -107,7 +107,7 @@
   <div class="bar">
     <div class="sbox">
       <input class="search" id="q" autocomplete="off" spellcheck="false"
-        placeholder="filter to one security:  ticker, ISIN or company  (e.g. SCOM, Safaricom)" />
+        placeholder="ticker, ISIN or company  (e.g. SCOM, Safaricom)" />
       <div class="sugg" id="sugg"></div>
     </div>
     <select id="yr"><option value="all">ALL YEARS</option></select>
@@ -123,7 +123,6 @@
   </div>
 
   <div class="count" id="count"></div>
-  <div class="note" id="note"></div>
   <div id="items"><div class="empty">loading…</div></div>
   <button class="more" id="more" style="display:none">SHOW MORE</button>
 </div>
@@ -156,23 +155,19 @@
     NSE: { ann:"../../static_data/nse_announcements.json",
            cal:"../../static_data/nse_corporate_actions.json",
            calsrc:"nse.co.ke",
-           src:"nse.co.ke \u00b7 audited results \u00b7 AGM \u00b7 dividends", dict:false,
-           note:"Date shown is the FILING YEAR: the NSE lists each notice under a year tab and publishes no exact filing date, so a year is the most precise stamp the source gives. Rows the exchange does not put under any year tab show the year printed in the filing title, or UNDATED." },
+           src:"nse.co.ke \u00b7 audited results \u00b7 AGM \u00b7 dividends", dict:false },
     NGX: { ann:"../../static_data/ngx_filings.json",
            cal:"../../static_data/ngx_corporate_actions.json",
            calsrc:"ngxgroup.com",
-           src:"ngxgroup.com \u00b7 listed-company filings", dict:true,
-           note:"Date shown is the filing's publication date on ngxgroup.com." },
+           src:"ngxgroup.com \u00b7 listed-company filings", dict:true },
     JSE: { ann:"../../static_data/jse_announcements.json",
            cal:"../../static_data/jse_announcements.json",
            calsrc:"sharenet.co.za",
-           src:"sharenet.co.za \u00b7 JSE SENS announcements", dict:false,
-           note:"Date shown is the SENS publication date, read through the sharenet.co.za mirror." },
+           src:"sharenet.co.za \u00b7 JSE SENS announcements", dict:false },
     EGX: { ann:"../../static_data/egx_announcements.json",
            cal:"../../static_data/egx_announcements.json",
            calsrc:"mubasher.info",
-           src:"mubasher.info \u00b7 Egyptian Exchange disclosures", dict:false,
-           note:"Date shown is the disclosure publication date on Mubasher." }
+           src:"mubasher.info \u00b7 Egyptian Exchange disclosures", dict:false }
   };
   var CFG = FEED[EX] || FEED.NSE;
   document.getElementById("exName").textContent = EXNAMES[EX] || EX;
@@ -615,13 +610,7 @@
     moreEl.style.display = list.length > PAGE ? "block" : "none";
     if(!shown.length){
       el.innerHTML = qraw
-        ? '<div class="empty">Nothing for ' + esc(qraw) + ' in these filings.' +
-          (secs ? '<br><br>No announcement in this window belongs to ' +
-                    esc(secs.map(function(s){ return s.tk; }).join(" + ")) + '.'
-                : '<br><br>No listed security in this market matched this query. ' +
-                    'The filing feed may file this company under another or a former name, ' +
-                    'so nothing is shown rather than another company&#39;s rows.') +
-          '</div>'
+        ? '<div class="empty">Nothing for ' + esc(qraw) + ' in these filings.</div>'
         : '<div class="empty">no filings match</div>';
       return;
     }
@@ -706,7 +695,7 @@
     if (!list.length){
       body.innerHTML = qraw
         ? '<div class="empty">Nothing for ' + esc(qraw) + ' in the dividend calendar.</div>'
-        : '<div class="empty">No dated dividend notices in the source. The gap is shown rather than filled.</div>';
+        : '<div class="empty">No dated dividend notices in the source.</div>';
       srcEl.textContent = ""; return;
     }
     srcEl.textContent = list.length + " dated notices" + (undated ? " \u00b7 " + undated + " undated" : "") + " \u00b7 " + (CFG.calsrc || "nse.co.ke");
@@ -737,7 +726,7 @@
       // market's calendar would be exactly the defect this fix removes
       calSrc.textContent = "";
       document.getElementById("calBody").innerHTML =
-        '<div class="empty">No dividend calendar for ' + (EXNAMES[EX] || EX) + ' in this build.</div>';
+        '<div class="empty">No dividend calendar for ' + (EXNAMES[EX] || EX) + '.</div>';
       return;
     }
     fetch(CFG.cal)
@@ -745,7 +734,7 @@
       .then(function(d){ DIVACT = d || []; CALLOADED = true; renderDiv(); })
       .catch(function(){
         document.getElementById("calBody").innerHTML =
-          '<div class="empty">Dividend notices could not be loaded. Nothing is shown rather than an invented date.</div>';
+          '<div class="empty">Dividend notices could not be loaded.</div>';
       });
   }
 
@@ -776,9 +765,8 @@
       // honest: no listed-company announcement feed could be reached for this
       // exchange. Showing Nairobi's filings to a Lagos reader was the bug; this
       // states the gap in words instead of leaving an empty panel.
-      el.innerHTML = '<div class="empty">No free listed-company announcement feed for '
-        + (EXNAMES[EX] || EX) + ' could be reached by this build&#39;s collectors. '
-        + 'Nothing is shown rather than another market&#39;s filings.</div>';
+      el.innerHTML = '<div class="empty">No listed-company announcement feed for '
+        + (EXNAMES[EX] || EX) + ' could be reached.</div>';
       document.getElementById("count").textContent = "";
       moreEl.style.display = "none";
       return;
@@ -797,8 +785,6 @@
                    return a.i - b.i;
                  })
                  .map(function(x){ return x.o; });
-        var noteEl = document.getElementById("note");
-        if (noteEl) noteEl.textContent = CFG.note || "";
         yrEl.options[0].textContent = (EX === "NSE") ? "ALL FILING YEARS" : "ALL DATES";
         // build the year selector from the data itself
         var years = [];

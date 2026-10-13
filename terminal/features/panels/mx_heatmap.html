@@ -195,30 +195,30 @@
         <button class="cp-range" data-rng="ALL" onclick="cpSetRange('ALL')">ALL</button>
       </div>
       <div class="cp-basis" id="cpBasisBtns">
-        <button class="cp-basis-b on" data-basis="splits" onclick="cpSetBasis('splits')" title="TradingView's default chart basis">SPLIT</button>
-        <button class="cp-basis-b" data-basis="dividends" onclick="cpSetBasis('dividends')" title="Adjusted for dividends too, which is NOT TradingView's default">+DIV</button>
+        <button class="cp-basis-b on" data-basis="splits" onclick="cpSetBasis('splits')">SPLIT</button>
+        <button class="cp-basis-b" data-basis="dividends" onclick="cpSetBasis('dividends')">+DIV</button>
       </div>
       <div class="cp-stat" id="cpStat">-</div>
     </div>
     <div class="cp-tools" id="cpTools">
       <span class="cp-lbl">DRAW</span>
-      <button class="cp-ind" data-tool="trend" onclick="cpSetTool('trend')" title="Click, then drag to the second point. The line is anchored to the bars it was drawn from, so it stays on that price as the chart pans and zooms.">TRENDLINE</button>
-      <button class="cp-ind" data-tool="ray" onclick="cpSetTool('ray')" title="A trendline extended to the right, as a projection ray">RAY</button>
-      <button class="cp-ind" data-tool="hline" onclick="cpSetTool('hline')" title="Horizontal line at a price: support or resistance. Click the chart to place it.">H-LINE</button>
-      <button class="cp-ind" data-tool="vline" onclick="cpSetTool('vline')" title="Vertical line on one bar. Click the chart to place it.">V-LINE</button>
-      <button class="cp-ind" data-tool="zone" onclick="cpSetTool('zone')" title="Rectangle zone: drag from one corner to the other">ZONE</button>
-      <button class="cp-ind" data-tool="erase" onclick="cpSetTool('erase')" title="Click a drawing to remove it">ERASE</button>
-      <button class="cp-reset" onclick="cpClearDrawings()" title="Remove every drawing for this security">CLEAR ALL</button>
+      <button class="cp-ind" data-tool="trend" onclick="cpSetTool('trend')">TRENDLINE</button>
+      <button class="cp-ind" data-tool="ray" onclick="cpSetTool('ray')">RAY</button>
+      <button class="cp-ind" data-tool="hline" onclick="cpSetTool('hline')">H-LINE</button>
+      <button class="cp-ind" data-tool="vline" onclick="cpSetTool('vline')">V-LINE</button>
+      <button class="cp-ind" data-tool="zone" onclick="cpSetTool('zone')">ZONE</button>
+      <button class="cp-ind" data-tool="erase" onclick="cpSetTool('erase')">ERASE</button>
+      <button class="cp-reset" onclick="cpClearDrawings()">CLEAR ALL</button>
       <span class="cp-dcount" id="cpDrawCount">0 drawings</span>
     </div>
     <div class="cp-inds" id="cpInds">
       <span class="cp-lbl">IND</span>
       <button class="cp-ind" data-ind="sma" onclick="cpToggleInd('sma')" title="Simple moving average of the closes">SMA</button>
-      <input class="cp-len" id="cpSmaLen" type="number" min="2" max="500" step="1" value="20" onchange="cpSetLen('sma',this.value)" title="SMA length in bars. Nothing is drawn until this many bars exist.">
+      <input class="cp-len" id="cpSmaLen" type="number" min="2" max="500" step="1" value="20" onchange="cpSetLen('sma',this.value)" title="SMA length in bars">
       <button class="cp-ind" data-ind="ema" onclick="cpToggleInd('ema')" title="Exponential moving average of the closes">EMA</button>
-      <input class="cp-len" id="cpEmaLen" type="number" min="2" max="500" step="1" value="20" onchange="cpSetLen('ema',this.value)" title="EMA length in bars. Nothing is drawn until this many bars exist.">
+      <input class="cp-len" id="cpEmaLen" type="number" min="2" max="500" step="1" value="20" onchange="cpSetLen('ema',this.value)" title="EMA length in bars">
       <button class="cp-ind" data-ind="bb" onclick="cpToggleInd('bb')" title="Bollinger bands: 20 bar SMA with 2 standard deviations">BBANDS</button>
-      <button class="cp-ind" data-ind="vol" onclick="cpToggleInd('vol')" title="Published volume per bar. A bar with no published volume plots nothing.">VOL</button>
+      <button class="cp-ind" data-ind="vol" onclick="cpToggleInd('vol')" title="Published volume per bar">VOL</button>
       <button class="cp-ind" data-ind="rsi" onclick="cpToggleInd('rsi')" title="Wilder RSI, 14 bars">RSI</button>
       <button class="cp-ind" data-ind="macd" onclick="cpToggleInd('macd')" title="MACD 12/26/9">MACD</button>
       <button class="cp-reset" onclick="cpResetZoom()">RESET ZOOM</button>
@@ -405,7 +405,6 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
         node.style.alignItems=(hmView==="sectors")?"center":"stretch";
         node.style.justifyContent=(hmView==="sectors")?"center":"stretch";
         node.style.display=(hmView==="sectors")?"flex":"block";
-        node.title="View "+d.sector+" securities";
         // SECTORS view: the whole industry tile opens the sector panel.
         // ALL view: cells sit on top, so only the label stays clickable.
         if(hmView==="sectors"){
@@ -444,8 +443,8 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   // a real on-disk snapshot (dated), or nothing at all. There is no SAMPLE
   // state any more - a heatmap of invented prices must never be shown.
   function setStatus(mode,note){
-    if(mode==="live"){ $("dot").className="dot live"; $("statusTxt").textContent="LIVE - polling "+(POLL_MS/1000)+"s"; return; }
-    if(mode==="snapshot"){ $("dot").className="dot"; $("statusTxt").textContent="SNAPSHOT"+(note?" "+note:"")+" - not live"; return; }
+    if(mode==="live"){ $("dot").className="dot live"; $("statusTxt").textContent="LIVE"; return; }
+    if(mode==="snapshot"){ $("dot").className="dot"; $("statusTxt").textContent="SNAPSHOT"+(note?" "+note:""); return; }
     $("dot").className="dot"; $("statusTxt").textContent="data unavailable";
   }
 
@@ -551,7 +550,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     currentRows=[];
     var m=document.createElement("div");
     m.style.cssText="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:12px;line-height:1.6";
-    m.textContent="No heatmap data available for "+activeEx+". No live feed and no snapshot on file.";
+    m.textContent="No heatmap data available for "+activeEx+".";
     canvas.appendChild(m);
     setStatus("none");
   }
@@ -822,12 +821,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     var n = cpTA ? cpTA.count() : 0;
     var words = n + (n === 1 ? " drawing" : " drawings");
     if(!window.MXChartTools) box.textContent = "drawing tools unavailable";
-    else if(cpTA && window.MXChartTools.drawingsReadOnly && window.MXChartTools.drawingsReadOnly())
-      box.textContent = words + ", not saved: this browser holds a newer drawings format";
-    else if(!cpTA || t === "none") box.textContent = words;
-    else if(t === "erase") box.textContent = "click a drawing to remove it, Esc to stop (" + words + ")";
-    else if(t === "hline" || t === "vline") box.textContent = "click the chart to place it, Esc to stop (" + words + ")";
-    else box.textContent = "drag across the chart to draw, Esc to stop (" + words + ")";
+    else box.textContent = words;
   }
   function cpSetTool(name){
     if(!cpTA) return;
@@ -934,11 +928,11 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
           '<div style="font-family:var(--mono);font-size:26px;font-weight:700;color:var(--tx)">' + esc(px) + '</div>' +
           (cg ? '<div style="font-family:var(--mono);font-size:14px;color:' + (up ? "var(--up)" : "var(--down)") + '">' + esc(cg) + '</div>' : '') +
           (vol ? '<div style="font-family:var(--mono);font-size:10px;color:var(--tx2)">VOL ' + esc(vol) + '</div>' : '') +
-          '<div style="font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.06em">NO FREE OHLC FEED FOR ' + esc(tvSym || activeEx) + '</div>' +
-          '<div style="font-family:var(--mono);font-size:8px;color:var(--tx3);max-width:420px;line-height:1.5">The exchange has no free historical price feed. This is the official exchange board value. History is being archived daily from the official exchange.</div>' +
+          '<div style="font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.06em">NO PRICE HISTORY FOR ' + esc(tvSym || activeEx) + '</div>' +
+          '<div style="font-family:var(--mono);font-size:8px;color:var(--tx3);max-width:420px;line-height:1.5">Official exchange board value.</div>' +
           '</div>';
       }catch(e){
-        box.innerHTML = '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center">no free historical feed for this market</div>';
+        box.innerHTML = '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center">no price history for this market</div>';
       }
       return;
     }
@@ -1076,37 +1070,37 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       return null;
     }
     if(IND.missing){
-      notes.push("indicator engine not loaded");
+      notes.push("indicators unavailable");
     } else {
       if(cpInds.sma){
         var vs = tail(IND.sma);
         if(vs != null) legendParts.push("SMA" + IND.smaLen + " " + fmt(vs));
-        else notes.push("SMA" + IND.smaLen + " not plotted: " + IND.full + " bars of history, the window needs " + IND.smaLen);
+        else notes.push("SMA" + IND.smaLen + " not plotted");
       }
       if(cpInds.ema){
         var ve = tail(IND.ema);
         if(ve != null) legendParts.push("EMA" + IND.emaLen + " " + fmt(ve));
-        else notes.push("EMA" + IND.emaLen + " not plotted: " + IND.full + " bars of history, the window needs " + IND.emaLen);
+        else notes.push("EMA" + IND.emaLen + " not plotted");
       }
       if(cpInds.bb){
         var lu = tail(IND.bb.lower), uu = tail(IND.bb.upper);
         if(lu != null) legendParts.push("BB " + fmt(lu) + "/" + fmt(uu));
-        else notes.push("BBANDS not plotted: " + IND.full + " bars of history, the window needs 20");
+        else notes.push("BBANDS not plotted");
       }
       if(cpInds.vol){
         var vv20 = tail(IND.vol);
         if(vv20 != null) legendParts.push("VOL " + fmt(vv20));
-        else notes.push("VOL not plotted: no published volume for these bars");
+        else notes.push("VOL not plotted");
       }
       if(cpInds.rsi){
         var vr = tail(IND.rsi);
         if(vr != null) legendParts.push("RSI14 " + vr.toFixed(1));
-        else notes.push("RSI14 not plotted: " + IND.full + " bars of history, the window needs 15");
+        else notes.push("RSI14 not plotted");
       }
       if(cpInds.macd){
         var vm = tail(IND.macd.line), vg = tail(IND.macd.signal);
         if(vm != null) legendParts.push("MACD " + fmt(vm) + (vg != null ? (" signal " + fmt(vg)) : ""));
-        else notes.push("MACD not plotted: " + IND.full + " bars of history, the window needs 34");
+        else notes.push("MACD not plotted");
       }
     }
     var lbox = document.getElementById("cpLegend");

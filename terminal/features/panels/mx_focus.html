@@ -216,10 +216,7 @@
     $("fxSecTxt").textContent = "no security";
     $("fxBody").innerHTML =
       '<div class="fx-tkr nofig">NO SECURITY</div>' +
-      '<div class="fx-np">NO SECURITY SELECTED</div>' +
-      '<div class="fx-why">Pick a security first: click a row in the watchlist or on the BOARD, ' +
-      'or type a ticker in the command line. This card quotes one security at a time, and it does ' +
-      'not carry a price of its own to fall back on.</div>';
+      '<div class="fx-np">NO SECURITY SELECTED</div>';
     $("fxGrid").style.display = "none";
     $("fxFoot").innerHTML = "<b>" + esc(EX) + "</b> &middot; no security selected";
   }
@@ -229,9 +226,7 @@
     $("fxBody").innerHTML =
       '<div class="fx-tkr nofig">' + esc(tickerOf(null, REQ) || "NO MARKET") + '</div>' +
       '<div class="fx-np">NO CURRENT QUOTE</div>' +
-      '<div class="fx-why">The ' + esc(EX) + ' market snapshot could not be read' +
-      (reason ? " (" + esc(reason) + ")" : "") + ', so no price, percent or change is shown here. ' +
-      'Nothing is estimated or carried over from an earlier session.</div>';
+      '<div class="fx-why">' + esc(EX) + ' market data unavailable.</div>';
     $("fxGrid").style.display = "none";
     $("fxFoot").innerHTML = "<b>" + esc(EX) + "</b> &middot; no quote source";
   }
@@ -251,26 +246,17 @@
     parts.push("<div class='fx-np'>" + (withheld ? "PRICE WITHHELD" : "NO CURRENT QUOTE") + "</div>");
     var why;
     if(withheld){
-      why = "This exchange's snapshot holds this security's price back" + (reason ? ": " + esc(reason) : "") +
-        ". No price, percent or change is shown, and the archive's stored value for this security is the same " +
-        "value the snapshot withholds, so it is not printed here either.";
+      why = reason ? esc(reason) : "Price withheld for this session.";
       if(last && last.t){
-        why += "<div class='fx-bar'>The archive's last bar for this security is dated <b>" + esc(last.t) +
-          "</b> and carries no session close to quote.</div>";
+        why += "<div class='fx-bar'>Last bar <b>" + esc(last.t) + "</b>.</div>";
       }
     } else {
-      why = "This security is carried by the " + esc(EX) + " snapshot, but it has no published " +
-        "price for the " + esc(board && board.asOf ? board.asOf : "current") + " session, so no price, " +
-        "percent or change is shown. A blank is the honest answer here; a figure would be invented.";
+      why = "No published price for the " + esc(board && board.asOf ? board.asOf : "current") + " " + esc(EX) + " session.";
       if(last && last.t){
         var age = daysBetween(asDate(last.t), {ms: todayUTC()});
         why += "<div class='fx-bar'>LAST PUBLISHED BAR <b>" + esc(last.t) + "</b>" +
           (last.c != null ? " close " + esc(fmtPx(last.c)) + (row && row.currency ? " " + esc(row.currency) : "") : "") +
-          (age != null ? " &middot; " + age + " days old" : "") +
-          " &middot; a historical bar, not the current price.</div>";
-      } else {
-        why += "<div class='fx-bar'>The price history holds no bars for this security either, so there is " +
-          "no last close to date.</div>";
+          (age != null ? " &middot; " + age + " days old" : "") + "</div>";
       }
     }
     parts.push("<div class='fx-why'>" + why + "</div>");
@@ -278,8 +264,7 @@
     renderGrid(row, null, null, null, null, withheld);
     $("fxFoot").innerHTML = "<b>" + tickerOf(row, sym) + " " + esc(EX) + "</b> &middot; " +
       (row && row.asOf ? "as of " + esc(row.asOf) : "as-of not stated") +
-      " &middot; " + (withheld ? "price withheld, " : "") + "no current quote" +
-      " &middot; no change is shown without a dated current price";
+      " &middot; " + (withheld ? "price withheld, " : "") + "no current quote";
   }
   function renderAbsent(sym, board, hist){
     var last = lastBar(hist);
@@ -288,14 +273,12 @@
     var parts = [];
     parts.push("<div class='fx-tkr nofig'>" + esc(String(sym || "").toUpperCase()) + "</div>");
     parts.push("<div class='fx-np'>NOT IN THE SNAPSHOT</div>");
-    var why = "The " + esc(EX) + " market snapshot does not carry this security, so it has no quote " +
-      "here and nothing is shown in its place.";
+    var why = "Not carried by the " + esc(EX) + " market snapshot.";
     if(last && last.t){
       var age = daysBetween(asDate(last.t), {ms: todayUTC()});
-      why += "<div class='fx-bar'>The price history still holds bars: LAST PUBLISHED BAR <b>" + esc(last.t) + "</b>" +
+      why += "<div class='fx-bar'>LAST PUBLISHED BAR <b>" + esc(last.t) + "</b>" +
         (last.c != null ? " close " + esc(fmtPx(last.c)) : "") +
-        (age != null ? " &middot; " + age + " days old" : "") +
-        " &middot; history is not a quote.</div>";
+        (age != null ? " &middot; " + age + " days old" : "") + "</div>";
     }
     parts.push("<div class='fx-why'>" + why + "</div>");
     $("fxBody").innerHTML = parts.join("");
@@ -389,21 +372,20 @@
         foot.push("<span class='warn'>" + behindToday + " days before today</span>");
       }
     } else {
-      foot.push("<span class='warn'>as-of date not stated, so it is not treated as current</span>");
+      foot.push("<span class='warn'>as-of date not stated</span>");
     }
     if(agree === false && px != null && prev != null){
-      foot.push("<span class='warn'>chgPct disagrees with price - prevClose, so no level change is shown</span>");
+      foot.push("<span class='warn'>level change not stated</span>");
     }
     var lb = lastBar(hist);
     if(lb && lb.t && asOf){
       // the bars date the quote independently: say so when they disagree
       if(lb.t > asOf.iso){
-        foot.push("price history holds a later bar: <b>" + esc(lb.t) + "</b>");
+        foot.push("later bar <b>" + esc(lb.t) + "</b>");
       } else if(lb.t < asOf.iso){
         foot.push("history ends <b>" + esc(lb.t) + "</b>");
       }
     }
-    foot.push("no interpolated or carried-over values");
     $("fxFoot").innerHTML = foot.join(" &middot; ");
   }
 

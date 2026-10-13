@@ -112,12 +112,11 @@
   <div class="bar">
     <div class="sbox">
       <input class="search" id="q" autocomplete="off" spellcheck="false"
-        placeholder="filter to one security:  ticker, ISIN or company  (e.g. SCOM, Safaricom)" />
+        placeholder="ticker, ISIN or company  (e.g. SCOM, Safaricom)" />
       <div class="sugg" id="sugg"></div>
     </div>
   </div>
   <div class="active" id="active" style="display:none"></div>
-  <div class="note" id="note"></div>
   <div id="items"><div class="empty">loading…</div></div>
 </div>
 <script>
@@ -138,8 +137,7 @@
   // The security filter's controls, and the merged feed it filters.
   var qEl = document.getElementById("q"),
       suggEl = document.getElementById("sugg"),
-      actEl = document.getElementById("active"),
-      noteEl = document.getElementById("note");
+      actEl = document.getElementById("active");
   var NEWSROWS = [];   // every row the feeds produced, before the window cut
   var READY = false;   // a keystroke before the feeds land must not leave a
                        // stale empty state on screen
@@ -517,14 +515,8 @@
     document.getElementById("clrQ").addEventListener("click", clearQ);
   }
   function clearQ(){ qEl.value = ""; hideSugg(); onQuery(); }
-  function emptyState(qraw, secs){
-    return '<div class="empty">Nothing for ' + esc(qraw) + ' in this window.' +
-      (secs ? '<br><br>No ' + esc(secs.map(function(s){ return s.tk; }).join(" + ")) +
-              ' item is inside the current news window.'
-            : '<br><br>No listed security in this market matched this query. ' +
-              'The news feed may file this company under another or a former name, ' +
-              'so nothing is shown rather than another company&#39;s items.') +
-      '</div>';
+  function emptyState(qraw){
+    return '<div class="empty">Nothing for ' + esc(qraw) + ' in this window.</div>';
   }
 
   // The feeds date their items differently: the bot emits an epoch ts, the NGX
@@ -685,8 +677,6 @@
     renderNews();
   });
 
-  function CFG_hasReg(){ return !PRESS_ONLY && !!REG_ISO[CUR]; }
-
   // Corporate actions must not lose a date race. NGX files ~300 press items a
   // month, so on a straight date sort the dividend and book-closure notices -
   // which are days older - fall past the 120-row cut and vanish, which is
@@ -742,12 +732,10 @@
     chip(qraw, secs);
     var shown;
     if(!qraw){
-      noteEl.textContent = "";
       shown = windowRows(NEWSROWS);
     } else if(!secs){
       // A query that names no listed security is not a filter anyone can
       // honour: nothing is shown, and the empty state names the query.
-      noteEl.textContent = "";
       el.innerHTML = emptyState(qraw, null);
       return;
     } else {
@@ -756,10 +744,7 @@
       // wire (reg.json) is a market-wide notice board whose items carry no
       // issuer at all (REG_ISO only narrows them to a country), so no item of it
       // can belong to one security; it is hidden rather than shown under that
-      // security's name, and the note says so.
-      noteEl.textContent = CFG_hasReg()
-        ? "Regulatory-wire notices are market-wide and carry no issuer, so they are not shown in a single-security view."
-        : "";
+      // security's name.
       shown = NEWSROWS.filter(function(n){ return !n._reg && rowMatch(n, secs); });
     }
     if(!shown.length){ el.innerHTML = emptyState(qraw, secs); return; }
@@ -835,8 +820,7 @@
         f("EXPECTED DATE", when);
         if(c.offer_price != null)
           f("OFFER PRICE",
-            esc((typeof c.offer_price === "number" ? c.offer_price.toFixed(2) : c.offer_price) + (c.offer_price_currency ? " " + c.offer_price_currency : "")) +
-            ' <span class="up-note">offer price, not a traded price</span>', "price");
+            esc((typeof c.offer_price === "number" ? c.offer_price.toFixed(2) : c.offer_price) + (c.offer_price_currency ? " " + c.offer_price_currency : "")), "price");
         if(c.shares_offered != null) f("SHARES OFFERED", esc(num(c.shares_offered)));
         if(c.shares_in_issue != null) f("SHARES IN ISSUE", esc(num(c.shares_in_issue)));
         if(c.sector) f("SECTOR", esc(c.sector));

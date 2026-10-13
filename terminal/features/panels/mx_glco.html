@@ -120,8 +120,9 @@
     fetch(GLCO_ENDPOINT)
       .then(function (r) { if (!r.ok) throw new Error("no endpoint"); return r.json(); })
       .then(function (data) {
-        render(data.commodities || []);
-        $("glcoFoot").textContent = data.freshness || "live";
+        var list = data.commodities || [];
+        render(list);
+        $("glcoFoot").textContent = list.length + " commodities";
       })
       .catch(function () { loadStatic(); });
   }
@@ -133,12 +134,13 @@
     fetch("../../static_data/commodities.json")
       .then(function (r) { if (!r.ok) throw new Error("no snapshot"); return r.json(); })
       .then(function (data) {
-        render(data.commodities || []);
-        $("glcoFoot").textContent = data.freshness || "snapshot";
+        var list = data.commodities || [];
+        render(list);
+        $("glcoFoot").textContent = list.length + " commodities";
       })
       .catch(function () {
         render([]);
-        $("glcoFoot").textContent = "commodities unavailable - no live feed and no snapshot on file";
+        $("glcoFoot").textContent = "commodities unavailable";
       });
   }
 

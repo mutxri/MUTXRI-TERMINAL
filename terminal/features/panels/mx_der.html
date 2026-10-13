@@ -104,7 +104,7 @@
     <button class="der-refresh" id="derRefresh">Refresh</button>
   </div>
   <div class="der-ex" id="derEx"></div>
-  <div class="der-note" id="derNote">-</div>
+  <div class="der-note" id="derNote" hidden>-</div>
   <div class="der-cols">
     <span>Underlying</span><span>Type</span><span>Expiry</span><span>DTE</span><span>Px / Settle</span><span>Ccy</span><span>As of</span>
   </div>
@@ -189,7 +189,7 @@
     return p[2] + " " + (MON[parseInt(p[1], 10) - 1] || p[1]) + " " + p[0];
   }
 
-  function dash(reason){ return '<span class="der-dash" title="' + esc(reason) + '">-</span>'; }
+  function dash(){ return '<span class="der-dash">-</span>'; }
   function levelText(lv){
     if (!lv) return null;
     var dp = lv.kind === "px" ? 3 : 4;
@@ -212,46 +212,39 @@
       return String(a.underlying).localeCompare(String(b.underlying));
     });
     if (!rows.length){
-      var src = OVERRIDE || "static_data/derivatives.json";
-      var why = (rawData === null)
-        ? "the data file was not found or could not be read"
-        : "the file carried no derivative contracts for " + ex;
-      $("derBody").innerHTML = '<div class="der-empty"><b>Derivative data not available for ' + esc(ex) + '</b><br>' +
-        esc(src) + " - " + esc(why) + '.<br>No sample or placeholder contracts are shown.</div>';
+      $("derBody").innerHTML = '<div class="der-empty"><b>No derivative data for ' + esc(ex) + '</b></div>';
       $("derFoot").textContent = "no derivatives source for " + ex;
-      $("derNote").textContent = "";
       return;
     }
-    $("derNote").textContent = (rawData && rawData.note) ? rawData.note : "";
     var today = todayISO();
     $("derBody").innerHTML = rows.map(function(r){
       var d = dte(r.expiry);
       var exp = r.expiry
         ? '<span class="der-num">' + esc(r.expiry) + (r.expiry < today ? '<span class="der-tag EXPIRED">EXPIRED</span>' : "") + "</span>"
-        : dash("the source does not publish an expiry date for this contract");
+        : dash();
       var dteCell = (d == null)
-        ? dash(r.expiry ? "the expiry date could not be parsed" : "no expiry date on file, so days to expiry cannot be computed")
+        ? dash()
         : '<span class="der-dte">' + (d >= 0 ? d + "d" : "past") + "</span>";
       var lt = levelText(r.level);
       var lvl = lt == null
-        ? dash("the source publishes neither a price nor a settlement for this contract")
+        ? dash()
         : '<span class="der-lvl">' + esc(lt) + ' <span class="k">' + (r.level.kind === "px" ? "px" : "settle") + "</span></span>";
       var sy = (r.symbol && r.symbol !== r.underlying) ? ' <span class="der-dte">' + esc(r.symbol) + "</span>" : "";
       return '<div class="der-inst" title="' + esc(r.source || "source not stated") + '">' +
         '<span class="der-und">' + esc(r.underlying) + sy + "</span>" +
-        '<span class="der-typ">' + (r.kind ? esc(r.kind) : dash("contract type not stated")) + "</span>" +
+        '<span class="der-typ">' + (r.kind ? esc(r.kind) : dash()) + "</span>" +
         "<span>" + exp + "</span>" +
         "<span>" + dteCell + "</span>" +
         "<span>" + lvl + "</span>" +
-        '<span class="der-ccy">' + (r.ccy ? esc(r.ccy) : dash("the row names no currency")) + "</span>" +
-        '<span class="der-ccy">' + (r.asOf ? esc(r.asOf) : dash("the row carries no as-of date")) + "</span>" +
+        '<span class="der-ccy">' + (r.ccy ? esc(r.ccy) : dash()) + "</span>" +
+        '<span class="der-ccy">' + (r.asOf ? esc(r.asOf) : dash()) + "</span>" +
       "</div>";
     }).join("");
     var srcs = {};
     rows.forEach(function(r){ if (r.source) srcs[r.source] = 1; });
-    var srcList = Object.keys(srcs).length ? Object.keys(srcs).join("; ") : "source not stated on file";
+    var srcList = Object.keys(srcs).length ? Object.keys(srcs).join("; ") : "source not stated";
     $("derFoot").textContent = rows.length + " contract" + (rows.length === 1 ? "" : "s") + " on " + ex +
-      " - as shown, not a live feed. Source: " + srcList + ".";
+      " · Source: " + srcList;
   }
 
   function load(){
