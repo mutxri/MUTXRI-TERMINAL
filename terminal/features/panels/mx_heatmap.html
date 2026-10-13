@@ -28,8 +28,16 @@
     --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:#000;color:var(--tx);font-family:var(--ui);font-size:13px;padding:16px;}
-  .hm{border:1px solid var(--line2);background:var(--bg2);border-radius:2px;}
+  /* The shell already draws this panel's window chrome, its border and its
+     background, so the panel must NOT draw a second frame inside it. A 16px
+     gutter, its own 1px border and its own fill read as one panel nested inside
+     another - which is exactly the defect the owner reported in this window and
+     that the FOCUS and CHART panels already carry the fix for. Fill the shell's
+     window instead: no padding, no border, no background, no max-width, no auto
+     margin. Same rule, same values, as .fx in mx_focus.html and .ch in
+     mx_chart.html. */
+  body{margin:0;background:transparent;color:var(--tx);font-family:var(--ui);font-size:13px;padding:0;}
+  .hm{max-width:none;margin:0;border:0;background:transparent;border-radius:0;}
   .hm-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line2);gap:12px;flex-wrap:wrap;}
   .hm-head .t{font-size:12px;letter-spacing:.08em;color:var(--tx2);text-transform:uppercase;}
   .hm-head .t b{color:var(--acc);font-weight:700;}
@@ -562,7 +570,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     // ===== Security chart (candles/line, 1D/1M/1Y/ALL) - reliable in-house
   // renderer using static_data/history (no third-party iframe) =====
   var cpType="candle", cpRange="1D", cpChart=null, cpSeries=null, cpBarsDaily=[], cpBarsMax=[], cpDivBars=[], cpName="", cpTkr="", cpCellPrice=null, cpCellChg=null, cpCellCur="", cpCellVol=null, cpBothDone=false, cpBasis="", cpBasisMode="splits",
-      cpHistoryKey="", cpTA=null,
+      cpHistoryKey="", cpTA=null, cpPlotted=0, cpMonthlyOnly=false,
       cpInds={sma:false,smaLen:20,ema:false,emaLen:20,bb:false,vol:false,rsi:false,macd:false};
   // Indicator choices and lengths persist per browser under a NEW key
   // (mt_chart_inds_v1). No existing key is renamed, so nothing a reader already
@@ -662,18 +670,29 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       }
       return next();
     }
-    cpBarsDaily = []; cpBarsMax = []; cpDivBars = []; cpBothDone = false; cpBasis = ""; cpBasisMode = "splits"; cpHistoryKey = "";
+    // The bars are normalised exactly as mx_chart.html normalises them: a price
+    // that will not read as a number stays null, and a bar with no time or no
+    // close is dropped outright rather than being drawn as a candle built out of
+    // nothing. The two views therefore hold the same rows, not the same file read
+    // two ways.
+    function normBars(d){
+      if(!(d && d.bars)) return [];
+      return d.bars.map(function(b){
+        return {t: b.t, o: num(b.o), h: num(b.h), l: num(b.l), c: num(b.c), v: num(b.v)};
+      }).filter(function(b){ return b.t != null && b.c != null; });
+    }
+    cpBarsDaily = []; cpBarsMax = []; cpDivBars = []; cpBothDone = false; cpBasis = ""; cpBasisMode = "splits"; cpHistoryKey = ""; cpMonthlyOnly = false;
     if(cpTA){ try{ cpTA.destroy(); }catch(e){} cpTA = null; }
     cpPaintBasisBtns();
     phFetch("")
-      .then(function(d){ cpBarsDaily = (d && d.bars) || []; cpBasis = (d && (d.basis || d.adjusted)) || ""; cpBothDone = true; cpRender(); })
+      .then(function(d){ cpBarsDaily = normBars(d); cpBasis = (d && (d.basis || d.adjusted)) || ""; cpBothDone = true; cpRender(); })
       .catch(function(){ cpBarsDaily = []; cpBothDone = true; cpRender(); });
     // the clearly named dividend-adjusted sidecar, when one exists
     phFetch(".div")
-      .then(function(d){ cpDivBars = (d && d.bars) || []; cpPaintBasisBtns(); cpRender(); })
+      .then(function(d){ cpDivBars = normBars(d); cpPaintBasisBtns(); cpRender(); })
       .catch(function(){ cpDivBars = []; cpPaintBasisBtns(); });
     phFetch(".max")
-      .then(function(d){ cpBarsMax = (d && d.bars) || []; cpRender(); })
+      .then(function(d){ cpBarsMax = normBars(d); cpRender(); })
       .catch(function(){ cpBarsMax = []; cpRender(); });
   }
   function closeChartPanel(){ document.getElementById("chartPanel").classList.remove("open"); }
@@ -687,33 +706,35 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     Array.prototype.forEach.call(document.querySelectorAll(".cp-range"), function(b){ b.classList.toggle("on", b.getAttribute("data-rng")===r); });
     cpRender();
   }
+  // ---- ranges: the SAME table mx_chart.html carries ---------------------------
+  // One security has one chart of record. The centre view and the CHART panel
+  // must draw the SAME bars for the same range name, or the two views of a
+  // security disagree about where the series starts. These numbers and names are
+  // byte-for-byte mx_chart.html's RANGE_BARS; change one and change the other in
+  // the same commit. 1D and 1W are this view's names, 5D is the CHART panel's;
+  // all three are 5 bars, because with EOD bars a week IS five sessions.
+  var RANGE_BARS = {"1D":5, "5D":5, "1W":5, "1M":21, "3M":63, "6M":126, "1Y":252, "5Y":1260, "10Y":2600};
   function cpBarsForRange(){
-    // a single real bar still renders as one honest candle (NSE archiver
-    // accumulates daily) - never show "no data" for a bar we actually have
+    // The source is chosen exactly as mx_chart.html's visibleBars() chooses it:
+    // the daily series, else the monthly aggregate. Earlier this view sliced the
+    // daily series by one window and the monthly file by a DIFFERENT one (1Y was
+    // 260 daily bars, or 12 monthly ones), so a security whose only published
+    // history is monthly drew a different series here than in the CHART panel for
+    // the same range name. One window per name now, in both views.
     var D = cpActiveDaily();
     // Never fall back to the monthly series while the DIVIDEND basis is selected:
     // the monthly file is the SPLITS series, and mixing two bases on one chart is
     // exactly what this work exists to prevent.
     var FALLBACK = (cpBasisMode === "dividends") ? [] : cpBarsMax;
-    function oneBar(){ return D.length ? D.slice(-1) : (FALLBACK.length ? FALLBACK.slice(-1) : []); }
-    // 10Y and ALL must read the DAILY series, never the monthly .max aggregate. Reading
-    // the monthly file made long ranges show FEWER, coarser bars than a shorter one (120
-    // monthly at 10Y vs 260 daily at 1Y), left 10Y and ALL byte-identical on any history
-    // under 10 years so pressing either changed nothing, and meant ALL showed a monthly
-    // summary instead of every candle since the first bar. The monthly file is now only
-    // a fallback for a security that has no daily series at all.
-    function pick(dailyN, maxN){
-      var d = D.slice(-dailyN);
-      return d.length >= 1 ? d : FALLBACK.slice(-maxN);
-    }
-    if(cpRange === "ALL") return D.length >= 1 ? D : FALLBACK;
-    if(cpRange === "10Y") return pick(2600, 120);
-    if(cpRange === "1Y") return pick(260, 12);
-    if(cpRange === "6M") return pick(130, 6);
-    if(cpRange === "3M") return pick(66, 3);
-    if(cpRange === "1M") return pick(22, 2);
-    if(cpRange === "1W") return pick(7, 1);
-    return pick(5, 1); // 1D - last week of EOD bars (no free intraday feed)
+    var src = D.length ? D : FALLBACK;
+    if(!src.length) return [];
+    cpMonthlyOnly = !D.length && !!FALLBACK.length;
+    if(cpRange === "ALL") return src;
+    var n = RANGE_BARS[cpRange] || 126;
+    var v = src.slice(-n);
+    // a single real bar still renders as one honest candle (the NSE archiver
+    // accumulates daily) - never show "no data" for a bar we actually have
+    return v.length ? v : src.slice(-1);
   }
   // ===== Technical-analysis indicators =====
   // The maths lives in the shared module (mx_chart_tools.js) so this panel and any
@@ -754,6 +775,10 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     };
   }
   function fmt(v){ return v >= 1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : (v >= 100 ? v.toFixed(1) : v.toFixed(2)); }
+  // the same number reader mx_chart.html uses. A price that will not read as a
+  // number must come out null, never 0 and never NaN, because every honest empty
+  // state in this panel is built on that distinction.
+  function num(v){ if(v === null || v === undefined || v === "") return null; var n = Number(v); return isNaN(n) ? null : n; }
   function cpPaintInds(){
     Array.prototype.forEach.call(document.querySelectorAll(".cp-ind[data-ind]"), function(b){
       b.classList.toggle("on", !!cpInds[b.getAttribute("data-ind")]);
@@ -860,6 +885,14 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     var bars = cpBarsForRange();
     var box = $("cpChart");
     if(!box) return;
+    // A render that draws no chart must not leave the PREVIOUS security's series
+    // standing. Tearing the old chart down after the early returns below left
+    // cpSeries and the plotted count from the last security in place, so a
+    // security with no published history reported candles for a chart that is not
+    // on screen. Destroy before any early return, and reset the count with it.
+    if(cpTA){ try{ cpTA.destroy(); }catch(e){} cpTA = null; }
+    if(cpChart){ try{ cpChart.remove(); }catch(e){} cpChart = null; }
+    cpSeries = null; cpPlotted = 0;
     if(!bars.length && !cpBothDone){ $("cpStat").textContent = "loading…"; return; }
     if(!bars.length){
       // NSE: try the official IR feed via the live adapter before showing EOD
@@ -932,21 +965,42 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       width:w, height:h,
     });
     if(cpType === "candle"){
+      // the SAME series and the SAME options mx_chart.html's CHART panel builds:
+      // same library, same series type, same colours, same last-price line, so
+      // one security cannot look like two different instruments in the two views.
       cpSeries = cpChart.addSeries(LightweightCharts.CandlestickSeries, {
         upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
-        wickUpColor:MINT, wickDownColor:RED, priceLineColor:MINT,
+        wickUpColor:MINT, wickDownColor:RED,
+        priceLineVisible:true, priceLineColor:MINT, priceLineWidth:1, priceLineStyle:2
       });
-      cpSeries.setData(mapped.map(function(b){ return {time:b.time, open:b.open, high:b.high, low:b.low, close:b.close}; }));
+      // a bar missing any of its four prices is not drawn: a candle built out of a
+      // missing open or high is an invented bar. Same filter as the CHART panel.
+      var cPts = mapped.map(function(b){
+        return {time:b.time, open:b.open, high:b.high, low:b.low, close:b.close};
+      }).filter(function(p){ return p.open != null && p.high != null && p.low != null && p.close != null; });
+      cpPlotted = cPts.length;
+      cpSeries.setData(cPts);
     } else if(cpType === "area"){
       cpSeries = cpChart.addSeries(LightweightCharts.AreaSeries, {
         lineColor:MINT, topColor:"rgba(51,226,154,.25)", bottomColor:"rgba(51,226,154,0)",
-        lineWidth:2, priceLineColor:MINT,
+        lineWidth:2, priceLineVisible:true, priceLineColor:MINT, priceLineStyle:2
       });
-      cpSeries.setData(mapped.map(function(b){ return {time:b.time, value:b.close}; }));
+      var aPts = mapped.map(function(b){ return {time:b.time, value:b.close}; })
+        .filter(function(p){ return p.value != null; });
+      cpPlotted = aPts.length;
+      cpSeries.setData(aPts);
     } else {
-      cpSeries = cpChart.addSeries(LightweightCharts.LineSeries, {color:MINT, lineWidth:2, priceLineColor:MINT});
-      cpSeries.setData(mapped.map(function(b){ return {time:b.time, value:b.close}; }));
+      cpSeries = cpChart.addSeries(LightweightCharts.LineSeries, {
+        color:MINT, lineWidth:2, priceLineVisible:true, priceLineColor:MINT, priceLineStyle:2
+      });
+      var lPts = mapped.map(function(b){ return {time:b.time, value:b.close}; })
+        .filter(function(p){ return p.value != null; });
+      cpPlotted = lPts.length;
+      cpSeries.setData(lPts);
     }
+    // the range and series this view actually drew, readable from the DOM so the
+    // centre view and the CHART panel can be compared bar for bar
+    // (window.__mtCentreState is defined with the other exposures below)
     // ---- overlay indicators (drawn on the price pane, above the candles) ----
     // addLine drops every null, so a window that is not filled plots nothing at
     // all rather than a line started from a value built out of missing bars.
@@ -1094,6 +1148,32 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   window.cpDrawCount = function(){ return cpTA ? cpTA.count() : 0; };
   window.cpToolsHandle = function(){ return cpTA; };
   window.hmSetView = hmSetView;
+  // The proof surface for the centre window's candles: the range name, the bar
+  // window that name maps to, the history key that loaded, how many bars the
+  // published file holds and how many candles were actually handed to the series,
+  // plus the first and last bar's date and OHLC. Read from the rendered DOM, so
+  // the centre view and the CHART panel can be compared bar for bar rather than
+  // by eye. Deliberately NOT rendered on screen: a bar count is an implementation
+  // detail, and this file's own comment (see cpStat) says so.
+  window.__mtCentreState = function(){
+    var v = cpBarsForRange(), lb = v.length ? v[v.length - 1] : null;
+    return {
+      view: "cpChart, the centre window's chart",
+      type: cpType, range: cpRange, basis: cpBasisMode,
+      barsInView: v.length, barsPlotted: cpPlotted,
+      monthlyOnly: cpMonthlyOnly,
+      barsPublishedDaily: cpBarsDaily.length, barsPublishedMax: cpBarsMax.length,
+      barsPublishedDiv: cpDivBars.length,
+      rangeBars: RANGE_BARS[cpRange] || null,
+      rangeTable: RANGE_BARS,
+      histKey: cpHistoryKey,
+      firstBar: v.length ? String(v[0].t) : null,
+      lastBar: lb ? String(lb.t) : null,
+      lastOhlc: lb ? {t: String(lb.t), o: num(lb.o), h: num(lb.h), l: num(lb.l), c: num(lb.c)} : null,
+      seriesPlotted: !!cpSeries,
+      candlesPlotted: (cpType === "candle" ? cpPlotted : 0)
+    };
+  };
   cpPaintInds();
   cpPaintTools();
 })();

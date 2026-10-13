@@ -399,6 +399,37 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .wl-price .wl-offer{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;color:var(--tx3)}
 .wl-price .wl-offer b{display:block;color:var(--acc);font-weight:700;letter-spacing:0}
 
+/* ---------- window search bars (WATCHLIST and MARKET) ----------
+   The same search the FOCUS and CHART panels already carry, drawn in the same
+   idiom so the whole terminal reads as one product: type a ticker or a company
+   name, a filtered suggestion list drops out of the box, and picking a row
+   selects that security in the shell through openStock() - the identical call a
+   click on a watchlist row makes - so the market rail, the tape and every open
+   panel follow it exactly as they do from a row click. The box reads the
+   SELECTED exchange's own market file, so a suggestion is always a security
+   that exchange lists, and a query that matches nothing says so rather than
+   showing everything.
+   The wrapper sits BETWEEN the window head and the window's scrolling body, so
+   the menu is never clipped by that body, and it is absolute (never fixed) so
+   the locked mobile stack is untouched. */
+.sw{position:relative;flex:0 0 auto;padding:var(--s2) var(--s4);border-bottom:1px solid var(--line);}
+.sw input{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--line2);
+  color:var(--tx);font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+  padding:6px 9px;border-radius:3px;outline:none;}
+.sw input:focus{border-color:var(--acc);}
+.sw input::placeholder{color:var(--tx3);}
+.sw-sug{display:none;position:absolute;left:var(--s4);right:var(--s4);top:calc(100% - 3px);z-index:40;
+  background:var(--bg3);border:1px solid var(--line2);border-radius:3px;
+  max-height:min(320px,52vh);overflow-y:auto;box-shadow:0 14px 40px rgba(0,0,0,.75);}
+.sw-sug.on{display:block;}
+.sw-sug .r{font-family:var(--mono);font-size:11px;color:var(--tx2);padding:6px 9px;cursor:pointer;
+  display:flex;gap:8px;align-items:baseline;}
+.sw-sug .r:hover,.sw-sug .r.sel{background:var(--bg4);color:var(--acc);}
+.sw-sug .r b{color:var(--acc);min-width:62px;display:inline-block;}
+.sw-sug .r span{color:var(--tx3);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sw-sug .r i{margin-left:auto;font-style:normal;color:var(--tx3);font-size:10px;}
+.sw-sug .none{padding:8px 9px;color:var(--tx3);font-family:var(--mono);font-size:10px;}
+
 /* ---------- center panel ---------- */
 .panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--line2);padding:0 var(--s3);
@@ -1128,6 +1159,14 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
     <!-- WATCHLIST -->
     <aside class="rail" id="colWatch">
       <div class="wl-head" data-drag="watch" title="Drag to move this window"><span class="dgrip">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="pw-x" type="button" data-winclose="watch" title="Close this window" aria-label="Close WATCHLIST">X</button></div>
+      <!-- search bar: reads the selected exchange's own market file, filters as
+           you type, and picking a row calls openStock() - the same selection a
+           click on a row below makes. -->
+      <div class="sw" id="wlSearch">
+        <input id="wlQ" type="text" autocomplete="off" spellcheck="false"
+               placeholder="SEARCH A SECURITY" aria-label="Search the watchlist">
+        <div class="sw-sug" id="wlSug"></div>
+      </div>
       <div class="wl" id="wlList"></div>
     </aside>
 
@@ -1160,6 +1199,15 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
     <!-- RIGHT RAIL -->
     <aside class="rail right" id="colInfo">
       <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market<button class="pw-x" type="button" data-winclose="info" title="Close this window" aria-label="Close MARKET">X</button></div>
+      <!-- search bar: the same one the WATCHLIST window carries. It sits
+           OUTSIDE #rightInfo on purpose: every writer of the market rail
+           replaces that element's contents, so a box inside it would be wiped
+           on the next quote. -->
+      <div class="sw" id="mkSearch">
+        <input id="mkQ" type="text" autocomplete="off" spellcheck="false"
+               placeholder="SEARCH A SECURITY" aria-label="Search the market">
+        <div class="sw-sug" id="mkSug"></div>
+      </div>
       <div class="rightinfo" id="rightInfo"></div>
     </aside>
 
@@ -2736,6 +2784,9 @@ function switchExchange(ex){
   }
   // open panel windows carry ?ex= too, so they follow the market switch
   if(window.MTPanelWins) window.MTPanelWins.syncExchange();
+  // and the two window search boxes follow it: their suggestions come from the
+  // exchange's own market file, so the old exchange's rows must not survive it.
+  if(window.MTWinSearch) window.MTWinSearch.onExchange();
 }
 renderExchTabs();
 
@@ -3011,6 +3062,130 @@ window.__getRecents = function(){
       });
     });
   });
+})();
+
+// ===== window search bars: WATCHLIST and MARKET =====
+// The search the FOCUS and CHART panels already carry, moved into the two
+// windows that list securities. Each box reads the SELECTED exchange's own
+// market file (static_data/market_<EX>.json, rows under `stocks`), filters as
+// the reader types, and picking a row selects that security in the shell via
+// openStock() - the identical call a click on a watchlist row makes - so the
+// market rail, the tape and every open panel follow it exactly as they do from
+// a row click. Nothing here invents a selection path.
+// A query that matches nothing prints NO MATCH rather than falling back to the
+// whole exchange. The file is read once per exchange and re-read when the
+// market is switched, so a suggestion is always a security that exchange lists.
+(function(){
+  var CACHE = {};        // exchange -> rows ([] when the file is unreadable)
+
+  function rowsFor(ex, cb){
+    if(CACHE[ex] !== undefined){ cb(CACHE[ex]); return; }
+    fetch('static_data/market_' + encodeURIComponent(ex) + '.json')
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(d){
+        var rows = (d && (d.stocks || d.rows || d.securities || d.listings)) || [];
+        CACHE[ex] = rows.filter(function(r){ return r && (r.sym || r.ticker); });
+        cb(CACHE[ex]);
+      })
+      .catch(function(){ CACHE[ex] = []; cb(CACHE[ex]); });
+  }
+  // the ticker as the FOCUS and CHART panels print it: no exchange suffix
+  function shown(r){ return String(r.ticker || r.sym || '').toUpperCase().replace(/\.(JO|CA)$/, ''); }
+  function matches(rows, q){
+    var s = q.trim().toUpperCase();
+    if(!s) return [];
+    var starts = [], has = [];
+    rows.forEach(function(r){
+      var t = String(r.ticker || r.sym || '').toUpperCase().replace(/\.(JO|CA)$/, '');
+      var n = String(r.name || '').toUpperCase();
+      if(t.indexOf(s) === 0) starts.push(r);
+      else if(t.indexOf(s) >= 0 || n.indexOf(s) >= 0) has.push(r);
+    });
+    return starts.concat(has);
+  }
+
+  function make(o){
+    var box = document.getElementById(o.input), sug = document.getElementById(o.list);
+    if(!box || !sug) return null;
+    var sel = -1, last = [];
+
+    function closeSug(){ sug.className = 'sw-sug'; sug.innerHTML = ''; sel = -1; }
+    function paint(q){
+      last = matches(CACHE[currentEx] || [], q);
+      if(!last.length){
+        sug.innerHTML = '<div class="none">NO ' + esc(currentEx) + ' SECURITY MATCHES "' + esc(q) + '"</div>';
+        sug.className = 'sw-sug on';
+        return;
+      }
+      sug.innerHTML = last.slice(0, 12).map(function(r, i){
+        var px = (r.price == null || r.price === '') ? '' : String(r.price);
+        return '<div class="r' + (i === sel ? ' sel' : '') + '" data-sym="' + esc(r.sym || r.ticker) + '">' +
+          '<b>' + esc(shown(r)) + '</b><span>' + esc(r.name || '') + '</span>' +
+          (px ? '<i>' + esc(px) + '</i>' : '') + '</div>';
+      }).join('');
+      sug.className = 'sw-sug on';
+      Array.prototype.forEach.call(sug.querySelectorAll('.r'), function(el){
+        el.addEventListener('mousedown', function(ev){
+          ev.preventDefault();
+          pick(el.getAttribute('data-sym'));
+        });
+      });
+    }
+    // selecting in the shell is openStock(), the same call a watchlist row makes
+    function pick(sym){
+      var s = String(sym || '').trim();
+      if(!s) return;
+      closeSug();
+      box.value = String(s).toUpperCase().replace(/\.(JO|CA)$/, '');
+      try{ if(typeof openStock === 'function') openStock(s); }catch(e){}
+    }
+    function typed(v){
+      if(!String(v || '').trim()){ closeSug(); return; }
+      if(CACHE[currentEx] === undefined){ rowsFor(currentEx, function(){ if(box.value === v) paint(v); }); return; }
+      paint(v);
+    }
+
+    box.addEventListener('input', function(){ sel = -1; typed(box.value); });
+    box.addEventListener('focus', function(){ rowsFor(currentEx, function(){}); });
+    box.addEventListener('keydown', function(ev){
+      if(ev.key === 'Escape'){ box.value = ''; closeSug(); return; }
+      if(ev.key === 'ArrowDown' && last.length){
+        sel = Math.min(sel + 1, Math.min(last.length, 12) - 1); paint(box.value); ev.preventDefault(); return;
+      }
+      if(ev.key === 'ArrowUp' && last.length){
+        sel = Math.max(sel - 1, 0); paint(box.value); ev.preventDefault(); return;
+      }
+      if(ev.key === 'Enter'){
+        if(sel >= 0 && last[sel]){ pick(last[sel].sym || last[sel].ticker); return; }
+        if(last.length){ pick(last[0].sym || last[0].ticker); return; }
+        if(String(box.value || '').trim()) paint(box.value);   // say NO MATCH, never guess
+      }
+    });
+    document.addEventListener('mousedown', function(ev){
+      if(sug.className.indexOf('on') < 0) return;
+      if(!sug.contains(ev.target) && ev.target !== box) closeSug();
+    });
+    return {clear: function(){ box.value = ''; closeSug(); }};
+  }
+
+  var made = [];
+  function boot(){
+    var a = make({input: 'wlQ', list: 'wlSug'});
+    var b = make({input: 'mkQ', list: 'mkSug'});
+    if(a) made.push(a);
+    if(b) made.push(b);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  // The market changed: drop the old exchange's securities and clear both boxes,
+  // so neither box can offer a row from the market the reader just left.
+  window.MTWinSearch = {
+    onExchange: function(){
+      CACHE = {};
+      made.forEach(function(m){ m.clear(); });
+    }
+  };
 })();
 
 // ===== Command bar =====

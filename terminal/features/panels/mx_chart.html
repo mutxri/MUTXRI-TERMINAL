@@ -265,6 +265,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   var BOARD = null, STOCK = null, HASVOL = false;
   var WITHHELD = false, WITHHOLD_REASON = "";   // the snapshot declined to call this a session price
   var CHART = null, SERIES = null, TA = null;
+  var PLOTTED = 0;          // candle points actually handed to setData
   var INDS = {sma:false, smaLen:20, ema:false, emaLen:20, bb:false, vol:true, rsi:false, macd:false};
   var IND_KEYS = ["sma","ema","bb","vol","rsi","macd"];
   var SCALE = {pct:false, log:false};   // auto is the resting state
@@ -371,7 +372,15 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   }
 
   // ---- ranges ----------------------------------------------------------------
-  var RANGE_BARS = {"5D":5, "1M":21, "3M":63, "6M":126, "1Y":252, "5Y":1260};
+  // ONE table, and mx_heatmap.html's cpBarsForRange() carries the SAME numbers
+  // with the SAME names. One security has one chart of record, so a range name
+  // has to mean the same window in the CHART panel and in the centre view: 6M is
+  // 126 bars in both, not 126 here and 130 there, or the two views disagree about
+  // where the series starts and the candles do not line up. 1D and 1W are the
+  // centre view's names, 5D is this panel's; all three are 5 bars, because with
+  // EOD bars a week IS five sessions. 10Y is the centre view's long range, 5Y is
+  // this panel's. Change a number here and change it there in the same commit.
+  var RANGE_BARS = {"1D":5, "5D":5, "1W":5, "1M":21, "3M":63, "6M":126, "1Y":252, "5Y":1260, "10Y":2600};
   function visibleBars(){
     var src = BARS.length ? BARS : FALLBACK;
     if(!src.length) return [];
@@ -429,6 +438,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     if(TA){ try{ TA.destroy(); }catch(e){} TA = null; }
     if(CHART){ try{ CHART.remove(); }catch(e){} CHART = null; }
     SERIES = null;
+    PLOTTED = 0;
     var box = $("chChart");
     if(box) box.innerHTML = "";
   }
@@ -516,22 +526,30 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
         // the level at the last price, drawn dashed with its label on the right axis
         priceLineVisible:true, priceLineColor:MINT, priceLineWidth:1, priceLineStyle:2
       });
-      SERIES.setData(mapped.map(function(b){
+      // a bar that is missing any of its four prices is not drawn: a candle built
+      // out of a missing open or high is an invented bar.
+      var candlePts = mapped.map(function(b){
         return {time:b.time, open:b.open, high:b.high, low:b.low, close:b.close};
-      }).filter(function(p){ return p.open != null && p.high != null && p.low != null && p.close != null; }));
+      }).filter(function(p){ return p.open != null && p.high != null && p.low != null && p.close != null; });
+      PLOTTED = candlePts.length;
+      SERIES.setData(candlePts);
     } else if(TYPE === "area"){
       SERIES = CHART.addSeries(LightweightCharts.AreaSeries, {
         lineColor:MINT, topColor:"rgba(51,226,154,.25)", bottomColor:"rgba(51,226,154,0)",
         lineWidth:2, priceLineVisible:true, priceLineColor:MINT, priceLineStyle:2
       });
-      SERIES.setData(mapped.filter(function(p){ return p.close != null; })
-        .map(function(p){ return {time:p.time, value:p.close}; }));
+      var areaPts = mapped.filter(function(p){ return p.close != null; })
+        .map(function(p){ return {time:p.time, value:p.close}; });
+      PLOTTED = areaPts.length;
+      SERIES.setData(areaPts);
     } else {
       SERIES = CHART.addSeries(LightweightCharts.LineSeries, {
         color:MINT, lineWidth:2, priceLineVisible:true, priceLineColor:MINT, priceLineStyle:2
       });
-      SERIES.setData(mapped.filter(function(p){ return p.close != null; })
-        .map(function(p){ return {time:p.time, value:p.close}; }));
+      var linePts = mapped.filter(function(p){ return p.close != null; })
+        .map(function(p){ return {time:p.time, value:p.close}; });
+      PLOTTED = linePts.length;
+      SERIES.setData(linePts);
     }
 
     // overlay indicators: addLine drops every null, so a window the series cannot
@@ -813,12 +831,21 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   window.__mtChartState = function(){
     var mode = null;
     try{ mode = CHART.priceScale("right").options().mode; }catch(e){}
+    var v = visibleBars();
+    var lastB = v.length ? v[v.length - 1] : null;
     return {
       tools: !!window.MXChartTools,
       indicatorNames: window.MXChartTools ? Object.keys(window.MXChartTools.indicators || {}) : [],
       type: TYPE, range: RANGE, priceScaleMode: mode,
-      barsInView: visibleBars().length, barsPublished: (BARS.length ? BARS.length : FALLBACK.length),
-      histKey: HISTKEY, seriesPlotted: !!(SERIES && typeof SERIES.options === "function"),
+      barsInView: v.length, barsPublished: (BARS.length ? BARS.length : FALLBACK.length),
+      barsPlotted: PLOTTED,
+      rangeBars: RANGE_BARS[RANGE] || null,
+      rangeTable: RANGE_BARS,
+      histKey: HISTKEY, monthlyOnly: MONTHLY_ONLY,
+      firstBar: v.length ? String(v[0].t) : null,
+      lastBar: lastB ? String(lastB.t) : null,
+      lastOhlc: lastB ? {t: String(lastB.t), o: num(lastB.o), h: num(lastB.h), l: num(lastB.l), c: num(lastB.c)} : null,
+      seriesPlotted: !!(SERIES && typeof SERIES.options === "function"),
       tool: TA ? TA.toolName() : null, drawings: TA ? TA.count() : null,
       drawingsItems: TA ? TA.items() : null, inds: INDS
     };

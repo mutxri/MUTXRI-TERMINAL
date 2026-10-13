@@ -62,10 +62,33 @@
    "values": [
     0.7789,
     2.0872,
-    0.0035,
+    0.035,
     0.0005,
-    0.0007
-   ]
+    null
+   ],
+   "unitGuard": [
+    {
+     "period": "FY2023",
+     "before": 0.0035,
+     "after": 0.035,
+     "factor": 0.112159,
+     "power": 10.0,
+     "how": "multiply",
+     "implied": 0.031206,
+     "netProfit": 338270035.0,
+     "shares": 10840000000,
+     "sharesSource": "the statement file's sharesOutstanding",
+     "reason": "unit guard: the EPS row for FY2023 read 0.0035 against 0.0312057 for that period's net profit divided by the shares on file, a factor of 0.1122, which is the 10x reciprocal of a per-share figure printed in a sub-unit (kobo / cents / a thousandth). Normalised to 0.035, the unit the price is quoted in."
+    },
+    {
+     "period": "FY2021",
+     "before": 0.0007,
+     "after": null,
+     "withheld": true,
+     "reason": "Withheld: the EPS row reads 0.0007 for FY2021, the OPPOSITE sign to the net profit reported for the same period (-5.72804e+08), and its magnitude is 0.01325x that period's net profit divided by the shares on file (-0.0528417) - a figure of a different order, not a share-count basis difference. The inputs on file do not recover the printed per-share figure, so nothing is published for this period. A blank is honest; a per-share figure whose sign contradicts its own period's earnings is not."
+    }
+   ],
+   "unitGuardBasis": "factor = stored EPS / (the same period's net profit / shares on file); a factor within 15% of a power of ten (or its reciprocal) whose corrected value lands within 2.0x of the triangle is a UNIT error and is normalised; a stored cell of the opposite sign to the period's net profit whose magnitude is beyond 5.0x is WITHHELD with both figures named; every other cell is left exactly as filed"
   },
   {
    "label": "Debt to Equity",
