@@ -117,7 +117,7 @@
              placeholder="SEARCH A SECURITY" aria-label="Search a security">
       <div class="fx-sug" id="fxSug"></div>
     </div>
-    <div class="fx-sec empty" id="fxSec">
+    <div class="fx-sec empty" id="fxSec" style="display:none">
       <span id="fxSecTxt">no security</span>
     </div>
   </div>
@@ -368,7 +368,9 @@
       if(stale){
         foot.push("<span class='warn'>STALE: " + lag + " days behind the " + esc(boardDate ? boardDate.iso : "") + " board session</span>");
       } else if(lag === 0){
-        foot.push("current for the <b>" + esc(boardDate ? boardDate.iso : "") + "</b> session");
+        // A zero lag means the quote is current for this board session. The dated
+        // stamp at the head of this footer already says as much, and repeating the
+        // date here was redundant on every row. Nothing is pushed.
       } else {
         foot.push(lag + " day" + (lag === 1 ? "" : "s") + " behind the " + esc(boardDate ? boardDate.iso : "") + " board session");
       }
@@ -392,7 +394,6 @@
         foot.push("history ends <b>" + esc(lb.t) + "</b>");
       }
     }
-    foot.push("no interpolated or carried-over values");
     $("fxFoot").innerHTML = foot.join(" &middot; ");
   }
 
