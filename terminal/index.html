@@ -284,6 +284,17 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .wstabs .ws-x{margin-left:6px;padding:0 3px;color:var(--tx3);font-weight:700;border-radius:2px;font-size:11px}
 .wstabs .ws-x:hover{color:#ff5f56;background:rgba(255,95,86,.12)}
 .wstabs .ws-name{pointer-events:none}
+/* SAVE: the explicit keep-this-arrangement control. It sits with the workspace
+   tabs because it saves THE WORKSPACE, and the toast below is the confirmation
+   a reader needs to know the arrangement was actually recorded. */
+.wstabs .ws-save{padding:3px 8px;color:var(--acc);border-color:var(--mint-line)}
+.wstabs .ws-save:hover{background:var(--mint-dim);color:var(--acc);border-color:var(--acc)}
+.wstoast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(6px);z-index:99998;
+  background:var(--bg3);border:1px solid var(--mint-line);color:var(--acc);font-family:var(--mono);
+  font-size:10px;letter-spacing:.12em;padding:6px 12px;border-radius:3px;opacity:0;pointer-events:none;
+  transition:opacity .16s ease,transform .16s ease;max-width:80vw;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.wstoast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* ---------- panel picker: add a panel, or bring a closed window back ---------- */
 /* The desktop shell has no visible panel list of its own: the centre tab strip
@@ -355,6 +366,12 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
      dismissal below 821px as well (belt and braces). */
   .pw-x{display:none!important}
   .paneladd{display:none!important}
+  /* the workspace layer is desktop-only, so its tabs and its save control go
+     with it: switching or saving a workspace on a phone could not change the
+     locked stack, and the stored desktop arrangement must not be touched by a
+     gesture on a narrow screen. */
+  .wstabs{display:none!important}
+  .wstoast{display:none!important}
 }
 
 .view-panel .rsz,.view-watchlist .rsz,.view-info .rsz{display:none}
@@ -1579,6 +1596,10 @@ function renderTabs(){
     KEYS.forEach(function(k){ NODE[k] = document.getElementById(META[k].el); });
 
     let spaces = [], active = 0, zTop = 10;
+    // top-level fields of the mt_ws record that this build does not know about;
+    // they are written back on the next save so an older reader cannot trim a
+    // record a newer one wrote.
+    let topExtra = {};
 
     // the workspace is zoomed by the reader text size, so its usable size in the
     // shell's own (zoomed) coordinate space is the visual rect divided by the
@@ -1600,10 +1621,70 @@ function renderTabs(){
       };
     }
     // A workspace stays "auto" until you move something in it: while it is,
-    // it re-tiles to the window you actually have. That is why a workspace made
-    // later looked right and MAIN did not - MAIN was laid out once, against
-    // whatever viewport existed the first time it was created, and kept.
-    function fresh(name){ return {name: name, wins: tiled(), auto: true, dismissed: []}; }
+    // it re-tiles to the window you actually have, which is what a workspace
+    // nobody has arranged should do. The moment a window is moved, resized or
+    // the layout is saved, the workspace stops being auto and the arrangement
+    // recorded in mt_ws is the arrangement that comes back on the next visit.
+    function fresh(name){ return {name: name, wins: tiled(), auto: true, dismissed: [], _base: null}; }
+    // One window's stored geometry, normalised: whole pixels (the DOM is placed
+    // in whole pixels, so what is read back equals what was written) and only
+    // the fields an arrangement needs. A transient like `_max` (a half-toggled
+    // maximise) is not a layout and is not carried.
+    function winGeom(s, def){
+      const o = {x: def.x, y: def.y, w: def.w, h: def.h, open: true, z: def.z};
+      if(s && typeof s === 'object'){
+        ['x', 'y', 'w', 'h', 'z'].forEach(function(f){
+          const n = Number(s[f]);
+          if(isFinite(n)) o[f] = Math.round(n);
+        });
+        if(typeof s.open === 'boolean') o.open = s.open;
+      }
+      return o;
+    }
+    function geomCount(s){
+      let n = 0;
+      if(s && typeof s === 'object'){
+        ['x', 'y', 'w', 'h', 'z'].forEach(function(f){ if(isFinite(Number(s[f]))) n++; });
+      }
+      return n;
+    }
+    function copyWins(src){
+      const def = tiled(), out = {};
+      KEYS.forEach(function(k){ out[k] = winGeom(src && src[k], def[k]); });
+      return out;
+    }
+    // The dismissal list is DERIVED from the windows that are shut, so the older
+    // `dismissed` field and the per-window `open` flag can never disagree.
+    function dismissalsOf(sp){
+      return KEYS.filter(function(k){ return sp.wins[k] && sp.wins[k].open === false; });
+    }
+    // A window that only LOOKS smaller because the viewport is smaller has not
+    // been changed by the reader, so the geometry that was saved is kept: a
+    // resize can never shrink a layout saved against a bigger screen.
+    function unclamped(sp, k){
+      const base = sp._base && sp._base[k], w = sp.wins[k];
+      if(!base || !w) return null;
+      const b = box();
+      const bx = Math.max(-(base.w - 80), Math.min(base.x, b.width - 80));
+      const by = Math.max(0, Math.min(base.y, Math.max(0, b.height - BAR)));
+      const bw = Math.max(MIN_W, Math.min(base.w, Math.max(MIN_W, b.width - 8)));
+      const bh = Math.max(MIN_H, Math.min(base.h, Math.max(MIN_H, b.height - 8)));
+      const same = Math.round(w.x) === Math.round(bx) && Math.round(w.y) === Math.round(by) &&
+                   Math.round(w.w) === Math.round(bw) && Math.round(w.h) === Math.round(bh);
+      return same ? {x: base.x, y: base.y, w: base.w, h: base.h} : null;
+    }
+    // The record's own fields are carried through and only the ones this layer
+    // owns are written, so a field added by a newer build is not dropped here.
+    function packSpace(sp){
+      const o = {};
+      Object.keys(sp).forEach(function(f){ if(f.charAt(0) !== '_') o[f] = sp[f]; });
+      o.name = sp.name;
+      o.wins = copyWins(sp.wins);
+      o.auto = !!sp.auto;
+      o.dismissed = dismissalsOf(sp);
+      o.savedAt = Number(sp.savedAt) || Date.now();
+      return o;
+    }
     function touched(){
       const sp = cur();
       if(sp && sp.auto){ sp.auto = false; }
@@ -1618,55 +1699,103 @@ function renderTabs(){
     }
 
     function save(){
+      const sp = cur();
+      if(sp){
+        // SAVING CAPTURES THE ARRANGEMENT AS IT IS ON SCREEN: every window's
+        // position, its size, its stacking order and whether it is open or shut,
+        // into the active workspace, and every workspace into mt_ws. A window
+        // that only looks smaller because the viewport is smaller keeps the
+        // geometry that was saved (see unclamped).
+        if(!sp.auto){
+          KEYS.forEach(function(k){
+            const keep = unclamped(sp, k);
+            if(keep && sp.wins[k]) Object.assign(sp.wins[k], keep);
+          });
+        }
+        sp.wins = copyWins(sp.wins);
+        sp.dismissed = dismissalsOf(sp);
+        sp.savedAt = Date.now();
+        sp._base = copyWins(sp.wins);      // pristine copy, re-used on a resize
+      }
       try{
-        localStorage.setItem('mt_ws', JSON.stringify({active: active,
-          spaces: spaces.map(function(sp){ return {name: sp.name, wins: sp.wins, auto: !!sp.auto,
-                                                  dismissed: (sp.dismissed || []).slice()}; })}));
+        // The key is NEVER renamed - a rename would silently reset every saved
+        // layout on every machine. The schema is extended in place instead, and
+        // fields this build does not know are carried through untouched.
+        const out = Object.assign({}, topExtra, {v: 2, active: active,
+          spaces: spaces.map(function(s){ return packSpace(s); })});
+        localStorage.setItem('mt_ws', JSON.stringify(out));
       }catch(e){}
     }
     (function restore(){
       let s = null;
-      try{ s = JSON.parse(localStorage.getItem('mt_ws') || 'null'); }catch(e){}
-      if(s && s.spaces && s.spaces.length){
-        spaces = s.spaces.map(function(sp, i){
-          const nm = String(sp.name || ('WS ' + (i + 1))).slice(0, 18);
-          // Every workspace joins on the DEFAULT tiled layout, whatever geometry
-          // happens to be stored. Dragging still holds within the session, but no
-          // private arrangement carries across visits: a layout arranged once
-          // against a different viewport (or left half-dragged) used to come back
-          // on every visit, leaving dead space and no way back to a tile that
-          // fits the screen. Workspace NAMES are preserved.
-          const f = fresh(nm);
-          // Extended schema: `dismissed` carries the ids of this workspace's
-          // default-layout windows that the reader closed. It is a NEW field on
-          // the existing mt_ws record - the key is never renamed, because a
-          // rename would silently reset every existing saved layout. An OLD
-          // record has no `dismissed` at all, which reads as "nothing
-          // dismissed", so a reader who saved before this change gets the full
-          // four-window layout exactly as they did before.
-          if(sp && Array.isArray(sp.dismissed)){
-            f.dismissed = sp.dismissed.filter(function(k){ return KEYS.indexOf(k) >= 0; });
+      try{ s = JSON.parse(localStorage.getItem('mt_ws') || 'null'); }catch(e){ s = null; }
+      if(s && typeof s === 'object'){
+        Object.keys(s).forEach(function(f){ if(f !== 'active' && f !== 'spaces') topExtra[f] = s[f]; });
+      }
+      const list = (s && Array.isArray(s.spaces)) ? s.spaces : null;
+      if(list && list.length){
+        spaces = list.map(function(src, i){
+          src = (src && typeof src === 'object') ? src : {};
+          const f = Object.assign({}, src);            // unknown fields survive
+          f.name = String(src.name || ('WS ' + (i + 1))).slice(0, 18);
+          const def = tiled();
+          const saved = (src.wins && typeof src.wins === 'object') ? src.wins : null;
+          const wins = {};
+          let complete = 0;
+          KEYS.forEach(function(k){
+            const o = winGeom(saved && saved[k], def[k]);
+            const n = geomCount(saved && saved[k]);
+            if(n === 5) complete++;
+            // A stored shut window stays shut even where the geometry could not
+            // be used: closing a window was a choice, and losing it would reopen
+            // a panel the reader shut on purpose. Closed if EITHER record says
+            // so, so the older `dismissed` list and the per-window flag can only
+            // ever agree on more shutdowns, never silently drop one.
+            const shut = (o.open === false) ||
+                         (Array.isArray(src.dismissed) && src.dismissed.indexOf(k) >= 0);
+            o.open = !shut;
+            wins[k] = o;
+          });
+          // RESTORE THE ARRANGEMENT, which is exactly what the old restore()
+          // threw away: it rebuilt every workspace from tiled() and carried over
+          // the name and the dismissals only, so an arranged, saved workspace
+          // came back as the default layout on the next visit. A workspace with
+          // a complete stored geometry that is no longer "auto" (the reader
+          // moved something in it, or pressed SAVE) comes back exactly as it was
+          // left: same x, y, w, h, same open/shut state, same stacking order.
+          // Anything else - a workspace nobody has arranged, or an old record
+          // with names and dismissals but no geometry - falls back to the
+          // default tile for the viewport in front of the reader, which is also
+          // the safe fallback for a partial or malformed geometry.
+          const arranged = (src.auto === false) && complete === KEYS.length;
+          if(!arranged){
+            KEYS.forEach(function(k){
+              const o = winGeom(null, def[k]);
+              o.open = wins[k].open;
+              wins[k] = o;
+            });
           }
+          f.wins = wins;
+          f.auto = !arranged;
+          f.dismissed = dismissalsOf(f);
+          f._base = copyWins(f.wins);        // the geometry to re-place from
           return f;
         });
-        active = Math.min(Math.max(0, s.active | 0), spaces.length - 1);
+        active = Math.min(Math.max(0, (s.active | 0)), spaces.length - 1);
       }else{
+        // nothing usable is stored: one workspace, laid out for this viewport.
+        // The stored value is left alone until the reader changes something, so
+        // a record this build cannot read is not overwritten by a blank one.
         spaces = [fresh('MAIN')];
         active = 0;
       }
-      KEYS.forEach(function(k){
-        const w = spaces[active].wins[k];
-        if(w && w.z > zTop) zTop = w.z;
-      });
-      // A dismissed window stays dismissed across reloads. This used to force
-      // every window OPEN on restore, which is exactly why the default layout
-      // could not be cleared and rebuilt. The dismissal lives in state and in
-      // mt_ws; on a narrow screen place() ignores it so the mobile stack is
-      // never missing a panel (see desk()).
-      KEYS.forEach(function(k){
-        spaces.forEach(function(sp){
-          if(!sp.wins[k]) sp.wins[k] = tiled()[k];   // old schema: recreate a missing panel
-          sp.wins[k].open = (sp.dismissed || []).indexOf(k) < 0;
+      // The stacking counter must start above the highest z in EVERY workspace,
+      // or raising a window in one workspace would put it under a window of
+      // another and the stacking order would come back wrong.
+      spaces.forEach(function(sp){
+        KEYS.forEach(function(k){
+          const w = sp.wins[k];
+          if(w && w.z > zTop) zTop = w.z;
         });
       });
     })();
@@ -1717,6 +1846,35 @@ function renderTabs(){
       front();
     }
 
+    // ---- explicit save, and the confirmation that it happened ----
+    let toastT = null;
+    function toast(msg){
+      let el = document.getElementById('wsToast');
+      if(!el){
+        el = document.createElement('div');
+        el.id = 'wsToast';
+        el.className = 'wstoast';
+        el.setAttribute('role', 'status');
+        document.body.appendChild(el);
+      }
+      el.textContent = msg;
+      el.classList.add('on');
+      if(toastT) clearTimeout(toastT);
+      toastT = setTimeout(function(){ el.classList.remove('on'); }, 1800);
+    }
+    // SAVE: pin the arrangement in front of the reader and say so out loud.
+    // Clearing `auto` is what stops this workspace re-tiling to the viewport, so
+    // the arrangement recorded here is the one that comes back on the next load,
+    // after a reload, a resize or a browser restart.
+    function saveLayout(){
+      if(!desk()) return;                 // desktop only, like the whole layer
+      const sp = cur();
+      if(!sp) return;
+      sp.auto = false;
+      save();
+      toast('LAYOUT SAVED - ' + sp.name);
+    }
+
     // ---- workspaces ----
     function tabs(){
       const host = document.getElementById('wsTabs');
@@ -1758,6 +1916,17 @@ function renderTabs(){
         switchTo(spaces.length - 1);
       };
       host.appendChild(add);
+      // SAVE: the explicit keep-this-layout control, next to the workspace tabs
+      // because it saves THE WORKSPACE. Before this there was no control and no
+      // confirmation at all, which is how a reader could not tell whether the
+      // arrangement had been recorded.
+      const sv = document.createElement('button');
+      sv.type = 'button';
+      sv.className = 'ws-save';
+      sv.textContent = 'SAVE';
+      sv.title = 'Save this workspace layout - every window keeps its place and size';
+      sv.onclick = function(){ saveLayout(); };
+      host.appendChild(sv);
     }
     function switchTo(i){
       if(i < 0 || i >= spaces.length || i === active) return;
@@ -1784,6 +1953,9 @@ function renderTabs(){
     }
     function drag(k, e, mode, dir){
       if(e.button !== 0) return;
+      // the window layer owns the layout at desktop width only: a drag on the
+      // locked mobile stack must not write geometry into a saved workspace
+      if(!desk()) return;
       e.preventDefault();
       raise(k);
       touched();
@@ -1874,6 +2046,7 @@ function renderTabs(){
         });
         // double-click the title bar to fill the workspace, again to restore
         hd.addEventListener('dblclick', function(){
+          if(!desk()) return;
           touched();
           const w = win(k), b = box();
           if(w._max){ Object.assign(w, w._max); delete w._max; }
@@ -1884,7 +2057,15 @@ function renderTabs(){
           raise(k); place(k); save();
         });
       });
-      window.addEventListener('resize', function(){ retile(); KEYS.forEach(place); });
+      window.addEventListener('resize', function(){
+        // An arranged workspace is re-placed from the geometry that was SAVED, so
+        // shrinking the browser for a moment (or opening on a smaller screen)
+        // cannot shrink the layout itself; windows that no longer fit are only
+        // clamped on screen. An auto workspace still follows the viewport.
+        spaces.forEach(function(sp){ if(!sp.auto && sp._base) sp.wins = copyWins(sp._base); });
+        retile();
+        KEYS.forEach(place);
+      });
       // The close control on the four windows of the DEFAULT layout. It is the
       // same .pw-x a user-added panel window already carries, and it is desktop
       // only twice over: CSS hides it below 821px and set() refuses there, so
@@ -1901,6 +2082,9 @@ function renderTabs(){
     function reset(){
       const sp = cur();
       if(!sp) return;
+      // desktop only: RESET re-tiles, and on a phone that would throw away the
+      // arrangement saved for the desktop (the mobile stack ignores geometry)
+      if(!desk()) return;
       // RESET means the default layout: every dismissal is cleared, so the full
       // four-window arrangement comes back even after the reader emptied it.
       sp.dismissed = [];
@@ -1910,6 +2094,7 @@ function renderTabs(){
       save();
     }
     return {toggle: function(k){ set(k, !win(k).open); }, set: set, layout: render, reset: reset,
+            saveLayout: saveLayout,
             // the window manager only owns the layout outside the embed views; the
             // panel picker asks so it does not offer a window control where a
             // dismissal could never take effect (and would only be saved)
@@ -3339,7 +3524,14 @@ function runCommand(raw){
       '<div style="padding:4px 0;color:var(--tx3)">Panel windows: a panel code opens THAT panel in its own window, and several stay open side by side, all following the same symbol. Type the code again to close it, <b style="color:var(--acc)">CLOSE FINANCIALS</b> to shut one, <b style="color:var(--acc)">TILE</b> to lay the open ones out in a grid, <b style="color:var(--acc)">RESET</b> to close the extras.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">The <b style="color:var(--acc)">+ PANEL</b> button in the top bar lists every shipped panel and brings back a window you closed. Closing a window is remembered.</div>' +
+      '<div style="padding:4px 0;color:var(--tx3)">Workspaces: the named tabs in the top bar are saved layouts. <b style="color:var(--acc)">+</b> adds one, click to switch, double-click to rename, the x deletes one. Arrange the windows, then <b style="color:var(--acc)">SAVE</b> - every window keeps its place, size and stacking, and each workspace keeps its own.</div>' +
       '';
+    return;
+  }
+  // SAVE: keep the arrangement of the workspace in front of the reader. The
+  // same control sits in the workspace tabs in the top bar.
+  if(v === 'SAVE' || v === 'SAVE LAYOUT' || v === 'WSSAVE'){
+    if(window.MTWin && window.MTWin.saveLayout) window.MTWin.saveLayout();
     return;
   }
   if(v === 'RESET' || v === 'TILE'){
@@ -3573,33 +3765,22 @@ function renderMarketStatic(rec, info){
     // research view at mx_research.html?ex=NSE and drew a chart that does not
     // exist. A panel embed must never resolve its exchange from storage.
     var _rex = String(rec.ex || rec.exchange || ((typeof currentEx !== 'undefined' && currentEx) ? currentEx : 'JSE')).toUpperCase();
-    window.__riResearch = { sym: _rsym, ex: _rex };
+    // window.__riResearch is NO LONGER SET. It was the producer for the research mount
+    // that appended mx_research.html into the MARKET rail; the owner asked for the
+    // panel out repeatedly and the mount is removed above, so the data is not
+    // published either. Do not reintroduce this assignment.
     // The market window is written more than once per click - renderMarketStatic
     // draws the fundamentals, then the financials pass rewrites the same element
     // and takes anything appended with it. So the mount is deferred past every
     // writer and re-asserted, instead of being appended into a write that is
     // about to be replaced.
-    window.__riMountResearch = function(){
-      var want = window.__riResearch;
-      if(!want || !want.sym) return;
-      var host = document.getElementById('rightInfo');
-      if(!host) return;
-      var have = document.getElementById('riResearch');
-      if(have && have.getAttribute('data-sym') === want.sym + '|' + want.ex) return;
-      if(have && have.parentNode) have.parentNode.removeChild(have);
-      var fr = document.createElement('iframe');
-      fr.id = 'riResearch';
-      fr.setAttribute('data-sym', want.sym + '|' + want.ex);
-      fr.setAttribute('title', 'Research for ' + want.sym);
-      fr.src = 'features/panels/mx_research.html?ex=' + encodeURIComponent(want.ex) +
-               '&sym=' + encodeURIComponent(want.sym);
-      fr.style.cssText = 'width:100%;height:1020px;border:0;border-top:1px solid var(--line);' +
-                         'margin-top:8px;display:block;background:transparent';
-      host.appendChild(fr);
-    };
-    [0, 250, 700, 1500].forEach(function(ms){
-      setTimeout(function(){ try{ window.__riMountResearch(); }catch(e){} }, ms);
-    });
+    // RESEARCH IS GONE, NOT JUST UNREGISTERED. The owner asked for it out more than
+    // once, and removing only the PANELS registry entry did NOT remove it, because
+    // this mount appended an mx_research.html iframe into #rightInfo - the MARKET
+    // rail - where he kept seeing it. The mount, the timer calls and the
+    // window.__riResearch producer are all removed here, so nothing renders it.
+    // features/panels/mx_research.html stays on disk (it still ships in the build)
+    // but NOTHING mounts, links or registers it. Do not re-add this block.
   }catch(e){}
   // financials summary from the collected statement files (static, honest)
   try{

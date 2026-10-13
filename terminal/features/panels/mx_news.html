@@ -703,11 +703,23 @@
   // an exchange opening securities lending is market-wide, dated, and would be
   // buried under a week of company filings on a busy board. They get a reserved
   // slice as well, so the panel's REGULATORY claim is true on a busy day too.
+  var MKT_PRI = /short[- ]?sell|securities lending|securities borrowing|market[- ]?mak|market maker|market structure|trading rules/i;
   function windowRows(all){
-    var CAP = 120, REG_CAP = 6, MKT_CAP = 8;
+    var CAP = 120, REG_CAP = 6, MKT_CAP = 12;
     var corp = all.filter(function(n){ return n._corp; });
     var reg  = all.filter(function(n){ return n._reg; }).slice(0, REG_CAP);
-    var mkt  = all.filter(function(n){ return n.mktstruct && !n._corp && !n._reg; }).slice(0, MKT_CAP);
+    // The market-structure slice is not a plain newest-N. The exact story whose
+    // absence started this - a regulator approving short selling, an exchange
+    // opening securities lending and borrowing - can sit a few days below
+    // several central-bank notices, so on a straight date sort it fell off the
+    // slice. A market-structure item takes its place first, then the slice fills
+    // by date, so the category this panel claims to carry is actually carried.
+    var mktAll = all.filter(function(n){ return n.mktstruct && !n._corp && !n._reg; })
+                    .sort(function(a, b){ return b._t - a._t; });
+    var mktPri = mktAll.filter(function(n){ return MKT_PRI.test(n.title || ""); });
+    var mktRest = mktAll.filter(function(n){ return !MKT_PRI.test(n.title || ""); });
+    var mkt = mktPri.slice(0, MKT_CAP).concat(
+      mktRest.slice(0, Math.max(0, MKT_CAP - Math.min(MKT_CAP, mktPri.length))));
     var rest = all.filter(function(n){ return !n._corp && !n._reg && !n.mktstruct; });
     var out = corp.concat(reg).concat(mkt).concat(
       rest.slice(0, Math.max(0, CAP - corp.length - reg.length - mkt.length)));

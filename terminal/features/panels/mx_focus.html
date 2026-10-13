@@ -111,7 +111,7 @@
 
 <div class="fx" id="fx">
   <div class="fx-bar">
-    <span class="fx-t2"><b>FOCUS</b> &middot; <span id="fxEx">-</span></span>
+    <span class="fx-t2"><b id="fxTkr">FOCUS</b> &middot; <span id="fxEx">-</span></span>
     <div class="fx-sw">
       <input id="fxQ" type="text" autocomplete="off" spellcheck="false"
              placeholder="SEARCH A SECURITY" aria-label="Search a security">
@@ -408,6 +408,13 @@
   }
 
   function render(sym, board, hist, marketError){
+    // THE PANEL'S OWN NAME IS THE TICKER. The owner asked for the header to name the
+    // security rather than the word FOCUS, so every render path sets it here - this is
+    // the single entry point all of them pass through, so one line covers them all.
+    try{
+      var _tk = $("fxTkr");
+      if(_tk) _tk.textContent = (tickerOf(null, sym) || String(sym || "").replace(/\.JO$/, "") || "FOCUS");
+    }catch(e){}
     if(!sym){ renderNoSecurity(); return; }
     if(!board){ renderNoMarket(marketError); return; }
     var row = matchRow(board.stocks || [], sym);
