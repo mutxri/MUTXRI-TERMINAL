@@ -58,9 +58,24 @@
   body{margin:0;background:#000;color:var(--tx);font-family:var(--ui);font-size:13px;padding:16px;}
 
   .ch{border:1px solid var(--line2);background:var(--bg2);border-radius:2px;max-width:1280px;margin:0 auto;}
-  .ch-head{display:flex;align-items:center;gap:16px;padding:10px 14px;border-bottom:1px solid var(--line2);flex-wrap:wrap;}
-  .ch-head .t{font-size:12px;letter-spacing:.08em;color:var(--tx2);text-transform:uppercase;white-space:nowrap;}
-  .ch-head .t b{color:var(--acc);font-weight:700;}
+  .ch-bar{display:flex;align-items:center;gap:14px;padding:9px 14px;border-bottom:1px solid var(--line2);flex-wrap:wrap;}
+  .ch-t2{font-size:12px;letter-spacing:.08em;color:var(--tx2);text-transform:uppercase;white-space:nowrap;flex:0 0 auto;}
+  .ch-t2 b{color:var(--acc);font-weight:700;}
+  .ch-sw{position:relative;flex:1 1 200px;min-width:160px;}
+  .ch-sw input{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--line2);
+    color:var(--tx);font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:6px 9px;
+    border-radius:3px;outline:none;}
+  .ch-sw input:focus{border-color:var(--acc);}
+  .ch-sw input::placeholder{color:var(--tx3);}
+  .ch-sug{display:none;position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:60;
+    background:var(--bg3);border:1px solid var(--line2);border-radius:3px;max-height:280px;overflow-y:auto;}
+  .ch-sug.on{display:block;}
+  .ch-sug .r{font-family:var(--mono);font-size:11px;color:var(--tx2);padding:6px 9px;cursor:pointer;
+    display:flex;gap:8px;align-items:baseline;}
+  .ch-sug .r:hover,.ch-sug .r.sel{background:var(--bg4);color:var(--acc);}
+  .ch-sug .r b{color:var(--acc);min-width:62px;display:inline-block;}
+  .ch-sug .r span{color:var(--tx3);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ch-sug .none{padding:8px 9px;color:var(--tx3);font-family:var(--mono);font-size:10px;}
   .ch-sym{display:flex;align-items:baseline;gap:9px;min-width:0;}
   .ch-sym .tk{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--tx);letter-spacing:.02em;}
   .ch-sym .nm{font-size:11px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;}
@@ -121,8 +136,13 @@
 <body>
 
 <div class="ch" id="ch">
-  <div class="ch-head">
-    <div class="t"><b>CHART</b> &middot; <span id="chEx">-</span></div>
+  <div class="ch-bar">
+    <span class="ch-t2"><b>CHART</b> &middot; <span id="chEx">-</span></span>
+    <div class="ch-sw">
+      <input id="chQ" type="text" autocomplete="off" spellcheck="false"
+             placeholder="SEARCH A SECURITY" aria-label="Search a security">
+      <div class="ch-sug" id="chSug"></div>
+    </div>
     <div class="ch-sym">
       <span class="tk" id="chTkr">no security</span>
       <span class="nm" id="chName"></span>
@@ -847,8 +867,102 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     });
   }
 
+  // SEARCH: type a ticker or a company name, pick a row, and the chart reloads for
+  // that security. It reads the SAME market file the panel already reads, so a
+  // suggestion is always a security this exchange lists; a name that matches
+  // nothing says so rather than being guessed at.
+  var CH_ROWS = null, CH_AT = -1;
+  function chRows(){
+    if(CH_ROWS) return Promise.resolve(CH_ROWS);
+    return get(BASE + "market_" + encodeURIComponent(EX) + ".json").then(function(b){
+      var rows = (b && (b.stocks || b.rows || b.securities || b.listings)) || [];
+      CH_ROWS = rows.filter(function(r){ return r && (r.sym || r.ticker); });
+      return CH_ROWS;
+    }).catch(function(){ CH_ROWS = []; return CH_ROWS; });
+  }
+  function chClose(){ var s = $("chSug"); if(s){ s.className = "ch-sug"; s.innerHTML = ""; } CH_AT = -1; }
+  function chShow(sym){
+    var s = String(sym || "").trim().toUpperCase();
+    if(!s) return;
+    SYM = s;
+    try{ loadHistory().then(function(){ render(); }).catch(function(){ render(); }); }
+    catch(e){ render(); }
+    if(typeof renderQuote === "function"){ try{ renderQuote(); }catch(e){} }
+  }
+  function chPaint(list, q){
+    var box = $("chSug");
+    if(!box) return;
+    if(!list.length){
+      box.innerHTML = '<div class="none">NO ' + esc(EX) + ' SECURITY MATCHES "' + esc(q) + '"</div>';
+      box.className = "ch-sug on"; return;
+    }
+    box.innerHTML = list.slice(0, 12).map(function(r, i){
+      var t = String(r.ticker || r.sym || "").replace(/\.JO$/, "");
+      return '<div class="r' + (i === CH_AT ? " sel" : "") + '" data-sym="' + esc(r.sym || r.ticker) + '">' +
+        '<b>' + esc(t) + '</b><span>' + esc(r.name || "") + '</span></div>';
+    }).join("");
+    box.className = "ch-sug on";
+    Array.prototype.forEach.call(box.querySelectorAll(".r"), function(el){
+      el.addEventListener("mousedown", function(ev){
+        ev.preventDefault();
+        chShow(el.getAttribute("data-sym"));
+        $("chQ").value = String(el.getAttribute("data-sym") || "").replace(/\.JO$/, "");
+        chClose();
+      });
+    });
+  }
+  function chFilter(q){
+    if(!CH_ROWS) return [];
+    var s = q.trim().toUpperCase();
+    if(!s) return [];
+    var starts = [], has = [];
+    CH_ROWS.forEach(function(r){
+      var t = String(r.ticker || r.sym || "").toUpperCase().replace(/\.JO$/, "");
+      var n = String(r.name || "").toUpperCase();
+      if(t.indexOf(s) === 0) starts.push(r);
+      else if(t.indexOf(s) >= 0 || n.indexOf(s) >= 0) has.push(r);
+    });
+    return starts.concat(has);
+  }
+  function wireSearch(){
+    var q = $("chQ");
+    if(!q) return;
+    chRows();
+    q.addEventListener("focus", function(){ chRows(); });
+    q.addEventListener("input", function(){
+      var v = q.value; CH_AT = -1;
+      if(!v.trim()){ chClose(); return; }
+      if(!CH_ROWS){ chRows().then(function(){ chPaint(chFilter(v), v); }); return; }
+      chPaint(chFilter(v), v);
+    });
+    q.addEventListener("keydown", function(ev){
+      var box = $("chSug"), items = box ? box.querySelectorAll(".r") : [];
+      if(ev.key === "Escape"){ q.value = ""; chClose(); return; }
+      if(ev.key === "ArrowDown" && items.length){
+        CH_AT = Math.min(CH_AT + 1, items.length - 1); chPaint(chFilter(q.value), q.value);
+        ev.preventDefault(); return;
+      }
+      if(ev.key === "ArrowUp" && items.length){
+        CH_AT = Math.max(CH_AT - 1, 0); chPaint(chFilter(q.value), q.value);
+        ev.preventDefault(); return;
+      }
+      if(ev.key === "Enter"){
+        if(CH_AT >= 0 && items[CH_AT]){ items[CH_AT].dispatchEvent(new Event("mousedown")); return; }
+        var list = chFilter(q.value);
+        if(list.length){ chShow(list[0].sym || list[0].ticker); q.value = String(list[0].ticker || list[0].sym || "").replace(/\.JO$/, ""); chClose(); }
+        else if(q.value.trim()){ chShow(q.value.trim()); chClose(); }
+      }
+    });
+    document.addEventListener("click", function(ev){
+      var box = $("chSug");
+      if(box && box.className.indexOf("on") >= 0 && !box.contains(ev.target) && ev.target !== q) chClose();
+    });
+  }
+
   if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireSearch);
+  else wireSearch();
 })();
 </script>
 </body>
