@@ -96,17 +96,32 @@
     return 'date: <span class="warn">not printed by the source</span>';
   }
 
+  // A SECTION LABEL of the issuer's own shareholding table is not a holder, and a row
+  // with no readable holder shape must never be painted. Mirrors the guards in
+  // build_shareholders.py so the panel cannot show a heading, a placeholder or a
+  // fabricated figure even if the data file regresses.
+  var HEAD_RE = /^(total\s+)?(directors?'? shareholdings?|other influential shareholdings?|other influential holdings?|free floats? .*|total directors? holdings?|substantial shareholdings?|promoters? and their close relatives|public shareholders?|non-public shareholders?|total substantial shareholdings?|\[name\(s\) of .*)\s*$/i;
+  function plausibleHolder(r){
+    if(!r || typeof r.name !== "string") return false;
+    var n = r.name.replace(/\s+/g, " ").trim();
+    if(n.length < 2 || HEAD_RE.test(n) || n.charAt(0) === "[") return false;
+    if(r.holding == null && r.pct == null) return false;
+    if(n.replace(/[^\p{L}]/gu, "").length < 2) return false;
+    return true;
+  }
+
   function holderTable(rows, cap){
-    if(!rows || !rows.length) return "";
-    var hasShares = rows.some(function(r){ return r.holding != null; });
-    var hasPrev = rows.some(function(r){ return r.previous && r.previous.pct != null; });
-    var h = '<div class="h-sec"><h3>' + esc(cap) + " (" + rows.length + ")</h3>" +
+    var rr = (rows || []).filter(plausibleHolder);
+    if(!rr.length) return "";
+    var hasShares = rr.some(function(r){ return r.holding != null; });
+    var hasPrev = rr.some(function(r){ return r.previous && r.previous.pct != null; });
+    var h = '<div class="h-sec"><h3>' + esc(cap) + " (" + rr.length + ")</h3>" +
       '<table><thead><tr><th>Holder</th>' +
       (hasShares ? '<th class="r">Shares</th>' : "") +
       '<th class="r">%</th>' +
       (hasPrev ? '<th class="r">Prior %</th>' : "") +
       "</tr></thead><tbody>";
-    rows.forEach(function(r){
+    rr.forEach(function(r){
       h += "<tr><td class=\"name\">" + esc(r.name) + "</td>" +
         (hasShares ? '<td class="r">' + num(r.holding) + "</td>" : "") +
         '<td class="r">' + pct(r.pct) + "</td>" +
@@ -122,15 +137,16 @@
     var body = $("hBody");
 
     if(!rec){
+      var withH = (cov.securitiesWithHolders != null ? cov.securitiesWithHolders : (cov.securitiesWithRecord || 0));
       body.innerHTML = '<div class="empty">' +
         "<b>No shareholder information published</b> for " + esc(REQ || "(no security selected)") +
         " in the terminal's sources.<br>" +
-        "Coverage on " + esc(LABEL[EX] || EX) + ": <b>" + (cov.securitiesWithRecord || 0) + "</b> of <b>" +
-        (cov.securitiesListed || 0) + "</b> listed securities carry a sourced shareholding record; <b>" +
-        (cov.noShareholderInformationPublished || 0) + "</b> do not.<br>" +
+        "Coverage on " + esc(LABEL[EX] || EX) + ": <b>" + withH + "</b> of <b>" +
+        (cov.securitiesListed || 0) + "</b> listed securities carry a sourced shareholding record with holder rows; <b>" +
+        Math.max(0, (cov.securitiesListed || 0) - withH) + "</b> do not.<br>" +
         '<span class="sub">' + esc(cov.basis || "") + "</span></div>";
       $("hMeta").innerHTML = "";
-      $("hFoot").textContent = "Coverage " + (cov.securitiesWithRecord || 0) + "/" + (cov.securitiesListed || 0) +
+      $("hFoot").textContent = "Coverage " + withH + "/" + (cov.securitiesListed || 0) +
         " · generated " + ((file && file.generated) || "-");
       return;
     }
@@ -143,31 +159,38 @@
     if(rec.tableHeading) m.push("table: " + esc(rec.tableHeading));
     $("hMeta").innerHTML = m.join(" &nbsp;·&nbsp; ");
 
-    var h = "";
     var st = [];
-    if(rec.issued) st.push("issued shares (as printed in the table): <b>" + num(rec.issued) + "</b>");
+    if(rec.issued) st.push("issued shares: <b>" + num(rec.issued) + "</b>" +
+      (rec.issuedBasis ? ' <span class="sub">(' + esc(rec.issuedBasis) + ")</span>" : ""));
     if(rec.freeFloat && rec.freeFloat.pct != null)
       st.push("free float: <b>" + pct(rec.freeFloat.pct) + "</b>" +
         (rec.freeFloat.units ? " (" + num(rec.freeFloat.units) + " shares)" : "") +
         (rec.freeFloat.basis ? ' <span class="sub">(' + esc(rec.freeFloat.basis) + ")</span>" : ""));
     if(rec.shareStructure && rec.shareStructure.registerDate)
       st.push("register date: <b>" + esc(rec.shareStructure.registerDate) + "</b>");
+    var h = "";
     if(st.length) h += '<div class="h-sec"><h3>Share structure</h3><div>' + st.join("<br>") + "</div></div>";
+    if(rec.notes && rec.notes.length)
+      h += '<div class="h-sec"><h3>Notes</h3><div class="sub">' +
+        rec.notes.map(esc).join("<br>") + "</div></div>";
 
-    h += holderTable(rec.substantial, "Substantial holders (5% and above)");
-    h += holderTable(rec.promoters, "Promoters and close relatives");
-    h += holderTable(rec.other, "Other influential holdings");
-    h += holderTable(rec.directors, "Directors (direct and indirect)");
+    var tables = "";
+    tables += holderTable(rec.substantial, "Substantial holders (5% and above)");
+    tables += holderTable(rec.promoters, "Promoters and close relatives");
+    tables += holderTable(rec.other, "Other influential holdings");
+    tables += holderTable(rec.directors, "Directors (direct and indirect)");
+    h += tables;
 
-    if(!h) h = '<div class="empty">A record exists for this security but the source printed no holder table.</div>';
+    if(!tables) h += '<div class="empty">A record exists for this security but the source printed no holder rows for it.</div>';
     if(rec.issuedConflict)
-      h += '<div class="h-sec warn">The printed table and shares_outstanding.json disagree on the issued count (' +
+      h += '<div class="h-sec warn">The holder table and shares_outstanding.json disagree on the issued count (' +
         num(rec.issuedConflict.table) + " vs " + num(rec.issuedConflict.sharesOutstandingFile) + ").</div>";
     body.innerHTML = h;
 
-    $("hFoot").textContent = "Coverage " + (cov.securitiesWithRecord || 0) + "/" + (cov.securitiesListed || 0) +
+    var shown = (cov.securitiesWithHolders != null ? cov.securitiesWithHolders : (cov.securitiesWithRecord || 0));
+    $("hFoot").textContent = "Coverage " + shown + "/" + (cov.securitiesListed || 0) +
       " on " + (LABEL[EX] || EX) + " · generated " + ((file && file.generated) || "-") +
-      " · percentages and share counts are exactly as printed in the named source";
+      " · figures are shown as printed by the named source; a dash in the source is never shown as a zero";
   }
 
   function load(sym){
