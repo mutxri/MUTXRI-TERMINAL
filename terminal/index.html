@@ -1458,14 +1458,17 @@ let PANELS = [
   {id:'corp',    label:'CORP',    url:'features/panels/mx_corp.html'},
   {id:'glco',    label:'GLCO',    url:'features/panels/mx_glco.html'},
   {id:'tas',     label:'TAS',     url:'features/panels/mx_tas.html'},
-  // RESEARCH ships in the build - assemble_deploy.py's STATIC_PANELS lists
-  // mx_research.html - but it was never registered here, so nothing could reach
-  // it: no window, no command, no picker. The
-  // panel picker below is generated from THIS list, so this list has to be the
-  // real shipped set or the picker offers a stale subset. The tab
-  // strip is display:none (_tabbar_removed), so registering more panels
-  // changes nothing visible there; it makes them reachable from the picker.
-  {id:'research',label:'RESEARCH',url:'features/panels/mx_research.html'},
+  // RESEARCH IS NOT A PANEL ANY MORE. The owner asked for it out because what it
+  // shows is already in the MARKET window: clicking a security there mounts the
+  // same research stack for that security (__riMountResearch below), so a
+  // standalone RESEARCH panel repeated it. The file still ships in the build
+  // (assemble_deploy.py's STATIC_PANELS lists mx_research.html) but NOTHING
+  // registers it here, so it is unreachable: the panel picker, its count, the
+  // HELP list, the window registry, the POPUP picker and the command lookup are
+  // ALL generated from this list, and PANEL_ALIAS has no entry for it. An
+  // unreachable file costs nothing; deleting it would lose the work. Do not
+  // re-register it here. With it gone this list is the 19 panels the picker
+  // counts, which is what the picker header says.
   // BOT IS NOT A PANEL. The news and announcement fetching runs on a schedule in
   // the background (MUTXRI_NewsSweep and the refresh chain); a panel showing the
   // bot's own runs told the reader about the machinery rather than the market, so
@@ -2344,8 +2347,11 @@ window.MTPanelWins = (function(){
 
 // ===== panel picker: add a panel, or bring a closed window back =====
 // One list for the whole shell. The PANELS section is generated from PANELS, the
-// app's own registry, so it cannot drift from what the build ships - and PANELS
-// now carries all 19 panels assemble_deploy.py ships. The WINDOWS section
+// app's own registry, so it cannot drift from what the picker offers, and its
+// header counts what the section actually carries (PANELS.length, 19 since
+// RESEARCH was taken out). A panel FILE can ship without being registered here
+// (mx_research.html, mx_bot.html, mx_holders.html): those are deliberately
+// unreachable, so they are not offered and not counted. The WINDOWS section
 // carries the four windows of the default layout, which is the way back for one
 // that was closed: without it a close control would be a one-way door.
 (function(){

@@ -51,8 +51,16 @@
     --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
   }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--tx); font-family:var(--ui); font-size:13px; }
-  .bnd-wrap { border:1px solid var(--line2); border-radius:2px; background:var(--bg2); max-width:780px; margin:24px auto; }
+  body { margin:0; background:transparent; color:var(--tx); font-family:var(--ui); font-size:13px; padding:0; }
+  /* The shell already draws this panel's window chrome, its border and its
+     background, so the panel must NOT draw a second frame inside it. A 780px
+     cap, a 24px auto margin, its own 1px border and its own fill read as one
+     panel nested inside another - which is the defect the owner reported here
+     and that the FOCUS, CHART and HEATMAP panels already carry the fix for.
+     Fill the shell's window instead: no max-width, no auto margin, no border,
+     no background, no border-radius. Same rule, same values, as .fx in
+     mx_focus.html, .ch in mx_chart.html and .hm in mx_heatmap.html. */
+  .bnd-wrap { max-width:none; margin:0; border:0; background:transparent; border-radius:0; }
   .bnd-head { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--line2); }
   .bnd-title { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
   .bnd-title b { color:var(--acc); font-weight:700; }

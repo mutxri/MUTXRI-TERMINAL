@@ -854,30 +854,59 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   window.__mtSetTool = setTool;
   window.__mtRender = render;
 
-  function init(){
-    $("chEx").textContent = EX;
-    loadIndState();
-    paintType(); paintRange(); paintIndMenu();
-    wire();
-    clock();
-    if(!window.MXChartTools) paintTools();
-    if(!SYM){ renderQuote(); render(); return; }
-    $("chTkr").textContent = String(SYM).toUpperCase();
-    Promise.all([
-      get(BASE + "market_" + encodeURIComponent(EX) + ".json").catch(function(){ return null; })
-    ]).then(function(res){
-      BOARD = res[0];
-      STOCK = BOARD ? matchRow(BOARD.stocks || [], SYM) : null;
+  // ---- load one security ------------------------------------------------------
+  // Every value this panel shows for a security lives in the module state above
+  // (SYM, BOARD, STOCK, BARS, FALLBACK, HISTKEY, WITHHELD), and THIS function is
+  // the only place that fills it. That is the whole point: a panel that loads a
+  // security once in init() and then only swaps SYM shows the first security
+  // forever. chShow() did exactly that - it set SYM and called loadHistory() but
+  // threw the resolved history away, so BARS stayed the bars of the security the
+  // panel opened with, STOCK stayed its market row, and the ticker, the name,
+  // the quote strip and the drawn candles all kept it while the legend (which
+  // reads HISTKEY) moved on. Every selection has to clear this state and refill
+  // it, then draw once.
+  var LOAD_SEQ = 0;    // a slower earlier load must never repaint over a later pick
+  function boardLoad(){
+    if(BOARD) return Promise.resolve(BOARD);   // the exchange cannot change for this panel
+    return get(BASE + "market_" + encodeURIComponent(EX) + ".json")
+      .then(function(b){ return b || null; })
+      .catch(function(){ return null; });      // an unreadable snapshot stays a stated state
+  }
+  function loadFor(sym){
+    var want = String(sym == null ? "" : sym).trim().toUpperCase();
+    var seq = ++LOAD_SEQ;
+    SYM = want;
+    // Clear every per-security value BEFORE the fetch, so a load that fails lands
+    // on an empty frame naming THIS security rather than on the previous
+    // security's bars. Nothing here is invented: an empty chart says no history
+    // was read, it does not draw the last security again.
+    BARS = []; FALLBACK = []; HISTKEY = ""; MONTHLY_ONLY = false;
+    STOCK = null; WITHHELD = false; WITHHOLD_REASON = ""; HASVOL = false;
+    $("chBasis").textContent = "basis not stated by the file";
+    if(!want){
+      $("chTkr").textContent = "no security";
+      $("chName").textContent = "";
+      renderQuote(); render();
+      return Promise.resolve();
+    }
+    $("chTkr").textContent = want;
+    $("chName").textContent = "";
+    renderQuote();
+    return boardLoad().then(function(board){
+      if(seq !== LOAD_SEQ) return null;
+      BOARD = board;
+      STOCK = BOARD ? matchRow(BOARD.stocks || [], want) : null;
       WITHHELD = !!(STOCK && (STOCK.priceWithheld || STOCK.asOfWithheld || STOCK.withhold_reason));
       WITHHOLD_REASON = STOCK && (STOCK.withhold_reason || STOCK.priceNote)
         ? String(STOCK.withhold_reason || STOCK.priceNote) : "";
       if(STOCK){
-        $("chTkr").textContent = String(STOCK.ticker || STOCK.sym || SYM).toUpperCase();
+        $("chTkr").textContent = String(STOCK.ticker || STOCK.sym || want).toUpperCase();
         $("chName").textContent = (STOCK.name || "") + (STOCK.sector ? " \u00b7 " + STOCK.sector : "");
       }
       renderQuote();
       return loadHistory();
     }).then(function(hist){
+      if(seq !== LOAD_SEQ) return null;
       if(hist && hist.bars && hist.bars.length){
         BARS = hist.bars.map(function(b){
           return {t: b.t, o: num(b.o), h: num(b.h), l: num(b.l), c: num(b.c), v: num(b.v)};
@@ -892,9 +921,20 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       }
       render();
     }).catch(function(){
+      if(seq !== LOAD_SEQ) return null;
       render();
       renderEmpty("NO PRICE HISTORY", "The history archive could not be read, so nothing is drawn.");
     });
+  }
+
+  function init(){
+    $("chEx").textContent = EX;
+    loadIndState();
+    paintType(); paintRange(); paintIndMenu();
+    wire();
+    clock();
+    if(!window.MXChartTools) paintTools();
+    loadFor(SYM);
   }
 
   // SEARCH: type a ticker or a company name, pick a row, and the chart reloads for
@@ -911,13 +951,15 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     }).catch(function(){ CH_ROWS = []; return CH_ROWS; });
   }
   function chClose(){ var s = $("chSug"); if(s){ s.className = "ch-sug"; s.innerHTML = ""; } CH_AT = -1; }
+  // Picking a suggestion RELOADS the panel for that security: the same path the
+  // panel takes at boot, so the market row, the ticker, the name, the quote
+  // strip, the basis line, the history key, the bars and the drawing all change
+  // together. It must not just set SYM and re-render: that redrew the security
+  // the panel opened with (see loadFor above).
   function chShow(sym){
     var s = String(sym || "").trim().toUpperCase();
     if(!s) return;
-    SYM = s;
-    try{ loadHistory().then(function(){ render(); }).catch(function(){ render(); }); }
-    catch(e){ render(); }
-    if(typeof renderQuote === "function"){ try{ renderQuote(); }catch(e){} }
+    loadFor(s);
   }
   function chPaint(list, q){
     var box = $("chSug");

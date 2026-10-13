@@ -34,6 +34,15 @@
     Currency and exchange rates             <- static_data/fx.json
     Fiscal policy and sovereign debt        <- the sovereign debt file
     Taxation, six headings, four countries  <- static_data/macro_tax.json
+  ADDED 2026-10-13, a fifth section in the same column:
+    Unemployment, income and retail         <- static_data/macro_economy.json
+  It carries the unemployment rate under every basis the file has (an ILO modelled
+  estimate, an ILOSTAT national estimate and the national statistics office's own
+  release are three different measures and are printed as three labelled figures,
+  never merged), national income as GDP and GNI at current prices in the country's
+  own currency with the year, and retail sales with their base period and whether
+  the measure is volume or value. A series a country does not publish prints an
+  explicit not-published sentence with the reason rather than a blank.
   A figure the file does not carry is printed as an explicit not-available state with
   the reason; it is never a zero and never a zero-length bar. A period the source
   marks as a projection carries the word projected in the label the reader sees.
@@ -313,13 +322,34 @@
      wide chart does not stretch across the whole frame. Scoped to the selected
      state, so the all-country view is not affected. */
   body.mc-cs-on .mc-grid { grid-template-columns:repeat(auto-fit, minmax(300px, 420px)); justify-content:start; }
+
+  /* ---- unemployment, national income and retail sales (added 2026-10-13) ----
+     One card per country holding three labelled sub-blocks, so the three
+     indicators read together for that country and each figure keeps its own
+     period, unit, basis and source. Nothing here changes the narrow-width
+     behaviour: the card grid collapses to one column at 560px and the small
+     year table scrolls sideways rather than clipping a column. */
+  .econ-blk { border-top:1px solid var(--line); padding-top:7px; margin-top:8px; }
+  .econ-blk:first-of-type { border-top:0; margin-top:2px; padding-top:0; }
+  .econ-blk-h { font-family:var(--mono); font-size:9.5px; letter-spacing:.07em; text-transform:uppercase;
+                color:var(--tx3); margin:1px 0 4px; }
+  .econ-mini { margin-top:6px; }
+  .econ-mini table.mc { width:100%; }
+  .econ-mini table.mc th, .econ-mini table.mc td { font-size:10px; padding:2px 6px; white-space:nowrap; }
+  /* A grid item defaults to min-width:auto, so the mini year table inside the
+     card would widen the track and push the card past the frame at 390px.
+     min-width:0 lets the card shrink and keeps the table on its own sideways
+     scroll, which is what a narrow, locked scroll-through stack needs. */
+  #mcEconGrid .mc-card { min-width:0; }
+  #mcEconGrid .mc-card .econ-blk,
+  #mcEconGrid .mc-card .econ-mini { min-width:0; max-width:100%; }
 </style>
 </head>
 <body>
 
 <div class="mc-wrap" id="mc">
   <div class="mc-head">
-    <div class="mc-title"><b>MACRO</b> &middot; Inflation, GDP, Rates, FX, Fiscal and Tax</div>
+    <div class="mc-title"><b>MACRO</b> &middot; Inflation, GDP, Rates, FX, Fiscal, Tax, Jobs, Income and Retail</div>
     <button class="mc-refresh" id="mcRefresh">Refresh</button>
   </div>
 
@@ -502,6 +532,38 @@
     </div>
     <div id="mcTaxHost"><div class="nodata">Loading&hellip;</div></div>
     <div class="mc-note" id="mcTaxNote">Loading&hellip;</div>
+  </div>
+
+  <!-- ==================================================================
+       UNEMPLOYMENT RATE, NATIONAL INCOME AND RETAIL SALES
+       Reads static_data/macro_economy.json. Per country:
+         - the unemployment rate under every basis the file carries. An ILO
+           modelled estimate, an ILOSTAT national estimate and the national
+           statistics office's own release are three different measures and
+           are printed as three labelled figures, never merged into one;
+         - national income as GDP and GNI at current prices in the country's
+           own currency, named as such, nominal, with the year;
+         - retail sales as the index or growth rate with its base period and
+           with the field stating whether it is volume or value.
+       A series a country does not publish prints an explicit not-published
+       sentence with the reason the file gives. It is never a zero, never a
+       dash and never a figure carried from another year.
+       ================================================================== -->
+  <div class="mc-sec mc-new" id="mcEconSec">
+    <div class="mc-sec-h"><b>Unemployment, income and retail</b> &middot; per country, with the basis of each figure</div>
+    <div class="mc-lead">
+      Three indicators for the four markets. A <b>national labour force survey</b> and an
+      <b>ILO modelled estimate</b> are different measures, so both are shown and each carries its own
+      basis label, period and source: they are never merged into one number. <b>National income</b> is
+      GDP and GNI at current prices in the country's own currency, named as such, nominal, with the year.
+      <b>Retail sales</b> carry their base period and say whether the measure is volume or value. Where a
+      country publishes no figure for a series, the panel says so with the reason rather than showing a blank.
+    </div>
+    <div class="mc-block-h"><b>At a glance</b> &middot; all three indicators, one row per country</div>
+    <div id="mcEconTableHost"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-block-h"><b>By country</b> &middot; every figure with its period, unit, basis and source</div>
+    <div class="mc-grid" id="mcEconGrid"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-note" id="mcEconNote">Loading&hellip;</div>
   </div>
   </div><!-- /mc-scroll -->
 </div>
@@ -2028,10 +2090,250 @@
       " &middot; retrieved by this panel at " + esc(RETRIEVED) + ".";
   }
 
+  /* ==================================================================
+     5. UNEMPLOYMENT RATE, NATIONAL INCOME AND RETAIL SALES
+        Reads static_data/macro_economy.json. Every figure is read from the
+        file and every block prints its own period, unit, basis and source.
+        An unemployment figure carries its basis: an ILO modelled estimate,
+        an ILOSTAT national estimate and the national statistics office's own
+        release are three different measures and are printed as three labelled
+        figures rather than merged into one. A series a country does not
+        publish prints an explicit not-published sentence with the reason the
+        file gives; it is never a zero, never a dash and never a figure
+        carried from another year.
+     ================================================================== */
+  var ECON_FILE = SD + "macro_economy.json";
+  var ECCOL = { KE:"#FFB000", NG:"#3FA9F5", ZA:"#FF6FB5", EG:"#B18CFF" };
+
+  /* a current-price level in a local currency is read at its own scale with
+     thousands separators and is never rounded to a headline */
+  function bigNum(v){
+    if (v == null || !isFinite(v)) return "n/a";
+    try { return Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 }); }
+    catch(e){ return String(Math.round(v)); }
+  }
+  /* A period is called projected only when the file says so in an explicit
+     boolean. It is never inferred from wording in a basis or measure label: a
+     figure the ILO models is a modelled figure, not a projection, and calling
+     it one would be its own misreading of the source. */
+  function econProj(m){ return !!(m && (m.projected === true || m.is_projection === true)); }
+  function econPeriod(m){
+    if (!m) return "the file states no period for this figure";
+    var y = txt(first(m, ["year","as_of","period","fy"]));
+    return y ? "period " + esc(y) + (econProj(m) ? " projected" : "")
+             : "the file states no period for this figure";
+  }
+  function econSrcMeta(m){
+    return (m && m.source ? esc(m.source) : "source not stated in source file") +
+      (m && m.source_url ? ' &middot; <a href="' + esc(m.source_url) + '" target="_blank" rel="noopener">source document</a>' : "");
+  }
+  function econMetric(label, m, fmt){
+    if (!m) return "";
+    var v = num(m.value);
+    var meta = '<span class="mc-src">' + econPeriod(m) +
+      (m.unit ? ' &middot; ' + esc(m.unit) : ' &middot; unit not stated in source') +
+      (m.basis ? ' &middot; basis: ' + esc(m.basis) : '') +
+      ' &middot; ' + econSrcMeta(m) + '</span>';
+    return '<div class="mc-rate"><span class="rn">' + esc(label) + meta + '</span>' +
+      '<span class="rv">' + (v == null ? naCell("the file gives no value for this figure") : (fmt ? fmt(v) : fmtNum(v))) +
+      (m.unit ? ' <span class="u">' + esc(m.unit) + '</span>' : '') + '</span></div>';
+  }
+  function econNotPublished(what, obj){
+    return '<div class="mc-rate"><span class="rn">' + esc(what) +
+      '<span class="mc-src">the file records this series as not published for this country, with the reason</span></span>' +
+      '<span class="rv">' + naCell(esc((obj && obj.reason) || "the file states no reason")) + '</span></div>';
+  }
+
+  function econUnemployment(u, name, col){
+    u = u || {};
+    var out = "";
+    out += econMetric("ILO modelled estimate", u.ilo_modelled);
+    out += econMetric("National estimate (ILOSTAT)", u.national_estimate);
+    var no = u.national_office || {};
+    if (no.not_published){
+      out += econNotPublished("National statistics office", no);
+    } else if (num(no.value) != null){
+      var meta = '<span class="mc-src">' + econPeriod(no) +
+        (no.unit ? ' &middot; ' + esc(no.unit) : ' &middot; unit not stated in source') +
+        (no.basis ? ' &middot; basis: ' + esc(no.basis) : '') +
+        (no.definition ? ' &middot; definition: ' + esc(no.definition) : '') +
+        ' &middot; ' + econSrcMeta(no) +
+        (no.note ? ' &middot; ' + esc(no.note) : '') + '</span>';
+      out += '<div class="mc-rate"><span class="rn">' + esc(txt(no.statistic) || "National statistics office") + meta + '</span>' +
+        '<span class="rv">' + fmtNum(num(no.value)) +
+        (no.unit ? ' <span class="u">' + esc(no.unit) + '</span>' : '') + '</span></div>';
+    }
+    /* the trend is drawn only from published points: a year the source has
+       not published is a gap, never an interpolated point */
+    var pts = [];
+    (u.history || []).forEach(function(p){
+      var v = num(p.ilo_modelled);
+      if (v == null) return;
+      pts.push({ label: String(first(p, ["year"]) || ""), value: v, projected: econProj(p) });
+    });
+    if (pts.length >= 2){
+      out += '<div class="sub">ILO modelled estimate, ' + esc(pts[0].label) + ' to ' + esc(pts[pts.length - 1].label) +
+        ', published points only</div><div class="sph">' +
+        pathChart(pts, col, fmtNum, esc(name) + " ILO modelled unemployment rate", "line") + '</div>';
+    }
+    return out || naCell("the file carries no unemployment figure for this country");
+  }
+
+  function econIncome(inc, cu){
+    inc = inc || {};
+    var out = "";
+    out += econMetric("GDP, current prices", inc.gdp, bigNum);
+    out += econMetric("GNI, current prices", inc.gni, bigNum);
+    var yrs = (inc.years || []).slice().sort(function(a, b){ return b.year - a.year; }).slice(0, 8);
+    if (yrs.length){
+      out += '<div class="mc-tablewrap econ-mini"><table class="mc"><thead><tr>' +
+        '<th class="l">Year</th><th>GDP (' + esc(cu) + ')</th><th>GNI (' + esc(cu) + ')</th></tr></thead><tbody>' +
+        yrs.map(function(p){
+          return '<tr><td class="l">' + esc(p.year) + '</td><td>' +
+            (num(p.gdp_lcu) != null ? bigNum(num(p.gdp_lcu)) : 'n/a') + '</td><td>' +
+            (num(p.gni_lcu) != null ? bigNum(num(p.gni_lcu)) : 'n/a') + '</td></tr>';
+        }).join("") + '</tbody></table></div>' +
+        '<div class="mc-hint">Current prices, nominal, in the country\'s own currency, for the year it is published for. ' +
+        'A year with no published value shows n/a and is never filled. Scroll the table sideways on a narrow screen.</div>';
+    }
+    return out || naCell("the file carries no national income figure for this country");
+  }
+
+  function econRetail(ret){
+    ret = ret || {};
+    if (ret.not_published) return econNotPublished("Retail trade sales", ret);
+    var out = "";
+    var meta = '<span class="mc-src">' + econPeriod(ret) +
+      (ret.unit ? ' &middot; ' + esc(ret.unit) : ' &middot; unit not stated in source') +
+      (ret.basis ? ' &middot; basis: ' + esc(ret.basis) : '') +
+      (ret.base_period ? ' &middot; base period: ' + esc(ret.base_period) : '') +
+      (ret.series ? ' &middot; series: ' + esc(ret.series) : '') +
+      ' &middot; ' + econSrcMeta(ret) +
+      (ret.note ? ' &middot; ' + esc(ret.note) : '') + '</span>';
+    out += '<div class="mc-rate"><span class="rn">' + esc(txt(ret.series) || "Retail sales") + meta + '</span>' +
+      '<span class="rv">' + fmtNum(num(ret.value)) + ' <span class="u">' + esc(ret.unit || "") + '</span></span></div>';
+    if (num(ret.level) != null){
+      out += '<div class="mc-rate"><span class="rn">Level<span class="mc-src">' +
+        esc(ret.level_period || "period not stated") + ' &middot; ' + esc(ret.level_unit || "unit not stated in source") +
+        '</span></span><span class="rv">' + bigNum(num(ret.level)) + ' <span class="u">R million</span></span></div>';
+    }
+    return out;
+  }
+
+  function econCard(c){
+    var iso = isoOf(c);
+    var name = txt(c.country) || "Country not named in source file";
+    var col = ECCOL[iso] || "#33e29a";
+    var cu = txt(c.currency) || "the country's own currency";
+    var h = '<div class="mc-card" data-iso="' + esc(iso) + '">';
+    h += '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+      '<span style="color:' + col + '">' + esc(name) + '</span></span>' +
+      '<span class="exch">' + esc(txt(c.iso2) || iso) + ' &middot; ' + esc(cu) + '</span></div>';
+    h += '<div class="econ-blk"><div class="econ-blk-h">Unemployment rate &middot; each basis labelled</div>' +
+      econUnemployment(c.unemployment, name, col) + '</div>';
+    h += '<div class="econ-blk"><div class="econ-blk-h">National income &middot; current prices, ' + esc(cu) + ', nominal</div>' +
+      econIncome(c.national_income, cu) + '</div>';
+    h += '<div class="econ-blk"><div class="econ-blk-h">Retail sales &middot; base period and volume or value stated</div>' +
+      econRetail(c.retail_sales) + '</div>';
+    h += '</div>';
+    return h;
+  }
+
+  function econTable(rows){
+    function uCell(c){
+      var u = c.unemployment || {}, no = u.national_office || {};
+      if (!no.not_published && num(no.value) != null)
+        return '<span class="v">' + fmtNum(num(no.value)) + '%</span><span class="mc-src">' +
+          esc(no.period || "period not stated") + ' &middot; ' + esc(no.source || "source not stated in source file") + '</span>';
+      if (u.national_estimate && num(u.national_estimate.value) != null)
+        return '<span class="v">' + fmtNum(num(u.national_estimate.value)) + '%</span><span class="mc-src">ILOSTAT national estimate, ' +
+          esc(u.national_estimate.year || "year not stated") + '; the national office release is not published to this build</span>';
+      return naCell(esc((no && no.reason) || "the file records no national figure"));
+    }
+    function incCell(m, cu){
+      if (!m || num(m.value) == null) return naCell("the file records no figure for this series");
+      return '<span class="v">' + bigNum(num(m.value)) + '</span><span class="mc-src">' +
+        esc(cu) + ', ' + esc(m.year || "year not stated") + ' &middot; ' + esc(m.source || "source not stated") + '</span>';
+    }
+    function retCell(c){
+      var r = c.retail_sales || {};
+      if (r.not_published) return naCell(esc(r.reason || "the file records this series as not published"));
+      return '<span class="v">' + fmtNum(num(r.value)) + '</span><span class="mc-src">' + esc(r.unit || "") + ', ' +
+        esc(r.period || "period not stated") + ' &middot; ' + esc(r.basis || "basis not stated") + '</span>';
+    }
+    var head = '<tr><th class="l">Country</th>' +
+      '<th>Unemployment<br><span class="hk">ILO modelled, year</span></th>' +
+      '<th>Unemployment<br><span class="hk">national, period</span></th>' +
+      '<th>GDP<br><span class="hk">current LCU, year</span></th>' +
+      '<th>GNI<br><span class="hk">current LCU, year</span></th>' +
+      '<th>Retail sales<br><span class="hk">period</span></th></tr>';
+    var body = rows.map(function(c){
+      var u = c.unemployment || {}, inc = c.national_income || {};
+      var cu = c.currency || (inc.gdp && inc.gdp.unit) || "";
+      var im = u.ilo_modelled;
+      return '<tr data-iso="' + esc(isoOf(c)) + '"><td class="l hd">' +
+        esc(txt(c.country) || "Country not named in source file") +
+        '<span class="hk">' + esc(txt(c.iso2) || "") + '</span></td>' +
+        '<td>' + (im && num(im.value) != null
+          ? '<span class="v">' + fmtNum(num(im.value)) + '%</span><span class="mc-src">' + esc(im.year || "year not stated") +
+            ' &middot; ' + esc(im.basis || "basis not stated") + '</span>'
+          : naCell("the file records no ILO modelled estimate")) + '</td>' +
+        '<td>' + uCell(c) + '</td>' +
+        '<td>' + incCell(inc.gdp, cu) + '</td>' +
+        '<td>' + incCell(inc.gni, cu) + '</td>' +
+        '<td>' + retCell(c) + '</td></tr>';
+    }).join("");
+    return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + body +
+      '</tbody></table></div><div class="mc-hint">Three unemployment measures are distinct and are never merged: the ILO modelled estimate is a ' +
+      'modelled figure, the ILOSTAT national estimate is the national source\'s own figure, and a national statistics office release is the office\'s ' +
+      'own publication. National income is at current prices, nominal. On a narrow screen this matrix is wider than the frame, so scroll it sideways ' +
+      'rather than letting a column clip.</div>';
+  }
+
+  function renderEcon(res){
+    var host = document.getElementById("mcEconGrid");
+    var tbl  = document.getElementById("mcEconTableHost");
+    var note = document.getElementById("mcEconNote");
+    if (!res.ok){
+      var r = missReason(res, "unemployment, national income or retail sales figure") +
+        " The file was looked for at " + code(ECON_FILE) + ".";
+      tbl.innerHTML = naBlock("Unemployment, national income and retail sales not available", r);
+      host.innerHTML = '<div class="mc-hint">No card is drawn, because there is no file to read. The path that was tried is named above.</div>';
+      note.innerHTML = "No economy file is present. The path that was tried is named above rather than any figure being shown. " +
+        "Retrieved by this panel at " + esc(RETRIEVED) + ".";
+      return;
+    }
+    var d = res.json || {};
+    var rows = (d.countries || []).filter(function(c){ return c && typeof c === "object"; });
+    if (!rows.length){
+      tbl.innerHTML = naBlock("Unemployment, national income and retail sales not available",
+        "The file " + code(res.path) + " was read but carries no per-country rows (no <code>countries</code> array).");
+      host.innerHTML = "";
+      note.innerHTML = secSrcLine(txt(d.source), txt(first(d, ["as_of","generated","updated"])), txt(d.note));
+      return;
+    }
+    tbl.innerHTML = econTable(rows);
+    host.innerHTML = rows.map(econCard).join("");
+    var cc = d.coverage_counts || {};
+    note.innerHTML =
+      "Unemployment, national income and retail sales for " + rows.length + " countries, read from " + code(res.path) + ". " +
+      "Unemployment carries up to three bases and prints each one the file has, never merged: the ILO modelled estimate (" +
+      esc(cc.unemployment_ilo_modelled != null ? cc.unemployment_ilo_modelled : "?") + " countries), the ILOSTAT national estimate (" +
+      esc(cc.unemployment_national_estimate != null ? cc.unemployment_national_estimate : "?") + " countries) and the national statistics office's own release (" +
+      esc(cc.unemployment_national_office != null ? cc.unemployment_national_office : "?") + " countries). " +
+      "Retail sales are published for " + esc(cc.retail_sales != null ? cc.retail_sales : "?") + " of the " + rows.length +
+      " countries; the rest carry an explicit not-published state with the reason. " +
+      (txt(d.note) ? esc(txt(d.note)) + " " : "") +
+      (d.generated ? "&middot; file generated " + esc(d.generated) + " " : "") +
+      (res.lm ? "&middot; file last modified per server: " + esc(res.lm) + " " : "") +
+      "&middot; retrieved by this panel at " + esc(RETRIEVED) + ".";
+  }
+
   /* ---------------- boot ---------------- */
   loadFile(RATES_FILE).then(renderRates);
   loadFile(FX_FILE).then(renderFx);
   loadFile(TAX_FILE).then(renderTax);
+  loadFile(ECON_FILE).then(renderEcon);
   (function loadFiscal(i, results){
     if (i >= FISCAL_FILES.length){
       var anyMissing = false;
