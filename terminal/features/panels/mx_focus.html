@@ -295,6 +295,12 @@
   }
 
   function renderGrid(row, px, level, pct, asOf, withheld){
+    // GRID REMOVED (owner, 2026-10-13). The as-of / prev close / volume / sector grid
+    // restated what the quote header and the board already show, and it printed the
+    // date twice on every security. The builder below is left intact for reference,
+    // but it returns before drawing, so #fxGrid stays hidden as authored and neither
+    // call site (the normal render and the withheld path) paints it.
+    return;
     var cells = [];
     function cell(k, v){
       cells.push("<div class='fx-cell'><div class='fx-k'>" + esc(k) + "</div><div class='fx-v'>" + v + "</div></div>");
@@ -363,7 +369,11 @@
 
     // ---- footer: the as-of stamp first, then anything that qualifies it ----
     var foot = [];
-    foot.push("<b>" + esc(asOf ? asOf.iso : "as-of not stated") + "</b>");
+    // The dated stamp was the first thing in this footer and printed on every
+    // security. The quote header already carries the date, so it is not repeated
+    // here. The footer now renders only when it holds a caveat worth stating
+    // (a stale quote, a lag, a disagreement between fields), and stays empty
+    // otherwise.
     if(lag != null){
       if(stale){
         foot.push("<span class='warn'>STALE: " + lag + " days behind the " + esc(boardDate ? boardDate.iso : "") + " board session</span>");
