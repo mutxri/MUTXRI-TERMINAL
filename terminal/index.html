@@ -274,7 +274,12 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
   border-right:2px solid var(--line2);border-bottom:2px solid var(--line2)}
 .rail:hover .wrs-se::after,.panel:hover .wrs-se::after{border-color:var(--acc)}
 /* workspace tabs live in the top bar, not in a bottom strip */
-.wstabs{display:flex;align-items:center;gap:3px;margin-left:auto}
+/* The finder is absolutely positioned in the middle of this bar, so it paints
+   over anything in-flow that reaches it. The strip therefore paints above it and
+   is allowed to shrink: whatever the width, the workspace tabs and the SAVE
+   control stay clickable and cannot be swallowed by the finder, and the strip
+   can never push the clock or the account button off the edge. */
+.wstabs{display:flex;align-items:center;gap:3px;margin-left:auto;min-width:0;position:relative;z-index:6}
 .wstabs button{background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
   font-size:9.5px;letter-spacing:.08em;padding:3px 8px;border-radius:2px;cursor:pointer;max-width:120px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1477,7 +1482,7 @@ let PANELS = [
   {id:'tas',     label:'TAS',     url:'features/panels/mx_tas.html'},
   // RESEARCH IS NOT A PANEL ANY MORE. The owner asked for it out because what it
   // shows is already in the MARKET window: clicking a security there mounts the
-  // same research stack for that security (__riMountResearch below), so a
+  // same research stack for that security, so a
   // standalone RESEARCH panel repeated it. The file still ships in the build
   // (assemble_deploy.py's STATIC_PANELS lists mx_research.html) but NOTHING
   // registers it here, so it is unreachable: the panel picker, its count, the
