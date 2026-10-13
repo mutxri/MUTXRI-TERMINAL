@@ -794,8 +794,11 @@ window.mtSectorColour = function(sec){
     }
 
     // honest limits
-    var limits = '<div class="note">Ring segments are sized on gross exposure (the sum of absolute values), so the shares sum to 100 percent of the ' +
-      'gross book and a short contributes like a long; the signed profit and loss is shown separately.</div>';
+    // The gross-exposure method paragraph was removed (owner, 2026-10-13): it explained
+    // how the ring is sized, which is the panel describing itself rather than market
+    // data. The mixed-currency caveat below is KEPT - it tells the reader the money
+    // figures are not converted, which changes how the totals should be read.
+    var limits = '';
     if (mixed) limits += '<div class="note">More than one currency in this book (positions in ' + exNames.join(", ") +
       '); the money figures are not converted.</div>';
     det += limits;
@@ -815,8 +818,7 @@ window.mtSectorColour = function(sec){
     if (wraps[1]) wireRing(wraps[1], exItems, "", "EXCHANGE", money(ringTotal(exItems), ""));
 
     who.innerHTML = "Paper account, " + rows.length + " position" + (rows.length === 1 ? "" : "s") +
-      " across " + (exNames.length || 0) + " exchange" + (exNames.length === 1 ? "" : "s") +
-      " &middot; read from this browser only";
+      " across " + (exNames.length || 0) + " exchange" + (exNames.length === 1 ? "" : "s");
 
     // ---- value curve + risk need the price history; appended when it arrives ----
     var wanted = rows.filter(function(r){ return r.rec && r.qty; });
