@@ -535,6 +535,94 @@
 </div>
 
 <script>
+/* ==================================================================
+   ONE SOURCE LINE PER BLOCK. This sits outside both halves of the panel
+   because both of them print one.
+
+   A reader wants the figure, the period it covers and where it came
+   from. The provenance narrative (which endpoint a file was built from,
+   how a series was derived, what was not interpolated, why one file is
+   a sibling of another) is documentation for whoever maintains the
+   pipeline, not a thing to put on screen, so none of it is drawn here.
+   Each block prints one short muted line: the source, and the period.
+   ================================================================== */
+function mxsEsc(s){
+  return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c];
+  });
+}
+function mxsTxt(v){
+  if (v == null) return null;
+  var t = String(v).replace(/\s+/g, " ").trim();
+  return t ? t : null;
+}
+function mxsNum(v){
+  if (v == null) return null;
+  if (typeof v === "number") return isFinite(v) ? v : null;
+  var t = String(v).replace(/[\s,]/g, "").replace(/%$/, "");
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+  var n = parseFloat(t);
+  return isFinite(n) ? n : null;
+}
+/* the one line itself: the source name, and the period it covers */
+function srcOne(name, period, url){
+  var nm = mxsTxt(name);
+  if (!nm) return "";
+  var label = nm + (period ? " - " + period : "");
+  return '<span class="mc-src">' + (url
+    ? '<a href="' + mxsEsc(url) + '" target="_blank" rel="noopener">' + mxsEsc(label) + '</a>'
+    : mxsEsc(label)) + '</span>';
+}
+/* the calendar day inside a timestamp, for a figure that moves daily */
+function dayIn(v){
+  var s = mxsTxt(v);
+  if (!s) return "";
+  var m = /(\d{4}-\d{2}-\d{2})/.exec(s);
+  if (m) return m[1];
+  m = /(\d{4}-\d{2})/.exec(s);
+  return m ? m[1] : s.slice(0, 10);
+}
+/* the latest published year across a set of rows, so the line names the
+   period the figures actually cover rather than the day they were fetched */
+function latestYear(rows, keys){
+  var best = null;
+  (rows || []).forEach(function(r){
+    (keys || []).forEach(function(k){
+      var v = mxsNum(r && r[k]);
+      if (v != null && v >= 1900 && v <= 2200 && (best == null || v > best)) best = v;
+    });
+  });
+  return best == null ? "" : String(Math.round(best));
+}
+/* a source name shortened to the name a market uses, so one line stays a
+   line: an acronym in brackets wins, and the machinery that carried the
+   figure (a dataset suffix, a list of indicator codes, the API that
+   served it) is dropped */
+function srcShort(s){
+  var v = mxsTxt(s);
+  if (!v) return "";
+  v = v.replace(/,?\s*via the [^,;]+API\.?/i, "").replace(/\s+database\b/i, "").trim();
+  var head = String(v.split(",")[0]).split(/\s+-\s+/)[0].replace(/\s+$/, "").trim();
+  var lead = /^(IMF|ILOSTAT|ILO|WHO|EU|UNCTAD|UN)\b/.exec(head);
+  var acr = /\(([A-Z]{2,8})\)/.exec(head);
+  if (acr) return (lead ? lead[1] + " " : "") + acr[1];
+  if (/^Statistics South Africa/i.test(head)) return "StatsSA";
+  if (/^World Bank/i.test(head)) return "World Bank";
+  if (head.length > 30) return head.split(/\s+/).slice(0, 2).join(" ");
+  return head;
+}
+function shortList(arr, max, tail){
+  var out = [], seen = {};
+  (arr || []).forEach(function(s){
+    var n = srcShort(s);
+    if (!n || seen[n.toLowerCase()]) return;
+    seen[n.toLowerCase()] = 1;
+    out.push(n);
+  });
+  if (out.length > max) return out.slice(0, max).join(", ") + (tail || "");
+  return out.join(", ");
+}
+
 (function(){
   // The served site is static: /api/macro does not exist on Pages, so read the
   // published snapshot the build ships directly, with no doomed API call first.
@@ -990,72 +1078,6 @@
     s += ' &middot; as of ' + (asof ? esc(asof) : '<span class="sec">not stated in source file</span>');
     if (note) s += ' &middot; ' + esc(note);
     return s;
-  }
-  /* ------------------------------------------------------------------
-     ONE SOURCE LINE PER BLOCK.
-     A reader of this panel wants the figure, the period it covers and
-     where it came from. The provenance narrative (which endpoint a file
-     was built from, how a series was derived, what was not interpolated,
-     why one file is a sibling of another) is documentation for whoever
-     maintains the pipeline, not a thing to put on screen, so none of it
-     is rendered here. Each block instead prints one short muted line:
-     the source, and the period it covers.
-     ------------------------------------------------------------------ */
-  function srcOne(name, period, url){
-    var nm = txt(name);
-    if (!nm) return "";
-    var label = nm + (period ? " - " + period : "");
-    return '<span class="mc-src">' + (url
-      ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(label) + '</a>'
-      : esc(label)) + '</span>';
-  }
-  /* the calendar day inside a timestamp, for a figure that moves daily */
-  function dayIn(v){
-    var s = txt(v);
-    if (!s) return "";
-    var m = /(\d{4}-\d{2}-\d{2})/.exec(s);
-    if (m) return m[1];
-    m = /(\d{4}-\d{2})/.exec(s);
-    return m ? m[1] : s.slice(0, 10);
-  }
-  /* the latest published year across a set of rows, so the line names the
-     period the figures actually cover rather than the day they were fetched */
-  function latestYear(rows, keys){
-    var best = null;
-    (rows || []).forEach(function(r){
-      (keys || []).forEach(function(k){
-        var v = num(r && r[k]);
-        if (v != null && v >= 1900 && v <= 2200 && (best == null || v > best)) best = v;
-      });
-    });
-    return best == null ? "" : String(Math.round(best));
-  }
-  /* a source name shortened to the name a market uses, so one line stays a
-     line: an acronym in brackets wins, the machinery that carried the figure
-     ("via the ... API", a dataset suffix, a list of indicator codes) is dropped */
-  function srcShort(s){
-    var v = txt(s);
-    if (!v) return "";
-    v = v.replace(/,?\s*via the [^,;]+API\.?/i, "").replace(/\s+database\b/i, "").trim();
-    var head = String(v.split(",")[0]).split(/\s+-\s+/)[0].replace(/\s+$/, "").trim();
-    var lead = /^(IMF|ILOSTAT|ILO|WHO|EU|UNCTAD|UN)\b/.exec(head);
-    var acr = /\(([A-Z]{2,8})\)/.exec(head);
-    if (acr) return (lead ? lead[1] + " " : "") + acr[1];
-    if (/^Statistics South Africa/i.test(head)) return "StatsSA";
-    if (/^World Bank/i.test(head)) return "World Bank";
-    if (head.length > 30) return head.split(/\s+/).slice(0, 2).join(" ");
-    return head;
-  }
-  function shortList(arr, max, tail){
-    var out = [], seen = {};
-    (arr || []).forEach(function(s){
-      var n = srcShort(s);
-      if (!n || seen[n.toLowerCase()]) return;
-      seen[n.toLowerCase()] = 1;
-      out.push(n);
-    });
-    if (out.length > max) return out.slice(0, max).join(", ") + (tail || "");
-    return out.join(", ");
   }
   function naCell(reason){
     return '<span class="mc-cellna">not available<span class="why">' + reason + '</span></span>';
