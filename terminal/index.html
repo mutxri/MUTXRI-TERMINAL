@@ -567,6 +567,30 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
   padding:3px 0;overflow-wrap:anywhere}
 .mki-chart{height:190px;width:100%;max-width:100%;overflow:hidden;margin:2px 0 4px;position:relative}
 .mki-chart svg{width:100%;height:190px;display:block}
+/* customers, suppliers, competitors, partners, disclosures. One block per
+   entity, with the label the record's own statedBy earns it: the issuer's
+   document (iss, accent) or a third-party source that only names it (lead,
+   amber). Every column wraps anywhere so an entity name or a quoted sentence
+   can never force the rail wider at 390px. */
+.mki-e{border-left:2px solid var(--line2);padding:3px 0 4px 7px;margin:4px 0}
+.mki-e.iss{border-left-color:var(--acc)}
+.mki-e.lead{border-left-color:#e0a340}
+.mki-e-name{font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--tx);
+  overflow-wrap:anywhere;line-height:1.45}
+.mki-e-tag{display:inline-block;font-family:var(--mono);font-size:8px;font-weight:700;
+  letter-spacing:.07em;padding:1px 4px;margin-right:5px;border-radius:2px;white-space:nowrap}
+.mki-e-tag.iss{background:var(--mint-dim);color:var(--acc)}
+.mki-e-tag.lead{background:rgba(224,163,64,.12);color:#e0a340}
+.mki-e-role,.mki-e-src,.mki-e-quote{font-family:var(--mono);font-size:9px;line-height:1.55;
+  color:var(--tx3);overflow-wrap:anywhere;padding:1px 0}
+.mki-e-quote{color:var(--tx2);border-left:1px solid var(--line2);padding-left:6px;margin:2px 0}
+.mki-e details{margin:1px 0}
+.mki-e summary{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;color:var(--tx3);
+  cursor:pointer;list-style:none}
+.mki-e summary::-webkit-details-marker{display:none}
+.mki-e summary:hover{color:var(--acc)}
+.mki-e summary::before{content:"+ ";}
+.mki-e details[open] summary::before{content:"- ";}
 
 .mrow{display:grid;grid-template-columns:58px 1fr auto auto;gap:2px 8px;padding:2px 0;font-size:10px;align-items:baseline}
 .mrow .mt{color:var(--tx);font-weight:700}
@@ -4072,6 +4096,179 @@ function mkHoldersSection(sym, ex, shFile, mktRow){
   return mkSec('SHAREHOLDERS', esc(note), body);
 }
 
+// ---- customers, suppliers, competitors, partners, and disclosures --------
+// static_data/relationships_<EX>.json holds, per security, the entities a source
+// actually names under customers, suppliers, competitors and partners, plus a
+// SEPARATE disclosures array for statements that name no entity. Three rules are
+// fixed by the file itself and are enforced here, not softened:
+//
+//   1. Nothing is inferred. The file's coverage clause says no peer set is
+//      generated and no sector label is turned into a relationship, so an empty
+//      category is drawn EMPTY with the exchange's own coverage counts and is
+//      never padded, reordered or labelled as an industry peer group.
+//   2. The label is the record's own statedBy. 'issuer' means the issuer's own
+//      document states the relationship: drawn as the issuer's claim. Any other
+//      statedBy is the publisher domain of a third-party source (a large share
+//      of them aggregators or automated content publishers, which the record's
+//      note says): drawn as a LEAD TO VERIFY, never as a confirmed relationship
+//      and never as the issuer's claim.
+//   3. Disclosures are never mixed into the four categories.
+//
+// The lookup is by ticker, not by the market code: relationships_<EX>.json keys
+// every exchange on the bare ticker (an EGX record is filed under COMI, not
+// under the market row's EGS60121C018.CA), so the market row's own ticker is a
+// candidate here as well as the selected symbol.
+var MK_REL_CATS = [['customers', 'CUSTOMERS'], ['suppliers', 'SUPPLIERS'],
+                   ['competitors', 'COMPETITORS'], ['partners', 'PARTNERS']];
+function mkRelKeys(ex, sym, row){
+  var out = [], seen = {};
+  function push(k){
+    k = String(k === null || k === undefined ? '' : k).trim();
+    if(!k || seen[k]) return;
+    seen[k] = 1; out.push(k);
+  }
+  [sym, row && row.ticker, row && row.sym].forEach(function(s){
+    if(!s) return;
+    mkCands(ex, s, true).forEach(push);
+    push(String(s).split('.')[0]);
+  });
+  return out;
+}
+function mkRelCount(file, cat){
+  var n = 0;
+  if(file && file.securities){
+    for(var k in file.securities){
+      if(!Object.prototype.hasOwnProperty.call(file.securities, k)) continue;
+      var s = file.securities[k];
+      if(s && Array.isArray(s[cat]) && s[cat].length) n++;
+    }
+  }
+  return n;
+}
+function mkRelEntity(e){
+  if(!e || typeof e !== 'object') return '';
+  var nm = String(e.name || '').trim();
+  if(!nm) return '';
+  var src = (e.source && typeof e.source === 'object') ? e.source : {};
+  var issuer = (String(e.statedBy || '').toLowerCase() === 'issuer');
+  var h = '<div class="mki-e ' + (issuer ? 'iss' : 'lead') + '">';
+  h += '<div class="mki-e-name"><span class="mki-e-tag ' + (issuer ? 'iss' : 'lead') + '">' +
+       (issuer ? 'ISSUER-STATED' : 'LEAD TO VERIFY') + '</span>' + esc(nm) + '</div>';
+  if(e.role) h += '<div class="mki-e-role">' + esc(String(e.role)) + '</div>';
+  // where the name was read: the site or domain and the date it was retrieved
+  // for a web source, the filing and its page for an issuer document
+  var bits = [];
+  if(issuer){
+    bits.push('From the issuer');
+    if(src.file) bits.push(String(src.file) + (src.page ? ' p.' + src.page : ''));
+    if(e.fiscalYear) bits.push('fiscal year ' + e.fiscalYear);
+  } else {
+    bits.push('Third-party source ' + (src.site ? String(src.site) : String(e.statedBy || '')));
+    if(src.retrieved) bits.push('retrieved ' + src.retrieved);
+    if(src.file) bits.push(String(src.file) + (src.page ? ' p.' + src.page : ''));
+  }
+  h += '<div class="mki-e-src">' + esc(bits.join(' · ')) + '</div>';
+  if(e.quote) h += '<div class="mki-e-quote">' + esc('"' + String(e.quote) + '"') + '</div>';
+  var ev = '';
+  if(src.url) ev += '<div class="mki-e-src">' + esc(String(src.url)) + '</div>';
+  if(e.note) ev += '<div class="mki-e-src">' + esc(String(e.note)) + '</div>';
+  if(ev) h += '<details><summary>SOURCE DETAIL</summary>' + ev + '</details>';
+  h += '</div>';
+  return h;
+}
+function mkRelCatBlock(rec, file, cat, label, ex, sym){
+  var list = (rec && Array.isArray(rec[cat])) ? rec[cat] : [];
+  var h = '<div class="mki-sub mki-grp">' + esc(label) + '</div>';
+  if(list.length){
+    list.forEach(function(e){ h += mkRelEntity(e); });
+    return h;
+  }
+  // An empty category is drawn as empty, and says WHICH empty it is: no entity
+  // on file for this security while the exchange has some, or the category is
+  // published for no security on this exchange. A blank standing for absent data
+  // is exactly the defect this line exists to stop.
+  var disc = (rec && Array.isArray(rec.disclosures)) ? rec.disclosures : [];
+  var sameDisc = disc.filter(function(d){ return d && String(d.category || '') === cat; });
+  h += '<div class="mki-out">';
+  var others = mkRelCount(file, cat);
+  if(others > 0){
+    h += esc('No ' + cat + ' on file for ' + sym + '. ' + others + ' other ' + (others === 1 ? 'security' : 'securities') +
+             ' on ' + ex + ' ' + (others === 1 ? 'does' : 'do') + ' carry a sourced ' + cat + ' entry in static_data/relationships_' + ex +
+             '.json; this record carries none, and none is inferred from a sector label.');
+  } else {
+    h += esc('No ' + cat + ' on file for ' + sym + ': ' + cat + ' are not published for any security on ' + ex +
+             ' in static_data/relationships_' + ex + '.json. That is the exchange\'s coverage, not a missing record for this security.');
+  }
+  if(sameDisc.length){
+    h += esc(' This record carries a disclosure statement on ' + cat + ' instead: see DISCLOSURES below.');
+  }
+  h += '</div>';
+  return h;
+}
+function mkRelationsSection(sym, ex, relFile, mktRow){
+  var TITLE = 'CUSTOMERS, SUPPLIERS, COMPETITORS, PARTNERS';
+  if(!relFile || !relFile.securities){
+    return mkSec(TITLE, esc(ex + ' file not on file'),
+      '<div class="mki-out">' + esc('static_data/relationships_' + ex +
+      '.json is not on file, so no customer, supplier, competitor or partner record is shown for ' + sym +
+      ' rather than an invented one.') + '</div>');
+  }
+  var cov = relFile.coverage || {};
+  var covN = mkNum(cov.securitiesWithSourcedEntity), covT = mkNum(cov.securitiesListed);
+  var rec = null, key = null, keys = mkRelKeys(ex, sym, mktRow);
+  for(var i = 0; i < keys.length; i++){
+    if(relFile.securities[keys[i]]){ rec = relFile.securities[keys[i]]; key = keys[i]; break; }
+  }
+  var covTxt = (covN !== null && covT !== null) ? (covN + ' of ' + covT + ' ' + ex + ' securities') : '';
+  if(!rec){
+    var why = 'No customer, supplier, competitor or partner record on file for ' + sym + '. ' +
+      (covN !== null && covT !== null
+        ? ('static_data/relationships_' + ex + '.json carries a sourced entity for ' + covN + ' of the ' + covT +
+           ' securities listed on ' + ex + '; ' + sym + ' is not one of them, and nothing is inferred from its sector. ' +
+           'The line stands rather than an empty block that would read as data the terminal simply did not print.')
+        : ('No relationship record on file for ' + sym + ' in the ' + ex + ' relationship file.'));
+    return mkSec(TITLE, esc(covTxt), '<div class="mki-out">' + esc(why) + '</div>');
+  }
+  // counts the labels the reader is about to see, so the section states them too
+  var nIss = 0, nLead = 0;
+  MK_REL_CATS.forEach(function(c){
+    (rec[c[0]] || []).forEach(function(e){
+      if(String(e && e.statedBy || '').toLowerCase() === 'issuer') nIss++; else nLead++;
+    });
+  });
+  var body = '<div class="mki-out">' + esc('Labels: ISSUER-STATED means the relationship is stated in the issuer\'s own ' +
+    'document. LEAD TO VERIFY means a third-party source names it (the site and the date it was read are shown); it is a ' +
+    'lead, not a confirmed relationship and not the issuer\'s claim.') + '</div>';
+  MK_REL_CATS.forEach(function(c){ body += mkRelCatBlock(rec, relFile, c[0], c[1], ex, sym); });
+  var disc = Array.isArray(rec.disclosures) ? rec.disclosures : [];
+  if(disc.length){
+    body += '<div class="mki-sub mki-grp">DISCLOSURES</div>';
+    body += '<div class="mki-out">' + esc('Statements in the issuer\'s document about these categories that name no ' +
+      'entity. Kept apart from the four categories above and never counted as one of them.') + '</div>';
+    disc.forEach(function(d){
+      if(!d || typeof d !== 'object') return;
+      var src = (d.source && typeof d.source === 'object') ? d.source : {};
+      var bits = ['From the issuer'];
+      if(src.file) bits.push(String(src.file) + (src.page ? ' p.' + src.page : ''));
+      if(d.fiscalYear) bits.push('fiscal year ' + d.fiscalYear);
+      body += '<div class="mki-e iss"><div class="mki-e-name">' +
+        '<span class="mki-e-tag iss">DISCLOSURE</span>' + esc(String(d.category || '') + ': no entity named') + '</div>';
+      if(d.quote) body += '<div class="mki-e-quote">' + esc('"' + String(d.quote) + '"') + '</div>';
+      body += '<div class="mki-e-src">' + esc(bits.join(' · ')) + '</div>';
+      if(d.note) body += '<div class="mki-e-role">' + esc(String(d.note)) + '</div>';
+      body += '</div>';
+    });
+  }
+  var tail = 'Source: static_data/relationships_' + ex + '.json, record ' + key +
+    '. Each entity carries the sentence it was read from and the source it was read at. ' +
+    'Nothing here is inferred from a sector label and no peer set is generated.';
+  if(nIss || nLead){
+    tail = nIss + ' issuer-stated, ' + nLead + ' lead to verify on file for ' + sym + '. ' + tail;
+  }
+  body += '<div class="mki-out">' + esc(tail) + '</div>';
+  return mkSec(TITLE, esc(covTxt), body);
+}
+
 // ---- valuation -----------------------------------------------------------
 // A PUBLISHED multiple is drawn with its own formula and its inputs. A WITHHELD
 // one is drawn as withheld WITH THE REASON the file already wrote: never a
@@ -4314,23 +4511,25 @@ function mkRailRender(){
   Promise.all([
     mkGet('static_data/market_' + ex + '.json').catch(function(){ return null; }),
     mkGet('static_data/shareholders_' + ex + '.json').catch(function(){ return null; }),
-    mkFile('analytics', mkCands(ex, sym, false))
+    mkFile('analytics', mkCands(ex, sym, false)),
+    mkGet('static_data/relationships_' + ex + '.json').catch(function(){ return null; })
   ]).then(function(res){
     if(MT_MK.sym + '|' + MT_MK.ex !== want) return null;
-    var mkt = res[0], shFile = res[1], an = res[2];
+    var mkt = res[0], shFile = res[1], an = res[2], relFile = res[3];
     var row = null, b = sym.split('.')[0];
     if(mkt && Array.isArray(mkt.stocks)){
       row = mkt.stocks.find(function(s){ return String(s.sym || '') === sym || String(s.ticker || '') === sym; }) ||
             mkt.stocks.find(function(s){ return String(s.sym || '').split('.')[0] === b || String(s.ticker || '').split('.')[0] === b; }) || null;
     }
     return mkFile('history', mkHistKeys(ex, sym, row && row.sym)).then(function(hist){
-      return {row: row, shFile: shFile, an: an, hist: hist};
+      return {row: row, shFile: shFile, an: an, hist: hist, relFile: relFile};
     });
   }).then(function(ctx){
     if(!ctx || MT_MK.sym + '|' + MT_MK.ex !== want) return;
     var anData = ctx.an && ctx.an.data, anKey = ctx.an && ctx.an.key;
     host.innerHTML =
       mkHoldersSection(sym, ex, ctx.shFile, ctx.row) +
+      mkRelationsSection(sym, ex, ctx.relFile, ctx.row) +
       mkValSection(sym, ex, anData, anKey) +
       mkHistSection(ctx.hist, sym, ex, ctx.row) +
       mkResearchSections(anData, sym);
