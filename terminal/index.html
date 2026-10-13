@@ -294,6 +294,26 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
    a reader needs to know the arrangement was actually recorded. */
 .wstabs .ws-save{padding:3px 8px;color:var(--acc);border-color:var(--mint-line)}
 .wstabs .ws-save:hover{background:var(--mint-dim);color:var(--acc);border-color:var(--acc)}
+/* ONE DROPDOWN IN PLACE OF THE ROW OF TABS. The workspaces used to be a row of
+   side-by-side tabs and the row ran out of room as workspaces accumulated. The
+   dropdown below is that row collapsed into a single control: it lists every
+   workspace by name and its selected value IS the active workspace. It is drawn
+   in the bar's own language, mint on the panel surface with the mono label, so
+   it reads as part of the strip and not as a browser widget dropped into it. */
+.wstabs .ws-select{-webkit-appearance:none;appearance:none;background-color:var(--bg3);
+  background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%237ef0c0'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center;border:1px solid var(--mint-line);
+  color:var(--acc);font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 22px 3px 9px;border-radius:2px;cursor:pointer;min-width:96px;max-width:168px;
+  text-overflow:ellipsis;white-space:nowrap;outline:none}
+.wstabs .ws-select:hover,.wstabs .ws-select:focus{border-color:var(--acc);background-color:var(--mint-dim)}
+.wstabs .ws-select option{background:var(--bg2);color:var(--acc);font-family:var(--mono);
+  font-size:11px;letter-spacing:.04em}
+/* NAME and the x carry the rename and the delete the per-workspace tab used to
+   carry, so collapsing the tabs into one control took no user state away. */
+.wstabs .ws-rename{padding:3px 7px}
+.wstabs .ws-del{padding:3px 6px;font-weight:700;font-size:12px;line-height:1.1}
+.wstabs .ws-del:hover{color:#ff5f56;background:rgba(255,95,86,.12);border-color:rgba(255,95,86,.5)}
 .wstoast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(6px);z-index:99998;
   background:var(--bg3);border:1px solid var(--mint-line);color:var(--acc);font-family:var(--mono);
   font-size:10px;letter-spacing:.12em;padding:6px 12px;border-radius:3px;opacity:0;pointer-events:none;
@@ -1968,36 +1988,67 @@ function renderTabs(){
     }
 
     // ---- workspaces ----
+    // ONE DROPDOWN IN PLACE OF THE ROW OF TABS. The workspaces used to be a row
+    // of side-by-side tabs, one per workspace, and the row ran out of room as
+    // workspaces accumulated. The select below is that row collapsed: it lists
+    // every workspace by name and its current value IS the active workspace.
+    // Choosing an entry calls switchTo(i), the SAME function the tab click
+    // called and with the same argument, so every rule the switch layer
+    // established still holds: only the active workspace's windows render, the
+    // workspace being left keeps its own panel-window set, and the incoming
+    // shell windows come back at that workspace's saved geometry.
+    // NAME and the x carry the rename and the delete the tabs carried (a tab
+    // renamed on double-click, its x removed the workspace), so nothing the
+    // reader could do before became unreachable when the tabs went away.
     function tabs(){
       const host = document.getElementById('wsTabs');
       if(!host) return;
       host.innerHTML = '';
+      const sel = document.createElement('select');
+      sel.id = 'wsSelect';
+      sel.className = 'ws-select';
+      sel.title = 'Workspaces - pick one to switch';
+      sel.setAttribute('aria-label', 'Active workspace');
+      // one option per workspace, by name, with the active one selected: the
+      // dropdown's value is the active workspace's name at all times, because
+      // every path that changes the workspace set or the active index ends in
+      // render() and render() ends here.
       spaces.forEach(function(sp, i){
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = i === active ? 'on' : '';
-        b.title = sp.name + ' - click to switch, double-click to rename';
-        b.onclick = function(){ switchTo(i); };
-        b.ondblclick = function(){
-          const name = window.prompt('Workspace name', sp.name);
-          if(name){ sp.name = name.slice(0, 18); save(); tabs(); }
-        };
-        const nm = document.createElement('span');
-        nm.className = 'ws-name';
-        nm.textContent = sp.name;
-        b.appendChild(nm);
-        // visible delete control: a \u00d7 on every workspace (kept off the last
-        // one so there is always at least one workspace to fall back to)
-        if(spaces.length > 1){
-          const x = document.createElement('span');
-          x.className = 'ws-x';
-          x.textContent = '\u00d7';
-          x.title = 'Delete workspace';
-          x.onclick = function(ev){ ev.stopPropagation(); removeSpace(i); };
-          b.appendChild(x);
-        }
-        host.appendChild(b);
+        const o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = sp.name;
+        if(i === active) o.selected = true;
+        sel.appendChild(o);
       });
+      // the switch a tab click performed, with the same argument
+      sel.onchange = function(){ switchTo(Number(sel.value) || 0); };
+      host.appendChild(sel);
+      // RENAME: the tab renamed on double-click, which a select cannot carry, so
+      // the affordance is explicit and sits beside the dropdown.
+      const rn = document.createElement('button');
+      rn.type = 'button';
+      rn.className = 'ws-rename';
+      rn.textContent = 'NAME';
+      rn.title = 'Rename this workspace';
+      rn.onclick = function(){
+        const sp = cur();
+        if(!sp) return;
+        const name = window.prompt('Workspace name', sp.name);
+        if(name){ sp.name = name.slice(0, 18); save(); tabs(); }
+      };
+      host.appendChild(rn);
+      // DELETE: the x that used to sit on each tab now removes the workspace in
+      // front of the reader, which is the one the dropdown is showing. Kept off
+      // the last workspace so there is always one to fall back to.
+      if(spaces.length > 1){
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.className = 'ws-del';
+        x.textContent = '\u00d7';
+        x.title = 'Delete this workspace';
+        x.onclick = function(){ removeSpace(active); };
+        host.appendChild(x);
+      }
       const add = document.createElement('button');
       add.type = 'button';
       add.className = 'ws-add';
@@ -2008,10 +2059,10 @@ function renderTabs(){
         switchTo(spaces.length - 1);
       };
       host.appendChild(add);
-      // SAVE: the explicit keep-this-layout control, next to the workspace tabs
-      // because it saves THE WORKSPACE. Before this there was no control and no
-      // confirmation at all, which is how a reader could not tell whether the
-      // arrangement had been recorded.
+      // SAVE: the explicit keep-this-layout control, next to the workspace
+      // dropdown because it saves THE WORKSPACE. Before this there was no
+      // control and no confirmation at all, which is how a reader could not tell
+      // whether the arrangement had been recorded.
       const sv = document.createElement('button');
       sv.type = 'button';
       sv.className = 'ws-save';
@@ -3990,6 +4041,72 @@ function mkHistKeys(ex, sym, mktSym){
   return out;
 }
 
+// ---- one compact source line per section, and the sentences that are NOT it
+// A reader of this window wants the figure, the name and where it came from.
+// The pipeline's own filing cabinet (which internal file a record sits in, the
+// record's key, how many of an exchange's securities carry one, how a series
+// was adjusted here) is documentation for whoever maintains it, not a thing to
+// put on screen, so none of that is drawn: each section carries ONE muted line
+// naming the source, and the entity rows carry the publisher and the date the
+// name was read at. Nothing that is a figure, a name or a tag is dropped with
+// it.
+//
+// a source note with the clause about the terminal's own excerpt file removed
+function mkSrcNote(s){
+  var t = String(s === null || s === undefined ? '' : s);
+  var hadDot = /\.\s*$/.test(t);
+  t = t.replace(/\s*;?\s*the sentence it was read from is kept verbatim in the cited excerpt file\.?/i, '');
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  if(hadDot && t && !/[.!?]$/.test(t)) t += '.';
+  return t;
+}
+// the first sentence of a note, so a basis line stays a line
+function mkFirstSentence(s){
+  var t = String(s === null || s === undefined ? '' : s).replace(/\s+/g, ' ').trim();
+  var m = t.match(/^.*?\.(?=\s|$)/);
+  if(m) t = m[0];
+  return t.slice(0, 300);
+}
+// the holder record's source, as a publisher or a report name: never the path
+// of a file inside the repository, which a reader of this window cannot open
+function mkHolderSource(src){
+  if(!src) return '';
+  if(typeof src === 'string') return mkFirstSentence(src);
+  if(typeof src !== 'object') return '';
+  if(src.site) return String(src.site);
+  if(src.url){
+    var host = String(src.url).replace(/^https?:\/\//i, '').split('/')[0];
+    if(host) return host;
+  }
+  if(src.note){
+    var t = mkFirstSentence(src.note);
+    if(t.length > 120) t = t.slice(0, 117).replace(/\s+\S*$/, '') + '...';
+    return t;
+  }
+  return 'issuer filing';
+}
+// who the entities under this security were read from, and the date a
+// third-party source was read: the rows themselves say which tag each name
+// carries, so no tally of the labels is drawn here
+function mkRelSourceLine(rec){
+  var hasIss = false, hasWeb = false, dates = [];
+  function scan(e){
+    if(!e || typeof e !== 'object') return;
+    if(String(e.statedBy || '').toLowerCase() === 'issuer'){ hasIss = true; return; }
+    hasWeb = true;
+    var src = (e.source && typeof e.source === 'object') ? e.source : {};
+    var d = src.retrieved || e.periodEnd;
+    if(d && dates.indexOf(String(d)) < 0) dates.push(String(d));
+  }
+  MK_REL_CATS.forEach(function(c){ (((rec || {})[c[0]]) || []).forEach(scan); });
+  (((rec || {}).disclosures) || []).forEach(scan);
+  var what = (hasIss && hasWeb) ? 'Issuer filings and third-party sources'
+           : (hasIss ? 'Issuer filings' : (hasWeb ? 'Third-party sources' : 'Issuer filings'));
+  dates.sort();
+  if(dates.length) what += ' - retrieved ' + dates[dates.length - 1];
+  return what;
+}
+
 function mkiRow(k, v, accent){
   if(v === null || v === undefined || v === '') return '';
   return '<div class="mki-row"><span class="k">' + esc(k) + '</span>' +
@@ -4027,8 +4144,6 @@ function mkHolderGroup(list, label){
   return '<div class="mki-sub mki-grp">' + esc(label) + '</div>' + rows;
 }
 function mkHoldersSection(sym, ex, shFile, mktRow){
-  var cov = (shFile && shFile.coverage) || {};
-  var covN = mkNum(cov.securitiesWithRecord), covT = mkNum(cov.securitiesListed);
   var rec = null, key = null;
   if(shFile && shFile.securities){
     var cands = mkCands(ex, sym, true);
@@ -4036,15 +4151,9 @@ function mkHoldersSection(sym, ex, shFile, mktRow){
       if(shFile.securities[cands[i]]){ rec = shFile.securities[cands[i]]; key = cands[i]; break; }
     }
   }
-  var covTxt = (covN !== null && covT !== null) ? (covN + ' of ' + covT + ' ' + ex + ' securities') : '';
   if(!rec){
-    var why = 'No shareholder information published for ' + sym + '. ' +
-      (covN !== null && covT !== null
-        ? ('static_data/shareholders_' + ex + '.json carries a holder record for ' + covN + ' of the ' + covT +
-           ' securities listed on ' + ex + '; ' + sym + ' is not one of them, and this terminal does not infer a holding.')
-        : ('No holder record on file for ' + sym + ' in the ' + ex + ' shareholder file.')) +
-      ' The line stands rather than an empty table that would read as a broken window.';
-    return mkSec('SHAREHOLDERS', esc(covTxt), '<div class="mki-out">' + esc(why) + '</div>');
+    return mkSec('SHAREHOLDERS', '',
+      '<div class="mki-out">' + esc('No shareholder information published for ' + sym + '.') + '</div>');
   }
   var body = '';
   body += mkHolderGroup(rec.substantial, 'Substantial holders (5 percent and above)');
@@ -4056,7 +4165,7 @@ function mkHoldersSection(sym, ex, shFile, mktRow){
     (rec[a] || []).forEach(function(h){ if(h && h.pct !== undefined && h.pct !== null) anyPct = true; });
   });
   if(!anyPct){
-    body += '<div class="mki-out">This source prints the holders and the shares each holds, not a percentage column, and no percentage is computed here from the share count.</div>';
+    body += '<div class="mki-out">This source prints the holders and the shares each holds, not a percentage column.</div>';
   }
   // The issued count and its basis: the holder record's own count where the
   // source printed one, otherwise the market row's count, LABELLED as such so
@@ -4069,7 +4178,7 @@ function mkHoldersSection(sym, ex, shFile, mktRow){
     if(rec.issuedBasis) body += '<div class="mki-out">' + esc(String(rec.issuedBasis)) + '</div>';
   } else if(mktRow && mkNum(mktRow.sharesIssued) !== null){
     body += '<div class="mki-row"><span class="k">ISSUED SHARES</span><span class="v">' + esc(mkShares(mktRow.sharesIssued)) + '</span></div>';
-    body += '<div class="mki-out">' + esc('market file row for ' + ex + '; the holder source prints no issued count') + '</div>';
+    body += '<div class="mki-out">' + esc('from the market file; the holder source prints no issued count') + '</div>';
   } else {
     body += '<div class="mki-out">Neither the holder record nor the market row prints an issued share count for this security.</div>';
   }
@@ -4077,23 +4186,168 @@ function mkHoldersSection(sym, ex, shFile, mktRow){
     body += '<div class="mki-row"><span class="k">FREE FLOAT</span><span class="v">' + esc(mkPct(rec.freeFloat.pct)) + '</span></div>';
     if(rec.freeFloat.basis) body += '<div class="mki-out">' + esc(String(rec.freeFloat.basis)) + '</div>';
   }
-  var srcTxt = '';
-  if(rec.source && typeof rec.source === 'object'){
-    var bits = [];
-    if(rec.source.note) bits.push(String(rec.source.note));
-    if(rec.source.file) bits.push('file ' + rec.source.file + (rec.source.page ? ' p.' + rec.source.page : '') +
-                                  (rec.source.heading ? ' "' + rec.source.heading + '"' : ''));
-    if(rec.source.url) bits.push(String(rec.source.url));
-    if(rec.source.via) bits.push(String(rec.source.via));
-    srcTxt = bits.join(' · ');
-  } else if(typeof rec.source === 'string'){ srcTxt = rec.source; }
+  var srcTxt = mkHolderSource(rec.source);
   if(rec.tableHeading) srcTxt = String(rec.tableHeading) + (srcTxt ? ' · ' + srcTxt : '');
-  if(srcTxt) body += '<div class="mki-out">SOURCE · ' + esc(srcTxt) + '</div>';
-  if(covN !== null && covT !== null){
-    body += '<div class="mki-out">' + esc(covN + ' of ' + covT + ' ' + ex + ' securities carry a holder record in static_data/shareholders_' + ex + '.json.') + '</div>';
-  }
-  var note = (rec.asOf ? 'as of ' + rec.asOf + ' · ' : '') + 'record ' + key;
+  if(srcTxt) body += '<div class="mki-out">Source: ' + esc(srcTxt) + '</div>';
+  var note = rec.asOf ? ('as of ' + rec.asOf) : '';
   return mkSec('SHAREHOLDERS', esc(note), body);
+}
+
+// ---- key statistics ------------------------------------------------------
+// The figures a reader wants beside the quote: the capitalisation, the share
+// count, the two ranges, the previous close, the fiscal year end, the listing
+// date and the instrument. Each is resolved in the order the RESEARCH view
+// resolved it - the market row first, then the shares outstanding record for a
+// count the row does not carry, the company record for the year end and the
+// listing date, the listing file for the instrument, and the price history
+// bars this window already loaded for a 52 week range the row does not carry.
+// A figure none of those holds is drawn as not on file, never as a zero and
+// never as a bare dash.
+// the share rows are keyed by the exchange's own spelling of the security: the
+// bare ticker, the archive suffix form, or the code the market row carries, so
+// every one of those is tried and the first that holds a COUNT is used. A record
+// that is present but carries no count (a structured product) is not a count.
+function mkShareKeys(ex, sym, row){
+  var out = [], seen = {};
+  function push(k){
+    k = String(k === null || k === undefined ? '' : k).trim();
+    if(!k || seen[k]) return;
+    seen[k] = 1; out.push(k);
+  }
+  [sym, row && row.ticker, row && row.sym].forEach(function(s){
+    if(!s) return;
+    mkCands(ex, s, true).forEach(push);
+    push(String(s).split('.')[0]);
+  });
+  return out;
+}
+function mkSharesOut(sh, ex, sym, row){
+  if(!sh || typeof sh !== 'object') return null;
+  var keys = mkShareKeys(ex, sym, row);
+  for(var i = 0; i < keys.length; i++){
+    var r = sh[keys[i]];
+    if(r === undefined || r === null) continue;
+    var v = (typeof r === 'object')
+      ? (r.shares !== undefined ? r.shares : (r.shares_outstanding !== undefined ? r.shares_outstanding : r.value))
+      : r;
+    var n = mkNum(v);
+    if(n !== null) return n;
+  }
+  return null;
+}
+function mkCompanyRec(ci, ex, sym){
+  if(!ci || typeof ci !== 'object') return null;
+  var keys = mkCands(ex, sym, true);
+  for(var i = 0; i < keys.length; i++){ if(ci[keys[i]]) return ci[keys[i]]; }
+  var low = String(sym || '').split('.')[0].toLowerCase();
+  return ci[ex + ':' + low] || ci[String(ex).toLowerCase() + '_' + low] || null;
+}
+function mkListingRec(lf, sym){
+  if(!lf || !Array.isArray(lf.stocks)) return null;
+  var g = String(sym || '').toUpperCase(), b = g.split('.')[0];
+  for(var i = 0; i < lf.stocks.length; i++){
+    var s = lf.stocks[i];
+    var sn = String(s.sym || '').toUpperCase(), tn = String(s.ticker || '').toUpperCase();
+    if(sn === g || tn === g || sn.split('.')[0] === b || tn.split('.')[0] === b) return s;
+  }
+  return null;
+}
+// the cap a market file prints is a formatted string on some exchanges and a
+// number on others; either way it is the figure the quote sheet already shows
+function mkCapNum(v){
+  var n = mkNum(v);
+  if(n !== null) return n;
+  var m = /^\s*(-?[0-9.]+)\s*([KMBT]?)\s*$/.exec(String(v === null || v === undefined ? '' : v));
+  if(!m) return null;
+  var x = Number(m[1]);
+  if(isNaN(x)) return null;
+  var u = m[2];
+  return x * (u === 'K' ? 1e3 : u === 'M' ? 1e6 : u === 'B' ? 1e9 : u === 'T' ? 1e12 : 1);
+}
+// The price on a row and the cap the same file prints are on one scale on NGX,
+// EGX and NSE, and 100 apart on the JSE, whose prices are quoted in cents. The
+// ratio is measured from the rows of the file that carry a cap, a price and a
+// share count, so a computed cap never inherits the wrong scale, and a file
+// whose rows do not settle the question yields no computed cap at all.
+function mkCapFactor(mkt){
+  if(!mkt || !Array.isArray(mkt.stocks)) return null;
+  var one = 0, hundred = 0, tested = 0;
+  for(var i = 0; i < mkt.stocks.length && tested < 80; i++){
+    var r = mkt.stocks[i];
+    var cap = mkCapNum(r.marketCap), p = mkNum(r.price), sh = mkNum(r.sharesIssued);
+    if(cap === null || p === null || sh === null || !p || !sh) continue;
+    var ratio = cap / (p * sh);
+    tested++;
+    if(ratio > 0.9 && ratio < 1.1) one++;
+    else if(ratio > 0.009 && ratio < 0.011) hundred++;
+  }
+  if(!tested) return null;
+  if(one / tested >= 0.8) return 1;
+  if(hundred / tested >= 0.8) return 0.01;
+  return null;
+}
+function mkRangeTxt(lo, hi){
+  var a = mkNum(lo), b = mkNum(hi);
+  if(a === null || b === null) return null;
+  return mkF2(Math.min(a, b)) + ' - ' + mkF2(Math.max(a, b));
+}
+function mkStat(k, v){
+  return '<div class="mki-row"><span class="k">' + esc(k) + '</span>' +
+         (v === null || v === undefined || v === ''
+           ? '<span class="v" style="color:var(--tx3)">not on file</span>'
+           : '<span class="v">' + esc(String(v)) + '</span>') + '</div>';
+}
+function mkStatsSection(sym, ex, mkt, row, shFile, cinfo, listing, hist){
+  var r = row || {};
+  if(!row){
+    return mkSec('KEY STATISTICS', '', '<div class="mki-out">' +
+      esc('No market record for ' + sym + ' on ' + ex + '.') + '</div>');
+  }
+  var co = mkCompanyRec(cinfo, ex, sym), ls = mkListingRec(listing, sym);
+  var shares = mkNum(r.sharesIssued), sharesFromFile = false;
+  if(shares === null){
+    var so = mkSharesOut(shFile, ex, sym, row);
+    if(so !== null){ shares = so; sharesFromFile = true; }
+  }
+  var px = mkNum(r.price);
+  var capRaw = (r.marketCap === undefined || r.marketCap === null || String(r.marketCap).trim() === '')
+             ? null : String(r.marketCap).trim();
+  var capTxt = capRaw, capComputed = false, capScale = false;
+  if(capTxt === null){
+    var cf = mkCapFactor(mkt);
+    if(cf !== null && px !== null && shares !== null){
+      capTxt = mkMoney(px * shares * cf);
+      capComputed = true;
+      capScale = (cf !== 1);
+    }
+  }
+  var r52 = mkRangeTxt(r.w52Low, r.w52High), r52FromBars = false;
+  if(r52 === null && hist && Array.isArray(hist.bars) && hist.bars.length){
+    var hs = [], lss = [];
+    hist.bars.slice(-260).forEach(function(bb){
+      if(mkNum(bb.h) !== null) hs.push(mkNum(bb.h));
+      if(mkNum(bb.l) !== null) lss.push(mkNum(bb.l));
+    });
+    if(hs.length && lss.length){
+      r52 = mkRangeTxt(Math.min.apply(null, lss), Math.max.apply(null, hs));
+      r52FromBars = (r52 !== null);
+    }
+  }
+  var body = '';
+  body += mkStat('MARKET CAP', capTxt);
+  body += mkStat('SHARES ISSUED', shares === null ? null : mkShares(shares));
+  body += mkStat('52 WEEK RANGE', r52);
+  body += mkStat('DAY RANGE', mkRangeTxt(r.low, r.high));
+  body += mkStat('PREVIOUS CLOSE', mkNum(r.prevClose) === null ? null : mkF2(r.prevClose));
+  body += mkStat('YEAR END', r.yearEnd || (co && co.year_end) || null);
+  body += mkStat('LISTED', r.ipo || (co && co.listed) || null);
+  body += mkStat('INSTRUMENT', r.instrument || (ls && ls.instrument) || null);
+  var extra = [];
+  if(r52FromBars) extra.push('52 week range from the price history bars');
+  if(sharesFromFile) extra.push('share count from the shares outstanding record');
+  if(capComputed) extra.push('market cap from price x shares' + (capScale ? ', prices quoted in cents' : ''));
+  body += '<div class="mki-out">' + esc('From the market file' + (extra.length ? ' - ' + extra.join(' - ') : '') + '.') + '</div>';
+  return mkSec('KEY STATISTICS', r.asOf ? esc('as of ' + r.asOf) : '', body);
 }
 
 // ---- customers, suppliers, competitors, partners, and disclosures --------
@@ -4156,22 +4410,22 @@ function mkRelEntity(e){
        (issuer ? 'ISSUER-STATED' : 'LEAD TO VERIFY') + '</span>' + esc(nm) + '</div>';
   if(e.role) h += '<div class="mki-e-role">' + esc(String(e.role)) + '</div>';
   // where the name was read: the site or domain and the date it was retrieved
-  // for a web source, the filing and its page for an issuer document
+  // for a web source, the issuer and the fiscal year for an issuer document.
+  // The repository path a record sits at is not drawn: a reader of this window
+  // cannot open it, and it says nothing about the company.
   var bits = [];
   if(issuer){
     bits.push('From the issuer');
-    if(src.file) bits.push(String(src.file) + (src.page ? ' p.' + src.page : ''));
     if(e.fiscalYear) bits.push('fiscal year ' + e.fiscalYear);
   } else {
     bits.push('Third-party source ' + (src.site ? String(src.site) : String(e.statedBy || '')));
     if(src.retrieved) bits.push('retrieved ' + src.retrieved);
-    if(src.file) bits.push(String(src.file) + (src.page ? ' p.' + src.page : ''));
   }
   h += '<div class="mki-e-src">' + esc(bits.join(' · ')) + '</div>';
   if(e.quote) h += '<div class="mki-e-quote">' + esc('"' + String(e.quote) + '"') + '</div>';
   var ev = '';
   if(src.url) ev += '<div class="mki-e-src">' + esc(String(src.url)) + '</div>';
-  if(e.note) ev += '<div class="mki-e-src">' + esc(String(e.note)) + '</div>';
+  if(e.note) ev += '<div class="mki-e-src">' + esc(mkSrcNote(e.note)) + '</div>';
   if(ev) h += '<details><summary>SOURCE DETAIL</summary>' + ev + '</details>';
   h += '</div>';
   return h;
@@ -4183,22 +4437,13 @@ function mkRelCatBlock(rec, file, cat, label, ex, sym){
     list.forEach(function(e){ h += mkRelEntity(e); });
     return h;
   }
-  // An empty category is drawn as empty, and says WHICH empty it is: no entity
-  // on file for this security while the exchange has some, or the category is
-  // published for no security on this exchange. A blank standing for absent data
-  // is exactly the defect this line exists to stop.
+  // An empty category is drawn as empty in one short sentence, so a blank never
+  // stands for absent data. How many other securities on the exchange carry such
+  // an entry, and how much of the exchange the file covers at all, is a fact
+  // about the pipeline rather than about this company, so it is not drawn.
   var disc = (rec && Array.isArray(rec.disclosures)) ? rec.disclosures : [];
   var sameDisc = disc.filter(function(d){ return d && String(d.category || '') === cat; });
-  h += '<div class="mki-out">';
-  var others = mkRelCount(file, cat);
-  if(others > 0){
-    h += esc('No ' + cat + ' on file for ' + sym + '. ' + others + ' other ' + (others === 1 ? 'security' : 'securities') +
-             ' on ' + ex + ' ' + (others === 1 ? 'does' : 'do') + ' carry a sourced ' + cat + ' entry in static_data/relationships_' + ex +
-             '.json; this record carries none, and none is inferred from a sector label.');
-  } else {
-    h += esc('No ' + cat + ' on file for ' + sym + ': ' + cat + ' are not published for any security on ' + ex +
-             ' in static_data/relationships_' + ex + '.json. That is the exchange\'s coverage, not a missing record for this security.');
-  }
+  h += '<div class="mki-out">' + esc('No ' + cat + ' on file for ' + sym + '.');
   if(sameDisc.length){
     h += esc(' This record carries a disclosure statement on ' + cat + ' instead: see DISCLOSURES below.');
   }
@@ -4208,65 +4453,41 @@ function mkRelCatBlock(rec, file, cat, label, ex, sym){
 function mkRelationsSection(sym, ex, relFile, mktRow){
   var TITLE = 'CUSTOMERS, SUPPLIERS, COMPETITORS, PARTNERS';
   if(!relFile || !relFile.securities){
-    return mkSec(TITLE, esc(ex + ' file not on file'),
-      '<div class="mki-out">' + esc('static_data/relationships_' + ex +
-      '.json is not on file, so no customer, supplier, competitor or partner record is shown for ' + sym +
-      ' rather than an invented one.') + '</div>');
+    return mkSec(TITLE, '',
+      '<div class="mki-out">' + esc('No customer, supplier, competitor or partner record on file for ' + sym + '.') + '</div>');
   }
-  var cov = relFile.coverage || {};
-  var covN = mkNum(cov.securitiesWithSourcedEntity), covT = mkNum(cov.securitiesListed);
   var rec = null, key = null, keys = mkRelKeys(ex, sym, mktRow);
   for(var i = 0; i < keys.length; i++){
     if(relFile.securities[keys[i]]){ rec = relFile.securities[keys[i]]; key = keys[i]; break; }
   }
-  var covTxt = (covN !== null && covT !== null) ? (covN + ' of ' + covT + ' ' + ex + ' securities') : '';
   if(!rec){
-    var why = 'No customer, supplier, competitor or partner record on file for ' + sym + '. ' +
-      (covN !== null && covT !== null
-        ? ('static_data/relationships_' + ex + '.json carries a sourced entity for ' + covN + ' of the ' + covT +
-           ' securities listed on ' + ex + '; ' + sym + ' is not one of them, and nothing is inferred from its sector. ' +
-           'The line stands rather than an empty block that would read as data the terminal simply did not print.')
-        : ('No relationship record on file for ' + sym + ' in the ' + ex + ' relationship file.'));
-    return mkSec(TITLE, esc(covTxt), '<div class="mki-out">' + esc(why) + '</div>');
+    return mkSec(TITLE, '',
+      '<div class="mki-out">' + esc('No customer, supplier, competitor or partner record on file for ' + sym + '.') + '</div>');
   }
-  // counts the labels the reader is about to see, so the section states them too
-  var nIss = 0, nLead = 0;
-  MK_REL_CATS.forEach(function(c){
-    (rec[c[0]] || []).forEach(function(e){
-      if(String(e && e.statedBy || '').toLowerCase() === 'issuer') nIss++; else nLead++;
-    });
-  });
-  var body = '<div class="mki-out">' + esc('Labels: ISSUER-STATED means the relationship is stated in the issuer\'s own ' +
-    'document. LEAD TO VERIFY means a third-party source names it (the site and the date it was read are shown); it is a ' +
-    'lead, not a confirmed relationship and not the issuer\'s claim.') + '</div>';
+  // No legend for the tags and no tally of them: every entity row carries its
+  // own ISSUER-STATED or LEAD TO VERIFY tag, so a sentence explaining the tags
+  // and a count of them restates what the reader is already looking at.
+  var body = '';
   MK_REL_CATS.forEach(function(c){ body += mkRelCatBlock(rec, relFile, c[0], c[1], ex, sym); });
   var disc = Array.isArray(rec.disclosures) ? rec.disclosures : [];
   if(disc.length){
     body += '<div class="mki-sub mki-grp">DISCLOSURES</div>';
-    body += '<div class="mki-out">' + esc('Statements in the issuer\'s document about these categories that name no ' +
-      'entity. Kept apart from the four categories above and never counted as one of them.') + '</div>';
+    body += '<div class="mki-out">' + esc('Statements in the issuer\'s document that name no entity.') + '</div>';
     disc.forEach(function(d){
       if(!d || typeof d !== 'object') return;
       var src = (d.source && typeof d.source === 'object') ? d.source : {};
       var bits = ['From the issuer'];
-      if(src.file) bits.push(String(src.file) + (src.page ? ' p.' + src.page : ''));
       if(d.fiscalYear) bits.push('fiscal year ' + d.fiscalYear);
       body += '<div class="mki-e iss"><div class="mki-e-name">' +
         '<span class="mki-e-tag iss">DISCLOSURE</span>' + esc(String(d.category || '') + ': no entity named') + '</div>';
       if(d.quote) body += '<div class="mki-e-quote">' + esc('"' + String(d.quote) + '"') + '</div>';
       body += '<div class="mki-e-src">' + esc(bits.join(' · ')) + '</div>';
-      if(d.note) body += '<div class="mki-e-role">' + esc(String(d.note)) + '</div>';
+      if(d.note) body += '<div class="mki-e-role">' + esc(mkSrcNote(d.note)) + '</div>';
       body += '</div>';
     });
   }
-  var tail = 'Source: static_data/relationships_' + ex + '.json, record ' + key +
-    '. Each entity carries the sentence it was read from and the source it was read at. ' +
-    'Nothing here is inferred from a sector label and no peer set is generated.';
-  if(nIss || nLead){
-    tail = nIss + ' issuer-stated, ' + nLead + ' lead to verify on file for ' + sym + '. ' + tail;
-  }
-  body += '<div class="mki-out">' + esc(tail) + '</div>';
-  return mkSec(TITLE, esc(covTxt), body);
+  body += '<div class="mki-out">' + esc(mkRelSourceLine(rec)) + '</div>';
+  return mkSec(TITLE, '', body);
 }
 
 // ---- valuation -----------------------------------------------------------
@@ -4291,14 +4512,12 @@ function mkInputs(o){
 function mkValSection(sym, ex, anData, anKey){
   if(!anData){
     return mkSec('VALUATION', '',
-      '<div class="mki-out">' + esc('No analytics file on file for ' + sym + ' (static_data/analytics/' +
-      mkCands(ex, sym, false).join('.json or ') + '.json). The multiples are left out rather than estimated.') + '</div>');
+      '<div class="mki-out">' + esc('No analytics file on file for ' + sym + '.') + '</div>');
   }
   var v = anData.valuation || {};
   var h = '';
   var head = v.valBasis || anData.period || '';
-  var sub = [v.basis ? String(v.basis) : '', v.ratiosPeriod ? ('ratios period ' + v.ratiosPeriod) : '',
-             anKey ? (anKey + '.json') : ''].filter(Boolean).join(' · ');
+  var sub = [v.basis ? String(v.basis) : '', v.ratiosPeriod ? ('ratios period ' + v.ratiosPeriod) : ''].filter(Boolean).join(' · ');
   if(sub) h += '<div class="mki-sub">' + esc(sub) + '</div>';
   MK_METRICS.forEach(function(m){
     var key = m[0], label = m[1], unit = m[2];
@@ -4357,7 +4576,7 @@ function mkChart(box, bars){
   });
   MT_MK.drawn = mapped.length;
   if(!mapped.length){
-    box.innerHTML = '<div class="mki-out">No complete bar on file for this security, so no chart is drawn rather than a flat line that would imply the price never moved.</div>';
+    box.innerHTML = '<div class="mki-out">No complete bar on file for this security.</div>';
     return false;
   }
   var LC = window.LightweightCharts;
@@ -4404,9 +4623,7 @@ function mkChart(box, bars){
 function mkHistSection(hist, sym, ex, mktRow){
   if(!hist || !hist.data || !Array.isArray(hist.data.bars) || !hist.data.bars.length){
     return mkSec('PRICE HISTORY', '',
-      '<div class="mki-out">' + esc('No price history file for ' + sym + ' on ' + ex + ' (looked for static_data/history/' +
-      mkHistKeys(ex, sym, mktRow && mktRow.sym).join('.json, ') +
-      '.json), so no chart is drawn rather than a flat line that would imply prices did not move.') + '</div>');
+      '<div class="mki-out">' + esc('No price history file for ' + sym + '.') + '</div>');
   }
   var all = hist.data.bars;
   var shown = all.slice(-Math.min(all.length, MK_DRAW_BARS));
@@ -4416,12 +4633,16 @@ function mkHistSection(hist, sym, ex, mktRow){
   MT_MK.fileBars = all.length;
   MT_MK.drawn = complete.length;
   var a = shown[0], b = shown[shown.length - 1];
-  var note = hist.key + '.json · ' + all.length.toLocaleString('en-US') + ' bars in the file, ' +
+  var note = all.length.toLocaleString('en-US') + ' bars in the file, ' +
              complete.length.toLocaleString('en-US') + ' drawn';
   var body = '<div class="mki-chart" id="mkChartBox"></div>';
   body += '<div class="mki-out">' + esc(String(a.t).slice(0, 10) + ' to ' + String(b.t).slice(0, 10)) + '</div>';
-  var basisTxt = hist.data.basis_note ? String(hist.data.basis_note) : (hist.data.basis ? ('basis ' + hist.data.basis) : '');
-  if(basisTxt) body += '<div class="mki-out">' + esc(basisTxt.slice(0, 300)) + '</div>';
+  // The basis of the bars, in its first sentence: what the past bars are
+  // adjusted for. The rest of the note compares this chart with another
+  // vendor's default, which is a convention of the pipeline, not the company.
+  var basisTxt = hist.data.basis_note ? mkFirstSentence(hist.data.basis_note)
+                : (hist.data.basis ? ('basis ' + hist.data.basis) : '');
+  if(basisTxt) body += '<div class="mki-out">' + esc(basisTxt) + '</div>';
   return mkSec('PRICE HISTORY', esc(note), body);
 }
 
@@ -4430,7 +4651,7 @@ function mkResearchSections(an, sym){
   var out = '';
   if(!an){
     out += mkSec('GROWTH', '', '<div class="mki-out">' +
-      esc('No analytics file for ' + sym + ', so growth, quality, ratios and audit flags are left out rather than estimated.') + '</div>');
+      esc('No analytics file for ' + sym + '.') + '</div>');
     return out;
   }
   var gr = an.growth || {};
@@ -4512,22 +4733,32 @@ function mkRailRender(){
     mkGet('static_data/market_' + ex + '.json').catch(function(){ return null; }),
     mkGet('static_data/shareholders_' + ex + '.json').catch(function(){ return null; }),
     mkFile('analytics', mkCands(ex, sym, false)),
-    mkGet('static_data/relationships_' + ex + '.json').catch(function(){ return null; })
+    mkGet('static_data/relationships_' + ex + '.json').catch(function(){ return null; }),
+    // the key statistics card resolves a share count, a year end, a listing
+    // date and an instrument the market row may not carry, so those records are
+    // loaded with the rest and no second pass is made for them
+    mkGet('static_data/shares_outstanding.json').catch(function(){ return null; }),
+    mkGet('static_data/company_info.json').catch(function(){ return null; }),
+    mkGet('static_data/listing_' + ex + '.json').catch(function(){ return null; })
   ]).then(function(res){
     if(MT_MK.sym + '|' + MT_MK.ex !== want) return null;
     var mkt = res[0], shFile = res[1], an = res[2], relFile = res[3];
+    var sharesFile = res[4], cinfo = res[5], listingFile = res[6];
     var row = null, b = sym.split('.')[0];
     if(mkt && Array.isArray(mkt.stocks)){
       row = mkt.stocks.find(function(s){ return String(s.sym || '') === sym || String(s.ticker || '') === sym; }) ||
             mkt.stocks.find(function(s){ return String(s.sym || '').split('.')[0] === b || String(s.ticker || '').split('.')[0] === b; }) || null;
     }
     return mkFile('history', mkHistKeys(ex, sym, row && row.sym)).then(function(hist){
-      return {row: row, shFile: shFile, an: an, hist: hist, relFile: relFile};
+      return {mkt: mkt, row: row, shFile: shFile, an: an, hist: hist, relFile: relFile,
+              sharesFile: sharesFile, cinfo: cinfo, listingFile: listingFile};
     });
   }).then(function(ctx){
     if(!ctx || MT_MK.sym + '|' + MT_MK.ex !== want) return;
     var anData = ctx.an && ctx.an.data, anKey = ctx.an && ctx.an.key;
     host.innerHTML =
+      mkStatsSection(sym, ex, ctx.mkt, ctx.row, ctx.sharesFile, ctx.cinfo, ctx.listingFile,
+                     ctx.hist && ctx.hist.data) +
       mkHoldersSection(sym, ex, ctx.shFile, ctx.row) +
       mkRelationsSection(sym, ex, ctx.relFile, ctx.row) +
       mkValSection(sym, ex, anData, anKey) +
