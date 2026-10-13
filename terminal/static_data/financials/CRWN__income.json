@@ -336,30 +336,32 @@
    "label": "Operating Expenses",
    "values": [
     null,
-    -5479371000,
-    -4702580000,
+    5479371000,
+    4702580000,
     null,
     null
-   ]
+   ],
+   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity Gross Profit - Operating Expenses = Operating Profit (EBIT), and the column ties with it positive"
   },
   {
    "label": "Operating Profit (EBIT)",
    "values": [
     null,
     1307939000.0,
-    null,
+    558493000.0,
     null,
     null
    ],
-   "derived": true,
    "derived_from": "Profit Before Tax plus net finance costs",
    "derivedFrom": "Gross Profit 6,787,310 less Operating Expenses 5,479,371 per the 2025 annual report",
    "derivedCells": [
-    1
+    2
    ],
    "source": "gap fill 2026-10-13: Gross Profit 6,787,310 less Operating Expenses 5,479,371 per the 2025 annual report",
    "source_url": "https://www.crownpaints.co.ke/public/storage/page-uploads/reports/hy2026-unaudited-results-press-release.pdf",
-   "gapFilled": "2026-10-13"
+   "gapFilled": "2026-10-13",
+   "derivedCellFormula": "Operating Profit (EBIT) = Gross Profit - Operating Expenses, applied only to a file whose own filed EBIT periods all agree with it",
+   "identityAgreement": "3869 agree / 392 contradict globally, self-checked inside this file"
   },
   {
    "label": "Net Finance Costs",
@@ -387,13 +389,14 @@
    "label": "Operating Margin (%)",
    "values": [
     null,
-    10.066661272874171,
-    null,
+    8.18,
+    4.15,
     null,
     null
    ],
    "derived": true,
-   "derived_from": "Operating Profit (EBIT) / Revenue"
+   "derived_from": "Operating Profit (EBIT) / Revenue",
+   "derivedFrom": "Operating Profit (EBIT) / Revenue x 100"
   },
   {
    "label": "Cost of Sales",
@@ -419,7 +422,9 @@
  "grouped": true,
  "reconciliation_note": "Net Profit (computed) matches the source's period total on every period",
  "derivation": {
-  "ratios": "derive_ratios.py"
+  "ratios": "derive_ratios.py",
+  "ebitBy": "derive_statement_rows.py",
+  "ebitNote": "EBIT periods tagged derived are arithmetic on this security's own gross profit and operating expenses"
  },
  "pdf_fill": {
   "Profit Before Tax": "issuer filing, NSE announcements library",
