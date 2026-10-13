@@ -617,13 +617,13 @@ window.mtSectorColour = function(sec){
     more.hidden = true; more.innerHTML = ""; notes.innerHTML = "";
 
     if (book.err === "unreadable"){
-      top.innerHTML = '<div class="warn">This browser blocks local storage, so the paper book cannot be read.</div>';
+      top.innerHTML = '<div class="warn">This browser blocks local storage, so the paper book cannot be read. No figure is shown rather than a guessed one.</div>';
       who.textContent = ""; return;
     }
     if (!book.positions || !book.positions.length){
       var cashLine = (book.cash !== null && book.cash !== undefined)
-        ? 'This book holds ' + money(book.cash, "") + ' in cash and no open positions.'
-        : 'This book holds no open positions.';
+        ? 'This book holds ' + money(book.cash, "") + ' in cash and no open positions, so there is nothing to allocate or value yet.'
+        : 'This book holds no open positions, so there is nothing to allocate or value yet.';
       top.innerHTML =
         '<div class="sec"><div class="sec-h"><span class="sec-t">PORTFOLIO</span><span class="sec-s"></span></div>' +
         '<div class="empty">No paper positions in this browser.<br>' + esc(cashLine) + '<br><br>' +
@@ -691,7 +691,7 @@ window.mtSectorColour = function(sec){
       '<span class="date">' + (dateTxt ? 'as of ' + esc(dateTxt) : 'as of last close') + '</span></div>' +
       '<div class="big ' + cls(tPL) + '">' + signed(tPL, uni) + ' ' + heroArrow(heroUp) + '</div>' +
       '<div class="sub">Total unrealised profit and loss across ' + priced + ' priced position' + (priced === 1 ? '' : 's') +
-        ' at the last close' + (tPLpc !== null ? ', ' + pct(tPLpc) + ' on cost' : '') + '.</div>' +
+        ' at the last close in the exchange files' + (tPLpc !== null ? ', ' + pct(tPLpc) + ' on cost' : '') + '.</div>' +
       '<div class="ft"><span class="acct"><span class="dot">' + mark() + '</span><span class="nm">' + esc(handle()) + '</span></span>' +
       '<span class="dom">mutxriterminal.com</span></div>' +
       '</div>';
@@ -718,7 +718,7 @@ window.mtSectorColour = function(sec){
     var secItems = sectNames.map(function(k){
       return { label:k, value:bySec[k], colour:sectorColour(k, sectIdx[k]), txt:money(bySec[k], uni) };
     }).sort(function(a, b){ return b.value - a.value; });
-    det += ringSection("ALLOCATION BY SECTOR", secItems.length + " sectors, gross exposure",
+    det += ringSection("ALLOCATION BY SECTOR", secItems.length + " sectors, gross exposure, shorts included",
                        secItems, "SECTORS", uni);
 
     // exchange breakdown
@@ -753,12 +753,12 @@ window.mtSectorColour = function(sec){
     det += '<div class="sec"><div class="sec-h"><span class="sec-t">PROFIT AND LOSS BY POSITION</span>' +
       '<span class="sec-s">against average cost, at last close</span></div>';
     det += plItems.length ? plRows(plItems, uni)
-      : '<span class="ax">No position can be priced against a cost.</span>';
+      : '<span class="ax">No position can be priced against a cost, so no profit is claimed.</span>';
     det += '</div>';
 
     // per-position table
     det += '<div class="sec"><div class="sec-h"><span class="sec-t">POSITIONS</span><span class="sec-s">' +
-      rows.length + ' held</span></div><div class="ptab">' +
+      rows.length + ' held &middot; colour is sector</span></div><div class="ptab">' +
       '<div class="prow head"><span class="sw"></span><span class="id">POSITION</span>' +
       '<span class="q">QTY</span><span class="v">VALUE</span><span class="p">P&amp;L</span></div>';
     rows.slice().sort(function(a, b){ return Math.abs((b.value || 0)) - Math.abs((a.value || 0)); }).forEach(function(r){
@@ -780,18 +780,22 @@ window.mtSectorColour = function(sec){
     // excluded / not claimed, named with reasons
     if (unpriced.length){
       det += '<div class="note excl">Excluded from the ring and the totals: <b>' + unpriced.length + '</b> position' +
-        (unpriced.length === 1 ? '' : 's') + ' with no current price: ' +
-        unpriced.map(esc).join(", ") + '.</div>';
+        (unpriced.length === 1 ? '' : 's') + ' with no current price in the exchange files, so they cannot be valued: ' +
+        unpriced.map(esc).join(", ") + '. An unpriced holding is not worth zero, so it is named here rather than drawn.</div>';
     }
     if (noCost.length){
       det += '<div class="note excl">Valued in the ring but kept out of the profit and loss total: <b>' + noCost.length +
-        '</b> position' + (noCost.length === 1 ? '' : 's') + ' with no cost basis: ' +
+        '</b> position' + (noCost.length === 1 ? '' : 's') + ' with no cost basis, so no profit can be measured: ' +
         noCost.map(esc).join(", ") + '.</div>';
     }
+    if (!unpriced.length && !noCost.length){
+      det += '<div class="note">Every held position is priced and carries a cost basis, so none is excluded: ' +
+        rows.length + ' of ' + rows.length + ' positions are in the ring and the totals.</div>';
+    }
 
-    // the only note on the book itself: when it spans majors the money figures
-    // are not additive, and the currency label is deliberately blank in that case
-    var limits = '';
+    // honest limits
+    var limits = '<div class="note">Ring segments are sized on gross exposure (the sum of absolute values), so the shares sum to 100 percent of the ' +
+      'gross book and a short contributes like a long; the signed profit and loss is shown separately.</div>';
     if (mixed) limits += '<div class="note">More than one currency in this book (positions in ' + exNames.join(", ") +
       '); the money figures are not converted.</div>';
     det += limits;
@@ -811,7 +815,8 @@ window.mtSectorColour = function(sec){
     if (wraps[1]) wireRing(wraps[1], exItems, "", "EXCHANGE", money(ringTotal(exItems), ""));
 
     who.innerHTML = "Paper account, " + rows.length + " position" + (rows.length === 1 ? "" : "s") +
-      " across " + (exNames.length || 0) + " exchange" + (exNames.length === 1 ? "" : "s");
+      " across " + (exNames.length || 0) + " exchange" + (exNames.length === 1 ? "" : "s") +
+      " &middot; read from this browser only";
 
     // ---- value curve + risk need the price history; appended when it arrives ----
     var wanted = rows.filter(function(r){ return r.rec && r.qty; });
@@ -860,11 +865,12 @@ window.mtSectorColour = function(sec){
       if (curve.length > 1){
         extra += '<div class="sec"><div class="sec-h"><span class="sec-t">BOOK VALUE OVER TIME</span>' +
           '<span class="sec-s">quantity held today, priced at each historic close</span></div>' +
+          '<div class="note">Held quantity applied to each day\'s close from the exchange files, so today\'s holdings are measured through history rather than a trade-by-trade track record this book does not store.</div>' +
           lineChart({ points:curve, label:"Book value over time" }) +
           '</div>';
       } else {
         extra += '<div class="sec"><div class="sec-h"><span class="sec-t">BOOK VALUE OVER TIME</span></div>' +
-          '<span class="ax">Not enough price history to draw a curve.</span></div>';
+          '<span class="ax">Not enough price history to draw a curve. The gap is shown rather than filled.</span></div>';
       }
 
       var rk = Object.keys(risk);
@@ -886,7 +892,7 @@ window.mtSectorColour = function(sec){
     loadMarkets().then(function(markets){ render(book, markets); })
       .catch(function(){
         document.getElementById("pfTop").innerHTML =
-          '<div class="warn">The exchange files could not be loaded, so positions cannot be priced.</div>';
+          '<div class="warn">The exchange files could not be loaded, so positions cannot be priced. Nothing is shown rather than an invented value.</div>';
       });
     // AUTO-REVALUE (2026-09-28): re-run this panel's own cycle on a timer, so the
     // portfolio follows published prices without a manual reload. go() re-reads the book

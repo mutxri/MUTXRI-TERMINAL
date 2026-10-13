@@ -123,6 +123,7 @@
   </div>
 
   <div class="count" id="count"></div>
+  <div class="note" id="note"></div>
   <div id="items"><div class="empty">loading…</div></div>
   <button class="more" id="more" style="display:none">SHOW MORE</button>
 </div>
@@ -136,7 +137,8 @@
       countEl = document.getElementById("count"),
       moreEl = document.getElementById("more"),
       suggEl = document.getElementById("sugg"),
-      actEl = document.getElementById("active");
+      actEl = document.getElementById("active"),
+      noteEl = document.getElementById("note");
   var ALL = [];
   var PAGE = 150;
 
@@ -155,7 +157,8 @@
     NSE: { ann:"../../static_data/nse_announcements.json",
            cal:"../../static_data/nse_corporate_actions.json",
            calsrc:"nse.co.ke",
-           src:"nse.co.ke \u00b7 audited results \u00b7 AGM \u00b7 dividends", dict:false },
+           src:"nse.co.ke \u00b7 audited results \u00b7 AGM \u00b7 dividends", dict:false,
+           note:"Date shown is the FILING YEAR" },
     NGX: { ann:"../../static_data/ngx_filings.json",
            cal:"../../static_data/ngx_corporate_actions.json",
            calsrc:"ngxgroup.com",
@@ -785,6 +788,8 @@
                    return a.i - b.i;
                  })
                  .map(function(x){ return x.o; });
+        var noteEl = document.getElementById("note");
+        if (noteEl) noteEl.textContent = CFG.note || "";
         yrEl.options[0].textContent = (EX === "NSE") ? "ALL FILING YEARS" : "ALL DATES";
         // build the year selector from the data itself
         var years = [];

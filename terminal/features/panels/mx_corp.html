@@ -296,21 +296,29 @@
       });
       h += "</tbody></table>";
     } else if(disc){
-      h += '<div class="rel-none"><b>No entity named</b>. The issuer states: ' +
+      h += '<div class="rel-none"><b>No entity named</b> in the documents read. The issuer states: ' +
         '<div class="rel-q" style="margin-top:5px">&ldquo;' + esc(disc.quote) + '&rdquo;</div>' +
         '<div style="margin-top:5px">' + srcHtml(disc.source) +
         (disc.fiscalYear ? ' <span class="rel-q">FY' + esc(disc.fiscalYear) + "</span>" : "") + "</div>" +
         (disc.note ? '<div style="margin-top:5px">' + esc(disc.note) + "</div>" : "") + "</div>";
     } else {
-      h += '<div class="rel-none">Not disclosed.</div>';
+      h += '<div class="rel-none">Not disclosed in the sources read. ' +
+        "No document held for this security names a " + esc(title.toLowerCase().replace(/s$/,"")) +
+        ", and nothing is shown rather than a generated one.</div>";
     }
     return h + "</div>";
   }
 
   function holdersBlock(shFile, shRec){
-    var h = '<div class="rel-cat"><h3>Top holders</h3>';
+    var h = '<div class="rel-cat"><h3>Top holders' +
+      '<span class="n">read from shareholders_' + esc(EX) + ".json</span></h3>";
     if(!shRec){
-      h += '<div class="rel-none"><b>No shareholder information published</b> for this security.</div></div>';
+      var cov = (shFile && shFile.coverage) || {};
+      h += '<div class="rel-none"><b>No shareholder information published</b> for this security in the ' +
+        "terminal's sources. Coverage on " + esc(LABEL[EX] || EX) + ": <b>" +
+        (cov.securitiesWithRecord || 0) + "</b> of <b>" + (cov.securitiesListed || 0) +
+        "</b> listed securities carry a sourced shareholding record; <b>" +
+        (cov.noShareholderInformationPublished || 0) + "</b> do not.</div></div>";
       return h;
     }
     var rows = []
@@ -335,7 +343,7 @@
     if(shRec.asOf) m.push("as of " + esc(shRec.asOf));
     if(shRec.source) m.push(esc(shRec.source.file ? (shRec.source.file + (shRec.source.page ? " p." + shRec.source.page : "")) : (shRec.source.url || "-")));
     if(m.length) h += '<div class="rel-none" style="padding:8px 12px;font-size:9.5px">' + m.join(" &nbsp;&middot;&nbsp; ") + "</div>";
-    if(!any) h += '<div class="rel-none">No holder table published for this security.</div>';
+    if(!any) h += '<div class="rel-none">A record exists for this security but the source printed no holder table.</div>';
     return h + "</div>";
   }
 
@@ -353,9 +361,18 @@
       "<span>Relationship records on this exchange</span><span class=\"v\">" +
         (cov.securitiesWithSourcedEntity || 0) + " of " + (cov.securitiesListed || 0) +
         " listed carry a sourced entity</span>" +
+      "<span>Documented from</span><span class=\"v\">" + (cov.documentsRead || 0) + " filings read</span>" +
       "</div>";
 
     var h = head;
+    if(rec && rec.documents && rec.documents.length){
+      h += '<div class="rel-note">Documents read for this security: ' +
+        rec.documents.map(function(d){
+          return esc(d.file) + " p." + esc(d.page) + " (" + esc(d.kind || "filing") +
+            (d.periodEnd ? ", period to " + esc(d.periodEnd) : "") +
+            (d.basis ? ' <span style="color:var(--tx2)">[document reads: ' + esc(d.basis) + "]</span>" : "") + ")";
+        }).join("<br>") + "</div>";
+    }
     CATS.forEach(function(c){ h += catBlock(relFile, rec, c[0], c[1]); });
     h += holdersBlock(shFile, shRec);
 
@@ -363,7 +380,8 @@
   }
 
   function fail(msg){
-    $("relBody").innerHTML = '<div class="rel-none">' + esc(msg) + "</div>";
+    $("relBody").innerHTML = '<div class="rel-none">' + esc(msg) +
+      " Nothing is shown rather than a fabricated relationship.</div>";
   }
 
   function load(){
@@ -379,7 +397,7 @@
       if(!res[0] && !res[1]){ fail("No relationship or shareholder file for " + (LABEL[EX] || EX) + "."); return; }
       render(res[0], res[1]);
     }).catch(function(e){
-      fail("Could not read the relationship file for " + (LABEL[EX] || EX) + ".");
+      fail("Could not read the relationship file for " + (LABEL[EX] || EX) + ": " + e.message);
     });
   }
 

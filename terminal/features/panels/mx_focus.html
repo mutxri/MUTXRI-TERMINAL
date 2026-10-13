@@ -256,7 +256,11 @@
         var age = daysBetween(asDate(last.t), {ms: todayUTC()});
         why += "<div class='fx-bar'>LAST PUBLISHED BAR <b>" + esc(last.t) + "</b>" +
           (last.c != null ? " close " + esc(fmtPx(last.c)) + (row && row.currency ? " " + esc(row.currency) : "") : "") +
-          (age != null ? " &middot; " + age + " days old" : "") + "</div>";
+          (age != null ? " &middot; " + age + " days old" : "") +
+          " &middot; a historical bar, not the current price.</div>";
+      } else {
+        why += "<div class='fx-bar'>The price history holds no bars for this security either, so there is " +
+          "no last close to date.</div>";
       }
     }
     parts.push("<div class='fx-why'>" + why + "</div>");
@@ -264,7 +268,8 @@
     renderGrid(row, null, null, null, null, withheld);
     $("fxFoot").innerHTML = "<b>" + tickerOf(row, sym) + " " + esc(EX) + "</b> &middot; " +
       (row && row.asOf ? "as of " + esc(row.asOf) : "as-of not stated") +
-      " &middot; " + (withheld ? "price withheld, " : "") + "no current quote";
+      " &middot; " + (withheld ? "price withheld, " : "") + "no current quote" +
+      " &middot; no change is shown without a dated current price";
   }
   function renderAbsent(sym, board, hist){
     var last = lastBar(hist);
@@ -278,7 +283,8 @@
       var age = daysBetween(asDate(last.t), {ms: todayUTC()});
       why += "<div class='fx-bar'>LAST PUBLISHED BAR <b>" + esc(last.t) + "</b>" +
         (last.c != null ? " close " + esc(fmtPx(last.c)) : "") +
-        (age != null ? " &middot; " + age + " days old" : "") + "</div>";
+        (age != null ? " &middot; " + age + " days old" : "") +
+        " &middot; history is not a quote.</div>";
     }
     parts.push("<div class='fx-why'>" + why + "</div>");
     $("fxBody").innerHTML = parts.join("");
@@ -372,10 +378,10 @@
         foot.push("<span class='warn'>" + behindToday + " days before today</span>");
       }
     } else {
-      foot.push("<span class='warn'>as-of date not stated</span>");
+      foot.push("<span class='warn'>as-of date not stated, so it is not treated as current</span>");
     }
     if(agree === false && px != null && prev != null){
-      foot.push("<span class='warn'>level change not stated</span>");
+      foot.push("<span class='warn'>chgPct disagrees with price - prevClose, so no level change is shown</span>");
     }
     var lb = lastBar(hist);
     if(lb && lb.t && asOf){
@@ -386,6 +392,7 @@
         foot.push("history ends <b>" + esc(lb.t) + "</b>");
       }
     }
+    foot.push("no interpolated or carried-over values");
     $("fxFoot").innerHTML = foot.join(" &middot; ");
   }
 

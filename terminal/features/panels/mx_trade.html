@@ -482,10 +482,6 @@
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
     return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
-  // Short forms for a source line: the file's own attribution, cut to one
-  // sentence, so a package name never arrives with a paragraph attached.
-  function firstSentence(s){ s = String(s == null ? "" : s); var i = s.indexOf(". "); return (i < 0 ? s : s.slice(0, i)).trim(); }
-  function firstClause(s){ s = String(s == null ? "" : s); var i = s.indexOf(":"); return (i < 0 ? s : s.slice(0, i)).trim(); }
   function fmt(n, dp){
     if(n === null || n === undefined || isNaN(n)) return "-";
     dp = dp === undefined ? 2 : dp;
@@ -1131,19 +1127,22 @@
 
     if(!BOOK){
       host.innerHTML = "<div class='none'><b class='hd'>NO ORDER BOOK DATA ON THIS SITE YET</b>" +
-        "No order book data is published for " + esc(EX) + ".</div>";
+        esc(BOOK_ERR || ("static_data/book_" + EX + ".json is not on the site")) +
+        ". Nothing is drawn for it: a book is shown only where a source published one.</div>";
     } else if(BOOK.published === false){
       host.innerHTML = noBookState(sym);
     } else {
       var rec = sym ? bookRec(sym) : null;
       if(!sym){
         host.innerHTML = "<div class='none'><b class='hd'>" + esc(EX) + " ORDER BOOK</b>" +
-          "Choose a ticker.</div>";
+          "Choose a ticker." + (BOOK.source ? " " + esc(BOOK.source) : "") + "</div>";
       } else if(!rec){
         var known = !!quote(sym);
         host.innerHTML = known
           ? "<div class='none'><b class='hd'>NO BID OR ASK PUBLISHED FOR " + esc(sym) + " ON " + esc(EX) + "</b>" +
-            "Top of book is published for " + (BOOK.count || 0) + " " + esc(EX) + " securities; " + esc(sym) + " is not one of them.</div>"
+            "This source carries a published top of book for " + (BOOK.count || 0) + " " + esc(EX) +
+            " securities, and " + esc(sym) + " is not one of them, so no price and no quantity is shown for it." +
+            " Nothing is estimated to fill the gap. The traded volume that IS published for this security is below.</div>"
           : "<div class='none'><b class='hd'>NO " + esc(EX) + " SECURITY CALLED " + esc(sym) + "</b>" +
             "No listed security under that key on " + esc(EX) + ".</div>";
       } else {
@@ -1157,12 +1156,15 @@
   // evidence travel together. This is what is shown in place of a book for NSE,
   // NGX and EGX, and it names the document that was checked.
   function noBookState(sym){
+    var ev = (BOOK.evidence || []).map(function(u){
+      return "<li><a href='" + esc(u) + "' target='_blank' rel='noopener'>" + esc(u) + "</a></li>"; }).join("");
     return "<div class='none'><b class='hd'>NO BID AND NO ASK IS PUBLISHED BY " + esc(EX) + "</b>" +
-      esc(firstSentence(BOOK.source || "No source found.")) +
-      (BOOK.checked ? " - " + esc(BOOK.checked) : "") + "." +
+      esc(BOOK.reason || "") +
+      (ev ? "<div style='color:var(--tx3);font-size:10.5px;margin-top:8px'>Checked " + esc(BOOK.checked || "") +
+            " against:</div><ul>" + ev + "</ul>" : "") +
       "<div style='margin-top:8px'>" + (sym
-        ? "For " + esc(symLabel(sym)) + " the published traded volume is below."
-        : "Choose a ticker.") + "</div></div>";
+        ? "For " + esc(symLabel(sym)) + " the published traded volume is below. A resting quantity is not published, so none is shown."
+        : "Choose a ticker to see the traded volume that this exchange does publish.") + "</div></div>";
   }
 
   // The board itself: ONE level per side, exactly the ratio the source
@@ -1186,9 +1188,9 @@
       var sp = rec.ask - rec.bid, spc = sp / ((rec.ask + rec.bid) / 2) * 100;
       mid.push("Spread " + fmt(sp, 2) + (ushow ? " " + esc(ushow) : "") + " (" + fmt(spc, 2) + "%)");
     } else if(rec.bid == null && rec.ask != null){
-      mid.push("No bid published.");
+      mid.push("No bid is published at this refresh; the ask above is what is published.");
     } else if(rec.ask == null && rec.bid != null){
-      mid.push("No ask published.");
+      mid.push("No ask is published at this refresh; the bid above is what is published.");
     }
     if(rec.last != null) mid.push("Last trade " + fmt(rec.last, 2) + (rec.tradeTime ? " at " + esc(String(rec.tradeTime).replace(/^As at /, "")) : ""));
     if(rec.dayTrades != null) mid.push(fmt(rec.dayTrades, 0) + " trades today");
@@ -1203,14 +1205,18 @@
         rec.trades.map(function(t){
           return "<tr><td>" + esc(t.time || "") + "</td><td>" + (t.price == null ? "-" : fmt(t.price, 2)) +
                  "</td><td>" + (t.volume == null ? "-" : fmt(t.volume, 0)) + "</td></tr>"; }).join("") +
-        "</table></div>";
+        "</table></div><div class='bksrc'>Time and sales: the individual prints this source published," +
+        " each with the volume that traded AT THAT PRINT. This is traded volume, not a resting quantity.</div>";
     }
 
+    var extra = "";
+    if(BOOK.unitNote) extra += " " + esc(BOOK.unitNote);
+    if(BOOK.note) extra += " " + esc(BOOK.note);
     return html + "<div class='bksrc'>" +
-      "<b>Levels published: " + esc(firstClause(BOOK.granularity || "not stated")) + "</b><br>" +
-      "Source: <a href='" + esc(String(BOOK.sourceUrl || "").replace("<JSE CODE>", sym)) + "' target='_blank' rel='noopener'>" +
-      esc(firstSentence(BOOK.source || "")) + "</a>" +
-      (BOOK.checked ? " - " + esc(BOOK.checked) : "") + "</div>";
+      "<b>Levels published: " + esc(BOOK.granularity || "not stated") + "</b><br>" +
+      "Source: " + esc(BOOK.source || "") + ". " + esc(BOOK.timestamp || "") +
+      (rec.asAt ? ", the page states " + esc(rec.asAt) : "") + "." + extra +
+      " <a href='" + esc(String(BOOK.sourceUrl || "").replace("<JSE CODE>", sym)) + "' target='_blank' rel='noopener'>Source page for " + esc(sym) + "</a>. Checked " + esc(BOOK.checked || "") + ".</div>";
   }
 
   // Traded volume by session, from the daily archive. Honest about which of the
@@ -1237,7 +1243,10 @@
           return "<tr><td>" + esc(b.date) + "</td><td>" + (b.price == null ? "-" : fmt(b.price, 2)) + "</td>" +
                  "<td>" + fmt(b.vol, 0) + "</td>" +
                  "<td><span style='display:inline-block;height:8px;width:" + w + "%;max-width:100%;background:var(--acc);opacity:.45;border-radius:1px'></span></td></tr>";
-        }).join("") + "</table></div>";
+        }).join("") + "</table></div>" +
+        "<div class='bksrc'>Traded volume: shares that changed hands in each published session, from this site's own session archive (" +
+        esc(v.key) + "). Bars are drawn from the volume itself, so the width is the volume. This is traded volume and NOT resting orders: nothing here says anything about how much is bid or offered." +
+        (BOOK && BOOK.tradedVolumeIsPublished === false ? " This exchange publishes no traded volume either." : "") + "</div>";
     }).catch(function(){
       host.innerHTML = "<div class='empty'>Traded volume could not be read for " + esc(want) + ".</div>";
     });
@@ -1280,20 +1289,20 @@
     if(!equityAudit) return "";
     var bits = [];
     if(equityAudit.recovered > 0){
-      bits.push(equityAudit.recovered +
+      bits.push("Rebuilt from the published session closes: " + equityAudit.recovered +
                 " session" + (equityAudit.recovered === 1 ? "" : "s") + " restored.");
     }
     if(equityAudit.unpriced.length){
       var up = equityAudit.unpriced;
-      bits.push(up.length + " session" + (up.length === 1 ? "" : "s") +
-                " not on the curve: " +
+      bits.push(up.length + " session" + (up.length === 1 ? " is" : "s are") +
+                " not on the curve, no published close for a held security: " +
                 up.map(function(u){ return u.d + " (" + u.missing.join(", ") + ")"; }).join("; ") + ".");
     }
     if(equityAudit.conflicts.length){
       var cf = equityAudit.conflicts;
-      bits.push(cf.length + " session" + (cf.length === 1 ? "" : "s") +
-                " recorded live: " +
-                cf.map(function(c){ return c.d + " (" + fmt(c.recorded) + " vs " + fmt(c.derived) + ")"; }).join("; ") + ".");
+      bits.push(cf.length + " session" + (cf.length === 1 ? " kept" : "s kept") +
+                " the recorded value where the derivation disagreed: " +
+                cf.map(function(c){ return c.d + " (recorded " + fmt(c.recorded) + " vs derived " + fmt(c.derived) + ")"; }).join("; ") + ".");
     }
     if(!bits.length) return "";
     return "<div class='empty' style='padding-top:6px'>" + esc(bits.join(" ")) + "</div>";
@@ -1302,7 +1311,8 @@
   function updLine(){
     $("upd").textContent = checkedAt
       ? "Prices: " + (asOf ? EX + " data to " + asOf : EX) + " · checked " +
-        new Date(checkedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})
+        new Date(checkedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) +
+        " · the site refreshes prices about every 3 hours and this page checks every 5 minutes"
       : "Loading " + EX + " prices...";
   }
 
@@ -1399,12 +1409,12 @@
     // same code it always was.
     var q = quote(t), cls = (q && q.cls) || "EQ";
     if(cls !== "EQ"){
-      if(q.kind === "yld") return say(t + " has no tradeable price on file.", true);
+      if(q.kind === "yld") return say(t + " is quoted on a yield basis; it has no tradeable price on file.", true);
       var ic = String(q.ccy || "").toUpperCase();
       if(ic && cur && ic !== cur.toUpperCase())
         return say(t + " is quoted in " + ic + "; this account is in " + cur + ".", true);
       if(type !== "MKT")
-        return say("Bonds and derivatives are placed as MARKET orders here.", true);
+        return say("Bonds and derivatives are placed as MARKET orders here: the data carries no daily high or low for a limit or stop to rest against.", true);
     }
     var px = lastOf(t);
     if(px == null) return say(t + " has no price in the latest data, so it cannot trade.", true);

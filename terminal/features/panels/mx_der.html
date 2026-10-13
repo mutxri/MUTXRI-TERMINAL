@@ -212,8 +212,14 @@
       return String(a.underlying).localeCompare(String(b.underlying));
     });
     if (!rows.length){
-      $("derBody").innerHTML = '<div class="der-empty"><b>No derivative data for ' + esc(ex) + '</b></div>';
+      var src = OVERRIDE || "static_data/derivatives.json";
+      var why = (rawData === null)
+        ? "the data file was not found or could not be read"
+        : "the file carried no derivative contracts for " + ex;
+      $("derBody").innerHTML = '<div class="der-empty"><b>Derivative data not available for ' + esc(ex) + '</b><br>' +
+        esc(src) + " - " + esc(why) + '.<br>No sample or placeholder contracts are shown.</div>';
       $("derFoot").textContent = "no derivatives source for " + ex;
+      $("derNote").textContent = "";
       return;
     }
     var today = todayISO();
@@ -242,9 +248,9 @@
     }).join("");
     var srcs = {};
     rows.forEach(function(r){ if (r.source) srcs[r.source] = 1; });
-    var srcList = Object.keys(srcs).length ? Object.keys(srcs).join("; ") : "source not stated";
+    var srcList = Object.keys(srcs).length ? Object.keys(srcs).join("; ") : "source not stated on file";
     $("derFoot").textContent = rows.length + " contract" + (rows.length === 1 ? "" : "s") + " on " + ex +
-      " · Source: " + srcList;
+      " - as shown, not a live feed. Source: " + srcList + ".";
   }
 
   function load(){

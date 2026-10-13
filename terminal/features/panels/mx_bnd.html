@@ -110,7 +110,7 @@
     <button class="bnd-refresh" id="bndRefresh">Refresh</button>
   </div>
   <div class="bnd-ex" id="bndEx"></div>
-  <div class="bnd-note" id="bndNote" hidden>-</div>
+  <div class="bnd-note" id="bndNote">-</div>
   <div class="bnd-cols">
     <span>Instrument</span><span>Type</span><span>Cpn</span><span>Maturity</span><span>Yld / Px</span><span>Ccy</span>
   </div>
@@ -206,7 +206,7 @@
     return Number(lv.v).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:dp}) +
            (lv.kind === "yld" ? "%" : "");
   }
-  function dash(){ return '<span class="bnd-dash">-</span>'; }
+  function dash(reason){ return '<span class="bnd-dash" title="' + esc(reason) + '">-</span>'; }
 
   function renderExSwitch(){
     $("bndEx").innerHTML = EXES.map(function(e){
@@ -226,20 +226,27 @@
       return String(a.instrument).localeCompare(String(b.instrument));
     });
     if (!rows.length){
-      $("bndBody").innerHTML = '<div class="bnd-empty"><b>No bond data for ' + esc(ex) + '</b></div>';
+      var src = OVERRIDE || "static_data/bonds.json";
+      var why = (rawData === null)
+        ? "the data file was not found or could not be read"
+        : "the file carried no bond rows for " + ex;
+      $("bndBody").innerHTML = '<div class="bnd-empty"><b>Bond data not available for ' + esc(ex) + '</b><br>' +
+        esc(src) + " - " + esc(why) + '.</div>';
       $("bndFoot").textContent = "no bond source for " + ex;
+      $("bndNote").textContent = "";
       return;
     }
+    $("bndNote").textContent = (rawData && rawData.note) ? rawData.note : "";
     $("bndBody").innerHTML = rows.map(function(r){
       var cpn = r.coupon == null
-        ? dash()
+        ? dash("the source for this row does not publish a coupon")
         : '<span class="bnd-num">' + esc(Number(r.coupon).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:3})) + "%</span>";
       var mat = r.maturity
         ? '<span class="bnd-num">' + esc(r.maturity) + "</span>"
-        : (r.tenor ? '<span class="bnd-ccy">' + esc(r.tenor) + "</span>" : dash());
+        : dash(r.tenor ? ("the source publishes a tenor (" + r.tenor + "), not a maturity date") : "the source does not publish a maturity for this row");
       var lt = levelText(r.level);
       var lvl = lt == null
-        ? dash()
+        ? dash("the source publishes neither a price nor a yield for this row, so it cannot be paper-traded")
         : '<span class="bnd-lvl">' + esc(lt) + ' <span class="k">' + (r.level.kind === "yld" ? "yld" : "px") + "</span></span>";
       var sy = (r.symbol && r.symbol !== r.instrument) ? ' <span class="sy">' + esc(r.symbol) + "</span>" : "";
       return '<div class="bnd-inst" title="' + esc(r.source || "source not stated") + '">' +
@@ -248,7 +255,7 @@
         "<span>" + cpn + "</span>" +
         "<span>" + mat + "</span>" +
         "<span>" + lvl + "</span>" +
-        '<span class="bnd-ccy">' + (r.ccy ? esc(r.ccy) : dash()) + "</span>" +
+        '<span class="bnd-ccy">' + (r.ccy ? esc(r.ccy) : dash("the row names no currency")) + "</span>" +
       "</div>";
     }).join("");
     var srcs = {};
