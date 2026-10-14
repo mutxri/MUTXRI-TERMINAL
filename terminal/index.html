@@ -2241,6 +2241,21 @@ function renderTabs(){
         seeded = first;
         active = 0;
       }
+      // THE SIX BELONG IN THE SHEET STRIP AT THE BOTTOM (owner, 2026-10-14). They
+      // were reachable only by right-clicking the +, so a reader who already had a
+      // stored set loaded the terminal and reported "no changes" - the feature
+      // existed and could not be seen. So the six are now ensured as tabs in the
+      // strip for everyone: a reader's own workspaces stay FIRST and keep their
+      // exact geometry, and any of the six they do not already have is APPENDED
+      // after them. Nothing is removed, replaced, renamed or shrunk, and an
+      // arrangement already saved on this machine is still never touched.
+      if(!seeded && !EMBED && desk() && Array.isArray(PRESETS)){
+        PRESETS.forEach(function(p){
+          if(p && p.name && !spaces.some(function(sp){ return sp.name === p.name; })){
+            spaces.push(presetSpace(p));
+          }
+        });
+      }
       // The stacking counter must start above the highest z in EVERY workspace,
       // or raising a window in one workspace would put it under a window of
       // another and the stacking order would come back wrong.
