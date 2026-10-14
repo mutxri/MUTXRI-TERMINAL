@@ -272,15 +272,16 @@
   }
   // everything the blocks need, fetched once for the security being shown
   function loadExtras(board, sym){
+    // Only the history is fetched now. The shareholders_<EX>.json and analytics/<KEY>.json
+    // requests existed to feed the TOP HOLDERS / MULTIPLES / PRICE HISTORY blocks, which
+    // the owner removed on 2026-10-14 (they were never asked for). Dropping those two
+    // requests also removes the console 404s they logged for securities that have no
+    // analytics or holder file - 142 of 922 market rows have no analytics file at all.
+    // The history stays: lastBar(hist) still dates the footer's "history ends / later bar"
+    // caveat, which is a real statement about the quote.
     var row = board ? matchRow(board.stocks || [], sym) : null;
     var out = { row: row, hist: null, hold: null, ana: null };
-    return getHist(row, sym).then(function(h){
-      out.hist = h;
-      return get(BASE + "shareholders_" + encodeURIComponent(EX) + ".json")
-        .then(function(f){ out.hold = f; }).catch(function(){ out.hold = null; });
-    }).then(function(){
-      return getAna(row, sym).then(function(a){ out.ana = a; });
-    }).then(function(){ return out; });
+    return getHist(row, sym).then(function(h){ out.hist = h; return out; });
   }
 
   function matchRow(rows, sym){
@@ -549,12 +550,16 @@
   }
 
   function renderBlocks(row, sym, hist, hold, ana){
+    // REMOVED (owner, 2026-10-14). TOP HOLDERS / MULTIPLES / PRICE HISTORY were never
+    // asked for. A read-only walkthrough reported this panel as "95% empty" and I
+    // turned that finding into an instruction to fill it, which was me inventing a
+    // requirement. The owner's actual instruction stands: the quote grid and the
+    // repeated date stay removed and nothing replaces them. The builders below
+    // (blockHolders / blockMultiples / blockHistory) are left in place, unused.
+    // The panel is the quote card and nothing else.
     var box = $("fxBlocks");
-    if(!box) return;
-    if(!sym){ box.innerHTML = ""; return; }
-    var withheld = !!(row && (row.priceWithheld || row.asOfWithheld || row.withhold_reason));
-    box.innerHTML = blockHolders(holderRec(hold, row, sym)) +
-      blockMultiples(ana) + blockHistory(hist, withheld);
+    if(box) box.innerHTML = "";
+    return;
   }
 
   // THE QUOTE GRID STAYS REMOVED (owner, 2026-10-13). It restated what the quote header
