@@ -5,10 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
 <meta name="robots" content="noindex, nofollow">
+<!-- Never hand a third party the terminal path, which names the open security. -->
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<!-- CSP, as far as a meta tag can carry one on GitHub Pages. This shell is built
+     from inline script, inline event handlers and inline style attributes, so
+     'unsafe-inline' is load-bearing in script-src and style-src: a policy without
+     it renders the terminal blank, which is a worse outcome than the header. What
+     it still buys: no script, stylesheet, font, image or connection outside this
+     list can load, so a script tag pointing at a host of the attacker's choosing is refused, object and
+     embed are off, base-uri is pinned, and no form can post anywhere but here.
+     frame-ancestors is IGNORED in a meta tag - the clickjacking defence has to be
+     a real response header and cannot be done on Pages. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://mutxri-terminal.onrender.com https://cloudflareinsights.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <link rel="canonical" href="https://mutxriterminal.com/">
 <link rel="icon" type="image/svg+xml" href="/mutxri_logo.svg">
 <link rel="icon" type="image/png" sizes="256x256" href="/mutxri_logo_256.png">
 <link rel="apple-touch-icon" href="/mutxri_logo_256.png">
+<meta name="theme-color" content="#0a0a0a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oxygen+Mono&family=Sofia+Sans+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -69,26 +82,56 @@ body{
 .brandname{font-family:var(--brand);font-weight:700;font-size:17px;letter-spacing:.14em}
 .brandname small{display:block;font-size:8px;letter-spacing:.34em;color:var(--tx3);
   font-weight:600;margin-top:-2px}
+/* The MX mark: the brand's own letterforms (the outlines traced from
+   mutxri_logo.png, kept in media/brand/mx_glyphs.json) inside the mark tile
+   this block already styles, so the bar carries the same mark the favicon, the
+   landing and the sign-in gate carry instead of a second drawing of it. The
+   finder is absolutely centred, so the mark's width cannot move it; below
+   720px, where the finder returns to the flow, the mark steps aside rather
+   than take width off the finder and shift it. */
+.brand{text-decoration:none}
+.brand svg{display:block;width:21px;height:12px}
+@media (max-width:720px){.brand{display:none}}
 /* The market is part of what you type, not a row of tabs: one finder covers
    every listing on every board, so a new market costs nothing up here. */
-/* The finder sits in the exact middle of the bar: absolutely placed at 50% so its
-   centre is the bar's centre no matter how wide the clock or the account button
-   happen to be. The workspace control used to share this bar and has moved to the
-   sheet strip at the foot of the window (.wsbar), so the bar is now the finder,
-   the clock and the account button alone. The finder's width is capped against
-   the viewport so it cannot reach either side's controls, and below 720px it
-   returns to the flow instead of overlapping them. */
-.search{position:absolute;left:50%;transform:translateX(-50%);
+/* The finder sits in the exact middle of the bar: pinned to BOTH edges of the bar
+   with an automatic margin on each side, so its centre is the bar's centre no
+   matter how wide the clock or the account button happen to be. The workspace
+   control used to share this bar and has moved to the sheet strip at the foot of
+   the window (.wsbar), so the bar is now the finder, the clock and the account
+   button alone. The finder's width is capped against the viewport so it cannot
+   reach either side's controls, and below 720px it returns to the flow instead of
+   overlapping them.
+
+   WHY NOT left:50% + translateX(-50%). That is how this box used to be centred,
+   and it broke the suggestion list: a transform makes the label a STACKING
+   CONTEXT, so the list inside it (.finder, z-index 9000) could no longer rise
+   above the ticker tape or a panel window no matter what z-index it carried - the
+   list painted behind both, and document.elementFromPoint at a suggestion row
+   returned the tape and the panel head instead of the row, so two rows of two
+   could not be clicked. left:0;right:0;margin:auto centres the same box with NO
+   transform, so no stacking context is created, the list stays a positioned box
+   in the root stacking context and its own z-index decides the paint order. */
+.search{position:absolute;left:0;right:0;margin-left:auto;margin-right:auto;
   display:flex;align-items:center;gap:var(--s2);
   background:var(--bg3);border:1px solid var(--line2);border-radius:3px;
   padding:var(--s2) var(--s3);width:min(560px,46vw);transition:border-color .15s}
 .search:focus-within{border-color:var(--mint-line)}
+/* The magnifier is taken OUT of the flow and pinned inside the left padding, and
+   the input carries a matching left padding to clear it. In the flow the 13px
+   glyph plus the 8px gap sat before the input, which pushed the input 10px right
+   of the box centre; the box was centred but the field the reader types in was
+   not. Out of flow, the input spans the whole inner box, so its centre is the
+   box centre and the box centre is the bar centre. The glyph keeps its inherited
+   colour and stays vertically centred. */
+.search>svg{position:absolute;left:var(--s3);top:50%;transform:translateY(-50%);
+  pointer-events:none}
 .search span{color:var(--tx3);font-size:11px}
 .search input{background:none;border:0;outline:0;color:var(--tx);font-family:var(--mono);
-  font-size:12px;width:100%}
+  font-size:12px;width:100%;padding-left:21px}
 .search input::placeholder{color:var(--tx3)}
 @media (max-width:720px){
-  .search{position:static;transform:none;width:auto;flex:1 1 auto;min-width:0}
+  .search{position:static;margin-left:0;margin-right:0;width:auto;flex:1 1 auto;min-width:0}
 }
 .acct{display:flex;align-items:center;gap:6px}
 .acct button{background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
@@ -506,6 +549,7 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 }
 #authGate .gate-brand{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
 #authGate .gate-mark{width:30px;height:30px;background:var(--acc);color:#000;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:13px;}
+#authGate .gate-mark svg{display:block;width:19px;height:10.86px}
 #authGate .gate-name{font-size:15px;letter-spacing:.08em;color:var(--tx);}
 #authGate .gate-name small{color:var(--tx3);font-size:10px;letter-spacing:.15em;display:block;}
 #authGate .gate-sub{color:var(--tx3);font-size:11px;margin:10px 0 14px;letter-spacing:.05em;}
@@ -812,10 +856,16 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
 </style>
 </head>
 <body>
-<!-- ===== auth gate: sign in required to enter the terminal ===== -->
-<div id="authGate" style="display:none">
+<!-- ===== auth gate: sign in required to enter the terminal =====
+     VISIBLE IN THE STATIC BYTES. The gate is no longer hidden by an inline
+     style and revealed by script: with display:none in the HTML, any page whose
+     bootstrap script did not run (script blocked, a parse error, an extension)
+     showed the whole terminal with no gate at all. Now the markup ships the gate
+     open and JavaScript is the only thing that can remove it, after the backend
+     has confirmed the session or the page has proved it is an ungated preview. -->
+<div id="authGate">
   <div class="gate-card">
-    <div class="gate-brand"><span class="gate-mark">MX</span><span class="gate-name">MUTXRI<small>TERMINAL</small></span></div>
+    <div class="gate-brand"><span class="gate-mark" aria-hidden="true"><svg viewBox="180 330 700 400" focusable="false"><path fill="#000" d="M200.8 343.0 271.0 342.5 275.6 345.0 364.0 543.6 450.6 345.0 456.0 342.5 523.0 342.5 527.0 344.4 528.3 349.0 535.3 690.0 533.7 695.0 530.0 696.5 479.0 696.5 475.3 695.0 473.7 692.0 469.7 506.0 471.0 430.1 371.4 650.0 368.0 654.4 363.0 655.5 358.0 654.1 354.6 649.0 282.7 494.0 256.0 430.1 256.8 502.0 252.5 693.0 247.0 696.5 197.0 696.5 192.7 695.0 191.6 668.0 197.7 349.0Z"/><path fill="#000" d="M575.8 343.0 644.0 343.7 692.1 423.0 716.0 467.7 739.8 423.0 787.0 343.7 851.0 342.5 855.0 344.0 853.3 352.0 752.5 515.0 859.2 687.0 861.4 692.0 860.0 695.6 795.0 696.5 790.0 694.4 739.8 610.0 714.0 562.5 689.3 608.0 638.0 694.0 632.0 696.5 572.0 696.5 568.0 694.8 568.6 689.0 677.1 514.0 575.7 351.0 573.7 346.0Z"/></svg></span><span class="gate-name">MUTXRI<small>TERMINAL</small></span></div>
     <div class="gate-sub">SIGN IN TO ENTER THE TERMINAL</div>
     <div class="gate-social">
       <button class="gate-social-btn" type="button" onclick="gateSocial('google')"><span class="gs-g">G</span> Continue with Google</button>
@@ -855,7 +905,23 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
 </div>
 <script>
 (function(){
-  var AUTH_API = (window.AUTH_API || (new URLSearchParams(location.search).get("api") || "")) || "https://mutxri-terminal.onrender.com";
+  // A ?api= value used to be honoured verbatim, so a link to
+  //   https://mutxriterminal.com/terminal/?api=https://attacker.example
+  // made the sign-in form POST the typed email and password to that host and
+  // then save the token the attacker returned. Only this origin and the known
+  // backend host may be named now; anything else falls back to the default.
+  function allowedApi(v){
+    try{
+      if(!v) return "";
+      var u = new URL(v, location.href);
+      if(u.protocol !== "https:" && u.protocol !== "http:") return "";
+      if(u.origin === location.origin) return u.origin;
+      if(u.hostname === "mutxri-terminal.onrender.com") return u.origin;
+    }catch(e){}
+    return "";
+  }
+  window.__mxAllowedApi = allowedApi;
+  var AUTH_API = allowedApi(window.AUTH_API) || allowedApi(new URLSearchParams(location.search).get("api")) || "https://mutxri-terminal.onrender.com";
   var gate = document.getElementById("authGate");
   var q = new URLSearchParams(location.search);
   // landing previews (view= modes) and embedded iframes are not gated
@@ -886,7 +952,10 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
       setTimeout(function(){ var t = (em && em.value && pw) ? pw : em; if(t) t.focus(); }, 60);
     }catch(e){}
   }
-  function hide(){ if(gate) gate.remove(); try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){} }
+  // hide() used to remove the gate node, which made the gate one-way: a later
+  // show() had a detached element to style and nothing came back on screen. It
+  // only hides now, so a failed session check can put the gate straight back.
+  function hide(){ if(gate){ gate.style.display = "none"; } try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){} }
   function msg(t, ok){ var m = document.getElementById("gateMsg"); if(!m) return; m.textContent = t || ""; m.className = "gate-msg" + (ok ? " ok" : ""); }
   // OAuth callback: ?oauth=<provider>&code=<one-time> -> trade for a session token
   var oauthP = q.get("oauth"), oauthCode = q.get("code");
@@ -923,10 +992,28 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   function check(){
     var t = tok();
     if(!t){ show(); return; }
+    // A token hides the gate straight away rather than parking a returning user
+    // on a sign-in screen while a cold Render instance wakes up. Every way this
+    // check can fail puts the gate back: an error reply, an unreachable backend,
+    // and now a hung request too - the call used to be able to stay unresolved
+    // forever, leaving the terminal open behind a token the server never
+    // confirmed. The gate is visible in the static HTML, so a page whose script
+    // did not run is behind it as well.
+    hide();
     msg("Verifying session…");
+    var settled = false;
+    var timer = setTimeout(function(){
+      if(settled) return;
+      settled = true;
+      show();
+      msg("Could not verify the session. Sign in to continue.");
+    }, 12000);
     fetch(AUTH_API + "/api/auth/me", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t})})
       .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
-      .then(function(d){ if(d && d.ok){ hide(); try{
+      .then(function(d){
+        if(settled) return;
+        settled = true; clearTimeout(timer);
+        if(d && d.ok){ hide(); try{
           // /api/auth/me is authoritative, so persist the CURRENT email too. It was
           // previously dropped while username/name were refreshed, which left
           // mt_email frozen at the value cached at sign-in: an email changed on the
@@ -938,7 +1025,11 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
         try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){}
         try{ if(window.__renderAccount) window.__renderAccount(); }catch(e){}
       } else { show(); msg("Session expired. Sign in to continue."); } })
-      .catch(function(){ show(); msg("Could not reach the sign-in server. Check your connection and try again."); });
+      .catch(function(){
+        if(settled) return;
+        settled = true; clearTimeout(timer);
+        show(); msg("Could not reach the sign-in server. Check your connection and try again.");
+      });
   }
   window.gateSubmit = function(){
     var email = (document.getElementById("gateEmail").value || "").trim();
@@ -972,10 +1063,13 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
 </script>
 <div class="term">
 
-  <!-- TOP BAR: no brand block here. The mark and wordmark carried no
-       information the title bar and the sign-in gate do not already carry,
-       and their width was pushing the finder off centre. -->
+  <!-- TOP BAR: the MX mark sits at the left. The wordmark stays out of the bar
+       (it carried nothing the mark, the title and the sign-in gate do not, and
+       its width fought the finder for the middle). The mark cannot move the
+       finder, which is absolutely centred, and it hides below 720px where the
+       finder returns to the flow and needs the whole bar. -->
   <header class="topbar">
+    <a class="brand" href="/" title="MUTXRI TERMINAL" aria-label="MUTXRI TERMINAL"><span class="mark" aria-hidden="true"><svg viewBox="180 330 700 400" focusable="false"><path fill="currentColor" d="M200.8 343.0 271.0 342.5 275.6 345.0 364.0 543.6 450.6 345.0 456.0 342.5 523.0 342.5 527.0 344.4 528.3 349.0 535.3 690.0 533.7 695.0 530.0 696.5 479.0 696.5 475.3 695.0 473.7 692.0 469.7 506.0 471.0 430.1 371.4 650.0 368.0 654.4 363.0 655.5 358.0 654.1 354.6 649.0 282.7 494.0 256.0 430.1 256.8 502.0 252.5 693.0 247.0 696.5 197.0 696.5 192.7 695.0 191.6 668.0 197.7 349.0Z"/><path fill="currentColor" d="M575.8 343.0 644.0 343.7 692.1 423.0 716.0 467.7 739.8 423.0 787.0 343.7 851.0 342.5 855.0 344.0 853.3 352.0 752.5 515.0 859.2 687.0 861.4 692.0 860.0 695.6 795.0 696.5 790.0 694.4 739.8 610.0 714.0 562.5 689.3 608.0 638.0 694.0 632.0 696.5 572.0 696.5 568.0 694.8 568.6 689.0 677.1 514.0 575.7 351.0 573.7 346.0Z"/></svg></span></a>
     <label class="search">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
       <input id="q" placeholder="Ticker, company or market - SCOM, MTN JSE, FA…" autocomplete="off" aria-label="Search">
@@ -1391,9 +1485,12 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
 // (set by landing) > default Render service. Empty = snapshot mode.
 const API_BASE = (function(){
   try{
-    var q = new URLSearchParams(location.search).get("api");
-    if(q) return q;
-    if(window.AUTH_API) return window.AUTH_API;
+    // Allowed through the same origin check the sign-in form uses: a ?api= value
+    // that points anywhere but this origin or the known backend is ignored, so a
+    // crafted link cannot aim the terminal's requests at a host of its choosing.
+    var allow = (typeof window.__mxAllowedApi === "function") ? window.__mxAllowedApi : function(){ return ""; };
+    if(window.AUTH_API) return allow(window.AUTH_API);
+    return allow(new URLSearchParams(location.search).get("api"));
   }catch(e){}
   return "";
 })();
@@ -1412,6 +1509,17 @@ window.API_BASE = API_BASE;
 // ===== App state =====
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+// jsq() covers the case esc() does not: a value interpolated into a JavaScript
+// STRING LITERAL inside an inline handler (an onclick that calls a function with
+// a quoted value). esc() writes an apostrophe as an HTML entity, and the parser
+// turns that entity back into a real apostrophe in the attribute value BEFORE
+// the handler is parsed as JavaScript, so the string still ends early - a ticker
+// or company name carrying a quote, or a crafted one, could close the string and
+// have the rest of the attribute run as code. Every risky character becomes a
+// hex escape here instead: inert as text, still the same character inside the JS
+// string, and unable to close the attribute either.
+// the line separators that are legal in JSON but end a JS string literal.
+const jsq = s => String(s ?? '').replace(/[\\<>\x22'&\r\n\u2028\u2029]/g, c => '\\x' + ('0' + c.charCodeAt(0).toString(16)).slice(-2));
 // The markets are data: static_data/exchanges.json drives the picker, the
 // timezone guess and the search index. These four are only the fallback for a
 // failed fetch, so the terminal still works offline.
@@ -3093,7 +3201,7 @@ function awaitRowHTML(s){
     offer = '<span class="wl-offer">OFFER PRICE<b>' + esc(px + cur) + '</b></span>';
   }
   return '<div class="wl-row await" title="' + esc(s.name + ' is not listed and has no traded price') +
-      '" onclick="showAwaiting(\'' + esc(s.key) + '\')">' +
+      '" onclick="showAwaiting(\'' + jsq(s.key) + '\')">' +
     '<span class="wl-logo-cell"><span class="wl-mono">\u25f7</span></span>' +
     '<span class="wl-main wl-wait">' +
       '<span class="wl-badge">' + esc(awaitStatusText(s)) + '</span>' +
@@ -3157,14 +3265,26 @@ window.openAwaitingFinancials = function(){
 function renderWatchlist(filter){
   const list = listing[currentEx] || [];
   const f = (filter || '').toUpperCase();
-  const rows = f ? list.filter(s => stockTicker(s).includes(f) || (s.name||'').toUpperCase().includes(f)) : list.filter(s => s.instrument !== 'structured');
+  // EVERY row the exchange lists, unfiltered, when no search text is typed. This
+  // used to read `list.filter(s => s.instrument !== 'structured')` and then cap
+  // the list at 300, while the header above it printed listing.length: on the JSE
+  // (361 rows, 102 of them structured notes, AMCs and preference shares) the
+  // watchlist painted 259 rows under a header that said 361, so 102 securities
+  // were advertised and unreachable - and the SCREENER on the same exchange
+  // paints all 361, so they were not missing data. The header counts the board,
+  // so the board is what the list paints; the structured rows carry real
+  // snapshots in static_data/market_<EX>.json like any other row, and a row with
+  // no price already states "no price" rather than inventing one. The 300 cap is
+  // gone with it: a cap under an uncapped header count is the same disagreement.
+  // The only filter left is the reader's own search text.
+  const rows = f ? list.filter(s => stockTicker(s).includes(f) || (s.name||'').toUpperCase().includes(f)) : list;
   const el = $('wlList');
   // A company awaiting listing has no traded price, so it is shown with a status
   // instead of a price and pinned to the top of its board's watchlist, where a
   // reader sees it without selecting anything first.
   const awaitHtml = (typeof awaitingRowsFor === 'function')
     ? awaitingRowsFor(currentEx, f).map(awaitRowHTML).join('') : '';
-  const body = rows.slice(0, 300).map(s => {
+  const body = rows.map(s => {
     // JSE/EGX: quote from cache; NGX/NSE: EOD data embedded in the listing
     const q = quotes[s.sym] || {};
     const price = q.price != null ? q.price : s.price;
@@ -3193,10 +3313,10 @@ function renderWatchlist(filter){
     // s2 favicon-service URLs get the globe check (16x16 = no icon) too.
     const logoHtml = rawLogo
       ? (isUrl
-        ? `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`
-        : `<img class="wl-logo" loading="lazy" src="${logoSrc}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'" onload="if(this.naturalWidth<=16&&this.naturalHeight<=16)this.outerHTML='<span class=&quot;wl-mono&quot;>${esc(sym[0]||'?')}</span>'">`)
+        ? `<img class="wl-logo" loading="lazy" src="${esc(logoSrc)}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${jsq(sym[0]||'?')}</span>'">`
+        : `<img class="wl-logo" loading="lazy" src="${esc(logoSrc)}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${jsq(sym[0]||'?')}</span>'" onload="if(this.naturalWidth<=16&&this.naturalHeight<=16)this.outerHTML='<span class=&quot;wl-mono&quot;>${jsq(sym[0]||'?')}</span>'">`)
       : monoFallback;
-    return `<div class="wl-row" onclick="openStock('${esc(s.sym || s.ticker || s.name || '')}')">
+    return `<div class="wl-row" onclick="openStock('${jsq(s.sym || s.ticker || s.name || '')}')">
       <span class="wl-logo-cell">${logoHtml}</span>
       <span class="wl-main">
         <span class="sym">${esc(sym)}</span>
@@ -3836,6 +3956,7 @@ function runCommand(raw){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
       '<div style="padding:8px 0;color:var(--tx3)">type a ticker, a panel code, or both - e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Panel windows: a panel code opens THAT panel in its own window, and several stay open side by side, all following the same symbol. Type the code again to close it, <b style="color:var(--acc)">CLOSE FINANCIALS</b> to shut one, <b style="color:var(--acc)">TILE</b> to lay the open ones out in a grid, <b style="color:var(--acc)">RESET</b> to close the extras.</div>' +
+      '<div style="padding:4px 0;color:var(--tx3)">Comparing: <b style="color:var(--acc)">COMPARE SCOM EQTY</b> (also <b style="color:var(--acc)">CMP</b> or <b style="color:var(--acc)">CMPR</b>, two to four securities, or <b style="color:var(--acc)">SCOM VS EQTY</b>) sets them side by side; the code on its own opens the COMPARE panel window.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Opening a panel: type its code in the finder - <b style="color:var(--acc)">FIN</b> for financials, <b style="color:var(--acc)">HEATMAP</b>, <b style="color:var(--acc)">NEWS</b>, and so on; <b style="color:var(--acc)">HELP</b> lists every code. A panel opens in its own window and a window you closed is remembered.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Workspaces: the tabs in the sheet strip along the bottom of the window are saved layouts. <b style="color:var(--acc)">+</b> adds one, click to switch, double-click to rename, the x on a tab deletes it. Arrange the windows and it saves itself - every window keeps its place, size and stacking, and each workspace keeps its own. There is no SAVE button.</div>' +
@@ -3868,13 +3989,30 @@ function runCommand(raw){
     window.MTWin.set(k, !window.MTWin.isOpen(k));
     return;
   }
-  // COMPARE EQTY KCB / CMP A B / A VS B -> side-by-side comparison panel
-  if(/^(COMPARE|CMP|CMPR)\b/.test(v) || /\bVS\b/.test(v)){
-    let ctoks;
-    if(/\bVS\b/.test(v)) ctoks = v.split(/\s*VS\s*/).map(function(t){return t.trim();}).filter(Boolean);
-    else ctoks = v.replace(/^(COMPARE|CMP|CMPR)\s+/,'').split(/\s+/).filter(Boolean);
+  // COMPARE EQTY KCB / CMP A B / CMPR A B / A VS B -> the comparison view.
+  // DOCUMENTED SYNTAX: the word COMPARE (or CMP / CMPR) followed by two to four
+  // securities, or the same tokens around VS; mx_compare.html reads them as
+  // ?a=&b=&c=&d=, comma or space separated, which is what this writes.
+  // A COMPARE WITH NOTHING TO COMPARE IS NOT THE COMPARISON COMMAND. The operand
+  // list used to be built by stripping /^(COMPARE|CMP|CMPR)\s+/, a pattern that
+  // needs whitespace after the word, so the BARE word COMPARE was never stripped
+  // and became the first (and only) token: typing COMPARE opened this view with
+  // a=COMPARE, the literal ticker, and the panel answered "Could not resolve
+  // COMPARE" instead of opening its own window the way the other 18 codes do.
+  // The operands are read first and the bare code is left alone: with fewer than
+  // two operands this block does nothing and the code falls through to the panel
+  // path below, where panelFor() resolves COMPARE, CMP and CMPR (via
+  // PANEL_ALIAS) and the 'toggle' path opens or closes the COMPARE panel window.
+  let ctoks = null;
+  if(/\bVS\b/.test(v)){
+    ctoks = v.split(/\s*VS\s*/).map(function(t){return t.trim();}).filter(Boolean);
+  }else{
+    const cm = v.match(/^(COMPARE|CMP|CMPR)\b([\s\S]*)$/);
+    if(cm) ctoks = cm[2].trim().split(/\s+/).filter(Boolean);
+  }
+  if(ctoks && ctoks.length >= 2){
     const cp = PANELS.find(function(x){return x.id==='compare';});
-    if(cp && ctoks.length){
+    if(cp){
       const sa = resolveSec(ctoks[0]);
       const cex = (sa && sa.ex) || currentEx;
       const curl = cp.url + '?a=' + encodeURIComponent(ctoks[0])
