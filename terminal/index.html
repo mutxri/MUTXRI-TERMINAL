@@ -2410,18 +2410,18 @@ function renderTabs(){
       // at the right however many tabs there are (as Excel's does)
       const add = document.getElementById('wsAddBtn');
       if(add){
-        add.onclick = function(){
-          spaces.push(fresh('WS ' + (spaces.length + 1)));
-          switchTo(spaces.length - 1);
+        add.onclick = function(e){
+          if(e && e.altKey) return;
+          presetMenu();
         };
-        // The six approved sets are offered here as ADDITIONS, so a reader who
-        // already has an arrangement of their own can take one without it
-        // replacing anything: a preset is APPENDED to their set. Opened by
-        // right-click (or Alt-click), so a plain click on the + keeps doing
-        // exactly what it always did and the strip itself is unchanged.
-        add.title = 'New workspace - right-click for the six default sets';
+        // The + opens a menu: an empty workspace, or one of the six approved sets,
+        // and a preset is APPENDED to the reader's own arrangement so taking one
+        // never replaces what they already have. A PLAIN CLICK opens that menu.
+        // Hiding the six behind a right-click made them undiscoverable, which is
+        // the same as not shipping them - the owner loaded the site and reported
+        // "no changes" because a normal click still only added an empty tab.
+        add.title = 'New workspace, or add one of the six default sets';
         add.addEventListener('contextmenu', function(e){ e.preventDefault(); presetMenu(); });
-        add.addEventListener('click', function(e){ if(e.altKey){ e.preventDefault(); presetMenu(); } });
       }
       // keep the active tab in view if the row has scrolled
       const on = host.querySelector('.ws-tab.on');
@@ -2457,6 +2457,21 @@ function renderTabs(){
       h.className = 'wspm-h';
       h.textContent = 'Add a default set';
       m.appendChild(h);
+      // an empty workspace first, so the + still does exactly what it always did
+      (function(){
+        const e0 = document.createElement('button');
+        e0.type = 'button';
+        e0.setAttribute('role', 'menuitem');
+        const l0 = document.createElement('span');
+        l0.textContent = 'New empty workspace';
+        e0.appendChild(l0);
+        e0.addEventListener('click', function(){
+          closePresetMenu();
+          spaces.push(fresh('WS ' + (spaces.length + 1)));
+          switchTo(spaces.length - 1);
+        });
+        m.appendChild(e0);
+      })();
       PRESETS.forEach(function(p){
         const hint = presetHint(p);
         const b = document.createElement('button');
