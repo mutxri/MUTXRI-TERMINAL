@@ -3359,9 +3359,12 @@ window.MTPanelWins = (function(){
   // arranged is never re-tiled: this only runs when a window is opened, and only
   // when the place it would land in is effectively buried.
   const CASC_X = 28, CASC_Y = 30;
-  // a visible area this size or better is "seen": the title bar of the narrowest
-  // window plus a strip of body, so it can be grabbed, clicked and read
-  const MIN_VIS = 6000;
+  // A place is "good enough" when this much of the window shows: about the title
+  // bar plus a band of the panel, enough to read and to grab. A window whose
+  // place would show less than this is moved to the emptiest space that buries
+  // nothing; a window that already shows this much stays exactly where it is, so
+  // nothing the reader arranged is re-tiled under them.
+  const MIN_VIS = 60000;
   function openRects(exceptId){
     const out = [];
     Object.keys(WINS).forEach(function(id){
@@ -3411,29 +3414,33 @@ window.MTPanelWins = (function(){
     return Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2 &&
            Math.abs(a.w - b.w) < 2 && Math.abs(a.h - b.h) < 2;
   }
-  // a candidate that shows the window AND leaves every window that shows
-  // something right now still showing something; -1 when the spot is unusable
-  function spotScore(x, y, w, h, others){
-    const cand = {x: x, y: y, w: w, h: h};
-    let i;
-    for(i = 0; i < others.length; i++) if(sameRect(cand, others[i])) return -1;   // exactly on another: never
-    const v = visArea(cand, others);
-    if(v <= 0) return -1;                            // it would come up invisible
-    for(i = 0; i < others.length; i++){
-      // a window that shows something now must still show something afterwards.
-      // a window ALREADY buried is not this placement's doing (a record an older
-      // build wrote), so it is skipped rather than voiding every candidate.
-      if(visArea(others[i], others) <= 0) continue;
+  // a window that shows nothing at all is unreachable by click, so a placement is
+  // never allowed to leave one that way unless there is literally no other spot
+  function buriedBy(cand, others){
+    let kills = 0;
+    for(let i = 0; i < others.length; i++){
       const rest = [];
       for(let k = 0; k < others.length; k++) if(k !== i) rest.push(others[k]);
+      // a window ALREADY buried is not this placement's doing (a record an older
+      // build wrote), so it is not counted against the candidate
+      if(visArea(others[i], rest) <= 0) continue;
       rest.push(cand);
-      if(visArea(others[i], rest) <= 0) return -1;   // this placement would bury a window
+      if(visArea(others[i], rest) <= 0) kills++;
     }
-    return v;
+    return kills;
   }
+  // The place a window opens in. Its own position when that position is already
+  // seen (so a window the reader put somewhere comes back there), otherwise the
+  // best of a diagonal cascade and a scan of the whole workspace. Best means, in
+  // this order: the window SHOWS; no window that shows something now is buried by
+  // it; the most of the window is visible. A candidate that is EXACTLY on another
+  // window is never used while any other spot exists, so two windows sharing the
+  // same pixels is impossible by construction and not merely unlikely.
   function bestSpot(id, w, h, wantX, wantY){
     const b = bbox(), others = openRects(id);
-    const maxX = Math.max(0, b.width - w), maxY = Math.max(0, b.height - BAR);
+    // the whole window is kept INSIDE the workspace: a place that would hang the
+    // body past the bottom of it is not a place the reader can work in
+    const maxX = Math.max(0, b.width - w), maxY = Math.max(0, b.height - h);
     const cl = function(v, hi){ return Math.max(0, Math.min(Math.round(v), hi)); };
     const cands = [];
     cands.push({x: cl(wantX, maxX), y: cl(wantY, maxY)});
@@ -3442,12 +3449,19 @@ window.MTPanelWins = (function(){
     for(let y = 0; y <= maxY; y += stepY){
       for(let x = 0; x <= maxX; x += stepX) cands.push({x: x, y: y});
     }
-    let best = null, bestVis = -1;
+    let best = null, bestKey = null;
     for(let i = 0; i < cands.length; i++){
-      const v = spotScore(cands[i].x, cands[i].y, w, h, others);
-      if(v < 0) continue;
-      if(v > bestVis){ bestVis = v; best = cands[i]; }
-      if(bestVis >= MIN_VIS && i <= 14) break;        // the first clear step of the cascade wins
+      const x = cands[i].x, y = cands[i].y, cand = {x: x, y: y, w: w, h: h};
+      let onTop = false;
+      for(let k = 0; k < others.length; k++) if(sameRect(cand, others[k])){ onTop = true; break; }
+      if(onTop) continue;                          // never exactly on another window
+      const my = visArea(cand, others);
+      // ordered: shows at all, then buries nothing, then shows the most
+      const key = [(my > 0 ? 0 : 1), buriedBy(cand, others), -my];
+      if(!bestKey || key[0] < bestKey[0] || (key[0] === bestKey[0] &&
+         (key[1] < bestKey[1] || (key[1] === bestKey[1] && key[2] < bestKey[2])))){
+        bestKey = key; best = {x: x, y: y};
+      }
     }
     return best;
   }
@@ -3460,7 +3474,9 @@ window.MTPanelWins = (function(){
     w.h = Math.max(MIN_H, Math.min(w.h, Math.max(MIN_H, b.height)));
     const others = openRects(id);
     if(!others.length) return;
-    if(spotScore(w.x, w.y, w.w, w.h, others) >= MIN_VIS) return;   // it is already seen: leave it
+    const cur = {x: w.x, y: w.y, w: w.w, h: w.h};
+    const onAnother = others.some(function(o){ return sameRect(cur, o); });
+    if(!onAnother && visArea(cur, others) >= MIN_VIS) return;   // it is already seen: leave it
     const s = bestSpot(id, w.w, w.h, w.x, w.y);
     if(s){ w.x = s.x; w.y = s.y; }
   }
