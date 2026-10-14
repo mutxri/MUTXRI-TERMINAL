@@ -1783,18 +1783,15 @@ let PANELS = [
   // toolbar, so the chart no longer has to live inside the heatmap.
   {id:'focus',   label:'FOCUS',   url:'features/panels/mx_focus.html'},
   {id:'chart',   label:'CHART',   url:'features/panels/mx_chart.html'},
-  // HOLDERS is the shareholder table for the selected security, read from
-  // static_data/shareholders_<EX>.json - the same rows the MARKET window's rail
-  // draws inline, offered as a window of its own so it can stand beside the
-  // financials or a chart. It answers ?ex= and ?sym= exactly like every other
-  // panel here, so it needs no special handling anywhere. It used to be the third
-  // shipped-but-unregistered file (assemble_deploy.py's STATIC_PANELS lists
-  // mx_holders.html, so it was always served) with no code, no alias and no way
-  // to open it from the picker, HELP or the command bar. REGISTERED 2026-10-14
-  // after a walkthrough counted the shell at 19 panels against a 20th panel file
-  // that painted real rows: a working view nothing could reach is a defect, not a
-  // saving. It is now the 20th panel and the picker header counts it.
-  {id:'holders', label:'HOLDERS', url:'features/panels/mx_holders.html'},
+  // HOLDERS IS NOT A PANEL ANY MORE. The owner had the shareholder table taken
+  // out of the product, so it carries no entry here: the tab strip, the picker,
+  // the HELP list, the window registry, the panel-name lookup and the command
+  // aliases are all generated from this list, and every one of them follows it.
+  // mx_holders.html is still on disk and still ships in the build
+  // (assemble_deploy.py's STATIC_PANELS lists it), and
+  // static_data/shareholders_<EX>.json still carries the rows the MARKET
+  // window's rail draws inline, so nothing on disk was lost. Do not re-register
+  // it here.
 ];
 // restore the user's saved tab order (workflow persistence)
 try{
@@ -2247,8 +2244,7 @@ function renderTabs(){
                         {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'financials'},
                                                    {flex: 1, min: 240, win: 'compare'}]}]},
                      {f: .20, min: 240, rows: [{f: .33, min: 140, win: 'focus'},
-                                               {f: .33, min: 120, win: 'info'},
-                                               {flex: 1, min: 140, win: 'holders'}]}]}},
+                                               {flex: 1, min: 120, win: 'info'}]}]}},
 
       // 5 FUND MANAGER - what am I exposed to across the whole market.
       {name: 'FUND MANAGER', main: 'heatmap',
@@ -4088,12 +4084,11 @@ window.MTPanelWins = (function(){
 // app's own registry, so it cannot drift from what the picker offers, and its
 // header counts what the section actually carries (PANELS.length, read, not
 // written by hand). A panel FILE can ship without being registered here
-// (mx_research.html, mx_bot.html): those are deliberately unreachable - RESEARCH
-// repeats what the MARKET window already mounts for the selected security and BOT
-// showed the machinery rather than the market - so they are not offered and not
-// counted. mx_holders.html is NOT one of them any more: it is registered in
-// PANELS and offered here as HOLDERS, because a panel that paints real rows and
-// nothing can reach it is a defect. The WINDOWS section
+// (mx_research.html, mx_bot.html, mx_holders.html): those are deliberately
+// unreachable - RESEARCH repeats what the MARKET window already mounts for the
+// selected security, BOT showed the machinery rather than the market, and HOLDERS
+// is the shareholder table the owner had taken out of the product - so they are
+// not offered and not counted. The WINDOWS section
 // carries the four windows of the default layout, which is the way back for one
 // that was closed: without it a close control would be a one-way door.
 (function(){
@@ -5112,12 +5107,12 @@ window.__getRecents = function(){
 const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'financials', CN:'news', NEWS:'news', REG:'news',
                       HP:'financials', EQS:'screener', RV:'financials', SPLC:'info', CMP:'compare', CMPR:'compare', TR:'trade',
                       DERIV:'der', DERIVATIVES:'der', BOND:'bnd', BONDS:'bnd', FINANCIAL:'financials', FINANCIALS:'financials',
-                      PORTFOLIO:'portfolio', PF:'portfolio',
-                      // HOLDERS is reachable by its own code (the label match in
-                      // panelFor), and by the words a reader is more likely to
-                      // type for it. SHAREHOLDINGS is not offered on purpose:
-                      // it reads like it might be a table of holdings.
-                      SHAREHOLDERS:'holders', SHAREHOLDER:'holders'};
+                      PORTFOLIO:'portfolio', PF:'portfolio'};
+// SHAREHOLDERS and SHAREHOLDER used to be codes here, pointing at the HOLDERS
+// panel. That panel is gone from the product, so they are gone with it: a code
+// that resolves to nothing is worse than no code, because it hides the word from
+// the security search. Both words now fall through to the search like any other
+// word the terminal does not know.
 // THE PANEL'S OWN WORDS, and nothing else. The owner typed the name of a panel
 // in the finder and it did not open (2026-10-14): only the panel ID in lowercase
 // and its LABEL in capitals were matched, so FINANCIALS opened the financials
@@ -5126,8 +5121,8 @@ const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'financia
 // nothing and fell through to the security search. Every panel therefore carries
 // a word set built from its OWN id and label: the word in any case, plus its
 // singular and plural where the plural is a plain trailing s and the stem is long
-// enough to be a word on its own (FINANCIALS -> FINANCIAL, HOLDERS -> HOLDER,
-// RATINGS -> RATING, ANNOUNCEMENTS -> ANNOUNCEMENT, BOND/BONDS -> BND by the code
+// enough to be a word on its own (FINANCIALS -> FINANCIAL, RATINGS -> RATING,
+// ANNOUNCEMENTS -> ANNOUNCEMENT, BOND/BONDS -> BND by the code
 // list above). Nothing outside a panel's own name is ever added, so the finder
 // cannot turn a common word into a panel, and the set is closed: two and three
 // letter stems that are really codes (TAS -> TA, NEWS -> NEW, FOCUS -> FOCU, FX)

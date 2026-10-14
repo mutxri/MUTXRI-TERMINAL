@@ -72,7 +72,6 @@
   .bnd-ex button:last-child { border-right:0; }
   .bnd-ex button.on { background:var(--bg4); color:var(--acc); }
   .bnd-ex button:hover { color:var(--acc); }
-  .bnd-note { padding:8px 14px; border-bottom:1px solid var(--line); color:var(--tx3); font-size:10px; font-family:var(--mono); line-height:1.5; }
   .bnd-cols, .bnd-inst { display:grid; grid-template-columns:1.7fr 0.9fr 0.7fr 1fr 1fr 0.5fr; gap:8px; padding:6px 14px; }
   .bnd-cols { color:var(--tx3); font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase;
               border-bottom:1px solid var(--line2); }
@@ -110,7 +109,6 @@
     <button class="bnd-refresh" id="bndRefresh">Refresh</button>
   </div>
   <div class="bnd-ex" id="bndEx"></div>
-  <div class="bnd-note" id="bndNote">-</div>
   <div class="bnd-cols">
     <span>Instrument</span><span>Type</span><span>Cpn</span><span>Maturity</span><span>Yld / Px</span><span>Ccy</span>
   </div>
@@ -226,17 +224,10 @@
       return String(a.instrument).localeCompare(String(b.instrument));
     });
     if (!rows.length){
-      var src = OVERRIDE || "static_data/bonds.json";
-      var why = (rawData === null)
-        ? "the data file was not found or could not be read"
-        : "the file carried no bond rows for " + ex;
-      $("bndBody").innerHTML = '<div class="bnd-empty"><b>Bond data not available for ' + esc(ex) + '</b><br>' +
-        esc(src) + " - " + esc(why) + '.</div>';
+      $("bndBody").innerHTML = '<div class="bnd-empty"><b>Bond data not available for ' + esc(ex) + '</b></div>';
       $("bndFoot").textContent = "no bond source for " + ex;
-      $("bndNote").textContent = "";
       return;
     }
-    $("bndNote").textContent = (rawData && rawData.note) ? rawData.note : "";
     $("bndBody").innerHTML = rows.map(function(r){
       var cpn = r.coupon == null
         ? dash("the source for this row does not publish a coupon")
@@ -258,11 +249,7 @@
         '<span class="bnd-ccy">' + (r.ccy ? esc(r.ccy) : dash("the row names no currency")) + "</span>" +
       "</div>";
     }).join("");
-    var srcs = {};
-    rows.forEach(function(r){ if (r.source) srcs[r.source] = 1; });
-    var srcList = Object.keys(srcs).length ? Object.keys(srcs).join("; ") : "source not stated";
-    $("bndFoot").textContent = rows.length + " instrument" + (rows.length === 1 ? "" : "s") + " on " + ex +
-      " · Source: " + srcList;
+    $("bndFoot").textContent = rows.length + " instrument" + (rows.length === 1 ? "" : "s") + " on " + ex;
   }
 
   function load(){

@@ -355,18 +355,14 @@
       var aReps = ((rec && rec.reports) || []).filter(function(rp){ return rp && rp.url; });
       // If the statement file itself says WHY it holds nothing (an ETF or ETN
       // that publishes no statements, a cash flow the issuer does not disclose),
-      // print that reason; otherwise fall back to the generic absence line.
-      var note = (rec && rec.reason)
-        ? esc(rec.reason)
-        : (aReps.length
-            ? 'No figures for this statement have been extracted; open the source filing below.'
-            : 'No verified source for this statement has been collected for this security.');
-      var a = '<div class="empty">' + esc(STMT_TITLE()) + ' not on file for ' + esc(who) + '. ' +
-        note +
+      // print that reason.
+      var note = (rec && rec.reason) ? esc(rec.reason) : '';
+      var a = '<div class="empty">' + esc(STMT_TITLE()) + ' not on file for ' + esc(who) + '.' +
+        (note ? ' ' + note : '') +
         '</div>';
       if(aReps.length){
         a += '<div style="padding:10px 14px;border-top:1px solid var(--line2)">' +
-          '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>';
+          '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings</div>';
         aReps.forEach(function(lk){
           a += '<a class="filing" href="' + esc(lk.url) + '" target="_blank" rel="noopener" style="display:inline-block;margin:2px 8px 2px 0">' + esc(lk.label || "Filing") + '</a>';
         });
@@ -379,11 +375,11 @@
     var h='<table><thead><tr><th>'+STMT_TITLE()+(dispTicker?(' &middot; '+esc(dispTicker)):'')+(dispName?(' &middot; '+esc(dispName)):'')+'</th>';
     for(var i=0;i<per.length;i++)h+='<th>'+esc(per[i])+'</th>';
     h+='</tr></thead><tbody>';
-    var anyDerived=false;
     for(var r=0;r<sch.length;r++){
       var key=sch[r][0],lbl=sch[r][1],series=vals[key]||[],isTot=TOTAL_KEYS[key];
-      if(derivedSet[key]) anyDerived=true;
-      var dv = derivedSet[key] ? '<span title="'+esc('derived: '+(derivedFrom[key]||'computed from filed values'))+'" style="color:var(--tx3);font-style:italic">&#8776;</span> ' : '';
+      var dv = derivedSet[key]
+        ? '<span title="'+esc('derived: '+(derivedFrom[key]||'computed from filed values'))+'" style="color:var(--tx3);font-style:italic">&#8776;</span> '
+        : '';
       h+='<tr class="'+(isTot?'total':'')+'"><td class="item">'+dv+esc(lbl)+'</td>';
       for(var c=0;c<per.length;c++){
         var v=series[c];
@@ -401,19 +397,15 @@
     }
     h+='</tbody></table>';
 
-    if(anyDerived){
-      h+='<div style="padding:6px 14px;color:var(--tx3);font-size:10px">&#8776; computed from filed values (arithmetic), not a reported figure.</div>';
-    }
-
     // real filings list (primary-source PDFs)
     var srcUrl=(rec&&(rec.source_url||rec.ir_url||rec.ir))||null;
     var reps=(rec&&rec.reports)||[];
     var links=[];
-    if(srcUrl) links.push({label:"Source document (exchange filing)",url:srcUrl});
+    if(srcUrl) links.push({label:"Source document",url:srcUrl});
     (reps||[]).forEach(function(rp){ if(rp&&rp.url) links.push({label:rp.label||"Filing",url:rp.url}); });
     if(links.length){
       h+='<div style="padding:10px 14px;border-top:1px solid var(--line2)">'+
-         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings (primary source)</div>';
+         '<div style="color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filings</div>';
       links.forEach(function(lk){
         h+='<a class="filing" href="'+esc(lk.url)+'" target="_blank" rel="noopener" style="display:inline-block;margin:2px 8px 2px 0">'+esc(lk.label)+'</a>';
       });
@@ -453,7 +445,7 @@
     // appended the analysis block over and over. Clear any previous one first.
     var prev = body.querySelector('.an');
     if(prev) prev.remove();
-    var h = '<div class="an"><h4>Analysis &middot; computed from the statement above' + (a.period ? ' (' + esc(a.period) + ')' : '') + '</h4><div class="an-grid">';
+    var h = '<div class="an"><h4>Analysis' + (a.period ? ' &middot; ' + esc(a.period) : '') + '</h4><div class="an-grid">';
     (a.ratios || []).forEach(function(r){
       h += '<div class="an-row"><span>' + esc(r.label) + '</span><span>' +
            fmtVal(r.value, r.unit) + '</span></div>';
@@ -476,37 +468,17 @@
       }).join('') + '</div>';
     }
 
-    // Say what was derived rather than filed, and whether the statement
-    // reconciles - a reader should not have to assume either.
-    var notes = [];
-    var au = a.audit || {};
-    if(au.total) notes.push(au.failed ? (au.failed + ' of ' + au.total + ' accounting identities do not hold')
-                                      : (au.passed + '/' + au.total + ' accounting identities hold'));
-    if(m.altmanZ == null && m.altmanMissing && m.altmanMissing.length)
-      notes.push('Altman Z&Prime; not computable: missing ' + m.altmanMissing.slice(0,3).join(', '));
-    if(v.peCrossCheck && v.peCrossCheck !== 'agree') notes.push('P/E cross-check: ' + v.peCrossCheck);
-    if(v.note) notes.push(v.note);
-    var d = a.derived || {};
-    if(d.currentSplit) notes.push('current assets and liabilities derived from the non-current split');
-    if(d.ebit) notes.push('EBIT not filed; rebuilt as PBT plus net finance costs');
-    if(d.capitalEmployedBasis) notes.push('capital employed: ' + d.capitalEmployedBasis);
-    if(notes.length) h += '<div class="an-note">' + notes.join(' &middot; ') + '</div>';
-    // A withheld multiple is absent above (never a zero). Say WHY, so the blank
-    // is a decision the reader can see rather than a gap: every withheld metric
-    // carries its own reason in the analytics file. A withheld P/E is listed
-    // here and never as an agreement - an absent multiple cannot agree with
-    // anything, and its cross-check flag (when set) is 'withheld', never 'agree'.
+    // A withheld multiple is absent above (never a zero). The row states that it
+    // is withheld; the reason is not printed.
     var wd = [];
     [['P/E','pe'],['P/B','pb'],['P/S','ps'],['Earnings yield','earnings_yield'],
      ['EV/EBIT','ev_ebit']].forEach(function(p){
-      if(v[p[1]] == null && v[p[1]+'_withheld'] === true && v[p[1]+'_withheld_reason'])
-        wd.push('<div class="an-wd"><b>' + esc(p[0]) + ' withheld</b> ' +
-                esc(String(v[p[1]+'_withheld_reason']).replace(/^Withheld:\s*/i,'')) + '</div>');
+      if(v[p[1]] == null && v[p[1]+'_withheld'] === true)
+        wd.push('<div class="an-wd"><b>' + esc(p[0]) + ' withheld</b></div>');
     });
     (a.ratios || []).forEach(function(r){
-      if(r && r.withheld === true && r.value == null && r.withheld_reason)
-        wd.push('<div class="an-wd"><b>' + esc(r.label || r.key) + ' withheld</b> ' +
-                esc(String(r.withheld_reason).replace(/^Withheld:\s*/i,'')) + '</div>');
+      if(r && r.withheld === true && r.value == null)
+        wd.push('<div class="an-wd"><b>' + esc(r.label || r.key) + ' withheld</b></div>');
     });
     if(wd.length) h += wd.join('');
     h += '</div>';
@@ -541,8 +513,8 @@
   function setStatus(source,asOf){
     var dot=document.getElementById("dot"),lab=document.getElementById("srcLabel");
     dot.className="dot";
-    if(source==="FILED"){dot.classList.add("live");lab.textContent="FILED - from company disclosure";}
-    else if(source==="LINKS"){lab.textContent="verified filing links";}
+    if(source==="FILED"){dot.classList.add("live");lab.textContent="FILED";}
+    else if(source==="LINKS"){lab.textContent="filing links";}
     else if(source==="NONE"){lab.textContent="no filings on file";}
     else{dot.classList.add("live");lab.textContent="";}
     document.getElementById("asOf").textContent=asOf?("as of "+asOf):"";
