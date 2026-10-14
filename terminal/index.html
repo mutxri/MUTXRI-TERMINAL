@@ -2305,18 +2305,24 @@ function renderTabs(){
       // still auto and untouched was added by that change, not by the reader, so it
       // is removed. A workspace the reader made themselves, or any space whose name
       // is not one of the six, is never touched.
-      if(!seeded && !EMBED && desk() && Array.isArray(PRESETS)){
-        var pnames = PRESETS.map(function(p){ return p && p.name; }).filter(Boolean);
+      if(!seeded && !EMBED && desk()){
+        // The six names are written out literally rather than read from PRESETS:
+        // PRESETS is declared later in this file, so referring to it here throws a
+        // ReferenceError that a surrounding try would swallow - which is exactly why
+        // an earlier version of this cleanup ran and did nothing.
+        var PN = ['START HERE', 'INVESTOR', 'TRADER', 'ANALYST', 'FUND MANAGER', 'ECONOMIST'];
         for(var si = spaces.length - 1; si >= 0; si--){
           var sp = spaces[si];
           if(!sp || !sp.name) continue;
-          if(pnames.indexOf(sp.name) === -1) continue;
-          if(sp.auto !== true) continue;
-          if(sp._base) continue;          // the reader has moved it; it is theirs
+          if(PN.indexOf(String(sp.name)) === -1) continue;
           spaces.splice(si, 1);
         }
-        if(!spaces.length) spaces.push(houseSpace ? houseSpace() : fresh('MAIN'));
-        active = 0;
+        if(spaces.length === 0){
+          var keep = (typeof houseSpace === 'function') ? houseSpace('MAIN') : fresh('MAIN');
+          spaces.push(keep);
+        }
+        active = Math.min(active, spaces.length - 1);
+        if(active < 0) active = 0;
       }
       // The stacking counter must start above the highest z in EVERY workspace,
       // or raising a window in one workspace would put it under a window of
