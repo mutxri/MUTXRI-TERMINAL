@@ -160,8 +160,11 @@
     $("hMeta").innerHTML = m.join(" &nbsp;·&nbsp; ");
 
     var st = [];
-    if(rec.issued) st.push("issued shares: <b>" + num(rec.issued) + "</b>" +
-      (rec.issuedBasis ? ' <span class="sub">(' + esc(rec.issuedBasis) + ")</span>" : ""));
+    // The issuedBasis parenthetical ("median implied issued from the printed
+    // shares/percentage pairs of this table") is NOT painted: it explained how the
+    // count was reached, which is narration (owner, 2026-10-14). The issued count
+    // itself stays, and the basis stays in the data file.
+    if(rec.issued) st.push("issued shares: <b>" + num(rec.issued) + "</b>");
     if(rec.freeFloat && rec.freeFloat.pct != null)
       st.push("free float: <b>" + pct(rec.freeFloat.pct) + "</b>" +
         (rec.freeFloat.units ? " (" + num(rec.freeFloat.units) + " shares)" : "") +

@@ -1870,27 +1870,70 @@ function renderTabs(){
     // shell's own (zoomed) coordinate space is the visual rect divided by the
     // scale. Window geometry is stored in that space.
     function box(){ var r = main.getBoundingClientRect(), sc = mtScale(); return {width: r.width / sc, height: r.height / sc}; }
-    function tiled(){
-      // the first workspace mirrors the tiled layout people already know
+    // THE HOUSE ARRANGEMENT (owner, 2026-10-14): what the terminal opens on for
+    // every reader who has no arrangement of their own. WATCHLIST is the narrow
+    // list down the left, the MARKET window is the middle column and the largest
+    // of the four by area, and the right column is FOCUS above CHAT. The centre
+    // slot (PANEL) is SHUT in this arrangement: the market window has taken the
+    // middle, so the centre panel would land straight on top of it. Its geometry
+    // is still carried, at the middle column, so a command can bring it back.
+    // The three columns are computed in ONE place because the panel window in the
+    // right column has to line up with the shell windows beside it.
+    function columns(){
       const b = box(), W = b.width || 1280, H = b.height || 700;
-      const railW = Math.min(280, Math.max(MIN_W, Math.round(W * 0.2)));
-      const chatW = Math.min(320, Math.max(MIN_W, Math.round(W * 0.24)));
-      const midW = Math.max(MIN_W, W - railW - chatW - 24);
+      // ~22 percent for the list, 20 for the right column. The right column's
+      // floor is 240 rather than the shell window's 220: a panel window
+      // (MTPanelWins) refuses to be narrower than 240, so FOCUS would otherwise
+      // be grown by its own clamp and poke past the edge of the workspace.
+      const railW = Math.min(360, Math.max(MIN_W, Math.round(W * 0.22)));
+      const colW  = Math.min(340, Math.max(240, Math.round(W * 0.20)));
+      const midW  = Math.max(MIN_W, W - railW - colW - 24);
+      return {W: W, H: H, railW: railW, colW: colW, midW: midW,
+              midX: railW + 12, colX: railW + midW + 20, halfH: Math.round(H / 2)};
+    }
+    function tiled(){
+      // the first workspace is the house arrangement, at the size the reader has
+      const c = columns();
       return {
-        watch:  {x: 4, y: 4, w: railW, h: H - 8, open: true, z: 11},
-        center: {x: railW + 12, y: 4, w: midW, h: H - 8, open: true, z: 12},
-        info:   {x: railW + midW + 20, y: 4, w: chatW, h: Math.round(H / 2) - 8, open: true, z: 13},
-        chat:   {x: railW + midW + 20, y: Math.round(H / 2) + 6, w: chatW, h: Math.round(H / 2) - 12, open: true, z: 14},
+        watch:  {x: 4, y: 4, w: c.railW, h: c.H - 8, open: true, z: 11},
+        center: {x: c.midX, y: 4, w: c.midW, h: c.H - 8, open: false, z: 12},
+        info:   {x: c.midX, y: 4, w: c.midW, h: c.H - 8, open: true, z: 13},
+        chat:   {x: c.colX, y: c.halfH + 6, w: c.colW, h: c.halfH - 12, open: true, z: 14},
         // POP REMOVED 2026-09-28: there was a fifth 'pop' window here, opened by
         // the POP command. It is gone, so the default tile is the four panes.
       };
+    }
+    // FOCUS, the panel window of the house arrangement: the top half of the
+    // right column, the same x/width as the CHAT window underneath it, in the
+    // panel layer's own record shape ({open, x, y, w, h, z}), which is the shape
+    // mt_ws carries under `panelwins`. Every other panel window is absent from
+    // the record, and an absent panel window is SHUT, so no other one is open.
+    function defaultPanels(){
+      // the right column, top half. NOT the middle column: FOCUS shares its x
+      // and its width with the CHAT window below it, and the two of them make up
+      // the right column between them (10px of daylight at the join).
+      const c = columns();
+      return {focus: {open: true, x: c.colX, y: 4, w: c.colW,
+                      h: Math.round(c.H / 2) - 8, z: 21}};
+    }
+    // A workspace built from nothing: the house arrangement, in front of the
+    // reader. This is what a reader with no stored arrangement lands on, and it
+    // is an ARRANGEMENT rather than a starting point (auto false), so the
+    // viewport never re-tiles it away from the reader.
+    function houseSpace(name){
+      const t = tiled();
+      return {name: name, wins: t, auto: false, dismissed: [],
+              panelwins: defaultPanels(), _base: copyWins(t)};
     }
     // A workspace stays "auto" until you move something in it: while it is,
     // it re-tiles to the window you actually have, which is what a workspace
     // nobody has arranged should do. The moment a window is moved, resized or
     // the layout is saved, the workspace stops being auto and the arrangement
     // recorded in mt_ws is the arrangement that comes back on the next visit.
-    function fresh(name){ return {name: name, wins: tiled(), auto: true, dismissed: [], _base: null}; }
+    function fresh(name){
+      return {name: name, wins: tiled(), auto: true, dismissed: [],
+              panelwins: defaultPanels(), _base: null};
+    }
     // One window's stored geometry, normalised: whole pixels (the DOM is placed
     // in whole pixels, so what is read back equals what was written) and only
     // the fields an arrangement needs. A transient like `_max` (a half-toggled
@@ -2146,6 +2189,15 @@ function renderTabs(){
       const want = String(nm == null ? '' : nm).trim().toUpperCase();
       return PRESETS.find(function(p){ return p.name === want; }) || null;
     }
+    // WHAT A FIRST LOAD GETS (owner, 2026-10-14). The house arrangement is the
+    // workspace in FRONT, because that is what everybody who joins is meant to
+    // land on: WATCHLIST, MARKET, FOCUS and CHAT. The six approved sets are kept
+    // beside it as tabs, so nothing that was reachable before has gone away and
+    // none of them is in front any more. Built from the box in front of the
+    // reader, so the same three columns land in the same three places at any size.
+    function seedSpaces(){
+      return [houseSpace('MAIN')].concat(PRESETS.map(function(p){ return presetSpace(p); }));
+    }
     // ADD a set to the reader's own: it is appended, never swapped in, so
     // offering the presets to somebody who already has an arrangement cannot
     // touch a single window of it.
@@ -2227,17 +2279,16 @@ function renderTabs(){
         });
         active = Math.min(Math.max(0, (s.active | 0)), spaces.length - 1);
       }else{
-        // NOTHING IS STORED AT ALL: a first load, so the six approved sets are
-        // seeded as the reader's own workspaces, START HERE in front because
-        // that is the one a beginner needs. This is the ONLY place the six are
-        // created. A record that exists - readable or not - takes the branch
-        // above and is left alone entirely, so an arrangement already saved on
-        // this machine is never replaced, shrunk or reset by this build. Note
-        // that the seed is not written here either: it is derived from the box
-        // in front of the reader, so nothing is put in storage until the reader
-        // actually does something.
+        // NOTHING IS STORED AT ALL: a first load. The HOUSE ARRANGEMENT is the
+        // workspace in front (WATCHLIST, MARKET, FOCUS, CHAT), with the six
+        // approved sets kept beside it as tabs (see seedSpaces). A record that
+        // exists - readable or not - takes the branch above and is left alone
+        // entirely, so an arrangement already saved on this machine is never
+        // replaced, shrunk or reset by this build. Note that the seed is not
+        // written here either: it is derived from the box in front of the
+        // reader, so nothing is put in storage until the reader does something.
         const first = !EMBED && desk() && (raw === null || raw === '');
-        spaces = first ? PRESETS.map(function(p){ return presetSpace(p); }) : [fresh('MAIN')];
+        spaces = first ? seedSpaces() : [houseSpace('MAIN')];
         seeded = first;
         active = 0;
       }
@@ -2305,11 +2356,12 @@ function renderTabs(){
       // The seed was measured while the sheet strip was still display:none, so
       // the box it was laid out in was one strip taller than the box the windows
       // land in. Rebuild it ONCE, here, against the box the strip has now: the
-      // six sets then fill the workspace exactly as the drawing has them, and a
-      // window can never be left hanging over the strip.
+      // house arrangement and the six sets then fill the workspace exactly as
+      // the drawing has them, and a window can never be left hanging over the
+      // strip. The workspace in front (active 0) is the house arrangement.
       if(seeded){
         seeded = false;
-        spaces = PRESETS.map(function(p){ return presetSpace(p); });
+        spaces = seedSpaces();
         try{ lastSig = sig(record(false)); }catch(e){ lastSig = null; }
       }
       retile();
@@ -2685,11 +2737,16 @@ function renderTabs(){
       // desktop only: RESET re-tiles, and on a phone that would throw away the
       // arrangement saved for the desktop (the mobile stack ignores geometry)
       if(!desk()) return;
-      // RESET means the default layout: every dismissal is cleared, so the full
-      // four-window arrangement comes back even after the reader emptied it.
+      // RESET means THE DEFAULT ARRANGEMENT, which since 2026-10-14 is the house
+      // arrangement: WATCHLIST, MARKET, FOCUS and CHAT, with the centre slot
+      // (PANEL) shut. Opening all four shell windows instead would put PANEL in
+      // the middle column on top of the MARKET window, which is the one thing
+      // this arrangement exists to avoid. Every dismissal is cleared here, so the
+      // full arrangement comes back even after the reader emptied the workspace.
       sp.dismissed = [];
-      KEYS.forEach(function(k){ if(sp.wins[k]) sp.wins[k].open = true; });
-      sp.auto = true;
+      sp.wins = tiled();
+      sp.auto = false;
+      sp._base = copyWins(sp.wins);
       render();
       flushSave();            // auto-save: a reset persists immediately
     }
@@ -4540,6 +4597,14 @@ function mkF2(v){ var n = mkNum(v); return n === null ? null : String(Math.round
 // read by the panels. The label is drawn separately here, so the leading word is
 // trimmed and the REASON itself is what the reader gets.
 function mkNoLead(s){ return String(s === null || s === undefined ? '' : s).replace(/^\s*Withheld:\s*/i, ''); }
+// The generic sentence every analytics file appends to a withholding ("A blank is
+// honest; a ratio built on an input that cannot be verified is not a valuation.")
+// is NOT painted: it is narration about the ratio itself rather than part of the
+// reason the figure is withheld (owner, 2026-10-14). The WITHHELD state and the
+// reason behind it stay, and the sentence stays in the data file.
+function mkNoTail(s){
+  return String(s === null || s === undefined ? '' : s).replace(/\s*A blank is honest; a ratio built on an input that cannot be verified is not a valuation\.\s*$/, '');
+}
 function mkSuffix(ex){ return ex === 'JSE' ? '.JO' : (ex === 'EGX' ? '.CA' : ''); }
 // The key conventions the RESEARCH, HOLDERS and CHART views already use: the
 // exchange's own archive suffix for JSE (.JO) and EGX (.CA), the EX_ prefix for
@@ -4611,11 +4676,11 @@ function mkHolderSource(src){
     var host = String(src.url).replace(/^https?:\/\//i, '').split('/')[0];
     if(host) return host;
   }
-  if(src.note){
-    var t = mkFirstSentence(src.note);
-    if(t.length > 120) t = t.slice(0, 117).replace(/\s+\S*$/, '') + '...';
-    return t;
-  }
+  // The source's own note ("holder rows carry the names, share counts and
+  // percentages exactly as printed; the table was accepted only after ...") is NOT
+  // painted: it is a sentence about the source, which is narration, while the
+  // source's name is the part that is data (owner, 2026-10-14). The note stays in
+  // the data file.
   return 'issuer filing';
 }
 // who the entities under this security were read from, and the date a
@@ -4693,13 +4758,11 @@ function mkHoldersSection(sym, ex, shFile, mktRow){
   body += mkHolderGroup(rec.promoters, 'Promoters and close relatives');
   body += mkHolderGroup(rec.other, 'Other influential holdings');
   body += mkHolderGroup(rec.directors, 'Directors (direct and indirect)');
-  var anyPct = false;
-  ['substantial', 'promoters', 'other', 'directors'].forEach(function(a){
-    (rec[a] || []).forEach(function(h){ if(h && h.pct !== undefined && h.pct !== null) anyPct = true; });
-  });
-  if(!anyPct){
-    body += '<div class="mki-out">This source prints the holders and the shares each holds, not a percentage column.</div>';
-  }
+  // The sentence that used to close this section when no percentage column was
+  // printed ("This source prints the holders and the shares each holds, not a
+  // percentage column.") is NOT painted: a sentence about the source is narration,
+  // while the source name is the data (owner, 2026-10-14). A holder row with no
+  // percentage printed already says so in its own cell.
   // The issued count and its basis: the holder record's own count where the
   // source printed one, otherwise the market row's count, LABELLED as such so
   // the two measurements are never read as one. The basis goes on its own line
@@ -4708,12 +4771,19 @@ function mkHoldersSection(sym, ex, shFile, mktRow){
   var issued = mkNum(rec.issued);
   if(issued !== null){
     body += '<div class="mki-row"><span class="k">ISSUED SHARES</span><span class="v">' + esc(mkShares(issued)) + '</span></div>';
-    if(rec.issuedBasis) body += '<div class="mki-out">' + esc(String(rec.issuedBasis)) + '</div>';
+    // The file's own issuedBasis sentence ("median implied issued from the printed
+    // shares/percentage pairs of this table") is not painted: it explains how the
+    // figure was reached, which is the panel narrating itself. The ISSUED SHARES
+    // row and the basis stay in the data file.
   } else if(mktRow && mkNum(mktRow.sharesIssued) !== null){
     body += '<div class="mki-row"><span class="k">ISSUED SHARES</span><span class="v">' + esc(mkShares(mktRow.sharesIssued)) + '</span></div>';
-    body += '<div class="mki-out">' + esc('from the market file; the holder source prints no issued count') + '</div>';
   } else {
-    body += '<div class="mki-out">Neither the holder record nor the market row prints an issued share count for this security.</div>';
+    // The empty state no longer names the two internal records it looked in
+    // ("Neither the holder record nor the market row prints an issued share count
+    // for this security."): that told the reader where a figure would have been
+    // read from, which is narration (owner, 2026-10-14). The honest empty state
+    // stays; the data file is untouched.
+    body += '<div class="mki-out">No issued share count on file for ' + esc(sym) + '.</div>';
   }
   if(rec.freeFloat && mkNum(rec.freeFloat.pct) !== null){
     body += '<div class="mki-row"><span class="k">FREE FLOAT</span><span class="v">' + esc(mkPct(rec.freeFloat.pct)) + '</span></div>';
@@ -4875,11 +4945,12 @@ function mkStatsSection(sym, ex, mkt, row, shFile, cinfo, listing, hist){
   body += mkStat('YEAR END', r.yearEnd || (co && co.year_end) || null);
   body += mkStat('LISTED', r.ipo || (co && co.listed) || null);
   body += mkStat('INSTRUMENT', r.instrument || (ls && ls.instrument) || null);
-  var extra = [];
-  if(r52FromBars) extra.push('52 week range from the price history bars');
-  if(sharesFromFile) extra.push('share count from the shares outstanding record');
-  if(capComputed) extra.push('market cap from price x shares' + (capScale ? ', prices quoted in cents' : ''));
-  body += '<div class="mki-out">' + esc('From the market file' + (extra.length ? ' - ' + extra.join(' - ') : '') + '.') + '</div>';
+  // The provenance line this section used to close with ("From the market file -
+  // 52 week range from the price history bars", "share count from the shares
+  // outstanding record", "market cap from price x shares") is NOT painted: it
+  // told the reader where each figure had been read from, which is the panel
+  // narrating itself (owner, 2026-10-14). Every figure above and the as-of
+  // header stay exactly as they were; the flags are still worked out above.
   return mkSec('KEY STATISTICS', r.asOf ? esc('as of ' + r.asOf) : '', body);
 }
 
@@ -5050,7 +5121,10 @@ function mkValSection(sym, ex, anData, anKey){
   var v = anData.valuation || {};
   var h = '';
   var head = v.valBasis || anData.period || '';
-  var sub = [v.basis ? String(v.basis) : '', v.ratiosPeriod ? ('ratios period ' + v.ratiosPeriod) : ''].filter(Boolean).join(' · ');
+  // Only the ratios period is drawn. The basis sentence ("current market cap vs the
+  // annual period both statements cover") explained what the window covers, which is
+  // the panel narrating itself - the period is the part that is data.
+  var sub = [v.ratiosPeriod ? ('ratios period ' + v.ratiosPeriod) : ''].filter(Boolean).join(' · ');
   if(sub) h += '<div class="mki-sub">' + esc(sub) + '</div>';
   MK_METRICS.forEach(function(m){
     var key = m[0], label = m[1], unit = m[2];
@@ -5058,20 +5132,28 @@ function mkValSection(sym, ex, anData, anKey){
     var withheld = (v[key + '_withheld'] === true);
     if(val !== null && !withheld){
       h += mkiRow(label, mkF2(val) + unit, true);
-      var f = v[key + 'Formula'], inp = v[key + 'Inputs'];
-      if(f) h += '<div class="mki-out">' + esc(String(f)) + '</div>';
-      h += '<div class="mki-out">' + esc(mkInputs(inp)) + '</div>';
+      // NO FORMULA LINE AND NO INPUT LIST. A panel shows data and short labels; it
+      // does not explain how a figure was derived (owner, 2026-10-14, quoting
+      // "current price / earnings per share" and "inputs: marketCap 43.32B,
+      // netProfit 24.99B, price 22.2, eps 12.8052"). The multiple and its unit stay.
+      // The formulas and inputs remain in the analytics files and are simply not
+      // painted.
     } else if(withheld){
       h += '<div class="mki-row"><span class="k">' + esc(label) + '</span>' +
            '<span class="v" style="color:#e0a340">WITHHELD</span></div>';
       h += '<div class="mki-wh"><b>WHY</b> ' +
-           esc(mkNoLead(v[key + '_withheld_reason'] || 'the file records no reason with the withholding')) + '</div>';
+           esc(mkNoTail(mkNoLead(v[key + '_withheld_reason'] || 'the file records no reason with the withholding'))) + '</div>';
     } else {
       h += '<div class="mki-row"><span class="k">' + esc(label) + '</span>' +
            '<span class="v" style="color:var(--tx3)">not on file</span></div>';
     }
   });
-  if(v.note) h += '<div class="mki-out">' + esc(String(v.note)) + '</div>';
+  // The valuation note is NOT painted ("P/E stands on FY2025, the newest annual
+  // earnings on file; the statement and the ratios above are H1 2026, an interim
+  // and not annualised" and "loss-making in the latest period, so P/E is not
+  // meaningful"): both explained the figures to the reader and drew a conclusion
+  // for them, which is the panel narrating itself (owner, 2026-10-14). The note
+  // stays in the analytics file; the ratios period header above stays.
   return mkSec('VALUATION', esc(head), h);
 }
 
@@ -5456,7 +5538,11 @@ function renderMarketStatic(rec, info){
         });
         if(any){
           var ri = $('rightInfo');
-          if(ri) ri.insertAdjacentHTML('beforeend', h + `<div style="padding:12px 16px;color:var(--tx3);font-size:9px;border-top:1px solid var(--line)">From filed statements · full detail in FINANCIALS</div>`);
+          // The footer this financials block used to carry ("From filed statements
+          // · full detail in FINANCIALS") is NOT painted: it named where the
+          // figures had been read from and pointed at another panel, which is
+          // narration (owner, 2026-10-14). The figures above stay.
+          if(ri) ri.insertAdjacentHTML('beforeend', h);
         }
       };
       var _fetchInc = (k) => fetch('static_data/financials/' + encodeURIComponent(k) + '__income.json').then(r => r.ok ? r.json() : Promise.reject());
