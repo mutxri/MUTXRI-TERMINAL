@@ -439,13 +439,31 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     Object.keys(existing).forEach(function(key){if(!want[key])canvas.removeChild(existing[key]);});
   }
 
-  // status is honest about WHERE the rows came from: the live exchange feed,
-  // a real on-disk snapshot (dated), or nothing at all. There is no SAMPLE
-  // state any more - a heatmap of invented prices must never be shown.
+  // status is honest about WHERE the rows came from: a live exchange feed, a
+  // dated snapshot on disk, or nothing at all. There is no SAMPLE state any
+  // more - a heatmap of invented prices must never be shown.
   function setStatus(mode,note){
     if(mode==="live"){ $("dot").className="dot live"; $("statusTxt").textContent="LIVE"; return; }
     if(mode==="snapshot"){ $("dot").className="dot"; $("statusTxt").textContent="SNAPSHOT"+(note?" "+note:""); return; }
     $("dot").className="dot"; $("statusTxt").textContent="data unavailable";
+  }
+  // A fetch that SUCCEEDED is not a live feed. Every path here can be served the
+  // dated static_data/heatmap_<EX>.json (the deployed build reads exactly that
+  // file), and that file carries its own as-of stamp - "NSE 14/10/2026 17:04
+  // GMT+3 (closed)" for NSE, "2026-10-13" for EGX, "2026-10-14" for JSE and NGX -
+  // so the status comes from the payload itself, never from the fact that rows
+  // arrived. A payload that stamps itself is a SNAPSHOT and prints that stamp,
+  // date and open or closed state together; ONLY a payload with no as-of stamp at
+  // all - a running board - may say LIVE. SNAPSHOT keeps the plain dot: a green
+  // pulsing live dot over a dated file is a false claim about the data.
+  function asOfText(d){
+    var s = (d && (d.asOf || d.as_of || d.generated)) || "";
+    return String(s).replace(/\s+/g," ").trim();
+  }
+  function setStatusFromPayload(d){
+    var t = asOfText(d);
+    if(t){ setStatus("snapshot", t); return; }
+    setStatus("live");
   }
 
   // ---- sector drill-down: click a sector label or a cell to see the
@@ -529,7 +547,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
         if(d.sectors){rows=[];d.sectors.forEach(function(s){(s.cells||[]).forEach(function(c){c.sector=s.sector;rows.push(c);});});}
         else rows=d.stocks||[];
         if(!rows.length) throw 0;
-        draw(normalize(rows));setStatus("live");
+        draw(normalize(rows));setStatusFromPayload(d);
       })
       .catch(function(){ loadSnapshot(); });
   }
@@ -540,7 +558,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
         var rows=d.stocks||[];
         if(!rows.length) throw 0;
         draw(normalize(rows));
-        setStatus("snapshot", d.asOf||"");
+        setStatusFromPayload(d);
       })
       .catch(function(){ showNoData(); });
   }

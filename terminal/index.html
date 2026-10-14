@@ -965,6 +965,41 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   // landing previews (view= modes) and embedded iframes are not gated
   if(q.get("view") || window.self !== window.top){
     if(gate) gate.remove();
+    var __embedded = window.self !== window.top;
+    // THE SIGN IN CONTROL HAS TO WORK HERE TOO. The chat window still carries it
+    // in a preview, and it used to be a dead button in exactly this context: the
+    // gate node is removed above, mtShowSignIn was published only on the gated
+    // path below, and the control's own fallback went looking for the gate that
+    // had just been removed. Nothing about the gate is changed here and a preview
+    // is still not an entry point: no field is shown, offered or sent from a
+    // preview. The opener hands the reader to the sign-up that owns the preview
+    // (the landing page's own control, same origin); with no such control it asks
+    // the browser for a top-level tab onto the terminal, where the gate lives.
+    // It reports whether it opened something, so the control can tell the
+    // difference between acting and doing nothing.
+    window.mtShowSignIn = function(){
+      if(__embedded){
+        try{
+          if(window.parent && window.parent !== window && typeof window.parent.openAuth === "function"){
+            window.parent.openAuth("signup");
+            return true;
+          }
+        }catch(_e){}
+        // A frame is never gated - that is the product's decision - so the gate
+        // has to be opened where it is a top-level page. The handle is kept (the
+        // "noopener" feature string makes window.open answer null, which would
+        // read here as "nothing opened") and the opener reference is severed by
+        // hand instead.
+        try{
+          var _w = window.open("/terminal/", "_blank");
+          if(_w){ try{ _w.opener = null; }catch(_e3){} return true; }
+        }catch(_e2){}
+        return false;
+      }
+      // not embedded (?view= opened on its own): the gate is one navigation away
+      try{ window.location.href = "/terminal/"; return true; }catch(_e3){}
+      return false;
+    };
     if(window.self !== window.top){
       // embedded preview: lock to the iframe height and pin to the top so the
       // header + ticker tape always show (100vh can resolve against the parent
@@ -2159,11 +2194,14 @@ function renderTabs(){
     // A set is a list of WINDOWS, and every window is a window of its own - one
     // frame, one title, one close, nothing nested. Two kinds sit in it: the four
     // shell windows (watch, center, info, chat) and the panel windows the panel
-    // layer draws. The rects below are in DESIGN UNITS, taken from
-    // design/workspaces_v2.html, so a set is checked against the drawing rather
-    // than eyeballed; a set is then scaled into whatever box the reader has, so
-    // the same three columns land in the same three places on every screen -
-    // WATCHLIST left, the largest window centre, supporting windows right.
+    // layer draws. The shape below is a SPLIT TREE (see presetLayout): a set is
+    // cut into columns, a column into rows, and every band is either one window
+    // or another cut, so the windows of a set TILE the workspace edge to edge
+    // instead of floating apart with strips left between them (owner,
+    // 2026-10-14: "spaces inside the other workspaces fix that panels arent
+    // touching each other"). The same three columns land in the same three places
+    // on every screen - WATCHLIST left, the largest window centre, supporting
+    // windows right.
     //
     // `main` names the window that has to come out LARGEST: FOCUS is a small
     // tile in all six and is never it. Every panel id below is one the shell can
@@ -2174,86 +2212,241 @@ function renderTabs(){
     const PRESETS = [
       // 1 START HERE - what is this company, and what does one share cost.
       // MARKET is the largest, because explaining is what a beginner needs.
-      {name: 'START HERE', main: 'info', uw: 892, uh: 506,
-       shell: {watch: [0, 0, 196, 506], info: [206, 0, 474, 506]},
-       panels: {focus: [692, 0, 200, 120], news: [692, 132, 200, 374]}},
+      {name: 'START HERE', main: 'info',
+       tile: {cols: [{f: .16, min: 220, win: 'watch'},
+                     {flex: 1, min: 220, win: 'info'},
+                     {f: .22, min: 240, rows: [{f: .28, min: 140, win: 'focus'},
+                                               {flex: 1, min: 140, win: 'news'}]}]}},
 
       // 2 INVESTOR - what do I own, what is it worth, what is coming.
       {name: 'INVESTOR', main: 'heatmap',
-       shell: {watch: [0, 0, 96, 264]},
-       panels: {heatmap: [100, 0, 246, 150], focus: [350, 0, 166, 96],
-                news: [350, 102, 166, 162], portfolio: [100, 156, 118, 108],
-                corp: [224, 156, 122, 108]}},
+       tile: {cols: [{f: .16, min: 220, win: 'watch'},
+                     {flex: 1, min: 220, rows: [
+                        {f: .55, min: 140, win: 'heatmap'},
+                        {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'portfolio'},
+                                                   {flex: 1, min: 240, win: 'corp'}]}]},
+                     {f: .20, min: 240, rows: [{f: .30, min: 140, win: 'focus'},
+                                               {flex: 1, min: 140, win: 'news'}]}]}},
 
       // 3 TRADER - what is the book, and what do I do about it now.
       {name: 'TRADER', main: 'trade',
-       shell: {watch: [0, 0, 90, 264]},
-       panels: {trade: [94, 0, 172, 264], chart: [270, 0, 130, 150],
-                tas: [270, 156, 130, 108], focus: [404, 0, 112, 92],
-                news: [404, 98, 112, 80], portfolio: [404, 184, 112, 80]}},
+       tile: {cols: [{f: .16, min: 220, win: 'watch'},
+                     {flex: 1, min: 240, win: 'trade'},
+                     {f: .19, min: 240, rows: [{f: .5, min: 140, win: 'chart'},
+                                               {flex: 1, min: 140, win: 'tas'}]},
+                     {f: .19, min: 240, rows: [{f: .33, min: 140, win: 'focus'},
+                                               {f: .33, min: 140, win: 'news'},
+                                               {flex: 1, min: 140, win: 'portfolio'}]}]}},
 
       // 4 ANALYST - is this company any good, and is it cheap. MARKET is in it
       // because the owner asked for it by name.
       {name: 'ANALYST', main: 'chart',
-       shell: {watch: [0, 0, 96, 264], info: [350, 82, 166, 100]},
-       panels: {chart: [100, 0, 246, 150], financials: [100, 156, 118, 108],
-                compare: [224, 156, 122, 108], focus: [350, 0, 166, 76],
-                holders: [350, 188, 166, 76]}},
+       tile: {cols: [{f: .16, min: 220, win: 'watch'},
+                     {flex: 1, min: 220, rows: [
+                        {f: .55, min: 140, win: 'chart'},
+                        {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'financials'},
+                                                   {flex: 1, min: 240, win: 'compare'}]}]},
+                     {f: .20, min: 240, rows: [{f: .33, min: 140, win: 'focus'},
+                                               {f: .33, min: 120, win: 'info'},
+                                               {flex: 1, min: 140, win: 'holders'}]}]}},
 
       // 5 FUND MANAGER - what am I exposed to across the whole market.
       {name: 'FUND MANAGER', main: 'heatmap',
-       shell: {watch: [0, 0, 92, 264]},
-       panels: {heatmap: [96, 0, 216, 150], portfolio: [96, 156, 104, 108],
-                trade: [206, 156, 106, 108], focus: [318, 0, 198, 80],
-                ann: [318, 86, 198, 90], news: [318, 182, 198, 82]}},
+       tile: {cols: [{f: .16, min: 220, win: 'watch'},
+                     {flex: 1, min: 220, rows: [
+                        {f: .55, min: 140, win: 'heatmap'},
+                        {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'portfolio'},
+                                                   {flex: 1, min: 240, win: 'trade'}]}]},
+                     {f: .20, min: 240, rows: [{f: .33, min: 140, win: 'focus'},
+                                               {f: .33, min: 140, win: 'ann'},
+                                               {flex: 1, min: 140, win: 'news'}]}]}},
 
       // 6 ECONOMIST - what is happening to this country.
       {name: 'ECONOMIST', main: 'macro',
-       shell: {watch: [0, 0, 92, 264]},
-       panels: {macro: [96, 0, 216, 170], fx: [96, 176, 104, 88],
-                bnd: [206, 176, 106, 88], focus: [318, 0, 198, 80],
-                news: [318, 86, 198, 178]}},
+       tile: {cols: [{f: .16, min: 220, win: 'watch'},
+                     {flex: 1, min: 220, rows: [
+                        {f: .60, min: 140, win: 'macro'},
+                        {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'fx'},
+                                                   {flex: 1, min: 240, win: 'bnd'}]}]},
+                     {f: .20, min: 240, rows: [{f: .30, min: 140, win: 'focus'},
+                                               {flex: 1, min: 140, win: 'news'}]}]}},
     ];
     // the window the panel layer is asked to open has to be a panel this build
     // ships: a preset that names anything else is skipped, so a set can never
     // open a window that does not exist
     const PANEL_IDS = {};
     PANELS.forEach(function(p){ PANEL_IDS[p.id] = 1; });
-    // the box a set is laid out in, in the shell's own (zoomed) coordinates
+    // The box a set is laid out in, in the shell's own (zoomed) coordinates. THE
+    // WHOLE WORKSPACE: a set tiles the same area the house arrangement tiles,
+    // edge to edge, so a preset's outer windows sit ON the outer edges exactly as
+    // MAIN's do instead of leaving a strip of daylight round them. Whole pixels,
+    // and rounded the same way the panel layer rounds its own bounds, so a window
+    // planned to reach the far edge is never grown past it by its own clamp.
     function presetBox(){
       const b = box();
-      return {x: 6, y: 6, w: Math.max(320, b.width - 12), h: Math.max(200, b.height - 12)};
+      return {x: 0, y: 0, w: Math.max(320, Math.round(b.width || 1280)),
+              h: Math.max(200, Math.round(b.height || 700))};
     }
-    function presetPixels(r, U, area){
-      return {
-        x: Math.round(area.x + (r[0] / U.w) * area.w),
-        y: Math.round(area.y + (r[1] / U.h) * area.h),
-        w: Math.round((r[2] / U.w) * area.w),
-        h: Math.round((r[3] / U.h) * area.h)
-      };
+    // ---- a set TILES its area ----------------------------------------------
+    // A set is a SPLIT TREE: a rect is cut into bands (cols, left to right, or
+    // rows, top to bottom) and a band is either one window (`win`) or another
+    // cut, so the shape reaches every window the set carries. Every boundary is
+    // computed ONCE, in whole pixels, and the two neighbours on it use that same
+    // number: adjacent windows meet on one shared edge with nothing between them,
+    // and the outermost bands ARE the area's own edges, so no strip is left over
+    // at the top, the left, the right or the bottom - the technique the house
+    // arrangement already uses (owner, 2026-10-14: "spaces inside the other
+    // workspaces fix that panels arent touching each other").
+    // The band marked `flex` takes what is left once the others are rounded, so
+    // the bands always add up to the area EXACTLY rather than leaving a remainder
+    // at the far edge.
+    // `min` is the floor this geometry has to keep: 220x120 for a shell window
+    // (MTWin clamps to that) and 240x140 for a panel window (MTPanelWins clamps
+    // to that). A band is planned wide enough for the window it carries, so a
+    // window is never grown by its own clamp and pushed off the shared edge.
+    function presetBands(total, parts){
+      const out = new Array(parts.length);
+      let flex = -1, used = 0;
+      for(let i = 0; i < parts.length; i++){
+        if(parts[i].flex){ flex = i; continue; }
+        out[i] = Math.max(parts[i].min || 0, Math.round(total * (parts[i].f || 0)));
+        used += out[i];
+      }
+      if(flex < 0) flex = parts.length - 1;
+      out[flex] = Math.max(parts[flex].min || 0, total - used);
+      return out;
+    }
+    function presetLayout(node, rect, out){
+      if(node.win){ out[node.win] = {x: rect.x, y: rect.y, w: rect.w, h: rect.h}; return out; }
+      const cut = node.cols ? 'cols' : (node.rows ? 'rows' : null);
+      if(!cut) return out;
+      const down = (cut === 'rows'), parts = node[cut];
+      const sizes = presetBands(down ? rect.h : rect.w, parts);
+      let off = down ? rect.y : rect.x;
+      for(let i = 0; i < parts.length; i++){
+        const part = parts[i], size = sizes[i];
+        const r = down ? {x: rect.x, y: off, w: rect.w, h: size}
+                       : {x: off, y: rect.y, w: size, h: rect.h};
+        if(part.win) out[part.win] = r;
+        else presetLayout(part, r, out);
+        off += size;
+      }
+      return out;
+    }
+    // A plan FITS when every cut's bands add up to the rect it was given. A band
+    // that had to be raised to its floor makes the sum too big, which is the one
+    // way a plan can fail: every leaf is by construction never below its own
+    // floor, so a sum that still equals the area means no window was grown by its
+    // clamp and nothing overlaps or sticks out.
+    function presetFits(node, rect){
+      if(node.win) return true;
+      const cut = node.cols ? 'cols' : (node.rows ? 'rows' : null);
+      if(!cut) return true;
+      const down = (cut === 'rows'), parts = node[cut];
+      const total = down ? rect.h : rect.w, sizes = presetBands(total, parts);
+      let sum = 0;
+      for(let i = 0; i < sizes.length; i++) sum += sizes[i];
+      if(sum !== total) return false;
+      let off = down ? rect.y : rect.x;
+      for(let i = 0; i < parts.length; i++){
+        const child = down ? {x: rect.x, y: off, w: rect.w, h: sizes[i]}
+                           : {x: off, y: rect.y, w: sizes[i], h: rect.h};
+        if(!parts[i].win && !presetFits(parts[i], child)) return false;
+        off += sizes[i];
+      }
+      return true;
+    }
+    // the windows of a set, in the order the tree places them
+    function presetLeaves(node, out){
+      out = out || [];
+      if(node.win){ out.push(node.win); return out; }
+      const parts = node.cols || node.rows || [];
+      for(let i = 0; i < parts.length; i++) presetLeaves(parts[i], out);
+      return out;
+    }
+    // The same tree with one window taken out. A part that keeps more than one
+    // band keeps its own share of its parent (f, flex, min) and only its children
+    // change; a part left holding a SINGLE band becomes that band, and inherits
+    // the share, so the space it was planned in is never handed to a neighbour; a
+    // part left holding none is gone. That is what keeps a pruned set covering
+    // the rect exactly: the bands of every cut still add up to the rect.
+    function presetPrune(part, id){
+      if(part.win) return part.win === id ? null : part;
+      const cut = part.cols ? 'cols' : (part.rows ? 'rows' : null);
+      if(!cut) return part;
+      const kept = [];
+      part[cut].forEach(function(child){
+        const next = presetPrune(child, id);
+        if(next) kept.push(next);
+      });
+      if(kept.length === 0) return null;
+      const share = (typeof part.f === 'number') ? part.f : 1;
+      const floor = part.min || 0;
+      if(kept.length === 1){
+        const one = kept[0], out = {min: Math.max(floor, one.min || 0)};
+        if(part.flex) out.flex = part.flex; else out.f = share;
+        if(one.win) out.win = one.win;
+        else{ if(one.cols) out.cols = one.cols; if(one.rows) out.rows = one.rows; }
+        return out;
+      }
+      const copy = {};
+      if(part.flex) copy.flex = part.flex; else copy.f = share;
+      copy.min = floor;
+      copy[cut] = kept;
+      return copy;
+    }
+    // THE FLOOR IS REAL. A six or seven window set cannot keep every window at
+    // its own floor in a workspace that is too small for them: the panel layer
+    // would GROW a window planned below 240x140 and the grown window would sit on
+    // its neighbour, which is the overlap this change exists to remove. When the
+    // plan for the area in front of the reader does not fit, the LAST window that
+    // is neither the set's named largest nor FOCUS is dropped and the set is
+    // planned again, until what is left fits: never a gap, never an overlap, and
+    // never a window below its floor. At every size the six sets are checked at
+    // (1280x800 and up) nothing is dropped at all.
+    function presetPlan(p, area){
+      let tree = p.tile, rects = presetLayout(tree, area, {});
+      for(let guard = 0; guard < 12 && !presetFits(tree, area); guard++){
+        const leaves = presetLeaves(tree), keep = {};
+        for(let i = leaves.length - 1; i >= 0; i--){
+          if(leaves[i] === p.main || leaves[i] === 'focus') continue;
+          keep[leaves[i]] = 1; break;
+        }
+        const id = Object.keys(keep)[0];
+        if(!id) break;                    // nothing left that may be dropped
+        const next = presetPrune(tree, id);
+        if(!next) break;
+        tree = next;
+        rects = presetLayout(tree, area, {});
+      }
+      return rects;
     }
     // A set becomes a workspace record. Every one of the four shell windows
     // carries a COMPLETE geometry, shut ones included, because restore() falls
     // back to the default tile for a workspace whose geometry is partial - and
     // `auto` is false from the start: this arrangement IS the layout, not a
-    // starting point the viewport may re-tile away.
+    // starting point the viewport may re-tile away. The rects come from the set's
+    // own split tree, so the windows it opens tile the workspace exactly at the
+    // size in front of the reader (see presetPlan: a window is dropped only when
+    // the area is too small to hold all of them at their floors).
     function presetSpace(p){
-      const area = presetBox(), U = {w: p.uw || 516, h: p.uh || 264}, def = tiled();
+      const area = presetBox(), def = tiled();
+      const rects = presetPlan(p, area);
       const wins = {};
       let z = 11;
       KEYS.forEach(function(k){
         const o = winGeom(null, def[k]);
-        const r = p.shell[k];
-        if(r){ Object.assign(o, presetPixels(r, U, area)); o.open = true; }
+        const r = rects[k];
+        if(r){ Object.assign(o, r); o.open = true; }
         else{ o.open = false; }
         o.z = ++z;
         wins[k] = o;
       });
       const panelwins = {};
       let pz = 20;
-      Object.keys(p.panels || {}).forEach(function(id){
-        if(!PANEL_IDS[id]) return;
-        const r = presetPixels(p.panels[id], U, area);
+      Object.keys(rects).forEach(function(id){
+        if(!PANEL_IDS[id]) return;      // only an id this build actually ships
+        const r = rects[id];
         panelwins[id] = {open: true, x: r.x, y: r.y, w: r.w, h: r.h, z: ++pz};
       });
       return {name: p.name, wins: wins, auto: false, dismissed: [],
@@ -4009,7 +4202,22 @@ if(window.__INIT_SYM){
 }
 
 // ===== Load listing =====
+// A DATA FILE THAT DID NOT ARRIVE IS NOT AN ERROR ON THE PAGE THAT CARRIES THIS
+// TERMINAL. The landing page shows this shell in several previews at once, and a
+// transient fetch failure inside one of them used to print "listing fail ..." /
+// "market overlay fail ... TypeError: Failed to fetch" into the console of the
+// public launch page (about one load in five). The failure is harmless there: the
+// same view is rebuilt on the next market switch or reload. From an embedded
+// preview it is therefore silent; opened directly, the terminal keeps the
+// diagnostic for whoever maintains it.
+function mxFetchFailQuiet(what, err){
+  try{ if(window.self !== window.top) return; }catch(e){}
+  try{ console.error(what, err); }catch(e){}
+}
 async function loadListing(ex){
+  // read the selection counter BEFORE the first await: if the reader chooses a
+  // security while this load is in flight, the board render below stands down
+  const __selGen0 = __mkSelGen;
   try{
     const url = window.API_BASE ? ('/api/listing?exchange=' + ex) : ('static_data/listing_' + ex + '.json');
     const r = await fetch(url);
@@ -4047,13 +4255,13 @@ async function loadListing(ex){
           }
           return s;
         });
-      }catch(e2){ console.error('market overlay fail', e2); }
+      }catch(e2){ mxFetchFailQuiet('market overlay fail', e2); }
     $('wlEx').textContent = ex + ' · ' + listing[ex].length;
     renderWatchlist($('q').value);
     buildTape(ex);            // tape now shows the new exchange immediately
     primeQuotes(ex);          // then refresh with live quotes
-    if(ex === currentEx) renderMarketOverview(ex);
-  }catch(e){ console.error('listing fail', e); }
+    if(ex === currentEx) renderMarketOverview(ex, __selGen0);
+  }catch(e){ mxFetchFailQuiet('listing fail', e); }
 }
 
 function stockTicker(s){
@@ -4245,7 +4453,8 @@ function renderWatchlist(filter){
     // JSE/EGX: quote from cache; NGX/NSE: EOD data embedded in the listing
     const q = quotes[s.sym] || {};
     const price = q.price != null ? q.price : s.price;
-    const chg = q.changePct != null ? q.changePct : s.chgPct;
+    // the change the exchange published, or none when it withheld one
+    const chg = rowChange(s, q);
     const vol = q.volume != null ? q.volume : s.volume;
     const cur = s.currency || (q.currency || '');
     // A row with no price must read honestly: a bare dash followed by the
@@ -4373,10 +4582,134 @@ renderExchTabs();
 // breadth (advancers/decliners/unchanged + tone), top gainers, top losers and
 // most active. Clicking a specific security still fills this rail with its
 // quote sheet (openStock), so the overview is only the *default* state.
-function renderMarketOverview(ex){
+// ===== Withheld-change guard for the rail =====
+// The data layer withholds a change it cannot stand behind: the market and
+// heatmap files carry that row with chgPct null, or a chgFlag
+// (unit-mismatch, suspect-baseline), and the note that says why. The listing
+// file this rail reads was written before that cross-check, so its row still
+// holds the old number, and without a guard the rail republishes a change the
+// rest of the system refuses to publish: EGX showed PSCC 5 -100.00%, JSE showed
+// SCD 1,325 -99.34% and XII 27 +145.45%.
+//
+// The rule, not the companies: a row whose chgPct is withheld is not ranked and
+// its change is never printed as a percentage. It drops out of TOP GAINERS and
+// TOP LOSERS and counts as no published change, which is exactly how a null
+// chgPct is already treated here (never as a zero). Three sources of the same
+// fact, in order: the row's own chgFlag; the exchange's market or heatmap file
+// carrying that same security (matched on every identifier form the files use);
+// and, when the listing file is the only source, the row's own price and
+// prevClose, because a change that cannot follow from them is not printed.
+// Nothing is deleted from any data file and no company is named here.
+var MT_RAIL_GUARD = {};   // ex -> {keys:{}, loaded:false}
+function rgForms(v){
+  var out = [], t = String(v == null ? '' : v).replace(/\//g, '_').toUpperCase().trim();
+  if(!t) return out;
+  out.push(t);
+  var b = t.split('.')[0];
+  if(b && out.indexOf(b) < 0) out.push(b);
+  return out;
+}
+var RG_ID_KEYS = ['sym', 'ticker', 'code', 'short', 'display_sym', 'data_sym'];
+function rgMapKeys(map, row){
+  if(!row || typeof row !== 'object') return;
+  RG_ID_KEYS.forEach(function(k){
+    rgForms(row[k]).forEach(function(f){ if(!map[f]) map[f] = 1; });
+  });
+}
+function rgHasKey(map, row){
+  if(!row || typeof row !== 'object') return false;
+  for(var i = 0; i < RG_ID_KEYS.length; i++){
+    var forms = rgForms(row[RG_ID_KEYS[i]]);
+    for(var j = 0; j < forms.length; j++){ if(map[forms[j]]) return true; }
+  }
+  return false;
+}
+function rgWithheld(row, map){
+  if(row && row.chgFlag) return true;
+  if(map && rgHasKey(map, row)) return true;
+  var px = Number(row && row.price), pc = Number(row && row.prevClose), c = Number(row && row.chgPct);
+  if(isFinite(px) && isFinite(pc) && isFinite(c) && px > 0 && pc > 0){
+    if(Math.abs(((px - pc) / pc * 100) - c) > 0.75) return true;
+  }
+  return false;
+}
+// one read of the guard per exchange; the rail is redrawn when it lands, so the
+// first paint of a session cannot publish a withheld change either
+function rgEnsure(ex, cb){
+  var g = MT_RAIL_GUARD[ex];
+  if(g && g.loaded) return;
+  if(g){ g.wait.push(cb); return; }
+  g = MT_RAIL_GUARD[ex] = {keys: {}, loaded: false, wait: [cb]};
+  Promise.all([
+    mkGet('static_data/market_' + ex + '.json').catch(function(){ return null; }),
+    mkGet('static_data/heatmap_' + ex + '.json').catch(function(){ return null; })
+  ]).then(function(res){
+    [res[0], res[1]].forEach(function(f){
+      if(!f || !Array.isArray(f.stocks)) return;
+      f.stocks.forEach(function(r){
+        if(r && (r.chgFlag || ('chgPct' in r && r.chgPct === null))) rgMapKeys(g.keys, r);
+      });
+    });
+  }).catch(function(){}).then(function(){
+    g.loaded = true;
+    var w = g.wait; g.wait = [];
+    w.forEach(function(fn){ try{ fn(); }catch(e){} });
+  });
+}
+// The change a row may print, for the surfaces that show a change beside a price
+// (the rail, the ticker tape and the watchlist). The exchange's own market file is
+// the authority: it publishes the change or withholds it, and a withheld change
+// stays withheld here. The listing's own number is used only for a security the
+// market file does not carry, and then only when the guard does not catch it. null
+// means no change is printed, which every caller already renders as "-" or "n/a".
+function rowChange(s, q){
+  if(s && s.chgFlag) return null;
+  const g = MT_RAIL_GUARD[currentEx];
+  // Nothing is printed before the exchange's own withholding has been read: a
+  // listing number painted in that window would be the superseded figure the
+  // market file already refused to publish. The read is one fetch per exchange,
+  // it resolves within the first moments of a session, and a fetch that fails
+  // still counts as read (the files are simply not there to make the call).
+  if(!(g && g.loaded)) return null;
+  const map = g.keys || null;
+  if(q && ('changePct' in q)){
+    if(map && rgHasKey(map, s)) return null;
+    return (q.changePct === undefined ? null : q.changePct);
+  }
+  return rgWithheld(s, map || {}) ? null : (s.chgPct === undefined ? null : s.chgPct);
+}
+// A SELECTION ALWAYS WINS OVER A PENDING BOARD RENDER. The two callers that
+// matter finish asynchronously - loadListing() after its data files, and the
+// withholding guard's callback after its own file - and both draw the board into
+// #rightInfo, the element the quote sheet was just written into. That is the
+// search flake: search DANGCEM, the finder switches the market to NGX, openStock()
+// draws Dangote's quote sheet, and the listing fetch that the switch kicked off
+// lands afterwards and replaces the quote sheet with the NGX board overview. As
+// the FIRST search of a fresh load the listing was already in memory, so nothing
+// was pending and it rendered correctly, which is why it read as a flake rather
+// than as a rule. __mkSelGen is bumped by every security selection (openStock);
+// a caller passes the moment it ASKED for the render, and a board render that a
+// selection has overtaken returns without drawing.
+var __mkSelGen = 0;
+function renderMarketOverview(ex, asOfGen){
+  const _gen = (asOfGen === undefined) ? __mkSelGen : asOfGen;
+  if(_gen !== __mkSelGen) return;
   const rows = (listing[ex] || []).filter(function(s){ return s && (s.sym || s.ticker); });
   const el = $('rightInfo');
   if(!el) return;
+  // read the exchange's own withholding before painting, and repaint when it lands:
+  // the rail is not the only surface that prints a change for these rows
+  const _g = MT_RAIL_GUARD[ex];
+  if(!_g || !_g.loaded){
+    rgEnsure(ex, function(){
+      if(currentEx !== ex) return;
+      try{ buildTape(ex); }catch(e){}
+      try{ renderWatchlist($('q').value); }catch(e){}
+      renderMarketOverview(ex, _gen);
+    });
+  }
+  const gReady = !!(_g && _g.loaded);
+  const gmap = gReady ? _g.keys : {};
   // the board overview is not a security: the previous security's sections must
   // not stay under it when the exchange or the default state changes
   try{ mkRailClear(); }catch(e){}
@@ -4385,7 +4718,10 @@ function renderMarketOverview(ex){
   let adv = 0, dec = 0, unc = 0;
   priced.forEach(function(s){
     const c = Number(s.chgPct);
-    if(c == null || isNaN(c)){ unc++; return; }
+    // a change that is withheld is not a decliner: it is no published change.
+    // Before the exchange's withholding has been read, no row is counted either
+    // way, so the breadth cannot stand on a number the file refuses.
+    if(!gReady || s.chgPct == null || isNaN(c) || rgWithheld(s, gmap)){ unc++; return; }
     if(c > 0) adv++; else if(c < 0) dec++; else unc++;
   });
   const ratio = dec ? (adv / dec) : (adv ? 9 : 1);
@@ -4402,7 +4738,8 @@ function renderMarketOverview(ex){
              '<span class="' + cls + '">' + (c == null || isNaN(c) ? '-' : ((c >= 0 ? '+' : '') + c.toFixed(2) + '%')) + '</span></div>';
     }).join('');
   };
-  const srt = priced.filter(function(s){ return s.chgPct != null && !isNaN(Number(s.chgPct)); });
+  // the movers are ranked only once the exchange's withholding has been read
+  const srt = priced.filter(function(s){ return gReady && s.chgPct != null && !isNaN(Number(s.chgPct)) && !rgWithheld(s, gmap); });
   const gainers = srt.slice().sort(function(a, b){ return Number(b.chgPct) - Number(a.chgPct); });
   const losers  = srt.slice().sort(function(a, b){ return Number(a.chgPct) - Number(b.chgPct); });
   const active  = priced.slice().sort(function(a, b){ return (Number(b.volume) || 0) - (Number(a.volume) || 0); });
@@ -4437,7 +4774,8 @@ function renderMarketOverview(ex){
 function tapeItem(s){
   const q = quotes[s.sym] || {};
   const price = q.price != null ? q.price : s.price;
-  const chg = q.changePct != null ? q.changePct : s.chgPct;
+  // the change the exchange published, or none when it withheld one
+  const chg = rowChange(s, q);
   if(price == null) return '';
   const tkr = stockTicker(s);
   const cls = TickerFix.pctClass(chg);
@@ -5875,8 +6213,11 @@ function mkHistSection(hist, sym, ex, mktRow){
   MT_MK.fileBars = all.length;
   MT_MK.drawn = complete.length;
   var a = shown[0], b = shown[shown.length - 1];
-  var note = all.length.toLocaleString('en-US') + ' bars in the file, ' +
-             complete.length.toLocaleString('en-US') + ' drawn';
+  // The bar count ("4,587 bars in the file, 126 drawn") is NOT drawn. It stated
+  // how many bars the file the fetch happened to read holds and how many of them
+  // reached the series, which is a fact about the pipeline rather than about the
+  // security, and it sat under the PRICE HISTORY heading as though it described
+  // the instrument (owner, 2026-10-14). The counts stay on MT_MK for diagnostics.
   var body = '<div class="mki-chart" id="mkChartBox"></div>';
   body += '<div class="mki-out">' + esc(String(a.t).slice(0, 10) + ' to ' + String(b.t).slice(0, 10)) + '</div>';
   // The basis of the bars, in its first sentence: what the past bars are
@@ -5885,7 +6226,7 @@ function mkHistSection(hist, sym, ex, mktRow){
   var basisTxt = hist.data.basis_note ? mkFirstSentence(hist.data.basis_note)
                 : (hist.data.basis ? ('basis ' + hist.data.basis) : '');
   if(basisTxt) body += '<div class="mki-out">' + esc(basisTxt) + '</div>';
-  return mkSec('PRICE HISTORY', esc(note), body);
+  return mkSec('PRICE HISTORY', '', body);
 }
 
 // ---- the rest of what the RESEARCH view showed, folded in ----------------
@@ -5925,10 +6266,20 @@ function mkResearchSections(an, sym){
 
   var rs = Array.isArray(an.ratios) ? an.ratios : [];
   var rb = '';
+  // A figure carries its own period. The file stamps some rows with a period of
+  // their own - the net profit and EPS rows of DANGCEM, MTN.JO and KCB stand on
+  // FY2025 while the block's newest period is H1 2026 - and that stamp used to be
+  // dropped, so an FY2025 number was read as H1 2026 under the block's footer.
+  // A row whose period differs from the block's now shows its own period beside
+  // its label; a row that states no period is the block's, which the line under
+  // the rows names.
+  var perFoot = String(an.period || '').trim();
   rs.forEach(function(r){
     var v = mkNum(r.value);
     if(v === null) return;
-    rb += mkiRow(r.label || r.key || '', mkF2(v) + (r.unit || ''), false);
+    var per = String(r.period || '').trim();
+    var lbl = String(r.label || r.key || '') + ((per && per !== perFoot) ? ' (' + per + ')' : '');
+    rb += mkiRow(lbl, mkF2(v) + (r.unit || ''), false);
   });
   if(an.period) rb += '<div class="mki-out">' + esc('Statement period ' + an.period + (an.currency ? ', ' + an.currency : '')) + '</div>';
   out += mkSec('RATIOS', '', rb || '<div class="mki-out">No ratios on file for this security.</div>');
@@ -6106,12 +6457,11 @@ function renderMarketStatic(rec, info){
       ${row('DIVIDENDS', divTxt)}
       ${row('STATEMENTS', i.statements ? 'filed' : dash)}
     </div>`;
-  // some sources hand back punctuation as a description ("%" for one NSE name):
-  // print it only when it is actually prose
-  const _desc = String(i.description || '').trim();
-  if(_desc.length > 24 && /[a-z]{3}/i.test(_desc)){
-    html += `<div style="padding:10px 16px;border-top:1px solid var(--line);font-family:var(--ui);font-size:11px;color:var(--tx2);line-height:1.55">${esc(_desc)}</div>`;
-  }
+  // The company description is NOT drawn (owner, 2026-10-14). The 'description'
+  // field of company_info.json is promotional prose - the Safaricom record leads
+  // with a marketing sentence carrying an unsourced 65.6% market share claim -
+  // and this window shows data and short labels, not a company's own pitch. The
+  // field stays in the data file; it is simply not rendered here.
   if(Array.isArray(i.shareholders) && i.shareholders.length){
     html += `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--tx3);font-size:10px;letter-spacing:.1em;font-weight:700">MAJOR SHAREHOLDERS</div>`;
     i.shareholders.forEach(sh => {
@@ -6326,6 +6676,10 @@ function openStock(sym){
   try{ if(window.MTPanelWins) window.MTPanelWins.setSymbol(sym); }catch(e){}
   try{ if(localStorage.getItem('mt_tickerClick') === 'off') return; }catch(e){}
   curSec = sym;
+  // every selection bumps the counter read by renderMarketOverview(): a board
+  // render that was already in flight when the reader chose this security must
+  // not land on top of the quote sheet drawn below
+  __mkSelGen++;
   if(__activePanelIdx >= 0 && PANELS[__activePanelIdx] && PANELS[__activePanelIdx].id === 'financials'){
     var _f = document.getElementById('stageFrame');
     if(_f && _f.src.indexOf('mx_financials') >= 0){ _f.src = panelUrl(PANELS[__activePanelIdx]); }
@@ -6387,10 +6741,10 @@ function loadMetrics(sym, ex, name){
       let html = '<div style="padding:10px 12px;border-top:1px solid var(--line)">';
       html += `<div style="color:#7ef0c0;font-weight:700;font-size:11px;letter-spacing:.08em;padding-bottom:6px">FULL METRICS</div>`;
 
-      // --- company description ---
-      if(d.description){
-        html += `<div style="font-size:11px;color:var(--tx2);line-height:1.55;padding:4px 0 8px">${esc(d.description)}</div>`;
-      }
+      // --- company description: NOT drawn. It is the same promotional prose the
+      // static path no longer renders (owner, 2026-10-14): the live backend
+      // serves the company_info 'description' field, unsourced marketing copy
+      // rather than a figure or a short label. The field is left in the data.
 
       const groups = [
         ['IDENTITY', [['Exchange', d.exchange], ['Country', d.country], ['Currency', d.currency], ['Sector', d.sector], ['Industry', d.industry], ['Founded', d.founded], ['Employees', d.employees != null ? Number(d.employees).toLocaleString() : null], ['Revenue', d.revenue != null ? fmtMoney(d.revenue) : null], ['ISIN', d.isin]]],
@@ -6598,10 +6952,17 @@ function renderStockInfo(d, sym){
     b.title = 'Sign in to post to the room';
     b.setAttribute('aria-label', 'Sign in to post to the room');
     b.addEventListener('click', function(){
+      var done = false;
       try{
-        if(typeof window.mtShowSignIn === 'function') window.mtShowSignIn();
-        else { const g = document.getElementById('authGate'); if(g) g.style.display = 'flex'; }
+        if(typeof window.mtShowSignIn === 'function') done = window.mtShowSignIn() !== false;
+        else { const g = document.getElementById('authGate'); if(g){ g.style.display = 'flex'; done = true; } }
       }catch(e){}
+      // A CONTROL THAT OPENS NOTHING IS THE BUG THAT WAS REPORTED: in a landing
+      // preview there is no gate node to reveal, so the click did nothing at all
+      // and the button read as broken. When the opener reports that it could not
+      // reach a sign-in, the reader is sent to the terminal's own gate rather
+      // than being left with a button that answers nothing.
+      if(!done){ try{ window.location.href = '/terminal/'; }catch(e){} return; }
       const em = document.getElementById('gateEmail');
       if(em && em.focus){ try{ em.focus(); }catch(e){} }
     });
@@ -7087,7 +7448,15 @@ function renderStockInfo(d, sym){
     sendBtn.title = (mode === 'room' && !signedIn) ? 'The room is for signed-in users: sign in to post' : '';
     if(!stateLine() && note && note.querySelector && note.querySelector('.chat-signin')) setNote('');
   }
-  function setMode(m){
+  // Focus is the READER'S move, never the page's own. This function runs once at
+  // load with 'room', and focus() on the message box made the browser scroll the
+  // nearest scroll container to reveal it: at phone width #rowTop is the locked
+  // WATCHLIST/MARKET/CHAT stack with overflow-y:auto, so the terminal opened
+  // scrolled to its BOTTOM (scrollTop 1389 of 1389 at 390x844) and a phone
+  // visitor met CHAT with WATCHLIST off screen above it. The box is focused only
+  // when the reader switches tab, which is a real gesture, so the column loads at
+  // the top with WATCHLIST first.
+  function setMode(m, byReader){
     mode = m;
     document.querySelectorAll('.chat-tab').forEach(function(t){
       t.classList.toggle('on', t.getAttribute('data-mode') === m);
@@ -7098,10 +7467,10 @@ function renderStockInfo(d, sym){
     setNote('');
     gate();
     if(m === 'room'){ refresh(); roomLog.scrollTop = roomLog.scrollHeight; }
-    input.focus();
+    if(byReader) input.focus();
   }
   document.querySelectorAll('.chat-tab').forEach(function(t){
-    t.addEventListener('click', function(){ setMode(t.getAttribute('data-mode')); });
+    t.addEventListener('click', function(){ setMode(t.getAttribute('data-mode'), true); });
   });
   form.addEventListener('submit', function(e){
     e.preventDefault();
