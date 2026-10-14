@@ -272,7 +272,15 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 /* Windows are absolutely placed inside .main and never change parent, so
    rearranging cannot reload the panel iframes. Embed modes (?view=, ?rails=0)
    keep the old grid markup and the manager stays out of them. */
-.main{display:flex;flex-direction:row;min-height:0;min-width:0;position:relative;overflow:hidden}
+/* .main is the area the windows are laid out in. overflow:hidden alone is not
+   enough: an overflow:hidden box is still a SCROLL CONTAINER, so one focus() of
+   an input inside a window that reaches past the bottom edge (the chat box, on
+   an arrangement that overruns the workspace) scrolls it, and a scroll moves
+   EVERY absolutely placed window up with the content - which is what left a
+   dead band along the bottom of the shell. overflow:clip makes the box a
+   non-scrollable one, so the window layer can never be shifted away from the
+   area it was placed in. A browser without clip falls back to hidden above. */
+.main{display:flex;flex-direction:row;min-height:0;min-width:0;position:relative;overflow:hidden;overflow:clip}
 .wrow{display:grid;grid-template-columns:var(--wW,232px) 1fr var(--wI,288px) var(--wC,300px);
   min-height:0;min-width:0;position:relative;flex:1 1 auto}
 /* small screens: stack the four panels in-flow (full width, ~70vh each) and
@@ -756,6 +764,14 @@ html{scrollbar-width:none;}
 .room-msg.mine .rm-t{border-color:var(--line2)}
 .room-empty{color:var(--tx3);font-size:10.5px;line-height:1.6}
 .chat-note{padding:var(--s2) var(--s4);border-top:1px solid var(--line);color:var(--tx3);font-size:10px}
+/* the one line that says WHY the room will not take a message, and the control
+   that fixes it: the state is carried here and not by a greyed-out box, because
+   a disabled box says nothing and a disabled SEND says even less */
+.chat-note.state{color:var(--tx2)}
+.chat-signin{background:none;border:1px solid var(--mint-line,var(--line2));color:var(--acc);
+  font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:1px 7px;margin-left:7px;
+  border-radius:3px;cursor:pointer}
+.chat-signin:hover{background:var(--mint-dim,var(--bg3))}
 .chat-note.bad{color:var(--warn,#e6a700)}
 .chat-note b{color:var(--acc)}
 .chat-form{display:flex;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--line2)}
@@ -974,6 +990,12 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   // show() had a detached element to style and nothing came back on screen. It
   // only hides now, so a failed session check can put the gate straight back.
   function hide(){ if(gate){ gate.style.display = "none"; } try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){} }
+  // The chat window is behind this gate for a visitor and has to be able to
+  // offer the way in from where the reader is standing, so the one control that
+  // belongs to the gate is published: showing the sign-in card. Nothing else of
+  // the gate is reachable from outside, and no field is ever filled or sent by
+  // anything but the reader typing into it.
+  window.mtShowSignIn = show;
   function msg(t, ok){ var m = document.getElementById("gateMsg"); if(!m) return; m.textContent = t || ""; m.className = "gate-msg" + (ok ? " ok" : ""); }
   // OAuth callback: ?oauth=<provider>&code=<one-time> -> trade for a session token
   var oauthP = q.get("oauth"), oauthCode = q.get("code");
@@ -1881,24 +1903,42 @@ function renderTabs(){
     // right column has to line up with the shell windows beside it.
     function columns(){
       const b = box(), W = b.width || 1280, H = b.height || 700;
+      // THE FOUR WINDOWS TILE THE WORKSPACE (owner, 2026-10-14: "lock close to
+      // each other and not leave space between them"). Every boundary below is
+      // derived from the boundary before it and every one is a whole pixel, so
+      // the four rects sum to the workspace EXACTLY: there is no strip left
+      // between two windows and none left over at the right or bottom edge. The
+      // two windows of a column part on their own 1px frames, which is all the
+      // separation the sheet look needs. The outer edges are the last boundary,
+      // so a window's own frame sits ON the edge instead of leaving a gap.
       // ~22 percent for the list, 20 for the right column. The right column's
       // floor is 240 rather than the shell window's 220: a panel window
       // (MTPanelWins) refuses to be narrower than 240, so FOCUS would otherwise
       // be grown by its own clamp and poke past the edge of the workspace.
-      const railW = Math.min(360, Math.max(MIN_W, Math.round(W * 0.22)));
-      const colW  = Math.min(340, Math.max(240, Math.round(W * 0.20)));
-      const midW  = Math.max(MIN_W, W - railW - colW - 24);
-      return {W: W, H: H, railW: railW, colW: colW, midW: midW,
-              midX: railW + 12, colX: railW + midW + 20, halfH: Math.round(H / 2)};
+      const X3 = Math.ceil(W), Y3 = Math.ceil(H);
+      const X1 = Math.round(Math.min(360, Math.max(MIN_W, W * 0.22)));
+      const colW = Math.min(340, Math.max(240, Math.round(W * 0.20)));
+      let X2 = X3 - colW;
+      if(X2 - X1 < MIN_W) X2 = X1 + MIN_W;     // the middle column keeps its floor
+      if(X2 > X3 - 80) X2 = X3 - 80;           // and the right column is never squeezed away
+      const Y2 = Math.round(Y3 / 2);
+      return {W: X3, H: Y3, x1: X1, x2: X2, x3: X3, y2: Y2, y3: Y3,
+              railW: X1, midW: X2 - X1, colW: X3 - X2,
+              midX: X1, colX: X2, halfH: Y2};
     }
     function tiled(){
-      // the first workspace is the house arrangement, at the size the reader has
+      // the first workspace is the house arrangement, at the size the reader has.
+      // The four rects tile the workspace exactly: WATCHLIST down the left at
+      // full height, the MARKET window in the middle column (the largest of the
+      // four by area), and the right column split between FOCUS on top and CHAT
+      // underneath. No gutter and no outer margin is left over: every boundary
+      // is shared with the window beside it.
       const c = columns();
       return {
-        watch:  {x: 4, y: 4, w: c.railW, h: c.H - 8, open: true, z: 11},
-        center: {x: c.midX, y: 4, w: c.midW, h: c.H - 8, open: false, z: 12},
-        info:   {x: c.midX, y: 4, w: c.midW, h: c.H - 8, open: true, z: 13},
-        chat:   {x: c.colX, y: c.halfH + 6, w: c.colW, h: c.halfH - 12, open: true, z: 14},
+        watch:  {x: 0, y: 0, w: c.x1, h: c.y3, open: true, z: 11},
+        center: {x: c.x1, y: 0, w: c.x2 - c.x1, h: c.y3, open: false, z: 12},
+        info:   {x: c.x1, y: 0, w: c.x2 - c.x1, h: c.y3, open: true, z: 13},
+        chat:   {x: c.x2, y: c.y2, w: c.x3 - c.x2, h: c.y3 - c.y2, open: true, z: 14},
         // POP REMOVED 2026-09-28: there was a fifth 'pop' window here, opened by
         // the POP command. It is gone, so the default tile is the four panes.
       };
@@ -1910,19 +1950,27 @@ function renderTabs(){
     // the record, and an absent panel window is SHUT, so no other one is open.
     function defaultPanels(){
       // the right column, top half: NOT the middle column. FOCUS shares its x
-      // and its width with the CHAT window below it, and the two of them make up
-      // the right column between them (10px of daylight at the join).
+      // and its width with the CHAT window below it and its bottom edge IS the
+      // CHAT window's top edge, so the two of them make up the right column
+      // between them with no band of daylight at the join.
       const c = columns();
-      return {focus: {open: true, x: c.colX, y: 4, w: c.colW,
-                      h: Math.round(c.H / 2) - 8, z: 21}};
+      return {focus: {open: true, x: c.x2, y: 0, w: c.x3 - c.x2,
+                      h: c.y2, z: 21}};
     }
     // A workspace built from nothing: the house arrangement, in front of the
-    // reader. This is what a reader with no stored arrangement lands on, and it
-    // is an ARRANGEMENT rather than a starting point (auto false), so the
-    // viewport never re-tiles it away from the reader.
+    // reader. This is what a reader with no stored arrangement lands on. It is
+    // an ARRANGEMENT, and it is also still "auto" (owner, 2026-10-14: the
+    // windows must fill the area at EVERY viewport, so a zoom or a resize can
+    // never leave dead space beside them). While it is auto the house layout is
+    // RE-DERIVED at the box in front of the reader, which is the same house
+    // arrangement at that size: WATCHLIST left, MARKET the largest in the
+    // middle, FOCUS top right, CHAT bottom right, all four flush. The first
+    // time the reader moves, resizes or saves anything the workspace stops
+    // being auto (touched()), and from then on their arrangement is kept and
+    // only ever RE-SCALED by a viewport change, never re-tiled.
     function houseSpace(name){
       const t = tiled();
-      return {name: name, wins: t, auto: false, dismissed: [],
+      return {name: name, wins: t, auto: true, dismissed: [],
               panelwins: defaultPanels(), _base: copyWins(t)};
     }
     // A workspace stays "auto" until you move something in it: while it is,
@@ -1973,10 +2021,13 @@ function renderTabs(){
       const base = sp._base && sp._base[k], w = sp.wins[k];
       if(!base || !w) return null;
       const b = box();
-      const bx = Math.max(-(base.w - 80), Math.min(base.x, b.width - 80));
+      // the predicted on-screen value, using the SAME rules clampWin() applies,
+      // so this comparison stays honest when a window is allowed to fill the
+      // workspace edge to edge
+      const bx = Math.max(-(base.w - 80), Math.min(base.x, Math.max(0, b.width - 80)));
       const by = Math.max(0, Math.min(base.y, Math.max(0, b.height - BAR)));
-      const bw = Math.max(MIN_W, Math.min(base.w, Math.max(MIN_W, b.width - 8)));
-      const bh = Math.max(MIN_H, Math.min(base.h, Math.max(MIN_H, b.height - 8)));
+      const bw = Math.max(MIN_W, Math.min(base.w, Math.max(MIN_W, b.width)));
+      const bh = Math.max(MIN_H, Math.min(base.h, Math.max(MIN_H, b.height)));
       const same = Math.round(w.x) === Math.round(bx) && Math.round(w.y) === Math.round(by) &&
                    Math.round(w.w) === Math.round(bw) && Math.round(w.h) === Math.round(bh);
       return same ? {x: base.x, y: base.y, w: base.w, h: base.h} : null;
@@ -2004,6 +2055,25 @@ function renderTabs(){
       KEYS.forEach(function(k){ open[k] = !sp.wins[k] || sp.wins[k].open !== false; });
       sp.wins = tiled();
       KEYS.forEach(function(k){ sp.wins[k].open = open[k]; });   // a closed window stays closed
+      sp._base = copyWins(sp.wins);
+      // The house arrangement carries ONE panel window (FOCUS, the top of the
+      // right column). While the panel set is still the house one it is
+      // re-derived at the box in front of the reader, so FOCUS keeps sharing
+      // its x, its width and its bottom edge with CHAT at every size. A set the
+      // reader has added to, or one they have emptied by shutting FOCUS, is
+      // left exactly as they arranged it.
+      if(housePanelSet(sp.panelwins)) sp.panelwins = defaultPanels();
+    }
+    // True while the panel record is still the house set: FOCUS and nothing
+    // else open. An empty set (the reader shut FOCUS) is NOT the house set, so
+    // their choice is never undone by a resize.
+    function housePanelSet(o){
+      if(!o || typeof o !== 'object') return false;
+      let live = 0, onlyFocus = false;
+      Object.keys(o).forEach(function(id){
+        if(o[id] && o[id].open === true){ live++; onlyFocus = (id === 'focus'); }
+      });
+      return live === 1 && onlyFocus;
     }
 
     // A RECORD THAT HAS NOT CHANGED IS NOT REWRITTEN. A save runs on load (the
@@ -2214,6 +2284,11 @@ function renderTabs(){
         n++;
       }
       sp.name = name;
+      // MARK IT AS THE READER'S OWN. The strip cleanup in restore() removes
+      // preset-named workspaces that this build drove in by itself; a set the reader
+      // chose from the + menu is theirs and must survive a reload. Without this flag
+      // the cleanup could not tell the two apart and deleted both.
+      sp.mine = true;
       spaces.push(sp);
       switchTo(spaces.length - 1);
       return true;
@@ -2315,6 +2390,7 @@ function renderTabs(){
           var sp = spaces[si];
           if(!sp || !sp.name) continue;
           if(PN.indexOf(String(sp.name)) === -1) continue;
+          if(sp.mine === true) continue;      // the reader chose it from the +; it is theirs
           spaces.splice(si, 1);
         }
         if(spaces.length === 0){
@@ -2347,11 +2423,17 @@ function renderTabs(){
 
     function clampWin(k){
       const b = box(), w = win(k);
-      w.w = Math.max(MIN_W, Math.min(w.w, Math.max(MIN_W, b.width - 8)));
-      w.h = Math.max(MIN_H, Math.min(w.h, Math.max(MIN_H, b.height - 8)));
-      // never let a window's title bar leave the workspace, or it cannot be grabbed back
-      w.x = Math.max(-(w.w - 80), Math.min(w.x, b.width - 80));
-      w.y = Math.max(0, Math.min(w.y, Math.max(0, b.height - BAR)));
+      // THE WORKSPACE IS THE AREA THE WINDOWS LIVE IN. A window may fill it edge
+      // to edge: the shell's own 1px frame is drawn INSIDE the window's box
+      // (border-box), so nothing has to be held back for it. The only floors
+      // kept here are the minimum sizes and the rule that a title bar stays
+      // reachable, or the window could not be grabbed back. Holding a window
+      // 8px short of the edge is what left a dead strip along the bottom.
+      const BW = Math.max(MIN_W, b.width), BH = Math.max(MIN_H, b.height);
+      w.w = Math.max(MIN_W, Math.min(w.w, BW));
+      w.h = Math.max(MIN_H, Math.min(w.h, BH));
+      w.x = Math.max(-(w.w - 80), Math.min(w.x, Math.max(0, BW - 80)));
+      w.y = Math.max(0, Math.min(w.y, Math.max(0, BH - BAR)));
     }
     function place(k){
       const n = NODE[k], w = win(k);
@@ -2367,6 +2449,182 @@ function renderTabs(){
       n.style.height = Math.round(w.h) + 'px';
       n.style.zIndex = String(w.z);
     }
+
+    // ---- a viewport change is not an instruction to discard a layout --------
+    // ZOOMING IS RESIZING. A browser zoom, the reader's own text size, a window
+    // dragged to another display and a plain resize all change the box the
+    // windows are laid out in, and every one of them used to leave the windows
+    // at the pixel geometry they already had: they no longer filled the
+    // workspace and a dead strip was left to the right and below them (owner,
+    // 2026-10-14: the four windows "should adjust with change in the view
+    // whether user decides to zoom in or out"). What happens now:
+    //   * a workspace the reader has ARRANGED is RE-SCALED, by the ratio
+    //     between the box it was laid out in and the box in front of the reader,
+    //     so it keeps every proportion it had. A zoom is the same layout at
+    //     another size, not a reason to reset it: positions, sizes, stacking
+    //     order and which windows are open all survive;
+    //   * a workspace nobody has arranged (still auto) is RE-DERIVED at the new
+    //     box, which is the house arrangement at that size and fills it exactly.
+    // Nothing is ever re-tiled away from a reader who has moved something.
+    let lastBox = null;
+    function scaleGeom(w, sx, sy){
+      const n = Number(w.x), o = Number(w.y), ww = Number(w.w), hh = Number(w.h);
+      if(isFinite(n)) w.x = Math.round(n * sx);
+      if(isFinite(o)) w.y = Math.round(o * sy);
+      if(isFinite(ww)) w.w = Math.max(MIN_W, Math.round(ww * sx));
+      if(isFinite(hh)) w.h = Math.max(MIN_H, Math.round(hh * sy));
+    }
+    // a panel-window record ({id: {open, x, y, w, h, z}}) scaled in place
+    function scalePanels(o, sx, sy){
+      if(!o || typeof o !== 'object') return;
+      Object.keys(o).forEach(function(id){
+        const w = o[id];
+        if(w && typeof w === 'object') scaleGeom(w, sx, sy);
+      });
+    }
+    function reflow(){
+      const nb = box(), ob = lastBox;
+      lastBox = nb;
+      if(!ob || !(ob.width > 0) || !(ob.height > 0)) return false;
+      const sx = nb.width / ob.width, sy = nb.height / ob.height;
+      if(!isFinite(sx) || !isFinite(sy)) return false;
+      if(Math.abs(sx - 1) < 0.0005 && Math.abs(sy - 1) < 0.0005) return false;
+      spaces.forEach(function(sp){
+        KEYS.forEach(function(k){
+          const w = sp.wins[k];
+          if(!w) return;
+          scaleGeom(w, sx, sy);
+          if(w._max) scaleGeom(w._max, sx, sy);          // a half-toggled maximise scales too
+          if(sp._base && sp._base[k]) scaleGeom(sp._base[k], sx, sy);
+        });
+        // the panel windows of an arranged workspace scale with everything
+        // else; the house set is re-derived by retile() instead
+        if(!sp.auto || !housePanelSet(sp.panelwins)) scalePanels(sp.panelwins, sx, sy);
+        // the arrangement now belongs to THIS box, so that is what a later load
+        // scales it from
+        sp.at = {w: nb.width, h: nb.height};
+      });
+      return true;
+    }
+    // ---- a stored arrangement keeps its shape on a different-sized screen ----
+    // The box an arrangement was laid out in travels with it (`at`). A record
+    // written before this build carries none, so the box is INFERRED from the
+    // arrangement's own extent - and only when that extent covers most of a
+    // workspace, which is the shape the house arrangement and the six sets
+    // have. An arrangement the reader deliberately kept small and clustered has
+    // no inferable box and is left exactly where they put it.
+    function refBoxOf(sp, nb){
+      const at = sp && sp.at;
+      if(at && Number(at.w) > 0 && Number(at.h) > 0 &&
+         isFinite(Number(at.w)) && isFinite(Number(at.h)))
+        return {width: Number(at.w), height: Number(at.h)};
+      let x2 = 0, y2 = 0, any = false;
+      const take = function(w){
+        if(!w || w.open === false) return;
+        const x = Number(w.x), y = Number(w.y), ww = Number(w.w), hh = Number(w.h);
+        if(!isFinite(x) || !isFinite(y) || !isFinite(ww) || !isFinite(hh)) return;
+        x2 = Math.max(x2, x + ww); y2 = Math.max(y2, y + hh);
+        any = true;
+      };
+      KEYS.forEach(function(k){ take(sp.wins && sp.wins[k]); });
+      // the panel windows are part of the same arrangement (a set such as
+      // TRADER keeps most of its area in them), so they count towards the
+      // extent this box is inferred from
+      Object.keys(sp.panelwins || {}).forEach(function(id){ take(sp.panelwins[id]); });
+      if(!any) return null;
+      if(x2 < nb.width * 0.6 || y2 < nb.height * 0.6) return null;
+      return {width: x2, height: y2};
+    }
+    // Is this stored arrangement still the HOUSE arrangement? A build before
+    // this one saved it with the gutters it used then (8px between the columns,
+    // 4px at the outer edges, a 10px join between FOCUS and CHAT), so it is
+    // recognised by SHAPE rather than by an exact match: WATCHLIST down the left
+    // at full height, MARKET flush beside it and the largest of the three,
+    // FOCUS over CHAT in the right column, and FOCUS the only panel window. A
+    // reader who never moved anything then gets the flush house arrangement at
+    // the size in front of them instead of those old gutters scaled up. An
+    // arrangement somebody actually made cannot match - no reader leaves a
+    // window inside 12px of the house position by accident - so nothing a
+    // reader arranged is ever re-tiled by this.
+    function houseShaped(sp){
+      if(!sp || !sp.wins) return false;
+      const open = KEYS.filter(function(k){ return sp.wins[k] && sp.wins[k].open !== false; });
+      if(open.length !== 3 || open.join(',') !== 'watch,info,chat') return false;
+      const pids = Object.keys(sp.panelwins || {}).filter(function(id){
+        return sp.panelwins[id] && sp.panelwins[id].open === true;
+      });
+      if(pids.length !== 1 || pids[0] !== 'focus') return false;
+      const w = sp.wins.watch, i = sp.wins.info, ch = sp.wins.chat, fo = sp.panelwins.focus,
+            near = function(a, b){ return Math.abs(a - b) <= 12; };
+      if(!(i.w * i.h >= w.w * w.h)) return false;                 // MARKET is the largest
+      if(!(i.w * i.h >= ch.w * ch.h)) return false;
+      if(!(i.w * i.h >= fo.w * fo.h)) return false;
+      const EW = Math.max(w.x + w.w, i.x + i.w, ch.x + ch.w, fo.x + fo.w);
+      const EH = Math.max(w.y + w.h, i.y + i.h, ch.y + ch.h, fo.y + fo.h);
+      if(!(EW > 0 && EH > 0)) return false;
+      return near(w.x, 0) && near(w.y, 0) && near(w.y + w.h, EH) &&
+             near(i.x, w.x + w.w) && near(i.y, w.y) && near(i.y + i.h, EH) &&
+             near(ch.x, i.x + i.w) && near(ch.x + ch.w, EW) && near(ch.y + ch.h, EH) &&
+             near(fo.x, ch.x) && near(fo.x + fo.w, EW) && near(fo.y, 0) && near(fo.y + fo.h, ch.y);
+    }
+    // A LOAD IS NOT AN EXCUSE TO LEAVE THE VOID EITHER. An arrangement stored
+    // against another box (a bigger monitor, an earlier zoom) is brought to the
+    // box in front of the reader in the same proportion a resize would use, so a
+    // returning reader finds their layout filling the workspace instead of
+    // sitting in one corner of it. Nothing is re-tiled or reset: every window
+    // keeps its place in the arrangement, scaled.
+    function normaliseOnLoad(){
+      // desktop only, like the whole window layer: on the locked mobile stack
+      // the geometry is not used, and a phone-sized box must never become the
+      // reference an arrangement is scaled against
+      if(!desk()) return;
+      const nb = box();
+      spaces.forEach(function(sp){
+        // the reader never moved anything: hand the workspace back to the house
+        // tile, so it fills the box in front of them flush instead of carrying
+        // the old build's gutters into a new size
+        if(!sp.auto && houseShaped(sp)) sp.auto = true;
+        const ref = refBoxOf(sp, nb);
+        if(ref){
+          const sx = nb.width / ref.width, sy = nb.height / ref.height;
+          if(isFinite(sx) && isFinite(sy) &&
+             (Math.abs(sx - 1) >= 0.0005 || Math.abs(sy - 1) >= 0.0005)){
+            KEYS.forEach(function(k){
+              const w = sp.wins[k];
+              if(!w) return;
+              scaleGeom(w, sx, sy);
+              if(sp._base && sp._base[k]) scaleGeom(sp._base[k], sx, sy);
+            });
+            scalePanels(sp.panelwins, sx, sy);
+          }
+        }
+        sp.at = {w: nb.width, h: nb.height};
+      });
+    }
+    let normalised = false;
+    function viewportChanged(){
+      if(EMBED) return;
+      // Below 821px the four panels are the LOCKED mobile stack, laid out in
+      // CSS, and a phone's viewport changes constantly (the URL bar, the
+      // keyboard). Nothing here is allowed to rescale a desktop arrangement
+      // because a phone moved: the reference box is left exactly where it was,
+      // so returning to a desktop width re-scales from the desktop box and not
+      // from the phone's.
+      if(!desk()){ KEYS.forEach(place); return; }
+      reflow();
+      retile();                         // an untouched workspace follows the house arrangement
+      KEYS.forEach(place);
+      // defensive: if anything scrolled the window area (a focus() inside a
+      // window that overruns the bottom edge), put the window layer back at the
+      // origin of the area it was placed in, so the windows fill it exactly
+      try{ if(main.scrollTop) main.scrollTop = 0; if(main.scrollLeft) main.scrollLeft = 0; }catch(e){}
+      lastBox = box();
+      // NOTE: no 'mt:layout' event is broadcast here. The panel layer hears the
+      // same resize/zoom events this handler does and re-fits itself from the
+      // record this handler has just updated (it listens after this layer), and
+      // 'mt:layout' is also what makes the chat room poll, so broadcasting it on
+      // every resize frame would fire a request per frame.
+    }
     function render(){
       if(EMBED) return;
       document.documentElement.classList.add('floating');
@@ -2381,10 +2639,18 @@ function renderTabs(){
         spaces = seedSpaces();
         try{ lastSig = sig(record(false)); }catch(e){ lastSig = null; }
       }
+      // ONCE, against the box the windows actually land in: an arrangement
+      // stored against another screen (or another zoom) is brought to THIS one
+      // in proportion, so a returning reader does not find their layout sitting
+      // in one corner of the workspace.
+      if(!normalised){ normalised = true; try{ normaliseOnLoad(); }catch(e){} }
       retile();
       KEYS.forEach(place);
       tabs();
       front();
+      // The geometry on screen was derived from THIS box, so this is the box a
+      // later viewport change is measured against (see reflow()).
+      lastBox = box();
     }
     function front(){
       let top = null;
@@ -2726,15 +2992,32 @@ function renderTabs(){
           raise(k); place(k); flushSave();   // auto-save: maximise / restore persists
         });
       });
-      window.addEventListener('resize', function(){
-        // An arranged workspace is re-placed from the geometry that was SAVED, so
-        // shrinking the browser for a moment (or opening on a smaller screen)
-        // cannot shrink the layout itself; windows that no longer fit are only
-        // clamped on screen. An auto workspace still follows the viewport.
-        spaces.forEach(function(sp){ if(!sp.auto && sp._base) sp.wins = copyWins(sp._base); });
-        retile();
-        KEYS.forEach(place);
-      });
+      // EVERY viewport change goes through viewportChanged(): a window resize,
+      // a browser zoom, the reader's own text size, a rotation, a monitor
+      // change. visualViewport covers the cases where the visual viewport moves
+      // without window.innerWidth changing (pinch zoom, the mobile URL bar,
+      // an on-screen keyboard) and devicePixelRatio covers a zoom or a display
+      // change that leaves the CSS viewport size alone. All three are wired to
+      // the SAME handler, so whatever changed the box, the arrangement is
+      // re-scaled or re-derived and nothing is left half done.
+      window.addEventListener('resize', function(){ viewportChanged(); });
+      window.addEventListener('orientationchange', function(){ viewportChanged(); });
+      if(window.visualViewport){
+        try{ window.visualViewport.addEventListener('resize', function(){ viewportChanged(); }); }catch(e){}
+        try{ window.visualViewport.addEventListener('scroll', function(){ viewportChanged(); }); }catch(e){}
+      }
+      // devicePixelRatio: a matchMedia query on the CURRENT ratio fires when it
+      // changes, which is the cheap way to hear about a zoom or a second display
+      // without polling. It re-arms itself for the next ratio.
+      (function watchDpr(){
+        try{
+          const w = window, mq = w.matchMedia('(resolution: ' + w.devicePixelRatio + 'dppx)');
+          const on = function(){ viewportChanged(); watchDpr(); };
+          if(mq.addEventListener) mq.addEventListener('change', on);
+          else if(mq.addListener) mq.addListener(on);
+        }catch(e){}
+      })();
+      window.addEventListener('mt:textsize', function(){ viewportChanged(); });
       // The close control on the four windows of the DEFAULT layout. It is the
       // same .pw-x a user-added panel window already carries, and it is desktop
       // only twice over: CSS hides it below 821px and set() refuses there, so
@@ -2762,8 +3045,12 @@ function renderTabs(){
       // full arrangement comes back even after the reader emptied the workspace.
       sp.dismissed = [];
       sp.wins = tiled();
-      sp.auto = false;
+      // and it stays AUTO, so the arrangement RESET just put back keeps filling
+      // the workspace at every size instead of being frozen at the pixel size
+      // of the moment the reader pressed RESET
+      sp.auto = true;
       sp._base = copyWins(sp.wins);
+      if(housePanelSet(sp.panelwins)) sp.panelwins = defaultPanels();
       render();
       flushSave();            // auto-save: a reset persists immediately
     }
@@ -3042,11 +3329,15 @@ window.MTPanelWins = (function(){
   // ---- geometry ----
   function clampWin(id){
     const b = bbox(), w = state[id];
-    w.w = Math.max(MIN_W, Math.min(w.w, Math.max(MIN_W, b.width - 8)));
-    w.h = Math.max(MIN_H, Math.min(w.h, Math.max(MIN_H, b.height - 8)));
+    // a panel window may fill the workspace edge to edge: its own 1px frame is
+    // drawn inside its box, so holding it 8px short of the edge would leave a
+    // dead strip along the bottom and right of the workspace
+    const BW = Math.max(MIN_W, b.width), BH = Math.max(MIN_H, b.height);
+    w.w = Math.max(MIN_W, Math.min(w.w, BW));
+    w.h = Math.max(MIN_H, Math.min(w.h, BH));
     // the title bar must stay reachable or the window cannot be grabbed back
-    w.x = Math.max(-(w.w - 80), Math.min(w.x, b.width - 80));
-    w.y = Math.max(0, Math.min(w.y, Math.max(0, b.height - BAR)));
+    w.x = Math.max(-(w.w - 80), Math.min(w.x, Math.max(0, BW - 80)));
+    w.y = Math.max(0, Math.min(w.y, Math.max(0, BH - BAR)));
   }
   function loadIfStale(id){
     const f = frames[id];
@@ -3322,6 +3613,20 @@ window.MTPanelWins = (function(){
         else { appliedFor = wsIndex(); syncOwner(); }
       }
     }catch(e){}
+    // A VIEWPORT CHANGE RE-FITS THE PANEL WINDOWS FROM THE WORKSPACE RECORD.
+    // The workspace manager has already re-scaled or re-derived the record for
+    // the workspace in front of the reader by the time this runs (it listens
+    // first), so FOCUS is read back at the new size and keeps sharing its x, its
+    // width and its bottom edge with the CHAT window beside it. Without this the
+    // panel windows kept the pixel geometry of the old viewport and left dead
+    // space exactly where the shell windows used to.
+    function refit(){
+      try{
+        const rec = (window.MTWin && window.MTWin.panelRecord) ? window.MTWin.panelRecord() : null;
+        if(rec) applyState(rec);
+        render();
+      }catch(e){}
+    }
     try{ render(); }catch(e){}
     try{
       const mq = window.matchMedia('(max-width: 820px)');
@@ -3329,7 +3634,15 @@ window.MTPanelWins = (function(){
       if(mq.addEventListener) mq.addEventListener('change', on);
       else if(mq.addListener) mq.addListener(on);
     }catch(e){}
-    window.addEventListener('resize', function(){ try{ render(); }catch(e){} });
+    // every viewport the shell hears about is heard here too, so the panel
+    // windows are re-fitted on a resize, a zoom, the reader's text size and the
+    // workspace manager's own announcement
+    window.addEventListener('resize', function(){ refit(); });
+    window.addEventListener('mt:layout', function(){ refit(); });
+    window.addEventListener('mt:textsize', function(){ refit(); });
+    if(window.visualViewport){
+      try{ window.visualViewport.addEventListener('resize', function(){ refit(); }); }catch(e){}
+    }
     // a caller that only has the legacy stage can still broadcast a symbol
     window.addEventListener('mt:symbol', function(){ try{ render(); }catch(e){} });
   })();
@@ -5963,6 +6276,49 @@ function renderStockInfo(d, sym){
     note.className = 'chat-note' + (bad ? ' bad' : '');
     note.innerHTML = msg || '';
   }
+  // ---- THE STATE, SAID PLAINLY AT THE POINT OF USE -------------------------
+  // The room is for signed-in users. A visitor used to get a DISABLED message
+  // box and a DISABLED SEND: the box could not be typed into, the button fired
+  // nothing at all, and the form's own submit handler bailed on its empty-text
+  // guard before any line could be shown. That is what the owner hit in an
+  // incognito window ("users cant even send text ... whats wrong with you"): a
+  // control that looks broken and a window that never says why. The box now
+  // stays usable, and every path that cannot post says the reason in ONE SHORT
+  // LINE beside the box, with the control that fixes it. No credential is asked
+  // for or handled here: the button only shows the sign-in card.
+  const LINE_SIGNIN = 'The room is for signed-in users.';
+  const LINE_REJECT = 'Your sign-in is not accepted by the room.';
+  let roomRejected = false;             // the room refused the stored session
+  function signInLine(msg){
+    if(!note) return;
+    setNote(msg, true);
+    note.className = 'chat-note state';
+    if(note.querySelector && note.querySelector('.chat-signin')) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chat-signin';
+    b.textContent = 'SIGN IN';
+    b.title = 'Sign in to post to the room';
+    b.setAttribute('aria-label', 'Sign in to post to the room');
+    b.addEventListener('click', function(){
+      try{
+        if(typeof window.mtShowSignIn === 'function') window.mtShowSignIn();
+        else { const g = document.getElementById('authGate'); if(g) g.style.display = 'flex'; }
+      }catch(e){}
+      const em = document.getElementById('gateEmail');
+      if(em && em.focus){ try{ em.focus(); }catch(e){} }
+    });
+    note.appendChild(b);
+  }
+  // render the room's state line for the mode in front of the reader; true when
+  // the line is up, so a caller can tell that the note is carrying a state and
+  // not an error from a request
+  function stateLine(){
+    if(mode !== 'room') return false;
+    if(!token()){ signInLine(LINE_SIGNIN); return true; }
+    if(roomRejected){ signInLine(LINE_REJECT); return true; }
+    return false;
+  }
 
   // ---------------- ROOM ----------------
   const seen = {};
@@ -6010,7 +6366,7 @@ function renderStockInfo(d, sym){
   async function refresh(){
     if(!token()){
       empty('Sign in to join the room and see what everyone else is watching.');
-      setNote('The room is for signed-in users. <b>Sign in</b> to post.', false);
+      signInLine(LINE_SIGNIN);          // the reason, in one line, beside the box
       gate();
       return;
     }
@@ -6018,14 +6374,18 @@ function renderStockInfo(d, sym){
       const d = await api('/api/chat/history', {after: lastTs, limit: 60, room: activeRoom});
       if(!d || !d.ok){
         if(d && d.auth === false){
+          // the room refused the stored session: it is not a network problem and
+          // not a missing token, so say which it is and offer the way back in
+          roomRejected = true;
           empty('Sign in to join the room.');
-          setNote(esc(d.error || 'sign in to post'), true);
+          signInLine(LINE_REJECT);
         }else{
           setNote(esc((d && d.error) || 'room unavailable'), true);
         }
         gate();
         return;
       }
+      roomRejected = false;             // the session is accepted again
       if(d.me) me = d.me;
       if(d.messages && d.messages.length){
         if(!drew){ roomLog.innerHTML = ''; drew = true; }
@@ -6248,7 +6608,14 @@ function renderStockInfo(d, sym){
   }
 
   async function sendRoom(text){
-    if(!token()){ setNote('Sign in to post to the room.', true); return; }
+    // NOT SIGNED IN (or the session the room refused): say so AT THE POINT OF
+    // USE and keep the reader's words in the box, instead of returning without
+    // a word. Nothing is sent and nothing is asked for beyond the sign-in card.
+    if(!token() || roomRejected){
+      gate();
+      input.value = text;
+      return;
+    }
     askPermission();
     sendBtn.disabled = true;
     const ctx = currentEx + (typeof curSec !== 'undefined' && curSec ? ' ' + String(curSec).split('.')[0] : '');
@@ -6269,7 +6636,8 @@ function renderStockInfo(d, sym){
         clearImage();
       }else{
         input.value = text;
-        setNote(esc((d && d.error) || 'message not sent'), true);
+        if(d && d.auth === false){ roomRejected = true; signInLine(LINE_REJECT); }
+        else setNote(esc((d && d.error) || 'message not sent'), true);
       }
     }catch(e){
       if(tmpEl) tmpEl.remove();
@@ -6407,13 +6775,20 @@ function renderStockInfo(d, sym){
 
   // ---------------- shared plumbing ----------------
   function gate(){
-    const signedIn = !!token();
-    const block = mode === 'room' && !signedIn;
-    input.disabled = block;
-    sendBtn.disabled = block;
+    // THE BOX IS NEVER DISABLED. It used to be disabled whenever the reader was
+    // not signed in, and a disabled input cannot be typed into while a disabled
+    // SEND fires nothing at all: the window looked broken and said nothing about
+    // why. The state is carried by the line beside the box (stateLine) and by
+    // the placeholder, and pressing SEND repeats it out loud (see sendRoom).
+    const signedIn = !!token() && !roomRejected;
+    input.disabled = false;
+    sendBtn.disabled = false;
     input.placeholder = mode === 'room'
-      ? (signedIn ? ('Message ' + roomLabel(activeRoom) + '...') : 'Sign in to post')
+      ? (signedIn ? ('Message ' + roomLabel(activeRoom) + '...')
+                  : (roomRejected ? 'Sign in again to post' : 'Sign in to post in the room'))
       : 'Ask about a ticker or market...';
+    sendBtn.title = (mode === 'room' && !signedIn) ? 'The room is for signed-in users: sign in to post' : '';
+    if(!stateLine() && note && note.querySelector && note.querySelector('.chat-signin')) setNote('');
   }
   function setMode(m){
     mode = m;
