@@ -7,9 +7,22 @@
   the change percent and the change in levels, both coloured by sign.
 
   DATA (the same sources the rest of the terminal reads):
-    ../../static_data/market_<EX>.json    the published quote for the security
-    ../../static_data/history/<KEY>.json  the real exchange bars, used to date a
-                                          security whose quote is absent or stale
+    ../../static_data/market_<EX>.json        the published quote for the security
+    ../../static_data/history/<KEY>.json      the real exchange bars, used to date a
+                                             security whose quote is absent or stale,
+                                             and drawn as the price history block
+    ../../static_data/shareholders_<EX>.json the sourced holder rows, read for the
+                                             top holders block (the same record the
+                                             HOLDERS panel renders in full)
+    ../../static_data/analytics/<KEY>.json    valuation.pe / pb / ps / peg with each
+                                             metric's own withheld flag and reason
+
+  THE CARD EARNS THE WINDOW. The quote alone left the body nearly empty, so three
+  compact blocks follow it, all read from the files above and none of them a
+  restatement of the quote: top holders, the valuation multiples, and a 90 session
+  price line from the bar history. A block with no data is left out entirely rather
+  than drawn empty. A withheld multiple is printed as withheld with the record's own
+  reason, never as a blank and never as a zero.
 
   HONESTY RULES this panel enforces:
     - the as-of date of the quote is always shown; a price with no date is not
@@ -93,17 +106,36 @@
   .fx-foot{border-top:1px solid var(--line);padding:9px 16px;font-family:var(--mono);font-size:10px;color:var(--tx3);
     line-height:1.75;letter-spacing:.03em;}
   .fx-foot b{color:var(--tx2);font-weight:400;}
-  .fx-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);}
-  .fx-cell{background:var(--bg2);padding:8px 12px;}
-  .fx-k{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3);}
-  .fx-v{font-family:var(--mono);font-size:12px;color:var(--tx);padding-top:3px;font-variant-numeric:tabular-nums;}
   /* the honest empty state: no price, no percent, no change is shown */
   .fx-np{font-family:var(--mono);font-weight:700;font-size:34px;line-height:1.1;color:var(--warn);padding-top:14px;letter-spacing:.02em;}
   .fx-why{font-family:var(--mono);font-size:11px;color:var(--tx2);padding-top:12px;line-height:1.8;}
   .fx-bar{font-family:var(--mono);font-size:11px;color:var(--tx2);padding-top:10px;line-height:1.8;}
+
+  /* ---- the blocks that make the card an at-a-glance page ---- */
+  .fx-blocks{background:transparent;}
+  .fx-blk{border-top:1px solid var(--line2);padding:11px 20px 13px;}
+  .fx-blk-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+    font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--tx3);}
+  .fx-blk-h i{font-style:normal;letter-spacing:.05em;color:var(--tx3);}
+  .fx-hrow{display:flex;align-items:baseline;gap:12px;padding:4px 0;border-bottom:1px solid var(--line);}
+  .fx-hrow:last-child{border-bottom:0;}
+  .fx-hn{flex:1 1 auto;min-width:0;font-family:var(--ui);font-size:12px;color:var(--tx);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fx-hp{flex:0 0 auto;font-family:var(--mono);font-size:12px;color:var(--acc);font-variant-numeric:tabular-nums;}
+  .fx-hs{flex:0 0 auto;min-width:84px;text-align:right;font-family:var(--mono);font-size:11px;
+    color:var(--tx3);font-variant-numeric:tabular-nums;}
+  .fx-ks{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);margin-top:9px;}
+  .fx-kc{background:var(--bg2);padding:8px 11px;}
+  .fx-kk{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3);}
+  .fx-kv2{font-family:var(--mono);font-size:17px;color:var(--tx);padding-top:4px;font-variant-numeric:tabular-nums;}
+  .fx-ww{font-family:var(--mono);font-size:12px;color:var(--warn);}
+  .fx-msg{font-family:var(--mono);font-size:10px;color:var(--tx2);line-height:1.8;padding-top:9px;}
+  .fx-src{font-family:var(--mono);font-size:10px;color:var(--tx3);letter-spacing:.03em;padding-top:8px;}
+  .fx-spark{display:block;width:100%;height:66px;margin-top:9px;}
   @media (max-width:560px){
     .fx-tkr{font-size:36px;} .fx-px{font-size:52px;} .fx-chg{font-size:22px;} .fx-abs{font-size:18px;}
-    .fx-grid{grid-template-columns:repeat(2,1fr);} .fx-np{font-size:24px;}
+    .fx-np{font-size:24px;}
+    .fx-ks{grid-template-columns:repeat(2,1fr);} .fx-blk{padding:10px 14px 12px;}
   }
 </style>
 </head>
@@ -124,7 +156,7 @@
 
   <div class="fx-body" id="fxBody"></div>
 
-  <div class="fx-grid" id="fxGrid" style="display:none;"></div>
+  <div class="fx-blocks" id="fxBlocks"></div>
 
   <div class="fx-foot" id="fxFoot">-</div>
 </div>
@@ -192,6 +224,65 @@
     return { t: b && b.t != null ? String(b.t).slice(0, 10) : null, c: b ? num(b.c) : null };
   }
 
+  // ---- the sources behind the blocks -------------------------------------
+  // The market row's own `sym` is the key every other file uses on the JSE and the
+  // EGX, and the NSE/NGX key is EX_<ticker>. The candidates are tried in that order
+  // so the first request is the one that answers, and a miss simply leaves the block
+  // out. The analytics archive keys the same security several ways (MTN.JO and MTN,
+  // an EGX ISIN or its ticker), which is why more than one spelling is offered.
+  function firstOk(urls){
+    var i = 0;
+    function next(){
+      if(i >= urls.length) return Promise.resolve(null);
+      return get(BASE + urls[i++]).catch(next);
+    }
+    return next();
+  }
+  // Which spelling of the analytics key to ask for. Measured against the market rows
+  // of all four exchanges: on the JSE, NGX and NSE every row that has a record answers
+  // on the market row's own `sym`, so only that one is asked for and a security with no
+  // record costs a single unanswered request rather than a string of them. On the EGX
+  // the ticker answers for 292 of 342 rows and the row's own sym answers for the rest.
+  function anaKeys(row, sym){
+    var tk = String((row && row.ticker) || sym || "").toUpperCase();
+    var rs = String((row && row.sym) || sym || "").toUpperCase();
+    var out = [];
+    function push(k){
+      k = String(k || "").toUpperCase();
+      if(k && out.indexOf("analytics/" + k + ".json") < 0) out.push("analytics/" + k + ".json");
+    }
+    if(EX === "EGX"){ push(tk); push(rs); }
+    else { push(rs); }
+    return out;
+  }
+  var ANA_MEM = {};
+  function getAna(row, sym){
+    var urls = anaKeys(row, sym), i = 0;
+    function next(){
+      if(i >= urls.length) return Promise.resolve(null);
+      var u = urls[i++];
+      if(Object.prototype.hasOwnProperty.call(ANA_MEM, u)){
+        return ANA_MEM[u] ? Promise.resolve(ANA_MEM[u]) : next();
+      }
+      return get(BASE + u).then(function(d){
+        ANA_MEM[u] = d || null; return ANA_MEM[u];
+      }).catch(function(){ ANA_MEM[u] = null; return next(); });
+    }
+    return next();
+  }
+  // everything the blocks need, fetched once for the security being shown
+  function loadExtras(board, sym){
+    var row = board ? matchRow(board.stocks || [], sym) : null;
+    var out = { row: row, hist: null, hold: null, ana: null };
+    return getHist(row, sym).then(function(h){
+      out.hist = h;
+      return get(BASE + "shareholders_" + encodeURIComponent(EX) + ".json")
+        .then(function(f){ out.hold = f; }).catch(function(){ out.hold = null; });
+    }).then(function(){
+      return getAna(row, sym).then(function(a){ out.ana = a; });
+    }).then(function(){ return out; });
+  }
+
   function matchRow(rows, sym){
     var s = String(sym).toUpperCase(), bare = s.split(".")[0];
     function exact(r){ return String(r.sym || "").toUpperCase() === s || String(r.ticker || "").toUpperCase() === s; }
@@ -217,8 +308,8 @@
     $("fxBody").innerHTML =
       '<div class="fx-tkr nofig">NO SECURITY</div>' +
       '<div class="fx-np">NO SECURITY SELECTED</div>';
-    $("fxGrid").style.display = "none";
     $("fxFoot").innerHTML = "<b>" + esc(EX) + "</b> &middot; no security selected";
+    renderBlocks(null, null, null, null, null);
   }
   function renderNoMarket(reason){
     $("fxSec").className = "fx-sec";
@@ -227,10 +318,10 @@
       '<div class="fx-tkr nofig">' + esc(tickerOf(null, REQ) || "NO MARKET") + '</div>' +
       '<div class="fx-np">NO CURRENT QUOTE</div>' +
       '<div class="fx-why">' + esc(EX) + ' market data unavailable.</div>';
-    $("fxGrid").style.display = "none";
     $("fxFoot").innerHTML = "<b>" + esc(EX) + "</b> &middot; no quote source";
+    renderBlocks(null, null, null, null, null);
   }
-  function renderNoQuote(sym, board, row, hist){
+  function renderNoQuote(sym, board, row, hist, hold, ana){
     var last = lastBar(hist);
     var parts = [];
     parts.push("<div class='fx-tkr'>" + esc(tickerOf(row, sym)) + "</div>");
@@ -265,13 +356,13 @@
     }
     parts.push("<div class='fx-why'>" + why + "</div>");
     $("fxBody").innerHTML = parts.join("");
-    renderGrid(row, null, null, null, null, withheld);
     $("fxFoot").innerHTML = "<b>" + tickerOf(row, sym) + " " + esc(EX) + "</b> &middot; " +
       (row && row.asOf ? "as of " + esc(row.asOf) : "as-of not stated") +
       " &middot; " + (withheld ? "price withheld, " : "") + "no current quote" +
       " &middot; no change is shown without a dated current price";
+    renderBlocks(row, sym, hist, hold, ana);
   }
-  function renderAbsent(sym, board, hist){
+  function renderAbsent(sym, board, hist, hold, ana){
     var last = lastBar(hist);
     $("fxSec").className = "fx-sec";
     $("fxSecTxt").textContent = String(sym || "").toUpperCase() + " " + EX;
@@ -288,34 +379,189 @@
     }
     parts.push("<div class='fx-why'>" + why + "</div>");
     $("fxBody").innerHTML = parts.join("");
-    $("fxGrid").style.display = "none";
     $("fxFoot").innerHTML = "<b>" + esc(String(sym || "").toUpperCase()) + " " + esc(EX) +
       "</b> &middot; not carried by this exchange snapshot" +
       (board && board.asOf ? " &middot; snapshot as of " + esc(board.asOf) : "");
+    renderBlocks(null, sym, hist, hold, ana);
   }
 
-  function renderGrid(row, px, level, pct, asOf, withheld){
-    // GRID REMOVED (owner, 2026-10-13). The as-of / prev close / volume / sector grid
-    // restated what the quote header and the board already show, and it printed the
-    // date twice on every security. The builder below is left intact for reference,
-    // but it returns before drawing, so #fxGrid stays hidden as authored and neither
-    // call site (the normal render and the withheld path) paints it.
-    return;
-    var cells = [];
-    function cell(k, v){
-      cells.push("<div class='fx-cell'><div class='fx-k'>" + esc(k) + "</div><div class='fx-v'>" + v + "</div></div>");
-    }
-    cell("as of", asOf ? esc(asOf) : "<span class='nofig'>not stated</span>");
-    cell("prev close", withheld ? "<span class='nofig'>withheld</span>"
-      : (row && num(row.prevClose) != null ? esc(fmtPx(num(row.prevClose))) : "<span class='nofig'>not stated</span>"));
-    cell("volume", row && num(String(row.volume == null ? "" : row.volume).replace(/,/g, "")) != null
-      ? esc(num(String(row.volume).replace(/,/g, "")).toLocaleString("en-US")) : "<span class='nofig'>not stated</span>");
-    cell("sector", row && row.sector ? esc(row.sector) : "<span class='nofig'>not stated</span>");
-    $("fxGrid").innerHTML = cells.join("");
-    $("fxGrid").style.display = "";
+  // ---- the blocks ---------------------------------------------------------
+  // A section label of an issuer's own holder table is not a holder, and a row with
+  // no holder shape must never be painted. The HOLDERS panel carries the same guards,
+  // so this panel cannot show a heading or a placeholder as a holder either.
+  var HEAD_RE = /^(total\s+)?(directors?'? shareholdings?|other influential shareholdings?|other influential holdings?|free floats? .*|total directors? holdings?|substantial shareholdings?|promoters? and their close relatives|public shareholders?|non-public shareholders?|total substantial shareholdings?|\[name\(s\) of .*)\s*$/i;
+  function plausibleHolder(r){
+    if(!r || typeof r.name !== "string") return false;
+    var n = r.name.replace(/\s+/g, " ").trim();
+    if(n.length < 2 || HEAD_RE.test(n) || n.charAt(0) === "[") return false;
+    if(r.holding == null && r.pct == null) return false;
+    if(n.replace(/[^\p{L}]/gu, "").length < 2) return false;
+    return true;
+  }
+  function fmtInt(v){ return num(v) == null ? null : Number(v).toLocaleString("en-US"); }
+  function fmtPct(v){ return num(v) == null ? null :
+    num(v).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:4}); }
+  // the document the holder rows were read from, named in the fewest words that stay
+  // true: the issuer's own annual report where that is what the record names, and the
+  // host of the page otherwise. No path is printed.
+  function holderDoc(rec){
+    var s = (rec && rec.source) || {};
+    if(s.file) return "Issuer annual report";
+    var u = String(s.url || "");
+    var m = /^https?:\/\/([^\/]+)/i.exec(u);
+    if(m) return m[1].replace(/^www\./i, "");
+    if(s.note) return "Issuer or exchange document";
+    return "sourced holder record";
   }
 
-  function renderQuote(sym, board, row, hist){
+  // the record the HOLDERS panel would render, found the same way it finds it
+  function holderRec(file, row, sym){
+    var sec = (file && file.securities) || null;
+    if(!sec) return null;
+    var tk = String((row && row.ticker) || sym || "").toUpperCase();
+    var rs = String((row && row.sym) || sym || "").toUpperCase();
+    var bare = tk.split(".")[0];
+    var sfx = EX === "JSE" ? ".JO" : (EX === "EGX" ? ".CA" : "");
+    var cands = [];
+    [rs, tk, bare + sfx, bare, EX + "_" + bare].forEach(function(k){
+      k = String(k || "").toUpperCase();
+      if(k && cands.indexOf(k) < 0) cands.push(k);
+    });
+    for(var i = 0; i < cands.length; i++){ if(sec[cands[i]]) return sec[cands[i]]; }
+    var hit = null;
+    Object.keys(sec).forEach(function(k){
+      if(hit) return;
+      var r = sec[k] || {}, rk = String(k).toUpperCase(), rt = String(r.ticker || "").toUpperCase();
+      if((tk && (rk === tk || rt === tk)) || (rs && (rk === rs || rt === rs)) ||
+         (bare && rk.split(".")[0] === bare)) hit = r;
+    });
+    return hit;
+  }
+
+  function holderRows(rec){
+    var out = [], seen = {};
+    ["substantial", "promoters", "other", "directors"].forEach(function(b){
+      (rec[b] || []).forEach(function(r){
+        if(!plausibleHolder(r)) return;
+        var n = String(r.name).replace(/\s+/g, " ").trim();
+        if(seen[n]) return;
+        seen[n] = 1;
+        out.push({ name: n, pct: num(r.pct), holding: num(r.holding) });
+      });
+    });
+    out.sort(function(a, b){
+      var ap = a.pct == null ? -1 : a.pct, bp = b.pct == null ? -1 : b.pct;
+      return bp - ap;
+    });
+    return out;
+  }
+
+  function blockHolders(rec){
+    if(!rec) return "";
+    var all = holderRows(rec), rows = all.slice(0, 4);
+    if(!rows.length) return "";
+    // only the columns the record actually prints are drawn: an issuer that prints
+    // shares and no percentage column gets a shares list, not a column of blanks
+    var hasPct = rows.some(function(r){ return r.pct != null; });
+    var hasShares = rows.some(function(r){ return r.holding != null; });
+    var h = '<div class="fx-blk"><div class="fx-blk-h"><span>Top holders</span><i>' +
+      (all.length > rows.length ? esc("largest of " + all.length + " printed") : "") +
+      "</i></div>";
+    rows.forEach(function(r){
+      h += '<div class="fx-hrow"><div class="fx-hn">' + esc(r.name) + "</div>";
+      if(hasPct) h += '<div class="fx-hp">' +
+        (r.pct == null ? '<span class="nofig">not stated</span>' : esc(fmtPct(r.pct)) + "%") + "</div>";
+      if(hasShares) h += '<div class="fx-hs">' +
+        (r.holding == null ? '<span class="nofig">not stated</span>' : esc(fmtInt(r.holding))) + "</div>";
+      h += "</div>";
+    });
+    h += '<div class="fx-src">' + esc(holderDoc(rec)) + " &middot; " +
+      (rec.asOf ? esc(String(rec.asOf)) : "date not stated") + "</div></div>";
+    return h;
+  }
+
+  // The four multiples this card shows. A metric whose record withholds it is printed
+  // as withheld and carries the record's own reason verbatim; reasons that are the same
+  // sentence are stated once for the metrics they cover. Nothing is trimmed, reworded
+  // or dropped, and a withheld metric is never drawn as a blank or as a zero.
+  function blockMultiples(ana){
+    var v = (ana && ana.valuation) || null;
+    if(!v) return "";
+    var MET = [["pe", "P/E"], ["pb", "P/B"], ["ps", "P/S"], ["peg", "PEG"]];
+    var cells = "", reasons = [], byReason = {};
+    MET.forEach(function(m){
+      var val = num(v[m[0]]);
+      if(val != null){
+        cells += '<div class="fx-kc"><div class="fx-kk">' + esc(m[1]) + '</div><div class="fx-kv2">' +
+          esc(val.toFixed(2)) + "</div></div>";
+        return;
+      }
+      var wd = !!v[m[0] + "_withheld"];
+      cells += '<div class="fx-kc"><div class="fx-kk">' + esc(m[1]) + '</div><div class="fx-kv2">' +
+        (wd ? '<span class="fx-ww">withheld</span>' : '<span class="nofig">not stated</span>') + "</div></div>";
+      if(wd){
+        var r = String(v[m[0] + "_withheld_reason"] || "").trim() || "withheld by the record, which states no reason";
+        if(!byReason[r]){ byReason[r] = []; reasons.push(r); }
+        byReason[r].push(m[1]);
+      }
+    });
+    var msg = reasons.map(function(r){
+      return '<div class="fx-msg">' + esc(byReason[r].join(", ")) + ": " + esc(r) + "</div>";
+    }).join("");
+    return '<div class="fx-blk"><div class="fx-blk-h"><span>Multiples</span><i>' +
+      esc(v.pePeriod || v.asOfPeriod || "") + "</i></div>" +
+      '<div class="fx-ks">' + cells + "</div>" + msg + "</div>";
+  }
+
+  // 90 sessions of the security's own bars, drawn inline. No second request, no frame,
+  // no interpolation: the line joins the closes the history file prints. A security
+  // whose price the exchange withheld is not given a price line at all, because the
+  // stored series for such a security holds the value the snapshot declined to call a
+  // session price, and a line across it would read as a price that does not exist.
+  function blockHistory(hist, withheld){
+    if(withheld) return "";
+    if(!hist || !hist.bars || !hist.bars.length) return "";
+    var win = hist.bars.slice(Math.max(0, hist.bars.length - 90));
+    var pts = [], lo = null, hi = null;
+    win.forEach(function(b){
+      var c = num(b.c);
+      if(c == null) return;
+      pts.push(c);
+      if(lo == null || c < lo) lo = c;
+      if(hi == null || c > hi) hi = c;
+    });
+    if(pts.length < 2) return "";
+    var W = 600, H = 66, n = pts.length, span = (hi - lo) || 1;
+    var d = pts.map(function(c, i){
+      var x = (i / (n - 1)) * W;
+      var y = H - 4 - ((c - lo) / span) * (H - 8);
+      return (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1);
+    }).join(" ");
+    var t0 = win[0] && win[0].t ? String(win[0].t).slice(0, 10) : null;
+    var t1 = win[win.length - 1] && win[win.length - 1].t ? String(win[win.length - 1].t).slice(0, 10) : null;
+    var line = "Last " + n + " sessions" + (t0 && t1 ? ", " + t0 + " to " + t1 : "") +
+      ", low " + fmtPx(lo) + " high " + fmtPx(hi);
+    return '<div class="fx-blk"><div class="fx-blk-h"><span>Price history</span><i>' +
+      esc(hist.currency || "") + "</i></div>" +
+      '<svg class="fx-spark" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" aria-hidden="true">' +
+      '<path d="' + d + '" fill="none" stroke="#33e29a" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>' +
+      '<div class="fx-src">' + esc(line) + "</div></div>";
+  }
+
+  function renderBlocks(row, sym, hist, hold, ana){
+    var box = $("fxBlocks");
+    if(!box) return;
+    if(!sym){ box.innerHTML = ""; return; }
+    var withheld = !!(row && (row.priceWithheld || row.asOfWithheld || row.withhold_reason));
+    box.innerHTML = blockHolders(holderRec(hold, row, sym)) +
+      blockMultiples(ana) + blockHistory(hist, withheld);
+  }
+
+  // THE QUOTE GRID STAYS REMOVED (owner, 2026-10-13). It restated what the quote header
+  // and the exchange board already show and printed the date twice on every security,
+  // and it is not restored here: no cell, no container and no builder for it remains.
+
+  function renderQuote(sym, board, row, hist, hold, ana){
     var px = num(row.price);
     var asOf = asDate(row.asOf);
     var pct = num(row.chgPct);
@@ -365,8 +611,6 @@
     }
     $("fxBody").innerHTML = h.join("");
 
-    renderGrid(row, px, level, pct, row.asOf);
-
     // ---- footer: the as-of stamp first, then anything that qualifies it ----
     var foot = [];
     // The dated stamp was the first thing in this footer and printed on every
@@ -405,9 +649,10 @@
       }
     }
     $("fxFoot").innerHTML = foot.join(" &middot; ");
+    renderBlocks(row, sym, hist, hold, ana);
   }
 
-  function render(sym, board, hist, marketError){
+  function render(sym, board, hist, marketError, hold, ana){
     // THE PANEL'S OWN NAME IS THE TICKER. The owner asked for the header to name the
     // security rather than the word FOCUS, so every render path sets it here - this is
     // the single entry point all of them pass through, so one line covers them all.
@@ -418,9 +663,9 @@
     if(!sym){ renderNoSecurity(); return; }
     if(!board){ renderNoMarket(marketError); return; }
     var row = matchRow(board.stocks || [], sym);
-    if(!row){ renderAbsent(sym, board, hist); return; }
-    if(num(row.price) == null){ renderNoQuote(sym, board, row, hist); return; }
-    renderQuote(sym, board, row, hist);
+    if(!row){ renderAbsent(sym, board, hist, hold, ana); return; }
+    if(num(row.price) == null){ renderNoQuote(sym, board, row, hist, hold, ana); return; }
+    renderQuote(sym, board, row, hist, hold, ana);
   }
 
   function init(){
@@ -432,7 +677,12 @@
     $("fxSecTxt").textContent = String(REQ).toUpperCase();
     get(BASE + "market_" + encodeURIComponent(EX) + ".json")
       .then(function(board){
-        return getHist(null, REQ).then(function(hist){ render(REQ, board, hist, null); });
+        // the board is read first so the row's own `sym` can key the history, the
+        // holder record and the valuation archive, which is the spelling those files
+        // use on the JSE and the EGX
+        return loadExtras(board, REQ).then(function(x){
+          render(REQ, board, x.hist, null, x.hold, x.ana);
+        });
       })
       .catch(function(e){ render(REQ, null, null, e && e.message ? e.message : "unreadable"); });
   }
@@ -456,7 +706,9 @@
     if(!s){ renderNoSecurity(); return; }
     REQ = s;
     get(BASE + "market_" + encodeURIComponent(EX) + ".json")
-      .then(function(b){ return getHist(null, s).then(function(h){ render(s, b, h, null); }); })
+      .then(function(b){
+        return loadExtras(b, s).then(function(x){ render(s, b, x.hist, null, x.hold, x.ana); });
+      })
       .catch(function(e){ render(s, null, null, (e && e.message) || "unreadable"); });
   }
   function sugPaint(list, q){

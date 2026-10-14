@@ -24,14 +24,14 @@ if(location.protocol==='http:'&&location.hostname!=='localhost'&&location.hostna
 <link rel="canonical" href="https://mutxriterminal.com/">
 <link rel="describedby" type="text/markdown" href="/llms.txt">
 
-<meta name="description" content="MUTXRI TERMINAL covers 938 listed securities across the NSE, NGX, JSE and EGX. Income statements, balance sheets and cash flow for 881 companies, plus filings, corporate actions and company data in one workspace. Every figure carries its source." />
+<meta name="description" content="MUTXRI TERMINAL covers 911 listed securities across the NSE, NGX, JSE and EGX. Income statements, balance sheets and cash flow for 837 companies, plus filings, corporate actions and company data in one workspace. Every figure carries its source." />
 <link rel="icon" type="image/svg+xml" href="/mutxri_logo.svg">
 <link rel="icon" type="image/png" sizes="256x256" href="/mutxri_logo_256.png">
 <link rel="apple-touch-icon" href="/mutxri_logo_256.png">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MUTXRI TERMINAL">
 <meta property="og:title" content="MUTXRI TERMINAL: Financial Data Built for Research">
-<meta property="og:description" content="Financial data: 938 listed securities across the NSE, NGX, JSE and EGX, with statements, filings and company data in one workspace.">
+<meta property="og:description" content="Financial data: 911 listed securities across the NSE, NGX, JSE and EGX, with statements, filings and company data in one workspace.">
 <meta property="og:image" content="https://mutxriterminal.com/mutxri_logo.png">
 <meta property="og:url" content="https://mutxriterminal.com/">
 <meta name="twitter:card" content="summary">
@@ -65,7 +65,7 @@ if(location.protocol==='http:'&&location.hostname!=='localhost'&&location.hostna
       "applicationCategory": "FinanceApplication",
       "operatingSystem": "Any (browser based)",
       "url": "https://mutxriterminal.com/terminal/",
-      "description": "Browser based market terminal for listed equity markets. End of day and delayed prices, financial statements, filings, dividends and ratios for 938 securities listed on the Nairobi, Nigerian, Johannesburg and Egyptian exchanges. Every figure is labelled with its source.",
+      "description": "Browser based market terminal for listed equity markets. End of day and delayed prices, financial statements, filings, dividends and ratios for 911 securities listed on the Nairobi, Nigerian, Johannesburg and Egyptian exchanges. Every figure is labelled with its source.",
       "inLanguage": "en",
       "publisher": {"@id": "https://mutxriterminal.com/#organization"},
       "isPartOf": {"@id": "https://mutxriterminal.com/#website"},
@@ -440,6 +440,12 @@ a{color:var(--acc);text-decoration:none;}
 
   .stat .n{font-size:20px;}
 
+  /* the shot boxes carry aspect-ratio with a min-height, and the aspect ratio turns
+     that min-height into a min-width (300px -> 480px), which pushed the page wider
+     than a 390px screen. Below the one column breakpoint the height floors come off
+     so the width is the container's width. */
+  .f-shot,.f-shot.wide{min-height:0;}
+
 }
 
 </style>
@@ -500,7 +506,7 @@ a{color:var(--acc);text-decoration:none;}
 
     <h1>financial data<br><span class="grad">built for research</span></h1>
 
-    <p class="sub">MUTXRI provides structured market, company and financial data. <b style="color:var(--tx)">938 listed securities</b> on the NSE, NGX, JSE and EGX, with income statements, balance sheets and cash flow for 881 companies, plus filings, corporate actions, dividends and company intelligence. Built for analysts, investors and financial institutions. Every figure is labelled with the source it came from, and where data does not exist the gap stays a gap.</p>
+    <p class="sub">MUTXRI provides structured market, company and financial data. <b style="color:var(--tx)">911 listed securities</b> on the NSE, NGX, JSE and EGX, with income statements, balance sheets and cash flow for 837 companies, plus filings, corporate actions, dividends and company intelligence. Built for analysts, investors and financial institutions. Every figure is labelled with the source it came from, and where data does not exist the gap stays a gap.</p>
 
     <div class="exch-pick">
 
@@ -510,15 +516,32 @@ a{color:var(--acc);text-decoration:none;}
 
     </div>
 
+    <!--
+      HEADLINE FIGURES. Every figure below is produced by a named file and is
+      re-measured from that file, not carried over from an earlier copy.
+        securities 911   static_data/listing_JSE.json (361) + listing_EGX.json (342) +
+                         listing_NGX.json (145) + listing_NSE.json (63)
+        statements 837   listed securities whose income, balance and cash flow files
+                         all exist under static_data/financials (<KEY>__income.json)
+        files     5281   files in static_data/financials named <KEY>__<statement>.json
+                         (measure_coverage.py prints the same count)
+        figures 187338   non-null values across the `values` arrays of those files'
+                         `rows` arrays
+        officers   816   entries in static_data/ceos_sources.json carrying a name, the
+                         office (title) and the source that named the office
+      Measured from the tree on 2026-10-14. The refresh jobs write static_data through
+      the day, so a count of files or of values moves with the tree: re-measure with
+      the same arithmetic rather than copying these numbers forward.
+    -->
     <div class="hero-stats">
 
-      <div class="stat"><div class="n"><b>938</b></div><div class="l">Securities covered</div></div>
+      <div class="stat"><div class="n"><b>911</b></div><div class="l">Securities covered</div></div>
 
       <div class="stat"><div class="n"><b>4</b></div><div class="l">Exchanges</div></div>
 
-      <div class="stat"><div class="n"><b>881</b></div><div class="l">Companies with statements</div></div>
+      <div class="stat"><div class="n"><b>837</b></div><div class="l">Companies with statements</div></div>
 
-      <div class="stat"><div class="n"><b>380</b></div><div class="l">Statements from exchange filing libraries</div></div>
+      <div class="stat"><div class="n"><b>5,281</b></div><div class="l">Statement files held</div></div>
 
     </div>
 
@@ -620,19 +643,31 @@ a{color:var(--acc);text-decoration:none;}
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:26px">
 
+      <!--
+        SOURCE INTEGRITY FIGURES. Measured from the tree, not carried over:
+          483    statement files in static_data/financials whose recorded source URL is
+                 on an exchange's own document library: doclib.ngxgroup.com (409),
+                 nse.co.ke (52), senspdf.jse.co.za (22)
+          187338 non-null values across the `values` arrays of those files' `rows`
+          816    entries in static_data/ceos_sources.json with a name, an office
+                 (title) and the source the office was read from; the file holds 931
+                 entries in all, and the ones without a sourced office are not counted
+        Measured 2026-10-14; the tree is written by the refresh jobs, so re-measure
+        rather than copying these figures forward.
+      -->
       <div style="background:var(--card);border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:14px 16px">
-        <div style="font-size:22px;color:var(--acc)">380</div>
-        <div style="color:var(--tx2);font-size:13px;margin-top:4px">statement files extracted from exchange filing libraries</div>
+        <div style="font-size:22px;color:var(--acc)">483</div>
+        <div style="color:var(--tx2);font-size:13px;margin-top:4px">statement files read from an exchange's own filing library</div>
       </div>
 
       <div style="background:var(--card);border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:14px 16px">
-        <div style="font-size:22px;color:var(--acc)">148,315</div>
-        <div style="color:var(--tx2);font-size:13px;margin-top:4px">individual financial figures stored, each carrying its source</div>
+        <div style="font-size:22px;color:var(--acc)">187,338</div>
+        <div style="color:var(--tx2);font-size:13px;margin-top:4px">individual financial figures stored, each printed in a statement file with the document it came from</div>
       </div>
 
       <div style="background:var(--card);border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:14px 16px">
-        <div style="font-size:22px;color:var(--acc)">832</div>
-        <div style="color:var(--tx2);font-size:13px;margin-top:4px">sourced executive records, each verified against a source naming the office</div>
+        <div style="font-size:22px;color:var(--acc)">816</div>
+        <div style="color:var(--tx2);font-size:13px;margin-top:4px">sourced executive records, each carrying the office and the source that names it</div>
       </div>
 
     </div>
@@ -691,7 +726,7 @@ a{color:var(--acc);text-decoration:none;}
 
         <h3>Financial Statements</h3>
 
-        <p>Income statement, balance sheet and cash flow for 881 companies, Standardized line items across companies. Full line items where available, honest gaps where not.</p>
+        <p>Income statement, balance sheet and cash flow for 837 companies, Standardized line items across companies. Full line items where available, honest gaps where not.</p>
 
         <div class="more">Line items, verified →</div>
 
@@ -1029,7 +1064,7 @@ a{color:var(--acc);text-decoration:none;}
 
     <div class="usedby-row">
 
-      <span>JSE · 362</span><span>EGX · 366</span><span>NGX · 146</span><span>NSE · 64</span>
+      <span>JSE · 361</span><span>EGX · 342</span><span>NGX · 145</span><span>NSE · 63</span>
 
       <span>ZAR · KES · NGN · EGP</span>
 
