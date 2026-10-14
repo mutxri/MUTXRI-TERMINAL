@@ -32,6 +32,15 @@
  *   handle.count()           how many drawings the current key holds
  *   handle.destroy()         detach overlay, listeners and chart subscription
  *
+ *   RESHAPING. A stored line (trend, ray) and a zone paint a handle on each of
+ *   their two anchors, and a handle is grabbable while NO tool is armed: the
+ *   anchor follows the pointer, snapped to the same bar and price the drawing
+ *   was created on, and the change is saved on release. The overlay as a whole
+ *   stays pointer-events:none, so the handles are the only part of it that takes
+ *   the pointer and panning and zooming under them still belong to the chart.
+ *   The erase tool accepts a click anywhere along a drawn line, including the
+ *   part of a ray that runs past its second anchor out to the right edge.
+ *
  *   .indicators = { sma, ema, bollinger, rsi, macd, volume, blankReason }
  *        Every function takes the closes (or bars) and returns an array of the
  *        same length, or a set of arrays, with null wherever the window is not
@@ -290,6 +299,8 @@
       onChange: opts.onChange || null,
       tool: "none",
       drag: null,
+      handle: null,
+      handleFrom: null,
       overlay: null,
       svg: null,
       ro: null,
@@ -383,6 +394,28 @@
     }
     function dashAttr(d) { return d ? (d.join(",")) : "none"; }
 
+    /* The right-hand end of a ray. ONE function, used by both the painter and
+     * the hit test: a ray is drawn out to the right edge, and the part that is
+     * drawn has to be the part that can be clicked, or the erase tool silently
+     * misses the last stretch of the line it just drew. */
+    function rayEndXY(it) {
+      var l1 = logicalOf(it.a.t), l2 = logicalOf(it.b.t);
+      var T = ts();
+      if (!T || l1 == null || l2 == null || l2 === l1) return null;
+      var rightEdge = null;
+      try { rightEdge = T.coordinateToLogical(host.clientWidth); } catch (e) { rightEdge = null; }
+      if (rightEdge == null) return null;
+      var endL = rightEdge + 80;
+      if (!(endL > l2)) return null;
+      var slope = (it.b.p - it.a.p) / (l2 - l1);
+      var endP = it.b.p + slope * (endL - l2);
+      var ex = coordXFromLogical(endL);
+      var ey = null;
+      try { ey = H.series ? H.series.priceToCoordinate(endP) : null; } catch (e) { ey = null; }
+      if (ex == null || ey == null || !isFinite(ex) || !isFinite(ey) || Math.abs(ey) >= 1e6) return null;
+      return { x: ex, y: ey };
+    }
+
     function paintItem(it, w, h, ghost) {
       if (!it) return;
       var style = DEFAULTS[it.type] || DEFAULTS.trend;
@@ -413,34 +446,37 @@
           width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y),
           fill: hexA(color, 0.12), stroke: color, "stroke-width": width,
           "stroke-dasharray": dashAttr(style.dash) }));
+        if (ghost) return void svg.appendChild(g);
+        /* the two corners a zone is anchored on are grabbable like a line's ends */
+        [[a.x, a.y, "a"], [b.x, b.y, "b"]].forEach(function (pt) {
+          g.appendChild(el("rect", { x: pt[0] - 3.5, y: pt[1] - 3.5, width: 7, height: 7,
+            fill: "#0a0a0a", stroke: color, "stroke-width": 1,
+            "pointer-events": "auto", style: "cursor:move", class: "mxta-handle",
+            "data-id": it.id || "", "data-end": pt[2] }));
+        });
       } else {
-        /* trend and ray */
+        /* trend and ray: the line runs from anchor a through anchor b and, for a
+         * ray, on to the right edge. The handles sit on the two ANCHORS, so
+         * dragging one moves the data point the drawing is anchored on and not
+         * the far end of the extension. */
         var p1 = xyOf(it.a), p2 = xyOf(it.b);
         if (!p1 || !p2) return;
         var x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
         if (it.type === "ray" || it.extend === "right") {
-          var l1 = logicalOf(it.a.t), l2 = logicalOf(it.b.t);
-          var T = ts(), rightEdge = null;
-          try { rightEdge = T.coordinateToLogical(host.clientWidth); } catch (e) { rightEdge = null; }
-          if (l1 != null && l2 != null && l2 !== l1 && rightEdge != null) {
-            var endL = rightEdge + 80;
-            if (endL > l2) {
-              var slope = (it.b.p - it.a.p) / (l2 - l1);
-              var endP = it.b.p + slope * (endL - l2);
-              var ex = coordXFromLogical(endL);
-              var ey = null;
-              try { ey = H.series.priceToCoordinate(endP); } catch (e) { ey = null; }
-              if (ex != null && ey != null && isFinite(ex) && isFinite(ey) && Math.abs(ey) < 1e6) {
-                x2 = ex; y2 = ey;
-              }
-            }
-          }
+          var re = rayEndXY(it);
+          if (re) { x2 = re.x; y2 = re.y; }
         }
         g.appendChild(el("line", { x1: x1, y1: y1, x2: x2, y2: y2, stroke: color,
           "stroke-width": width, "stroke-dasharray": dashAttr(style.dash) }));
-        [[x1, y1], [x2, y2]].forEach(function (pt) {
-          g.appendChild(el("rect", { x: pt[0] - 2.5, y: pt[1] - 2.5, width: 5, height: 5,
-            fill: "#0a0a0a", stroke: color, "stroke-width": 1 }));
+        if (ghost) return void svg.appendChild(g);
+        [[p1.x, p1.y, "a"], [p2.x, p2.y, "b"]].forEach(function (pt) {
+          g.appendChild(el("rect", { x: pt[0] - 3.5, y: pt[1] - 3.5, width: 7, height: 7,
+            fill: "#0a0a0a", stroke: color, "stroke-width": 1,
+            /* the handles are the only part of the overlay that takes pointer
+             * events while NO tool is armed (the overlay itself does not), so a
+             * drawing can be reshaped without giving up pan and zoom */
+            "pointer-events": "auto", style: "cursor:move", class: "mxta-handle",
+            "data-id": it.id || "", "data-end": pt[2] }));
         });
       }
       svg.appendChild(g);
@@ -474,8 +510,16 @@
           if (x != null) d = Math.abs(px - x);
         } else {
           var a = xyOf(it.a), b = xyOf(it.b);
-          if (a && b) d = Math.min(distToSegment(px, py, a.x, a.y, b.x, b.y),
-                                   it.type === "zone" ? 6 : 1e9);
+          if (a && b) {
+            /* a ray is drawn out to the right edge: the clickable segment has to
+             * be the drawn segment or the tail of the ray cannot be erased */
+            if (it.type === "ray" || it.extend === "right") {
+              var re = rayEndXY(it);
+              if (re) b = re;
+            }
+            d = Math.min(distToSegment(px, py, a.x, a.y, b.x, b.y),
+                         it.type === "zone" ? 6 : 1e9);
+          }
           if (a && b && it.type === "zone") {
             /* a zone is removed by clicking inside it too */
             if (px >= Math.min(a.x, b.x) && px <= Math.max(a.x, b.x) &&
@@ -567,6 +611,66 @@
       }
     }
 
+    /* --- reshaping a drawing -------------------------------------------------
+     * The handles painted on a line's ends and a zone's corners are LIVE while
+     * NO tool is armed: grab one and the anchor it belongs to follows the
+     * pointer, snapped to the same bar and price a drawing is anchored on. The
+     * overlay itself stays pointer-events:none, so panning and zooming under
+     * the handles still belong to the chart.
+     *
+     * The pointer capture is taken on the SVG and not on the handle, because
+     * every repaint replaces the handle elements and a capture on a replaced
+     * element is released with it. */
+    function handleDown(ev) {
+      var t = ev.target;
+      if (!t || !t.getAttribute) return;
+      if (String(t.getAttribute("class") || "") !== "mxta-handle") return;
+      var id = t.getAttribute("data-id"), end = t.getAttribute("data-end");
+      var list = itemsFor(H.key), item = null;
+      for (var i = 0; i < list.length; i++) if (list[i].id === id) { item = list[i]; break; }
+      if (!item || !end) return;
+      var pt = localPoint(ev);
+      if (!snap(pt.x, pt.y)) return;
+      ev.preventDefault(); ev.stopPropagation();
+      H.handle = { item: item, end: end };
+      H.handleFrom = { a: item.a ? { t: item.a.t, p: item.a.p } : null,
+                       b: item.b ? { t: item.b.t, p: item.b.p } : null };
+      try { svg.setPointerCapture(ev.pointerId); } catch (e) {}
+      ov.style.cursor = "move";
+    }
+    function handleMove(ev) {
+      if (!H.handle) return;
+      var pt = localPoint(ev), a = snap(pt.x, pt.y);
+      if (!a) return;
+      if (H.handle.end === "a") H.handle.item.a = a; else H.handle.item.b = a;
+      ev.preventDefault();
+      paint();
+    }
+    function handleUp(ev) {
+      if (!H.handle) return;
+      var it = H.handle.item, from = H.handleFrom, moved = false;
+      try {
+        function same(x, y) {
+          if (!x && !y) return true;
+          if (!x || !y) return false;
+          return String(x.t) === String(y.t) && Number(x.p) === Number(y.p);
+        }
+        moved = !(same(it.a, from.a) && same(it.b, from.b));
+      } catch (e) { moved = true; }
+      H.handle = null; H.handleFrom = null;
+      try { svg.releasePointerCapture(ev.pointerId); } catch (e) {}
+      ov.style.cursor = H.tool === "none" ? "default" : (H.tool === "erase" ? "pointer" : "crosshair");
+      paint();
+      if (moved) {
+        save();
+        if (H.onChange) H.onChange(H);
+      }
+    }
+    svg.addEventListener("pointerdown", handleDown);
+    svg.addEventListener("pointermove", handleMove);
+    svg.addEventListener("pointerup", handleUp);
+    svg.addEventListener("pointercancel", handleUp);
+
     function onKey(ev) {
       if (ev.key === "Escape" && H.tool !== "none") {
         H.setTool("none");
@@ -631,6 +735,11 @@
       bindOverlay(false);
       document.removeEventListener("keydown", onKey, true);
       if (H.deleted) return;
+      svg.removeEventListener("pointerdown", handleDown);
+      svg.removeEventListener("pointermove", handleMove);
+      svg.removeEventListener("pointerup", handleUp);
+      svg.removeEventListener("pointercancel", handleUp);
+      H.handle = null; H.handleFrom = null;
       if (H.tsHandler && H.chart) { try { H.chart.timeScale().unsubscribeVisibleLogicalRangeChange(H.tsHandler); } catch (e) {} }
       H.tsHandler = null;
       try { if (ov.parentNode) ov.parentNode.removeChild(ov); } catch (e) {}

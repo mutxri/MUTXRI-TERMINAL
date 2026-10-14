@@ -3976,7 +3976,13 @@ function runCommand(raw){
 // revived: that mount is what read as a panel inside a panel. The INFORMATION
 // is folded in here instead.
 var MT_MK = { sym: '', ex: '', chart: null, fileBars: 0, drawn: 0 };
-var MK_DRAW_BARS = 1260;   // about five years of sessions, the window RESEARCH drew
+// The middle panel draws the SAME bars as the CHART panel, so this is the CHART
+// panel's own default window and not a second number: RANGE_BARS['6M'] = 126 in
+// features/panels/mx_chart.html. At 1260 this view crammed five years of sessions
+// into a 294px rail and the candles stopped matching the CHART panel's candles,
+// which is what put the two views of one security out of step. Change the CHART
+// panel's 6M value and change this in the same commit.
+var MK_DRAW_BARS = 126;
 
 function mkNum(v){
   if(v === null || v === undefined || v === '') return null;
