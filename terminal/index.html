@@ -355,12 +355,30 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .wstabs .ws-x{background:none;border:0;color:inherit;font-family:var(--mono);font-size:11px;
   font-weight:700;line-height:1;padding:0 2px;margin-left:6px;cursor:pointer;border-radius:2px;opacity:.55}
 .wstabs .ws-x:hover{color:#ff5f56;opacity:1;background:rgba(255,95,86,.16)}
+/* EVERY tab carries the x, Excel-style, and the x IS the control (no words for
+   it anywhere). On the only workspace it is inert: there is always one
+   workspace, so the last one cannot be closed, and the control says so by
+   looking switched off rather than by disappearing. */
+.wstabs .ws-x[disabled]{opacity:.22;cursor:not-allowed}
+.wstabs .ws-x[disabled]:hover{color:inherit;background:none}
 /* the + sits OUTSIDE the scroll area, pinned at the right like Excel's, so it is
    reachable however many tabs there are */
-.wsbar .ws-add{flex:0 0 auto;background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);
+.wsbar .ws-add{flex:0 0 auto;margin-left:auto;background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);
   font-family:var(--mono);font-size:13px;font-weight:700;line-height:1;padding:1px 8px 2px;
   border-radius:2px;cursor:pointer}
 .wsbar .ws-add:hover{border-color:var(--acc);color:var(--acc)}
+/* the six approved default sets, offered from the + as ADDITIONS. Right-click
+   (or Alt-click) the + and pick one: it is ADDED to the set the reader already
+   has, so a preset can never replace an arrangement of their own. */
+.wspm{position:fixed;right:12px;bottom:36px;z-index:99999;min-width:216px;background:var(--bg2);
+  border:1px solid var(--line2);border-radius:6px;padding:7px;box-shadow:0 24px 80px rgba(0,0,0,.6);
+  font-family:var(--mono)}
+.wspm .wspm-h{font-size:9px;letter-spacing:.15em;color:var(--tx3);text-transform:uppercase;padding:4px 6px 6px}
+.wspm button{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;background:none;
+  border:0;color:var(--tx2);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-align:left;
+  padding:5px 6px;border-radius:3px;cursor:pointer}
+.wspm button:hover{background:var(--bg3);color:var(--acc)}
+.wspm .wspm-k{color:var(--tx3);font-size:9px;margin-left:auto;letter-spacing:.08em}
 /* cleared above the 28px sheet strip, so a confirmation is never hidden by it */
 .wstoast{position:fixed;left:50%;bottom:38px;transform:translateX(-50%) translateY(6px);z-index:99998;
   background:var(--bg3);border:1px solid var(--mint-line);color:var(--acc);font-family:var(--mono);
@@ -1815,6 +1833,11 @@ function renderTabs(){
     KEYS.forEach(function(k){ NODE[k] = document.getElementById(META[k].el); });
 
     let spaces = [], active = 0, zTop = 10;
+    // true while the six approved sets are the freshly seeded default: the seed
+    // is measured before the shell knows it is floating, so the first render
+    // rebuilds it against the box the windows actually land in (the sheet strip
+    // takes its own row the moment .floating is on), and only that first render.
+    let seeded = false;
     // top-level fields of the mt_ws record that this build does not know about;
     // they are written back on the next save so an older reader cannot trim a
     // record a newer one wrote.
@@ -1940,6 +1963,27 @@ function renderTabs(){
       KEYS.forEach(function(k){ sp.wins[k].open = open[k]; });   // a closed window stays closed
     }
 
+    // A RECORD THAT HAS NOT CHANGED IS NOT REWRITTEN. A save runs on load (the
+    // panel-window layer mirrors its set into the workspace) and on every switch,
+    // so refreshing the bytes each time would tick savedAt and rewrite a stored
+    // arrangement for nothing. The guard compares the record this layer WOULD
+    // write with the one it last read or wrote, by content rather than by key
+    // order, so a record written by another build (or by hand) stays exactly as
+    // it is until the reader actually changes something.
+    let lastSig = null;
+    function sig(v){
+      if(v === null || typeof v !== 'object') return JSON.stringify(v);
+      if(Array.isArray(v)) return '[' + v.map(sig).join(',') + ']';
+      return '{' + Object.keys(v).sort().map(function(k){
+        return JSON.stringify(k) + ':' + sig(v[k]);
+      }).join(',') + '}';
+    }
+    function record(bump){
+      if(bump){ const sp = cur(); if(sp) sp.savedAt = Date.now(); }
+      return Object.assign({}, topExtra, {v: 2, active: active,
+        spaces: spaces.map(function(s){ return packSpace(s); })});
+    }
+
     function save(){
       const sp = cur();
       if(sp){
@@ -1956,16 +2000,16 @@ function renderTabs(){
         }
         sp.wins = copyWins(sp.wins);
         sp.dismissed = dismissalsOf(sp);
-        sp.savedAt = Date.now();
         sp._base = copyWins(sp.wins);      // pristine copy, re-used on a resize
       }
       try{
         // The key is NEVER renamed - a rename would silently reset every saved
         // layout on every machine. The schema is extended in place instead, and
         // fields this build does not know are carried through untouched.
-        const out = Object.assign({}, topExtra, {v: 2, active: active,
-          spaces: spaces.map(function(s){ return packSpace(s); })});
-        localStorage.setItem('mt_ws', JSON.stringify(out));
+        if(lastSig !== null && sig(record(false)) === lastSig) return;
+        const str = JSON.stringify(record(true));
+        localStorage.setItem('mt_ws', str);
+        lastSig = sig(JSON.parse(str));
       }catch(e){}
     }
     // ---- auto-save: there is no SAVE control any more -------------------------
@@ -1988,9 +2032,147 @@ function renderTabs(){
     }
     window.addEventListener('beforeunload', flushSave);
     window.addEventListener('pagehide', flushSave);
+
+    // ---- the six approved default workspaces --------------------------------
+    // The owner approved these six sets and asked for them to be the starting
+    // point. They are seeded on a FIRST load and nowhere else: once a reader has
+    // a record of their own, nothing here ever runs again (see restore below),
+    // and no set ever replaces, shrinks or resets one that is already stored.
+    //
+    // A set is a list of WINDOWS, and every window is a window of its own - one
+    // frame, one title, one close, nothing nested. Two kinds sit in it: the four
+    // shell windows (watch, center, info, chat) and the panel windows the panel
+    // layer draws. The rects below are in DESIGN UNITS, taken from
+    // design/workspaces_v2.html, so a set is checked against the drawing rather
+    // than eyeballed; a set is then scaled into whatever box the reader has, so
+    // the same three columns land in the same three places on every screen -
+    // WATCHLIST left, the largest window centre, supporting windows right.
+    //
+    // `main` names the window that has to come out LARGEST: FOCUS is a small
+    // tile in all six and is never it. Every panel id below is one the shell can
+    // actually open today (it is read from PANELS, the app's own registry, and a
+    // preset naming an id the registry does not carry is dropped rather than
+    // opened broken). RATINGS is in none of them: its data file is empty for
+    // every exchange, so the panel opens on an empty state.
+    const PRESETS = [
+      // 1 START HERE - what is this company, and what does one share cost.
+      // MARKET is the largest, because explaining is what a beginner needs.
+      {name: 'START HERE', main: 'info', uw: 892, uh: 506,
+       shell: {watch: [0, 0, 196, 506], info: [206, 0, 474, 506]},
+       panels: {focus: [692, 0, 200, 120], news: [692, 132, 200, 374]}},
+
+      // 2 INVESTOR - what do I own, what is it worth, what is coming.
+      {name: 'INVESTOR', main: 'heatmap',
+       shell: {watch: [0, 0, 96, 264]},
+       panels: {heatmap: [100, 0, 246, 150], focus: [350, 0, 166, 96],
+                news: [350, 102, 166, 162], portfolio: [100, 156, 118, 108],
+                corp: [224, 156, 122, 108]}},
+
+      // 3 TRADER - what is the book, and what do I do about it now.
+      {name: 'TRADER', main: 'trade',
+       shell: {watch: [0, 0, 90, 264]},
+       panels: {trade: [94, 0, 172, 264], chart: [270, 0, 130, 150],
+                tas: [270, 156, 130, 108], focus: [404, 0, 112, 92],
+                news: [404, 98, 112, 80], portfolio: [404, 184, 112, 80]}},
+
+      // 4 ANALYST - is this company any good, and is it cheap. MARKET is in it
+      // because the owner asked for it by name.
+      {name: 'ANALYST', main: 'chart',
+       shell: {watch: [0, 0, 96, 264], info: [350, 82, 166, 100]},
+       panels: {chart: [100, 0, 246, 150], financials: [100, 156, 118, 108],
+                compare: [224, 156, 122, 108], focus: [350, 0, 166, 76],
+                holders: [350, 188, 166, 76]}},
+
+      // 5 FUND MANAGER - what am I exposed to across the whole market.
+      {name: 'FUND MANAGER', main: 'heatmap',
+       shell: {watch: [0, 0, 92, 264]},
+       panels: {heatmap: [96, 0, 216, 150], portfolio: [96, 156, 104, 108],
+                trade: [206, 156, 106, 108], focus: [318, 0, 198, 80],
+                ann: [318, 86, 198, 90], news: [318, 182, 198, 82]}},
+
+      // 6 ECONOMIST - what is happening to this country.
+      {name: 'ECONOMIST', main: 'macro',
+       shell: {watch: [0, 0, 92, 264]},
+       panels: {macro: [96, 0, 216, 170], fx: [96, 176, 104, 88],
+                bnd: [206, 176, 106, 88], focus: [318, 0, 198, 80],
+                news: [318, 86, 198, 178]}},
+    ];
+    // the window the panel layer is asked to open has to be a panel this build
+    // ships: a preset that names anything else is skipped, so a set can never
+    // open a window that does not exist
+    const PANEL_IDS = {};
+    PANELS.forEach(function(p){ PANEL_IDS[p.id] = 1; });
+    // the box a set is laid out in, in the shell's own (zoomed) coordinates
+    function presetBox(){
+      const b = box();
+      return {x: 6, y: 6, w: Math.max(320, b.width - 12), h: Math.max(200, b.height - 12)};
+    }
+    function presetPixels(r, U, area){
+      return {
+        x: Math.round(area.x + (r[0] / U.w) * area.w),
+        y: Math.round(area.y + (r[1] / U.h) * area.h),
+        w: Math.round((r[2] / U.w) * area.w),
+        h: Math.round((r[3] / U.h) * area.h)
+      };
+    }
+    // A set becomes a workspace record. Every one of the four shell windows
+    // carries a COMPLETE geometry, shut ones included, because restore() falls
+    // back to the default tile for a workspace whose geometry is partial - and
+    // `auto` is false from the start: this arrangement IS the layout, not a
+    // starting point the viewport may re-tile away.
+    function presetSpace(p){
+      const area = presetBox(), U = {w: p.uw || 516, h: p.uh || 264}, def = tiled();
+      const wins = {};
+      let z = 11;
+      KEYS.forEach(function(k){
+        const o = winGeom(null, def[k]);
+        const r = p.shell[k];
+        if(r){ Object.assign(o, presetPixels(r, U, area)); o.open = true; }
+        else{ o.open = false; }
+        o.z = ++z;
+        wins[k] = o;
+      });
+      const panelwins = {};
+      let pz = 20;
+      Object.keys(p.panels || {}).forEach(function(id){
+        if(!PANEL_IDS[id]) return;
+        const r = presetPixels(p.panels[id], U, area);
+        panelwins[id] = {open: true, x: r.x, y: r.y, w: r.w, h: r.h, z: ++pz};
+      });
+      return {name: p.name, wins: wins, auto: false, dismissed: [],
+              panelwins: panelwins, _base: copyWins(wins)};
+    }
+    function presetFor(nm){
+      const want = String(nm == null ? '' : nm).trim().toUpperCase();
+      return PRESETS.find(function(p){ return p.name === want; }) || null;
+    }
+    // ADD a set to the reader's own: it is appended, never swapped in, so
+    // offering the presets to somebody who already has an arrangement cannot
+    // touch a single window of it.
+    function addPreset(nm){
+      const p = presetFor(nm);
+      if(!p) return false;
+      const sp = presetSpace(p);
+      let name = p.name, n = 2;
+      while(spaces.some(function(s){ return s.name === name; }) && n <= 20){
+        name = (p.name + ' ' + n).slice(0, 18);
+        n++;
+      }
+      sp.name = name;
+      spaces.push(sp);
+      switchTo(spaces.length - 1);
+      return true;
+    }
+
     (function restore(){
+      // Was there a stored set at all? The seeding below is decided by THIS, not
+      // by what could be parsed: a record that exists is left alone entirely,
+      // even one this build cannot read, so a half-written or newer record is
+      // never replaced by defaults.
+      let raw = null;
+      try{ raw = localStorage.getItem('mt_ws'); }catch(e){ raw = null; }
       let s = null;
-      try{ s = JSON.parse(localStorage.getItem('mt_ws') || 'null'); }catch(e){ s = null; }
+      try{ s = JSON.parse(raw || 'null'); }catch(e){ s = null; }
       if(s && typeof s === 'object'){
         Object.keys(s).forEach(function(f){ if(f !== 'active' && f !== 'spaces') topExtra[f] = s[f]; });
       }
@@ -2045,10 +2227,18 @@ function renderTabs(){
         });
         active = Math.min(Math.max(0, (s.active | 0)), spaces.length - 1);
       }else{
-        // nothing usable is stored: one workspace, laid out for this viewport.
-        // The stored value is left alone until the reader changes something, so
-        // a record this build cannot read is not overwritten by a blank one.
-        spaces = [fresh('MAIN')];
+        // NOTHING IS STORED AT ALL: a first load, so the six approved sets are
+        // seeded as the reader's own workspaces, START HERE in front because
+        // that is the one a beginner needs. This is the ONLY place the six are
+        // created. A record that exists - readable or not - takes the branch
+        // above and is left alone entirely, so an arrangement already saved on
+        // this machine is never replaced, shrunk or reset by this build. Note
+        // that the seed is not written here either: it is derived from the box
+        // in front of the reader, so nothing is put in storage until the reader
+        // actually does something.
+        const first = !EMBED && desk() && (raw === null || raw === '');
+        spaces = first ? PRESETS.map(function(p){ return presetSpace(p); }) : [fresh('MAIN')];
+        seeded = first;
         active = 0;
       }
       // The stacking counter must start above the highest z in EVERY workspace,
@@ -2060,6 +2250,13 @@ function renderTabs(){
           if(w && w.z > zTop) zTop = w.z;
         });
       });
+      // Every workspace this layer has read carries a savedAt from here on, so a
+      // record written without one (by hand, or by an older build) cannot make
+      // the no-change check in save() see a difference that is only a timestamp.
+      spaces.forEach(function(sp){ if(!Number(sp.savedAt)) sp.savedAt = Date.now(); });
+      // What this layer last read, in its own shape: the first save after a load
+      // therefore writes nothing unless the reader has changed something.
+      try{ lastSig = sig(record(false)); }catch(e){ lastSig = null; }
     })();
 
     function cur(){ return spaces[active]; }
@@ -2090,6 +2287,16 @@ function renderTabs(){
     function render(){
       if(EMBED) return;
       document.documentElement.classList.add('floating');
+      // The seed was measured while the sheet strip was still display:none, so
+      // the box it was laid out in was one strip taller than the box the windows
+      // land in. Rebuild it ONCE, here, against the box the strip has now: the
+      // six sets then fill the workspace exactly as the drawing has them, and a
+      // window can never be left hanging over the strip.
+      if(seeded){
+        seeded = false;
+        spaces = PRESETS.map(function(p){ return presetSpace(p); });
+        try{ lastSig = sig(record(false)); }catch(e){ lastSig = null; }
+      }
       retile();
       KEYS.forEach(place);
       tabs();
@@ -2179,18 +2386,24 @@ function renderTabs(){
           const name = window.prompt('Workspace name', s.name);
           if(name){ s.name = String(name).slice(0, 18); flushSave(); tabs(); }
         });
-        // DELETE: the x removes THIS workspace, and it is kept off the last tab
-        // so there is always a workspace to fall back to.
-        if(spaces.length > 1){
-          const x = document.createElement('button');
-          x.type = 'button';
-          x.className = 'ws-x';
-          x.textContent = '\u00d7';
-          x.title = 'Delete this workspace';
-          x.setAttribute('aria-label', 'Delete workspace ' + sp.name);
-          x.addEventListener('click', function(e){ e.stopPropagation(); removeSpace(i); });
-          t.appendChild(x);
-        }
+        // CLOSE: the x removes THIS workspace. It is on EVERY tab, Excel-style,
+        // and it IS the control - no caption anywhere says what it does. On the
+        // only workspace it is inert rather than absent: there must always be one
+        // workspace, so the last one cannot be closed.
+        const last = spaces.length <= 1;
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.className = 'ws-x';
+        x.textContent = '\u00d7';
+        x.title = last ? 'The last workspace cannot be closed' : 'Close this workspace';
+        x.setAttribute('aria-label', 'Close workspace ' + sp.name);
+        if(last){ x.disabled = true; x.setAttribute('aria-disabled', 'true'); }
+        x.addEventListener('click', function(e){
+          e.stopPropagation();
+          if(spaces.length <= 1){ toast('ONE WORKSPACE ALWAYS STAYS - ' + sp.name); return; }
+          removeSpace(i);
+        });
+        t.appendChild(x);
         host.appendChild(t);
       });
       // the + is a SIBLING of the scrolling row, not inside it, so it stays put
@@ -2201,11 +2414,76 @@ function renderTabs(){
           spaces.push(fresh('WS ' + (spaces.length + 1)));
           switchTo(spaces.length - 1);
         };
+        // The six approved sets are offered here as ADDITIONS, so a reader who
+        // already has an arrangement of their own can take one without it
+        // replacing anything: a preset is APPENDED to their set. Opened by
+        // right-click (or Alt-click), so a plain click on the + keeps doing
+        // exactly what it always did and the strip itself is unchanged.
+        add.title = 'New workspace - right-click for the six default sets';
+        add.addEventListener('contextmenu', function(e){ e.preventDefault(); presetMenu(); });
+        add.addEventListener('click', function(e){ if(e.altKey){ e.preventDefault(); presetMenu(); } });
       }
       // keep the active tab in view if the row has scrolled
       const on = host.querySelector('.ws-tab.on');
       if(on && on.scrollIntoView){ try{ on.scrollIntoView({block: 'nearest', inline: 'nearest'}); }catch(e){} }
     }
+    // ---- the six sets, offered as additions from the + ------------------------
+    // A menu, not a mode: picking a name APPENDS that set to the set the reader
+    // already has and switches to it. Nothing is ever replaced, which is what
+    // makes it safe to offer these to somebody who has arranged their own.
+    function presetHint(p){
+      if(META[p.main]) return META[p.main].label;
+      const pl = PANELS.find(function(x){ return x.id === p.main; });
+      return pl ? pl.label : '';
+    }
+    function closePresetMenu(){
+      const m = document.getElementById('wsPresetMenu');
+      if(m && m.parentNode) m.parentNode.removeChild(m);
+      document.removeEventListener('click', onPresetDocClick, true);
+      document.removeEventListener('keydown', onPresetKey, true);
+    }
+    function onPresetDocClick(e){
+      const m = document.getElementById('wsPresetMenu');
+      if(m && !m.contains(e.target)) closePresetMenu();
+    }
+    function onPresetKey(e){ if(e.key === 'Escape') closePresetMenu(); }
+    function presetMenu(){
+      closePresetMenu();
+      const m = document.createElement('div');
+      m.className = 'wspm';
+      m.id = 'wsPresetMenu';
+      m.setAttribute('role', 'menu');
+      const h = document.createElement('div');
+      h.className = 'wspm-h';
+      h.textContent = 'Add a default set';
+      m.appendChild(h);
+      PRESETS.forEach(function(p){
+        const hint = presetHint(p);
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'menuitem');
+        b.setAttribute('data-preset', p.name);
+        if(hint) b.title = 'Largest window: ' + hint;
+        const l = document.createElement('span');
+        l.textContent = p.name;
+        b.appendChild(l);
+        if(hint){
+          const k = document.createElement('span');
+          k.className = 'wspm-k';
+          k.textContent = hint;
+          b.appendChild(k);
+        }
+        b.addEventListener('click', function(){ closePresetMenu(); addPreset(p.name); });
+        m.appendChild(b);
+      });
+      document.body.appendChild(m);
+      // armed on the next task so the click that opened the menu cannot close it
+      setTimeout(function(){
+        document.addEventListener('click', onPresetDocClick, true);
+        document.addEventListener('keydown', onPresetKey, true);
+      }, 0);
+    }
+
     function switchTo(i){
       if(i < 0 || i >= spaces.length || i === active) return;
       // the arrangement being LEFT keeps its own panel windows (and its own open
@@ -2419,6 +2697,11 @@ function renderTabs(){
               return (o && typeof o === 'object') ? JSON.parse(JSON.stringify(o)) : null;
             },
             activeIndex: function(){ return active; },
+            // the six approved default sets: their names, and the ability to ADD
+            // one to the reader's own set (never to replace it)
+            presets: function(){ return PRESETS.map(function(p){ return p.name; }); },
+            presetMain: function(nm){ const p = presetFor(nm); return p ? presetHint(p) : ''; },
+            addPreset: addPreset,
             spacesOf: function(){ return {active: active, names: spaces.map(function(s){ return s.name; }),
                                           wins: JSON.parse(JSON.stringify(cur().wins))}; }};
   })();
@@ -2601,12 +2884,21 @@ window.MTPanelWins = (function(){
       if(!w) return;
       const s = (rec && typeof rec === 'object') ? rec[id] : null;
       let live = false;
-      if(s && typeof s === 'object' && s.open === true){
-        const nums = ['x', 'y', 'w', 'h', 'z'].filter(function(f){ return isFinite(Number(s[f])); });
-        if(nums.length === 5){
-          w.x = Number(s.x); w.y = Number(s.y); w.w = Number(s.w); w.h = Number(s.h);
-          w.z = Number(s.z); w.geom = true; live = true;
-        }
+      const nums = (s && typeof s === 'object') ? ['x', 'y', 'w', 'h', 'z'].filter(function(f){
+        return isFinite(Number(s[f]));
+      }) : [];
+      if(s && typeof s === 'object' && nums.length === 5){
+        // Adopt the record's geometry for this window, whether the record opens
+        // it or not. A window the record SHUT is still part of that workspace's
+        // arrangement: it sits where the reader left it, so reopening it there
+        // puts it back rather than at a default corner. Adopting it on the shut
+        // entries too is also what keeps a load from having to REWRITE a stored
+        // record it has just read: before this, every load replaced the geometry
+        // of the shut windows with the layer's defaults, which counted as a
+        // change and made the record churn on every visit.
+        w.x = Number(s.x); w.y = Number(s.y); w.w = Number(s.w); w.h = Number(s.h);
+        w.z = Number(s.z); w.geom = true;
+        if(s.open === true) live = true;
       }
       w.open = live;
       if(live){
