@@ -429,7 +429,11 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .pwin{position:absolute;display:flex;flex-direction:column;pointer-events:auto;
   background:var(--bg2);border:1px solid var(--win-outline,var(--line2));border-radius:3px;
   box-shadow:0 12px 34px rgba(0,0,0,.62);overflow:hidden;min-width:0;min-height:0}
-.pwin-front{border-color:var(--mint-line)!important}
+/* THE WINDOW IN FRONT IS UNMISTAKABLE: a mint edge, a deeper shadow and a
+   lifted title bar, so which panel a click will act on is never a guess. */
+.pwin-front{border-color:var(--mint-line)!important;box-shadow:0 20px 56px rgba(0,0,0,.8)!important}
+.pwin-front>.pwin-hd{background:var(--bg4);color:var(--tx)}
+.pwin-front>.pwin-hd .pw-t{color:var(--acc)}
 .pwin-hd{display:flex;align-items:center;gap:6px;height:22px;flex:0 0 22px;padding:0 4px 0 7px;
   background:var(--bg3);border-bottom:1px solid var(--line2);cursor:grab;
   font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--tx3);
@@ -3339,6 +3343,151 @@ window.MTPanelWins = (function(){
     w.x = Math.max(-(w.w - 80), Math.min(w.x, Math.max(0, BW - 80)));
     w.y = Math.max(0, Math.min(w.y, Math.max(0, BH - BAR)));
   }
+
+  // ---- placement: a window the reader opens is never buried ----------------
+  // THE OWNER'S RULE (2026-10-14): "dont let the panel go under another panel
+  // which makes user cancel the top one just to get to the bottom - all panels
+  // should be free". Every window used to be placed from its INDEX in PANELS
+  // (12 + (index % 6) * 26 across, 12 + (index % 6) * 22 down), so the seventh
+  // window landed on EXACTLY the pixels of the first: BND (index 7) and HOLDERS
+  // (index 19) both came up at 38,34 in a 832x460 box, the lower of the two had
+  // ZERO visible pixels, and the only way to it was to close the window on top.
+  // A placement is now chosen that leaves the new window a visible, clickable
+  // area AND leaves every window already open a visible area too, and a
+  // candidate that is identical to a window already open is rejected outright,
+  // so two windows cannot share the same rect by construction. What the reader
+  // arranged is never re-tiled: this only runs when a window is opened, and only
+  // when the place it would land in is effectively buried.
+  const CASC_X = 28, CASC_Y = 30;
+  // a visible area this size or better is "seen": the title bar of the narrowest
+  // window plus a strip of body, so it can be grabbed, clicked and read
+  const MIN_VIS = 6000;
+  function openRects(exceptId){
+    const out = [];
+    Object.keys(WINS).forEach(function(id){
+      if(id === exceptId) return;
+      const w = state[id];
+      if(!w || !w.open) return;
+      out.push({x: w.x, y: w.y, w: w.w, h: w.h});
+    });
+    return out;
+  }
+  function isect(a, b){
+    const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+    const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+    if(x2 <= x1 || y2 <= y1) return null;
+    return {x: x1, y: y1, w: x2 - x1, h: y2 - y1};
+  }
+  function unionArea(rs){
+    if(!rs.length) return 0;
+    const xs = [];
+    rs.forEach(function(r){ xs.push(r.x); xs.push(r.x + r.w); });
+    xs.sort(function(a, b){ return a - b; });
+    let total = 0;
+    for(let i = 0; i < xs.length - 1; i++){
+      const xa = xs[i], xb = xs[i + 1];
+      if(xb <= xa) continue;
+      const iv = [];
+      rs.forEach(function(r){ if(r.x <= xa && r.x + r.w >= xb) iv.push([r.y, r.y + r.h]); });
+      if(!iv.length) continue;
+      iv.sort(function(a, b){ return a[0] - b[0]; });
+      let h = 0, cs = iv[0][0], ce = iv[0][1];
+      for(let k = 1; k < iv.length; k++){
+        if(iv[k][0] > ce){ h += ce - cs; cs = iv[k][0]; ce = iv[k][1]; }
+        else if(iv[k][1] > ce) ce = iv[k][1];
+      }
+      h += ce - cs;
+      total += (xb - xa) * h;
+    }
+    return total;
+  }
+  // the area of a rect that no other rect covers
+  function visArea(r, others){
+    const cl = [];
+    others.forEach(function(o){ const k = isect(r, o); if(k) cl.push(k); });
+    return r.w * r.h - unionArea(cl);
+  }
+  function sameRect(a, b){
+    return Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2 &&
+           Math.abs(a.w - b.w) < 2 && Math.abs(a.h - b.h) < 2;
+  }
+  // a candidate that shows the window AND leaves every window that shows
+  // something right now still showing something; -1 when the spot is unusable
+  function spotScore(x, y, w, h, others){
+    const cand = {x: x, y: y, w: w, h: h};
+    let i;
+    for(i = 0; i < others.length; i++) if(sameRect(cand, others[i])) return -1;   // exactly on another: never
+    const v = visArea(cand, others);
+    if(v <= 0) return -1;                            // it would come up invisible
+    for(i = 0; i < others.length; i++){
+      // a window that shows something now must still show something afterwards.
+      // a window ALREADY buried is not this placement's doing (a record an older
+      // build wrote), so it is skipped rather than voiding every candidate.
+      if(visArea(others[i], others) <= 0) continue;
+      const rest = [];
+      for(let k = 0; k < others.length; k++) if(k !== i) rest.push(others[k]);
+      rest.push(cand);
+      if(visArea(others[i], rest) <= 0) return -1;   // this placement would bury a window
+    }
+    return v;
+  }
+  function bestSpot(id, w, h, wantX, wantY){
+    const b = bbox(), others = openRects(id);
+    const maxX = Math.max(0, b.width - w), maxY = Math.max(0, b.height - BAR);
+    const cl = function(v, hi){ return Math.max(0, Math.min(Math.round(v), hi)); };
+    const cands = [];
+    cands.push({x: cl(wantX, maxX), y: cl(wantY, maxY)});
+    for(let k = 1; k <= 14; k++) cands.push({x: cl(wantX + k * CASC_X, maxX), y: cl(wantY + k * CASC_Y, maxY)});
+    const stepX = Math.max(24, Math.round(w / 3)), stepY = Math.max(BAR + 8, Math.round(h / 4));
+    for(let y = 0; y <= maxY; y += stepY){
+      for(let x = 0; x <= maxX; x += stepX) cands.push({x: x, y: y});
+    }
+    let best = null, bestVis = -1;
+    for(let i = 0; i < cands.length; i++){
+      const v = spotScore(cands[i].x, cands[i].y, w, h, others);
+      if(v < 0) continue;
+      if(v > bestVis){ bestVis = v; best = cands[i]; }
+      if(bestVis >= MIN_VIS && i <= 14) break;        // the first clear step of the cascade wins
+    }
+    return best;
+  }
+  // give a window that would open buried a place where it can be seen
+  function ensureVisible(id){
+    const w = state[id];
+    if(!w || !w.open) return;
+    const b = bbox();
+    w.w = Math.max(MIN_W, Math.min(w.w, Math.max(MIN_W, b.width)));
+    w.h = Math.max(MIN_H, Math.min(w.h, Math.max(MIN_H, b.height)));
+    const others = openRects(id);
+    if(!others.length) return;
+    if(spotScore(w.x, w.y, w.w, w.h, others) >= MIN_VIS) return;   // it is already seen: leave it
+    const s = bestSpot(id, w.w, w.h, w.x, w.y);
+    if(s){ w.x = s.x; w.y = s.y; }
+  }
+  // NO WINDOW IS EVER UNREACHABLE. Two windows can never sit on exactly the same
+  // pixels, and a window that is showing nothing at all is put where it shows:
+  // a record written by an older build (or one a hand edit broke) could carry a
+  // pair that share their rect, and the lower of the two could then only be
+  // reached by closing the upper one - which is exactly what the owner objected
+  // to. A window that overlaps another but still shows part of itself is left
+  // exactly where it is, so a layout the reader arranged is never re-tiled.
+  function decoincide(){
+    const ids = Object.keys(WINS).filter(function(id){ return state[id] && state[id].open; })
+      .sort(function(a, b){ return state[a].z - state[b].z; });
+    // the window in front is on top of everything else, so it is always seen and
+    // is never moved here
+    const top = ids.length ? ids[ids.length - 1] : null;
+    for(let i = 0; i < ids.length; i++){
+      const id = ids[i], w = state[id];
+      if(id === top) continue;
+      const others = openRects(id);
+      const r = {x: w.x, y: w.y, w: w.w, h: w.h};
+      const buried = others.some(function(o){ return sameRect(r, o); });
+      if(!buried && visArea(r, others) > 0) continue;     // visible: left exactly where it is
+      const s = bestSpot(id, w.w, w.h, w.x + CASC_X, w.y + CASC_Y);
+      if(s){ w.x = s.x; w.y = s.y; place(id); }
+    }
+  }
   function loadIfStale(id){
     const f = frames[id];
     if(!f) return;
@@ -3361,13 +3510,17 @@ window.MTPanelWins = (function(){
     const lab = n.querySelector('.pw-sym');
     if(lab) lab.textContent = symNow();
   }
-  function front(){
+  function frontId(){
     let top = null;
     Object.keys(WINS).forEach(function(id){
       const w = state[id];
       if(!w || !w.open) return;
       if(!top || w.z > state[top].z) top = id;
     });
+    return top;
+  }
+  function front(){
+    const top = frontId();
     Object.keys(WINS).forEach(function(id){
       const n = nodes[id];
       if(n) n.classList.toggle('pwin-front', id === top);
@@ -3395,6 +3548,8 @@ window.MTPanelWins = (function(){
       if(w.open){ ensureNode(id); place(id); }
       else dropNode(id);
     });
+    // no two windows may sit on exactly the same pixels (see decoincide)
+    decoincide();
     front();
   }
   // remove a closed window's node and its frame from the layer
@@ -3456,6 +3611,26 @@ window.MTPanelWins = (function(){
     });
     sec.addEventListener('mousedown', function(){ raise(id); }, true);
 
+    // EVERY VISIBLE PART OF A WINDOW BRINGS IT TO THE FRONT, the body included.
+    // A mousedown inside an iframe belongs to the iframe's own document and never
+    // reaches this document, so a click anywhere on a panel's BODY used to do
+    // nothing at all: only the 22px title bar raised a window, and a window whose
+    // title bar was covered could not be brought forward by any click. A panel is
+    // same origin (features/panels/...), so its own document carries the same
+    // handler; it is re-attached on every load, so a panel that navigates keeps
+    // it. A cross-origin frame that refuses the read is left to the title bar.
+    function hookFrame(){
+      let doc = null;
+      try{ doc = f.contentDocument; }catch(e){ doc = null; }
+      if(!doc || doc.__pwRaise === id) return;
+      try{
+        doc.__pwRaise = id;
+        doc.addEventListener('mousedown', function(){ raise(id); }, true);
+      }catch(e){}
+    }
+    f.addEventListener('load', hookFrame);
+    hookFrame();
+
     layer.appendChild(sec);
     nodes[id] = sec;
     frames[id] = f;
@@ -3505,6 +3680,11 @@ window.MTPanelWins = (function(){
     if(!w) return false;
     w.open = true;
     w.z = ++zTop;
+    // A WINDOW OPENS WHERE IT CAN BE SEEN. If the place it would come up in is
+    // buried under the windows already open, it is placed somewhere it is not
+    // (see bestSpot): the reader never has to close the window on top to reach
+    // the one they just asked for.
+    ensureVisible(id);
     render();
     save();
     return true;
@@ -3520,7 +3700,15 @@ window.MTPanelWins = (function(){
   function toggle(id){
     const w = state[id];
     if(!w) return false;
-    return w.open ? closeWin(id) : open(id);
+    if(!w.open) return open(id);
+    // THE NAME AGAIN CLOSES A WINDOW THE READER CAN SEE, AND BRINGS A HIDDEN ONE
+    // FORWARD. When another window is in front of this one, the reader asking for
+    // it by name is asking to LOOK at it, so it is raised and made visible
+    // instead of being shut: before this, a panel the reader could not see was
+    // closed by the very command meant to bring it up, and the only way back to
+    // the window underneath was to close the one on top of it.
+    if(frontId() !== id){ raise(id); ensureVisible(id); render(); save(); return true; }
+    return closeWin(id);
   }
   function openIds(){
     // WHAT IS ACTUALLY OPEN, not what a flag says. render() now enforces node
@@ -4569,13 +4757,63 @@ window.__getRecents = function(){
 // ===== Command bar:  "TICKER FUNCTION" =====
 const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'financials', CN:'news', NEWS:'news', REG:'news',
                       HP:'financials', EQS:'screener', RV:'financials', SPLC:'info', CMP:'compare', CMPR:'compare', TR:'trade',
-                      DERIV:'der', DERIVATIVES:'der', BOND:'bnd', BONDS:'bnd',
+                      DERIV:'der', DERIVATIVES:'der', BOND:'bnd', BONDS:'bnd', FINANCIAL:'financials', FINANCIALS:'financials',
                       PORTFOLIO:'portfolio', PF:'portfolio',
                       // HOLDERS is reachable by its own code (the label match in
                       // panelFor), and by the words a reader is more likely to
                       // type for it. SHAREHOLDINGS is not offered on purpose:
                       // it reads like it might be a table of holdings.
                       SHAREHOLDERS:'holders', SHAREHOLDER:'holders'};
+// THE PANEL'S OWN WORDS, and nothing else. The owner typed the name of a panel
+// in the finder and it did not open (2026-10-14): only the panel ID in lowercase
+// and its LABEL in capitals were matched, so FINANCIALS opened the financials
+// panel only because the id happens to be spelled the same way, while the
+// singular FINANCIAL - the word a reader is at least as likely to type - matched
+// nothing and fell through to the security search. Every panel therefore carries
+// a word set built from its OWN id and label: the word in any case, plus its
+// singular and plural where the plural is a plain trailing s and the stem is long
+// enough to be a word on its own (FINANCIALS -> FINANCIAL, HOLDERS -> HOLDER,
+// RATINGS -> RATING, ANNOUNCEMENTS -> ANNOUNCEMENT, BOND/BONDS -> BND by the code
+// list above). Nothing outside a panel's own name is ever added, so the finder
+// cannot turn a common word into a panel, and the set is closed: two and three
+// letter stems that are really codes (TAS -> TA, NEWS -> NEW, FOCUS -> FOCU, FX)
+// are deliberately left out.
+function panelWords(p){
+  const out = {};
+  const add = function(s){
+    s = String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if(s.length < 3) return;                       // two letter words are codes, not names
+    out[s] = 1;
+    if(s.charAt(s.length - 1) === 's'){
+      const stem = s.slice(0, -1);
+      if(stem.length >= 4 && !/[aeiou]$/.test(stem)) out[stem] = 1;
+    }else{
+      out[s + 's'] = 1;
+    }
+  };
+  add(p.id); add(p.label);
+  return out;
+}
+const PANEL_WORDS = {};
+PANELS.forEach(function(p){ PANEL_WORDS[p.id] = panelWords(p); });
+function panelByNameWord(tok){
+  const tl = String(tok == null ? '' : tok).toLowerCase().replace(/[^a-z0-9]/g, '');
+  if(!tl) return null;
+  const hit = PANELS.find(function(p){ const w = PANEL_WORDS[p.id]; return !!(w && w[tl]); });
+  return hit || null;
+}
+// true when the ONLY thing that matched is the ordinary WORD for a panel (not
+// its id, not its label, not an approved short code). runCommand uses this to let
+// a security the reader actually has win over the word: see the single-token
+// branch of runCommand.
+function panelWordOnly(tok){
+  if(!tok) return false;
+  const t = String(tok).trim();
+  const tl = t.toLowerCase();
+  if(PANELS.some(function(x){ return x.id === tl || String(x.label).toLowerCase() === tl; })) return false;
+  if(PANEL_ALIAS[t.toUpperCase()]) return false;
+  return !!panelByNameWord(t);
+}
 // Every market's tickers, fetched once at boot (39 KB gzipped for all four) so
 // a ticker resolves no matter which board is on screen. Before this, typing a
 // Nairobi ticker while on the JSE board just answered "unknown".
@@ -4596,7 +4834,10 @@ function matchRow(s, tok){
   return st.toUpperCase() === tok || b.toUpperCase() === tok ||
          String(s.name || '').toUpperCase() === tok;
 }
-function resolveSec(tok){
+// An EXACT hit only: the ticker, its base ticker, or the whole company name
+// exactly as the listing spells it. This is what decides whether a panel word
+// that is also a real security should yield to the security.
+function resolveSecExact(tok){
   // the exchange in view wins, so an ambiguous ticker resolves to what the
   // user is actually looking at
   const order = [currentEx].concat(EXCHANGES.filter(e => e !== currentEx));
@@ -4608,15 +4849,44 @@ function resolveSec(tok){
   }
   return null;
 }
+// A reader types the company's ordinary name, not its ticker. "SAFARICOM" used
+// to answer "unknown: SAFARICOM" while the finder's own suggestion list offered
+// Safaricom Plc one row below it, because only an exact ticker, an exact base
+// ticker or the exact whole name matched. A stored name that BEGINS WITH the
+// query now resolves too, exchange in view first. It stays a fallback behind the
+// exact match and the query must be at least four characters, so a short word
+// cannot pull in a company whose only connection to it is a prefix.
+function resolveSecName(tok){
+  const q = String(tok == null ? '' : tok).toUpperCase().trim();
+  if(q.length < 4) return null;
+  const order = [currentEx].concat(EXCHANGES.filter(e => e !== currentEx));
+  for(const ex of order){
+    const rows = listing[ex] || SEARCH_IDX[ex];
+    if(!rows) continue;
+    const row = rows.find(function(s){
+      const st = String(s.ticker || s.sym || '');
+      if(!st) return false;
+      return String(s.name || '').toUpperCase().indexOf(q) === 0;
+    });
+    if(row) return {ex: ex, sym: (row.sym || row.ticker)};
+  }
+  return null;
+}
+function resolveSec(tok){
+  return resolveSecExact(tok) || resolveSecName(tok);
+}
 function panelFor(tok){
   if(!tok) return null;
-  const tl = tok.toLowerCase();
-  let p = PANELS.find(x => x.id === tl || x.label === tok);
+  // the id, the label (any case), an approved code, or the panel's own word
+  const tl = String(tok).toLowerCase();
+  let p = PANELS.find(x => x.id === tl || String(x.label).toLowerCase() === tl);
   if(p) return p;
-  const al = PANEL_ALIAS[tok];
-  if(!al) return null;
-  if(al === 'info') return {id: 'info', label: 'INFO'};
-  return PANELS.find(x => x.id === al) || null;
+  const al = PANEL_ALIAS[String(tok).toUpperCase()];
+  if(al){
+    if(al === 'info') return {id: 'info', label: 'INFO'};
+    return PANELS.find(x => x.id === al) || null;
+  }
+  return panelByNameWord(tok);
 }
 function openPanelTab(p){
   // callers may hand in the panel object or just its id/code ("financials")
@@ -4712,11 +4982,11 @@ function runCommand(raw){
   }
   if(v === 'HELP'){
     $('rightInfo').innerHTML = PANELS.map(p => `<div style="padding:4px 0"><b style="color:var(--acc)">${p.label}</b> <span style="color:var(--tx3)">→ ${p.url.split('/').pop()}</span></div>`).join('') +
-      '<div style="padding:8px 0;color:var(--tx3)">type a ticker, a panel code, or both - e.g. MTN FINANCIALS, SCOM FIN, FA (financials), DES (overview).</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Panel windows: a panel code opens THAT panel in its own window, and several stay open side by side, all following the same symbol. Type the code again to close it, <b style="color:var(--acc)">CLOSE FINANCIALS</b> to shut one, <b style="color:var(--acc)">TILE</b> to lay the open ones out in a grid, <b style="color:var(--acc)">RESET</b> to close the extras.</div>' +
+      '<div style="padding:8px 0;color:var(--tx3)">type a ticker, a panel name, a panel code, or a ticker and a panel - e.g. MTN FINANCIALS, SCOM FIN, FINANCIAL (financials), BOND (the bond board).</div>' +
+      '<div style="padding:4px 0;color:var(--tx3)">Panel windows: a panel name or code opens THAT panel in its own window, and several stay open at once, all following the same symbol. A new one is placed where it can be seen rather than on top of another, and clicking any part of a window brings it to the front. Typing its name again closes it when it is already the front window, and brings it forward instead when another window is covering it. <b style="color:var(--acc)">CLOSE FINANCIALS</b> shuts one, <b style="color:var(--acc)">TILE</b> lays the open ones out in a grid, <b style="color:var(--acc)">RESET</b> closes the extras.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Comparing: <b style="color:var(--acc)">COMPARE SCOM EQTY</b> (also <b style="color:var(--acc)">CMP</b> or <b style="color:var(--acc)">CMPR</b>, two to four securities, or <b style="color:var(--acc)">SCOM VS EQTY</b>) sets them side by side; the code on its own opens the COMPARE panel window.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Opening a panel: type its code in the finder - <b style="color:var(--acc)">FIN</b> for financials, <b style="color:var(--acc)">HEATMAP</b>, <b style="color:var(--acc)">NEWS</b>, and so on; <b style="color:var(--acc)">HELP</b> lists every code. A panel opens in its own window and a window you closed is remembered.</div>' +
+      '<div style="padding:4px 0;color:var(--tx3)">Opening a panel: type its name or its code in the finder - <b style="color:var(--acc)">FINANCIAL</b> or <b style="color:var(--acc)">FIN</b> for financials, <b style="color:var(--acc)">BOND</b>, <b style="color:var(--acc)">HEATMAP</b>, <b style="color:var(--acc)">NEWS</b>, and so on; <b style="color:var(--acc)">HELP</b> lists every panel. A panel opens in its own window and a window you closed is remembered.</div>' +
       '<div style="padding:4px 0;color:var(--tx3)">Workspaces: the tabs in the sheet strip along the bottom of the window are saved layouts. <b style="color:var(--acc)">+</b> adds one, click to switch, double-click to rename, the x on a tab deletes it. Every window keeps its place, size and stacking, and each workspace keeps its own.</div>' +
       '';
     return;
@@ -4843,7 +5113,18 @@ function runCommand(raw){
     else showUnknown('select a security first (click a row or type a ticker)');
     return;
   }
-  if(p){ openPanelWin(p, 'toggle'); return; }
+  // A PANEL'S NAME OPENS THE PANEL, AND A SECURITY THE READER HAS IS NOT SHADOWED
+  // BY IT. The owner typed BOND and FINANCIALS and got nothing (2026-10-14), so
+  // the ordinary word for a panel now opens it - the full name in any case, in the
+  // singular and the plural, plus the approved codes that already worked. The word
+  // set is closed (see panelWords): it carries only a panel's own id and label, so
+  // an unrelated common word can never open a panel. When that word is ALSO an
+  // exact ticker or an exact company name on a board, the SECURITY wins and its
+  // quote sheet opens, because a reader typing a security is asking for the
+  // security. An approved code (FIN, FA, DES, BOND, BONDS) always opens its panel.
+  if(p){
+    if(!panelWordOnly(v) || !resolveSecExact(v)){ openPanelWin(p, 'toggle'); return; }
+  }
   // single token that is a security? -> open its quote sheet (DES behaviour)
   const sec = resolveSec(v);
   if(sec){
