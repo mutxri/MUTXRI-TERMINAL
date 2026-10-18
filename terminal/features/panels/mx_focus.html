@@ -284,6 +284,82 @@
     return getHist(row, sym).then(function(h){ out.hist = h; return out; });
   }
 
+  // ---- the selection handed over by the shell -----------------------------
+  // THE NAME AND THE QUOTE DO NOT WAIT FOR A REQUEST. The shell holds this
+  // security's row already (its listing is overlaid with the exchange snapshot's
+  // price on load), so it hands the row over with the selection and this panel
+  // paints it in the same task as the click: no document load, no blank frame, no
+  // fetch between the click and the name and the price. Only the price history is
+  // read afterwards, and it can only add a footer caveat.
+  var SEL_GEN = 0;
+  function boardFromSel(sel){
+    var r = sel && sel.row ? sel.row : null;
+    var asOf = (sel && sel.asOf) || (r && r.asOf) || null;
+    if(!r) return {board: null, asOf: asOf};
+    var row = {
+      sym: r.sym, ticker: r.ticker || r.code || r.sym, name: r.name || "",
+      price: (r.price == null ? null : r.price),
+      chgPct: (r.chgPct == null ? null : r.chgPct),
+      prevClose: (r.prevClose == null ? null : r.prevClose),
+      currency: r.currency || "",
+      asOf: r.asOf || asOf,
+      priceWithheld: !!r.priceWithheld,
+      withhold_reason: r.withhold_reason || ""
+    };
+    return {board: {asOf: asOf, stocks: [row]}, asOf: asOf};
+  }
+  // the card with the identity drawn and the quote still on its way: only used for
+  // a security the shell holds no row for at all
+  function renderPending(sym, name){
+    $("fxSec").className = "fx-sec";
+    $("fxSecTxt").textContent = tickerOf(null, sym) + " " + EX;
+    var h = "<div class='fx-tkr'>" + esc(tickerOf(null, sym)) + "</div>";
+    if(name) h += "<div class='fx-nm'>" + esc(name) + "</div>";
+    h += "<div class='fx-why'>reading the " + esc(EX) + " quote</div>";
+    $("fxBody").innerHTML = h;
+    $("fxFoot").innerHTML = "";
+    renderBlocks(null, sym, null, null, null);
+  }
+  function paintSelection(sel){
+    var sym = String((sel && sel.sym) || "").toUpperCase();
+    if(!sym) return false;
+    var x = boardFromSel(sel);
+    if(x.board) render(sym, x.board, null, null, null, null);
+    else renderPending(sym, sel && sel.name);
+    return true;
+  }
+  // the shell calls this directly (same origin), so the paint lands in the task
+  // that ran the click. It answers false when this document cannot show the
+  // security (another exchange), which tells the shell to re-point the frame.
+  window.__mtApplySelection = function(sel){
+    if(!sel || !sel.sym) return false;
+    if(String(sel.ex || EX).toUpperCase() !== EX) return false;
+    SEL_GEN++;
+    var gen = SEL_GEN;
+    REQ = String(sel.sym).toUpperCase();
+    // a security this exchange does not carry (an upcoming listing, a name from
+    // another board) says so on the card instead of pretending to be loading
+    if(sel.absent){
+      renderAbsent(REQ, {asOf: sel.asOf || null}, null, null, null, null);
+      return true;
+    }
+    paintSelection(sel);
+    var x = boardFromSel(sel);
+    // extras arrive later; they never change which security is on the card, and a
+    // reply that lands after a newer selection is dropped
+    loadExtras(x.board, REQ).then(function(e){
+      if(gen !== SEL_GEN) return;
+      if(x.board) render(REQ, x.board, e.hist, null, e.hold, e.ana);
+    }).catch(function(){});
+    return true;
+  };
+  if(window.addEventListener){
+    window.addEventListener("message", function(ev){
+      if(!ev || ev.origin !== location.origin) return;
+      var d = ev.data;
+      if(d && d.__mt === "selection") window.__mtApplySelection(d);
+    });
+  }
   function matchRow(rows, sym){
     var s = String(sym).toUpperCase(), bare = s.split(".")[0];
     function exact(r){ return String(r.sym || "").toUpperCase() === s || String(r.ticker || "").toUpperCase() === s; }
@@ -364,6 +440,11 @@
     renderBlocks(row, sym, hist, hold, ana);
   }
   function renderAbsent(sym, board, hist, hold, ana){
+    // the panel's own name is the ticker on every path, this one included
+    try{
+      var _tk = $("fxTkr");
+      if(_tk) _tk.textContent = (tickerOf(null, sym) || String(sym || "").toUpperCase() || "FOCUS");
+    }catch(e){}
     var last = lastBar(hist);
     $("fxSec").className = "fx-sec";
     $("fxSecTxt").textContent = String(sym || "").toUpperCase() + " " + EX;
@@ -673,12 +754,39 @@
     renderQuote(sym, board, row, hist, hold, ana);
   }
 
+  // THE SHELL MAY ALREADY HOLD THIS SECURITY'S QUOTE. When this document was
+  // built for the selection the shell is publishing, its row is painted here and
+  // no request is made for the identity or the price at all: the shell's own
+  // listing already carries them. Returns true when the card was painted that way.
+  function seedFromShell(){
+    try{
+      var p = window.parent;
+      if(!p || p === window || !p.__mtSelection) return false;
+      var sel = p.__mtSelection;
+      if(String(sel.sym || "").toUpperCase() !== String(REQ || "").toUpperCase()) return false;
+      return window.__mtApplySelection(sel) === true;
+    }catch(e){ return false; }
+  }
+
   function init(){
     $("fxEx").textContent = EX;
+    // this frame can take a selection in place; the shell asks before re-pointing
+    try{ document.__mtSelAck = true; }catch(e){}
     if(!REQ){
+      // the shell's selection is the truth here: a frame opened before anything was
+      // chosen still starts on whatever the reader has already selected
+      try{
+        var p0 = window.parent;
+        if(p0 && p0 !== window && p0.__mtSelection && window.__mtApplySelection(p0.__mtSelection)){
+          announceReady();
+          return;
+        }
+      }catch(e){}
       renderNoSecurity();
+      announceReady();
       return;
     }
+    if(seedFromShell()){ announceReady(); return; }
     $("fxSecTxt").textContent = String(REQ).toUpperCase();
     get(BASE + "market_" + encodeURIComponent(EX) + ".json")
       .then(function(board){
@@ -690,6 +798,13 @@
         });
       })
       .catch(function(e){ render(REQ, null, null, e && e.message ? e.message : "unreadable"); });
+    announceReady();
+  }
+  // tell the shell this document is ready to be handed the selection
+  function announceReady(){
+    try{
+      if(window.parent && window.parent !== window) window.parent.postMessage({__mt: "sel-ready"}, location.origin);
+    }catch(e){}
   }
 
   // SEARCH: type a ticker or a company name, pick a row, and the panel re-renders
@@ -710,11 +825,25 @@
     var s = String(sym || "").trim().toUpperCase();
     if(!s){ renderNoSecurity(); return; }
     REQ = s;
+    // A SELECTION MADE HERE IS THE SAME SELECTION. The shell owns it and hands it
+    // back to every panel (this one included), so a security picked in this panel's
+    // own list moves FOCUS, CHART, FINANCIALS and the rest together instead of
+    // re-pointing this card alone. Only a standalone FOCUS (no shell around it)
+    // reads the file for itself.
+    if(publishSelection(s)) return;
     get(BASE + "market_" + encodeURIComponent(EX) + ".json")
       .then(function(b){
         return loadExtras(b, s).then(function(x){ render(s, b, x.hist, null, x.hold, x.ana); });
       })
       .catch(function(e){ render(s, null, null, (e && e.message) || "unreadable"); });
+  }
+  // hand the choice to the shell, which broadcasts it once to every panel
+  function publishSelection(sym){
+    try{
+      var p = window.parent;
+      if(p && p !== window && typeof p.openStock === "function"){ p.openStock(sym); return true; }
+    }catch(e){}
+    return false;
   }
   function sugPaint(list, q){
     var box = $("fxSug");

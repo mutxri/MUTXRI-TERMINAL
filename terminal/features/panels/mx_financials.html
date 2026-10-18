@@ -75,6 +75,19 @@
   .an-note{font-size:9.5px;color:var(--tx3);margin-top:8px;line-height:1.55}
   .an-wd{font-size:9.5px;color:var(--tx3);margin-top:6px;line-height:1.5;border-left:2px solid var(--line2);padding-left:7px}
   .an-wd b{color:var(--tx2);font-weight:600}
+  /* the quote the selection carries: painted with the identity, before any
+     statement file is read, so the price never waits on a filing */
+  .fa-q{display:none;align-items:baseline;gap:9px;font-family:var(--mono);white-space:nowrap}
+  .fa-q.on{display:flex}
+  .fa-q .k{font-size:9px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase}
+  .fa-q .v{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--tx)}
+  .fa-q .v.px{font-size:18px}
+  .fa-q .v.sm{font-size:11px;font-weight:400;color:var(--tx3)}
+  .fa-q .v.up{color:var(--up)}
+  .fa-q .v.down{color:var(--down)}
+  .fa-q .v.flat{color:var(--tx2)}
+  .fa-q .v.nofig{color:var(--tx3)}
+  .fa-q .v.warn{color:#e0a340}
   .empty a{color:var(--acc)}
 </style>
 </head>
@@ -86,6 +99,7 @@
     <span class="name" id="coName"></span>
     <span id="exLabel" style="font-family:var(--mono);font-size:10px;color:var(--acc);letter-spacing:.05em"></span>
     <span class="spacer"></span>
+    <span class="fa-q" id="faQuote"></span>
   </div>
 
   <div class="controls">
@@ -311,8 +325,14 @@
     // The key (an EGX ISIN) stays internal; the reader sees the ticker and the
     // company name. Fall back to the key only when nothing resolves it.
     var lab=labelFor(state.ticker);
-    var dispTicker=(lab&&lab.ticker)?lab.ticker:state.ticker;
-    var dispName=(rec&&rec.name)||(lab&&lab.name)||"";
+    // The selection carried the exchange's own ticker and name, so a key the
+    // listing has not resolved yet is never printed where the ticker belongs.
+    var known=(SEL_LABEL && String(SEL_LABEL.key||"").toUpperCase()===String(state.ticker).toUpperCase())?SEL_LABEL:null;
+    var dispTicker=(lab&&lab.ticker)?lab.ticker:(known&&known.ticker?known.ticker:state.ticker);
+    // The header names the LISTED security, which is what FOCUS and CHART show;
+    // a statement file's own issuer label stays where it belongs, in the table
+    // heading below, so the three panels cannot disagree about the company.
+    var dispName=(known&&known.name)?known.name:((rec&&rec.name)||(lab&&lab.name)||"");
     document.getElementById("coName").textContent=dispName;
     document.getElementById("tkr").textContent=dispTicker;
 
@@ -506,7 +526,7 @@
     })(0);
   }
 
-  function render(rec){ renderScaffold(rec); loadAnalysis(); }
+  function render(rec){ PENDING=false; renderScaffold(rec); loadAnalysis(); }
   function STMT_TITLE(){return {income:"Income Statement",balance:"Balance Sheet",
     cashflow:"Cash Flow Statement"}[state.statement];}
 
@@ -520,12 +540,147 @@
     document.getElementById("asOf").textContent=asOf?("as of "+asOf):"";
   }
 
+  // ---- the selection handed over by the shell ------------------------------
+  // THE NAME, THE PRICE AND THE CHANGE DO NOT WAIT FOR A STATEMENT FILE. The
+  // shell holds this security's row already (its listing carries the snapshot's
+  // price), so it hands the row over with the selection and this panel paints the
+  // identity and the quote in the same task as the click: no document load and no
+  // request between the click and the ticker. The statement files are read
+  // afterwards, guarded by a generation counter, so a slow reply for the security
+  // the reader has just left can never land on the one now in the header.
+  var GEN = 0;            // a slower earlier statement read never paints over a newer pick
+  var SEL_LOCK = false;   // a selection painted this panel; loadSecurities must not overwrite it
+  var SEL_LABEL = null;   // the ticker, name and currency the selection carried
+  var PENDING = false;    // identity painted, the statement is still being read
+
+  function numv(v){ if(v === null || v === undefined || v === "") return null; var n = Number(v); return isNaN(n) ? null : n; }
+  function fmtPx2(a){ return Number(a).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+  // the quote the shell handed over, in the header beside the ticker
+  function paintQuote(sel){
+    var box = document.getElementById("faQuote");
+    if(!box) return;
+    var r = (sel && sel.row) ? sel.row : null;
+    var px = r ? numv(r.price) : null;
+    var pct = r ? numv(r.chgPct) : null;
+    var prev = r ? numv(r.prevClose) : null;
+    var cur = (r && r.currency) || (SEL_LABEL && SEL_LABEL.currency) || "";
+    var h = [];
+    if(r && (r.priceWithheld || r.withhold_reason)){
+      h.push('<span class="k">last</span><span class="v warn">price withheld</span>');
+    } else if(!r && sel && sel.absent){
+      // the shell's listing has no row for this security, which is the same fact
+      // FOCUS and CHART state on their own cards
+      h.push('<span class="k">last</span><span class="v nofig">not in the snapshot</span>');
+    } else if(px == null){
+      h.push('<span class="k">last</span><span class="v nofig">no current quote</span>');
+    } else {
+      var dir = pct == null ? "nofig" : (pct > 0 ? "up" : (pct < 0 ? "down" : "flat"));
+      h.push('<span class="k">last</span><span class="v px ' + dir + '">' + esc(fmtPx2(px)) + '</span>' +
+             (cur ? '<span class="v sm">' + esc(cur) + '</span>' : ''));
+      if(pct == null){
+        h.push('<span class="v nofig">change not stated</span>');
+      } else {
+        h.push('<span class="v ' + dir + '">' + (pct >= 0 ? "+" : "") + pct.toFixed(2) + '%</span>');
+        // the level change is printed only when the row's own percent agrees with
+        // price - prevClose, the same rule the FOCUS card applies
+        if(prev != null && prev !== 0 && Math.abs(((px - prev) / prev * 100) - pct) <= 0.02){
+          var lv = px - prev;
+          h.push('<span class="k">chg</span><span class="v ' + dir + '">' +
+                 (lv >= 0 ? "+" : "") + esc(fmtPx2(lv)) + '</span>');
+        }
+      }
+    }
+    if(r && r.asOf) h.push('<span class="k">as of</span><span class="v sm">' + esc(r.asOf) + '</span>');
+    box.innerHTML = h.join("");
+    box.className = "fa-q on";
+  }
+  function paintIdentity(sel){
+    var r = (sel && sel.row) ? sel.row : null;
+    var t = String((r && (r.ticker || r.sym)) || (sel && sel.sym) || "").toUpperCase();
+    SEL_LABEL = {key: String(state.ticker || "").toUpperCase(), ticker: t,
+                 name: (r && r.name) || "", currency: (r && r.currency) || ""};
+    document.getElementById("tkr").textContent = t;
+    document.getElementById("coName").textContent = SEL_LABEL.name;
+    paintQuote(sel);
+  }
+  // The figures of the previous security go BEFORE the fetch, so none of them can
+  // be read as this company's statement while the new file is on its way.
+  function pendingBody(){
+    PENDING = true;
+    var body = document.getElementById("body");
+    if(body) body.innerHTML = '<div class="empty">Reading the ' + esc(STMT_TITLE().toLowerCase()) +
+      ' for ' + esc((SEL_LABEL && SEL_LABEL.ticker) || state.ticker) + '.</div>';
+    var lab = document.getElementById("srcLabel");
+    if(lab) lab.textContent = "reading the statement file";
+    var dot = document.getElementById("dot");
+    if(dot) dot.className = "dot";
+    var asOf = document.getElementById("asOf");
+    if(asOf) asOf.textContent = "";
+  }
+  // The shell calls this directly (same origin), so the paint lands in the task
+  // that ran the click. False means another exchange, and the shell re-points it.
+  window.__mtApplySelection = function(sel){
+    if(!sel || !sel.sym) return false;
+    if(String(sel.ex || state.ex).toUpperCase() !== state.ex) return false;
+    state.ticker = String(sel.sym).toUpperCase();
+    state.sym = state.ticker;
+    SEL_LOCK = true;
+    paintIdentity(sel);
+    pendingBody();
+    load();          // the statement files for the new security, guarded by GEN
+    return true;
+  };
+  if(window.addEventListener){
+    window.addEventListener("message", function(ev){
+      if(!ev || ev.origin !== location.origin) return;
+      var d = ev.data;
+      if(d && d.__mt === "selection") window.__mtApplySelection(d);
+    });
+  }
+  // the proof surface: what this panel believes, readable from the DOM
+  window.__mtFinState = function(){
+    var body = document.getElementById("body");
+    var head = body ? body.querySelector("thead th") : null;
+    var per = body ? Array.prototype.map.call(body.querySelectorAll("thead th"), function(th){
+      return String(th.textContent || "").trim(); }) : [];
+    return {
+      ticker: state.ticker, ex: state.ex, statement: state.statement, period: state.period,
+      pending: PENDING, gen: GEN, label: SEL_LABEL,
+      rows: body ? body.querySelectorAll("tbody tr").length : 0,
+      periods: per.slice(1), heading: head ? String(head.textContent || "").trim() : "",
+      src: (document.getElementById("srcLabel") || {}).textContent || "",
+      currency: (document.getElementById("curBadge") || {}).textContent || "",
+      bodyText: body ? String(body.textContent || "").slice(0, 400) : ""
+    };
+  };
+  // A PANEL OPENED AFTER A SELECTION SHOWS THAT SECURITY AT ONCE. The shell's
+  // selection is the truth here, so a frame built without ?sym= adopts it rather
+  // than reading this exchange's default first.
+  function seedFromShell(){
+    try{
+      var p = window.parent;
+      if(!p || p === window || !p.__mtSelection) return false;
+      var sel = p.__mtSelection;
+      if(String(sel.ex || state.ex).toUpperCase() !== state.ex) return false;
+      if(state.ticker && String(sel.sym || "").toUpperCase() !== state.ticker) return false;
+      return window.__mtApplySelection(sel) === true;
+    }catch(e){ return false; }
+  }
+  // tell the shell this document is ready to be handed the selection
+  function announceReady(){
+    try{
+      if(window.parent && window.parent !== window) window.parent.postMessage({__mt: "sel-ready"}, location.origin);
+    }catch(e){}
+  }
+
   function load(){
     // no ticker selected yet - wait for loadSecurities to pick the first
     if(!state.ticker) return;
     // Resolve the display ticker/name (an EGX ISIN is the KEY, not the label)
     // before the first render, so the header never shows the key to a reader.
     if(!LABELS){ loadLabels().then(function(){ load(); }); return; }
+    var gen = ++GEN;      // this read owns the panel only while no newer one has started
     // Try each candidate key the request may be spelled as (the request, the
     // listing ticker it resolves to, a documented retired alias) until one has a
     // statement file. Then the real endpoint; offline, the scaffold names the
@@ -537,11 +692,13 @@
     // instead of a generic "no verified source" line.
     var noDataReason = null;
     (function tryKey(i){
+      if(gen !== GEN) return;                 // a newer selection owns the panel now
       if(i >= keys.length){ apiFallback(); return; }
       var stFile = "../../static_data/financials/" +
                    encodeURIComponent(String(keys[i]).replace(/\//g, "_")) +
                    "__" + state.statement + ".json";
       fetch(stFile).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
+        if(gen !== GEN) return;               // this file belongs to the previous security
         if(d && d.available !== false){
           // credit the real provider - JSE/EGX statements come from Yahoo, but
           // NGX/NSE come from AfricanFinancials filings and were being labelled
@@ -551,13 +708,15 @@
         }
         if(d && (d.source_note || d.note)) noDataReason = d.source_note || d.note;
         throw 0;
-      }).catch(function(){ tryKey(i+1); });
+      }).catch(function(){ if(gen !== GEN) return; tryKey(i+1); });
     })(0);
 
     function apiFallback(){
+      if(gen !== GEN) return;
       var url="/api/financials?ticker="+encodeURIComponent(state.ticker)+
               "&statement="+state.statement+"&period="+state.period;
       fetch(url).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
+      if(gen !== GEN) return;                  // a newer selection owns the panel now
       var fil=filingsFor(state.ticker)||{};
       if(!d||d.available===false){
         render({periods:[],name:d&&d.name||fil.name,currency:d&&d.currency||fil.currency,
@@ -570,6 +729,7 @@
               ir:d.source_url||d.ir_url||fil.ir,name:d.name,reports:fil.reports||[]});
       setStatus(d.source||"FILED",d.filedAsOf);
     }).catch(function(){
+      if(gen !== GEN) return;                  // a newer selection owns the panel now
       var fil=filingsFor(state.ticker);
       render(fil?{name:fil.name,currency:fil.currency,ir:fil.ir,reports:fil.reports,periods:[],reason:noDataReason}:{periods:[],reason:noDataReason});
       setStatus(fil&&fil.reports&&fil.reports.length?"LINKS":"NONE",null);
@@ -652,6 +812,10 @@
       // show the requested name with an honest "no statements" state rather
       // than silently swapping in the exchange default
       if(want && !found) pick = want;
+      // A SELECTION OUTRANKS THE DEFAULT PICK. When a selection has already
+      // painted this panel, this index read (which can land after it) must not
+      // swap in an exchange default or rewrite the ticker on screen.
+      if(SEL_LOCK) return;
       // if the current ticker isn't in this exchange's list (or none set), pick
       if((!state.ticker || !Object.prototype.hasOwnProperty.call(seen, state.ticker)) && SECS.length){
         state.ticker = pick || SECS[0].t;
@@ -680,7 +844,12 @@
   load = function(){ syncSecSel(); _origLoad(); };
   loadSecurities();
 
-  load();
+  // this frame can take a selection in place; the shell asks before re-pointing
+  try{ document.__mtSelAck = true; }catch(e){}
+  // A PANEL OPENED AFTER A SELECTION SHOWS THAT SECURITY AT ONCE, instead of
+  // reading this exchange's default first and being handed the selection on top.
+  if(!seedFromShell()) load();
+  announceReady();
 })();
 </script>
 </body>

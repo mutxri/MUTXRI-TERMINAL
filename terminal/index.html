@@ -3333,6 +3333,7 @@ window.MTPanelWins = (function(){
   const state = {};                // id -> {open, x, y, w, h, z, geom}
   const nodes = {};                // id -> section element
   const frames = {};               // id -> iframe element
+  const shown = {};                // id -> the security that frame is showing (see shownSym)
   let zTop = 20;
   // The workspace whose panel arrangement is on screen. A panel window set
   // belongs to the workspace in front of the reader, so the set is re-derived
@@ -3693,12 +3694,27 @@ window.MTPanelWins = (function(){
       if(s){ w.x = s.x; w.y = s.y; place(id); }
     }
   }
-  function loadIfStale(id){
+  // THE SECURITY A FRAME IS ACTUALLY SHOWING. A panel that takes the selection in
+  // place (see setSymbol) keeps the URL it was first loaded with, so the src
+  // attribute stops being a record of what is on screen; `shown` is. loadIfStale
+  // compares against it rather than against the URL, which is what used to make a
+  // panel one selection behind: symNow() was read before the caller had set curSec,
+  // the src already carried that same older symbol, the comparison found them
+  // equal and no update was written at all.
+  function shownSym(id){
+    if(Object.prototype.hasOwnProperty.call(shown, id)) return shown[id];
+    return paramOf(frames[id], 'sym');
+  }
+  // want: the security to show. Omitted means the shared one.
+  function loadIfStale(id, want){
     const f = frames[id];
     if(!f) return;
-    const sym = symNow();
+    const sym = (want === undefined) ? symNow() : String(want == null ? '' : want).trim();
     const src = f.getAttribute('src');
-    if(!src || paramOf(f, 'sym') !== sym || paramOf(f, 'ex') !== currentEx) f.src = urlFor(id, sym);
+    if(!src || shownSym(id) !== sym || paramOf(f, 'ex') !== currentEx){
+      shown[id] = sym;
+      f.src = urlFor(id, sym);
+    }
   }
   function place(id){
     const w = state[id], n = nodes[id];
@@ -3827,6 +3843,9 @@ window.MTPanelWins = (function(){
     function hookFrame(){
       let doc = null;
       try{ doc = f.contentDocument; }catch(e){ doc = null; }
+      // a security named inside this panel is the same selection as one named in
+      // the watchlist, so the click is published from here too
+      try{ mtHookSelect(f); }catch(e){}
       if(!doc || doc.__pwRaise === id) return;
       try{
         doc.__pwRaise = id;
@@ -3968,18 +3987,54 @@ window.MTPanelWins = (function(){
     return keep;
   }
   // ---- the one symbol every open panel follows ----
-  function setSymbol(sym){
+  // ONE PAYLOAD, HANDED TO EVERY OPEN PANEL IN THE SAME TASK AS THE CLICK.
+  // A panel that exposes __mtApplySelection (FOCUS does) is called directly: same
+  // origin, so the name and the quote are painted with no document load, no blank
+  // frame and no request to wait for. A panel with no such entry point is
+  // re-pointed exactly as before, from the symbol it was HANDED and not from a
+  // symbol read back out of shared state.
+  function tellFrame(f, sel){
+    let w = null;
+    try{ w = f.contentWindow; }catch(e){ w = null; }
+    if(!w) return false;
+    try{ if(typeof w.__mtApplySelection === 'function') return w.__mtApplySelection(sel) !== false; }catch(e){}
+    try{
+      const d = w.document;
+      if(d && d.__mtSelAck){ w.postMessage(sel, location.origin); return true; }
+      // A document that is still parsing cannot be painted into yet, and it has
+      // its own script coming: when its URL carries no security it seeds itself
+      // from window.__mtSelection at init, so re-pointing it would be a second
+      // load for a selection it is about to show anyway.
+      if(d && d.readyState === 'loading' && !paramOf(f, 'sym')) return true;
+    }catch(e){}
+    return false;
+  }
+  function setSymbol(sym, sel){
     sym = String(sym == null ? '' : sym).trim();
     if(!sym) return;
     try{ localStorage.setItem(SYM_KEY, sym); }catch(e){}
+    if(!sel){ try{ sel = mtSelectionPayload(sym); }catch(e){ sel = null; } }
+    // HAND IT OVER FIRST, so the record of what each frame shows is already the new
+    // security when the layout pass below runs. Otherwise that pass compares the
+    // frame against the OLD record, decides it is stale and assigns a new src,
+    // which reloads the very document that has just been painted.
+    const repoint = {};
+    Object.keys(WINS).forEach(function(id){
+      const w = state[id];
+      if(!w || !w.open) return;
+      const f = frames[id];
+      if(!f) return;
+      if(sel && tellFrame(f, sel)) shown[id] = sym;              // applied in place
+      else repoint[id] = true;                                   // re-point it below
+    });
     try{ window.dispatchEvent(new CustomEvent('mt:symbol', {detail: {sym: sym, ex: currentEx}})); }catch(e){}
     Object.keys(WINS).forEach(function(id){
       const w = state[id];
       if(!w || !w.open) return;
-      loadIfStale(id);
       const n = nodes[id];
       const lab = n ? n.querySelector('.pw-sym') : null;
       if(lab) lab.textContent = sym;
+      if(repoint[id]) loadIfStale(id, sym);     // no in-place entry point in this panel
     });
     try{
       const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
@@ -4038,6 +4093,26 @@ window.MTPanelWins = (function(){
     }
     // a caller that only has the legacy stage can still broadcast a symbol
     window.addEventListener('mt:symbol', function(){ try{ render(); }catch(e){} });
+    // A PANEL THAT HAS JUST LOADED ASKS FOR THE SELECTION. Its document may have
+    // been built before the reader chose anything, so it announces itself here and
+    // is handed the current selection as soon as it can take it in place. This is
+    // what keeps a panel that opens or re-points from sitting on an empty card
+    // until its own data request answers.
+    window.addEventListener('message', function(ev){
+      if(!ev || ev.origin !== location.origin) return;
+      const d = ev.data;
+      if(!d || d.__mt !== 'sel-ready') return;
+      let id = null;
+      Object.keys(frames).forEach(function(k){
+        if(frames[k] && frames[k].contentWindow === ev.source) id = k;
+      });
+      if(!id || !state[id] || !state[id].open) return;
+      const sym = symNow();
+      if(!sym) return;
+      let sel = null;
+      try{ sel = mtSelectionPayload(sym); }catch(e){ sel = null; }
+      if(sel && tellFrame(frames[id], sel)) shown[id] = sym;
+    });
   })();
 
   return {
@@ -4050,6 +4125,7 @@ window.MTPanelWins = (function(){
     close: closeWin,
     toggle: toggle,
     setSymbol: setSymbol,
+    tell: tellFrame,
     tile: tile,
     reset: reset,
     syncExchange: function(){ render(); },
@@ -4373,8 +4449,14 @@ window.showAwaiting = function(key){
   try{ mkRailClear(); }catch(e){}
   // Hand the security context to the panels so a reader can reach this company's
   // financials. The colon-free form is what the panel builds its filename from:
-  // the display key carries a colon, which cannot be a filename.
-  try { curSec = String(s.key || '').replace(/^AWAIT:/, ''); } catch(e) {}
+  // the display key carries a colon, which cannot be a filename. This is a
+  // selection like any other, so it goes out through the ONE broadcast: before
+  // this it wrote curSec by hand and every panel stayed on the previous company.
+  try {
+    curSec = String(s.key || '').replace(/^AWAIT:/, '');
+    __mkSelGen++;
+    mtPublishSelection(curSec);
+  } catch(e) {}
   const num = function(n){ return (n == null ? null : Number(n).toLocaleString()); };
   const offer = (s.offer_price == null) ? null :
     ((typeof s.offer_price === 'number' ? s.offer_price.toLocaleString(undefined, {maximumFractionDigits: 2}) : String(s.offer_price)) +
@@ -5446,7 +5528,7 @@ function runCommand(raw){
     if(sec){
       if(sec.ex !== currentEx && typeof switchExchange === 'function') switchExchange(sec.ex);
       curSec = sec.sym;
-      if(window.MTPanelWins) window.MTPanelWins.setSymbol(sec.sym);
+      try{ mtPublishSelection(sec.sym); }catch(e){ if(window.MTPanelWins) window.MTPanelWins.setSymbol(sec.sym); }
       openPanelWin(lastP);
       return;
     }
@@ -6659,22 +6741,126 @@ function openChartModal(sym){
 }
 
 let __activePanelIdx = -1;
+// ===== THE SELECTION, ONCE =====
+// Every path that changes the selected security ends in openStock(), and openStock
+// publishes it through mtPublishSelection(): ONE payload, built from data this page
+// is already holding, handed to every open panel in the same task as the click.
+// No panel derives the selection for itself and no second copy of it is kept.
+window.__mtSelection = window.__mtSelection || null;
+
+// The row this page already holds for a security. listing[] is loaded with the
+// exchange snapshot's price overlaid on it (loadListing), so the name, the price,
+// the change and the previous close are all in memory before any click.
+function mtRowOf(ex, sym){
+  const rows = (typeof listing !== 'undefined' && listing[ex]) || [];
+  const q = String(sym == null ? '' : sym).toUpperCase();
+  if(!q) return null;
+  function base(v){ return String(v || '').toUpperCase().split('.')[0]; }
+  const qb = base(q);
+  return rows.find(function(r){ return String(r.sym || '').toUpperCase() === q; })
+      || rows.find(function(r){ return String(r.ticker || '').toUpperCase() === q; })
+      || rows.find(function(r){ return String(r.code || '').toUpperCase() === q; })
+      || rows.find(function(r){ return base(r.sym) === qb || base(r.ticker) === qb || base(r.code) === qb; })
+      || null;
+}
+// The payload a panel paints from. Every field is copied, so a panel can never
+// mutate this page's own row, and a missing price stays missing (null) rather
+// than turning into a zero the card would print as a quote.
+function mtSelectionPayload(sym){
+  const s = String(sym == null ? '' : sym).trim();
+  const ex = currentEx;
+  const r = mtRowOf(ex, s);
+  const boardAsOf = (window.__MKASOF && window.__MKASOF[ex]) || '';
+  const asOf = boardAsOf || (r && (r.asOf || r.priceDate)) || '';
+  const row = r ? {
+    sym: r.sym || s,
+    ticker: r.ticker || r.code || String(r.sym || s).split('.')[0],
+    name: r.name || '',
+    price: (r.price == null ? null : r.price),
+    chgPct: (r.chgPct == null ? null : r.chgPct),
+    prevClose: (r.prevClose == null ? null : r.prevClose),
+    currency: r.currency || '',
+    asOf: r.asOf || r.priceDate || asOf,
+    priceWithheld: !!r.priceWithheld,
+    withhold_reason: r.withhold_reason || ''
+  } : null;
+  const sel = {__mt: 'selection', v: 1, sym: s, ex: ex, asOf: asOf, row: row,
+               absent: !row && !!(listing && listing[ex] && listing[ex].length)};
+  window.__mtSelection = sel;
+  return sel;
+}
+// The one place a selection is broadcast from.
+function mtPublishSelection(sym){
+  const s = String(sym == null ? '' : sym).trim();
+  if(!s) return;
+  let sel = null;
+  try{ sel = mtSelectionPayload(s); }catch(e){ sel = null; }
+  try{ localStorage.setItem('mt_sym', s); }catch(e){}
+  // the panel windows: applied in place where the panel offers an entry point,
+  // re-pointed where it does not (see MTPanelWins.setSymbol)
+  try{ if(window.MTPanelWins) window.MTPanelWins.setSymbol(s, sel); }catch(e){}
+  // the legacy stage and popup frames take the same selection when they can paint
+  // it in place; an exchange board sitting there (the heatmap) is left alone
+  try{
+    const tell = window.MTPanelWins && window.MTPanelWins.tell;
+    ['stageFrame', 'popFrame'].forEach(function(id){
+      const f = document.getElementById(id);
+      if(!f) return;
+      try{ mtHookSelect(f); }catch(e){}
+      if(tell && sel) tell(f, sel);
+    });
+  }catch(e){}
+}
+// A SECURITY NAMED ANYWHERE IN A PANEL IS THE SELECTION. A heatmap tile and a
+// heatmap list row each name one security; before this they opened that panel's own
+// chart and told the rest of the terminal nothing, so FOCUS and every other panel
+// stayed on the previous security. The click is captured here (same origin) and
+// published through the one path, openStock(). A tile that does not name a listed
+// security publishes nothing at all.
+function mtHookSelect(f){
+  let doc = null;
+  try{ doc = f.contentDocument; }catch(e){ doc = null; }
+  if(!doc || doc.__mtSelectHook) return;
+  try{
+    doc.__mtSelectHook = true;
+    doc.addEventListener('click', function(ev){
+      let el = ev.target;
+      while(el && el !== doc.body && !(el.dataset && (el.dataset.key || el.dataset.sym))) el = el.parentNode;
+      if(!el || el === doc.body) return;
+      let tkr = String(el.dataset.sym || '').trim();
+      if(!tkr){
+        // heatmap tile key: cell_<sector>_<ticker>; a sector block key: sec_<sector>
+        const m = /^cell_(.*)_([^_]+)$/.exec(String(el.dataset.key || ''));
+        if(m) tkr = m[2];
+      }
+      if(!tkr) return;
+      if(!mtRowOf(currentEx, tkr)) return;      // not a security this exchange lists
+      openStock(tkr);
+    }, true);
+  }catch(e){}
+}
 function openStock(sym){
   if(!sym) return;
   // Resolve the typed spelling onto the market row's own `sym` FIRST: the info
   // lookup, the history lookup and every panel window then follow one canonical
   // symbol, so COMI, COMI.CA and EGS60121C018.CA all land on the same series.
   sym = resolveSym(sym);
-  // the typed symbol is shared state: every open panel window is re-pointed to
-  // it here, before the mt_tickerClick preference is consulted, because that
-  // setting governs the MARKET rail, not which security the panels follow
-  try{ if(window.MTPanelWins) window.MTPanelWins.setSymbol(sym); }catch(e){}
-  try{ if(localStorage.getItem('mt_tickerClick') === 'off') return; }catch(e){}
+  // THE SELECTION IS SET HERE, ONCE, BEFORE ANYTHING READS IT BACK OUT. The old
+  // order handed the new symbol to the panel layer while curSec still held the
+  // previous one, and the layer compares against curSec: every comparison ran
+  // against the security the reader had just LEFT, found the frame already equal
+  // to it and wrote no update at all. The panel was therefore always pointed at
+  // the selection BEFORE this one, one click behind, which reads as a delay and
+  // as the previous security refusing to go away.
   curSec = sym;
   // every selection bumps the counter read by renderMarketOverview(): a board
   // render that was already in flight when the reader chose this security must
   // not land on top of the quote sheet drawn below
   __mkSelGen++;
+  try{ mtPublishSelection(sym); }catch(e){}
+  // the mt_tickerClick preference governs the MARKET rail below, not which
+  // security the panels follow, so it is consulted after the broadcast
+  try{ if(localStorage.getItem('mt_tickerClick') === 'off') return; }catch(e){}
   if(__activePanelIdx >= 0 && PANELS[__activePanelIdx] && PANELS[__activePanelIdx].id === 'financials'){
     var _f = document.getElementById('stageFrame');
     if(_f && _f.src.indexOf('mx_financials') >= 0){ _f.src = panelUrl(PANELS[__activePanelIdx]); }

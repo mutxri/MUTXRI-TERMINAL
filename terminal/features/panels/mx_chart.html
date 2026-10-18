@@ -142,6 +142,9 @@
   .ch-legend .warn{color:var(--warn);}
   .ch-empty{padding:26px 20px;font-family:var(--mono);font-size:11px;color:var(--tx2);line-height:1.9;}
   .ch-empty .np{color:var(--warn);font-size:15px;letter-spacing:.04em;padding-bottom:8px;}
+  /* the identity and the quote are already painted and the bars are still being
+     read: a quiet line, not a warning, because nothing is wrong */
+  .ch-pend{padding:26px 20px;font-family:var(--mono);font-size:11px;color:var(--tx2);letter-spacing:.04em;}
   /* fullscreen: the chart box takes the screen instead of the 520px pane */
   html:fullscreen .ch-chart, html:-webkit-full-screen .ch-chart{height:calc(100vh - 132px);}
   html:fullscreen .ch-sym .nm{max-width:45vw;}
@@ -412,7 +415,11 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   function renderQuote(){
     var box = $("chQuote");
     if(!SYM){ box.innerHTML = ""; return; }
-    if(!BOARD){ box.innerHTML = '<span class="v sm warn">no quote source</span>'; return; }
+    // A selection handed over by the shell carries its own row and the board
+    // session it was priced at, so the strip is drawn from that row before any
+    // snapshot request has answered (see __mtApplySelection below).
+    var boardAsOf = (BOARD && BOARD.asOf) || SEL_ASOF || null;
+    if(!BOARD && !STOCK){ box.innerHTML = '<span class="v sm warn">no quote source</span>'; return; }
     var row = STOCK;
     if(WITHHELD){
       var asO = row && row.asOf ? row.asOf : "not stated";
@@ -442,7 +449,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       (pct == null ? "not stated" : esc((pct >= 0 ? "+" : "") + pct.toFixed(2) + "%")) + '</span></span>');
     h.push('<span class="q"><span class="k">vol</span><span class="v sm">' +
       (vol == null ? "not stated" : esc(vol.toLocaleString("en-US"))) + '</span></span>');
-    var asD = asDate(row.asOf), bd = asDate(BOARD && BOARD.asOf);
+    var asD = asDate(row.asOf), bd = asDate(boardAsOf);
     var lag = (asD && bd) ? Math.round((bd.ms - asD.ms) / 86400000) : null;
     var stale = (lag != null && lag > STALE_DAYS);
     h.push('<span class="q"><span class="k">as of</span><span class="v sm' + (stale ? " warn" : "") + '">' +
@@ -901,6 +908,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       rangeBars: RANGE_BARS[RANGE] || null,
       rangeTable: RANGE_BARS,
       histKey: HISTKEY, monthlyOnly: MONTHLY_ONLY,
+      sym: SYM, applied: APPLIED, pending: PENDING,
       firstBar: v.length ? String(v[0].t) : null,
       lastBar: lastB ? String(lastB.t) : null,
       lastOhlc: lastB ? {t: String(lastB.t), o: num(lastB.o), h: num(lastB.h), l: num(lastB.l), c: num(lastB.c)} : null,
@@ -980,13 +988,164 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     });
   }
 
+  // ---- the selection handed over by the shell --------------------------------
+  // THE NAME AND THE QUOTE DO NOT WAIT FOR A REQUEST. The shell holds this
+  // security's row already (its listing carries the snapshot's price), so it
+  // hands the row over with the selection and this panel paints the identity,
+  // the price and the change in the same task as the click: no document load,
+  // no empty frame and no request between the click and the ticker. The bars are
+  // read afterwards, and a reply that lands after a newer selection is dropped,
+  // so this frame can never end up drawing the previous security.
+  var PENDING = false;      // identity painted, the bars are still being read
+  var SEL_ASOF = null;      // the board session the shell's payload was priced at
+  var APPLIED = null;       // the security this document has already painted
+
+  function rowFromSel(sel){
+    var r = (sel && sel.row) ? sel.row : null;
+    if(!r) return null;
+    return {
+      sym: r.sym, ticker: r.ticker || r.sym, name: r.name || "",
+      price: (r.price == null ? null : r.price),
+      chgPct: (r.chgPct == null ? null : r.chgPct),
+      prevClose: (r.prevClose == null ? null : r.prevClose),
+      currency: r.currency || "",
+      asOf: r.asOf || (sel && sel.asOf) || "",
+      priceWithheld: !!r.priceWithheld,
+      withhold_reason: r.withhold_reason || ""
+    };
+  }
+  function tkOf(row, sym){
+    return String((row && (row.ticker || row.sym)) || sym || "").toUpperCase();
+  }
+  // the identity is painted and the bars are still arriving: the frame says so
+  // instead of keeping the previous security's candles on screen
+  function renderPending(sym){
+    PENDING = true;
+    destroyChart();
+    var box = $("chChart");
+    if(box) box.innerHTML = '<div class="ch-pend">READING THE PRICE HISTORY</div>';
+    var lg = $("chLegend");
+    if(lg) lg.innerHTML = esc(tkOf(STOCK, sym)) + " &middot; the price history is being read";
+  }
+  // a security this exchange's snapshot does not carry: named, and no chart
+  function renderAbsentSym(sym){
+    destroyChart();
+    PENDING = false;
+    var box = $("chChart");
+    if(box) box.innerHTML = '<div class="ch-empty"><div class="np">NOT IN THE SNAPSHOT</div>' +
+      '<div>' + esc(tkOf(null, sym)) + ' is not carried by the ' + esc(EX) + ' market snapshot.</div></div>';
+    $("chLegend").innerHTML = esc(tkOf(null, sym)) + " &middot; not in the " + esc(EX) + " snapshot";
+  }
+  // the identity and the quote, painted from the payload and from the snapshot
+  // this panel has already read. Nothing on this path is fetched.
+  function paintSel(sym, row){
+    $("chTkr").textContent = tkOf(row, sym);
+    $("chName").textContent = row && row.name ? String(row.name) : "";
+    renderQuote();
+  }
+  // The shell calls this directly (same origin), so the paint lands in the task
+  // that ran the click. It answers false only when this document cannot show the
+  // security at all (another exchange), which tells the shell to re-point it.
+  window.__mtApplySelection = function(sel){
+    if(!sel || !sel.sym) return false;
+    if(String(sel.ex || EX).toUpperCase() !== EX) return false;
+    var want = String(sel.sym).toUpperCase();
+    var seq = ++LOAD_SEQ;
+    SYM = want;
+    SEL_ASOF = sel.asOf || null;
+    // the snapshot this panel already holds answers for the new security with no
+    // request at all; the payload row is the fallback when it does not
+    STOCK = BOARD ? matchRow(BOARD.stocks || [], want) : null;
+    var row = STOCK || rowFromSel(sel);
+    // the payload row IS this security's quote row until the snapshot answers, so
+    // a frame that has not read the board yet still paints the price, not "no
+    // quote source" (this is the path a panel opened after a selection takes)
+    if(!STOCK && row) STOCK = row;
+    WITHHELD = !!(row && (row.priceWithheld || row.asOfWithheld || row.withhold_reason));
+    WITHHOLD_REASON = row && (row.withhold_reason || row.priceNote)
+      ? String(row.withhold_reason || row.priceNote) : "";
+    // the previous security's bars are gone BEFORE any request, so nothing left
+    // on this frame can be read as the new security's chart
+    BARS = []; FALLBACK = []; HISTKEY = ""; MONTHLY_ONLY = false; HASVOL = false;
+    APPLIED = want;
+    paintSel(want, row);
+    if(sel.absent){ renderAbsentSym(want); return true; }
+    // a security whose price the exchange withheld gets no price line at all, so
+    // there is no history to wait for
+    if(WITHHELD){ render(); return true; }
+    renderPending(want);
+    boardLoad().then(function(board){
+      if(seq !== LOAD_SEQ) return null;
+      if(board){
+        BOARD = board;
+        var b = matchRow(BOARD.stocks || [], want);
+        if(b){
+          // the snapshot carries the volume and the session date the payload
+          // does not, so the strip is completed from it now that it is in hand
+          STOCK = b; row = b;
+          WITHHELD = !!(b.priceWithheld || b.asOfWithheld || b.withhold_reason);
+          WITHHOLD_REASON = (b.withhold_reason || b.priceNote) ? String(b.withhold_reason || b.priceNote) : "";
+          paintSel(want, b);
+          if(WITHHELD){ render(); return null; }
+        }
+      }
+      return loadHistory();
+    }).then(function(hist){
+      if(seq !== LOAD_SEQ) return;
+      PENDING = false;
+      if(hist && hist.bars && hist.bars.length){
+        BARS = hist.bars.map(function(b){
+          return {t: b.t, o: num(b.o), h: num(b.h), l: num(b.l), c: num(b.c), v: num(b.v)};
+        }).filter(function(b){ return b.t != null && num(b.c) != null; });
+        if(MONTHLY_ONLY){ FALLBACK = BARS; BARS = []; }
+      }
+      render();
+    }).catch(function(){
+      if(seq !== LOAD_SEQ) return;
+      PENDING = false;
+      render();
+    });
+    return true;
+  };
+  if(window.addEventListener){
+    window.addEventListener("message", function(ev){
+      if(!ev || ev.origin !== location.origin) return;
+      var d = ev.data;
+      if(d && d.__mt === "selection") window.__mtApplySelection(d);
+    });
+  }
+  // A PANEL OPENED AFTER A SELECTION SHOWS THAT SECURITY AT ONCE. The shell's
+  // selection is the truth here, so a frame built without ?sym= adopts it rather
+  // than reading the exchange default first and being handed the selection on top.
+  function seedFromShell(){
+    try{
+      var p = window.parent;
+      if(!p || p === window || !p.__mtSelection) return false;
+      var sel = p.__mtSelection;
+      if(String(sel.ex || EX).toUpperCase() !== EX) return false;
+      if(SYM && String(sel.sym || "").toUpperCase() !== String(SYM).toUpperCase()) return false;
+      return window.__mtApplySelection(sel) === true;
+    }catch(e){ return false; }
+  }
+  // tell the shell this document is ready to be handed the selection
+  function announceReady(){
+    try{
+      if(window.parent && window.parent !== window) window.parent.postMessage({__mt: "sel-ready"}, location.origin);
+    }catch(e){}
+  }
+
   function init(){
     $("chEx").textContent = EX;
     loadIndState();
     paintType(); paintRange(); paintIndMenu();
     wire();
     if(!window.MXChartTools) paintTools();
+    // this frame can take a selection in place; the shell asks before re-pointing
+    try{ document.__mtSelAck = true; }catch(e){}
+    if(APPLIED){ announceReady(); return; }   // already handed one while parsing
+    if(seedFromShell()){ announceReady(); return; }
     loadFor(SYM);
+    announceReady();
   }
 
   // SEARCH: type a ticker or a company name, pick a row, and the chart reloads for
