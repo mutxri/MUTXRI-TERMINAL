@@ -1,16 +1,13 @@
-# MUTXRI TERMINAL
+# MUTXRI TERMINAL (static build)
 
-Market terminal: NSE Nairobi, NGX Lagos, JSE Johannesburg, EGX Cairo.
+Static snapshot of the MUTXRI TERMINAL African markets terminal, deployed to
+GitHub Pages. Data is a **snapshot** (EOD listings, heatmaps, indices) captured
+from the live server - it does not update in real time.
 
-**Live site: https://mutxriterminal.com/**
-
-This repository holds the static build served by GitHub Pages. Data is a
-**snapshot** (EOD listings, heatmaps, indices) captured from the live server -
-it does not update in real time.
-
-- Per-security candlestick history: static_data/history/<SYM>.json (JSE/EGX,
-  Yahoo EOD 1y daily bars). NGX/NSE have no free historical feed.
+- Live terminal: local server (python afri_server.py) at http://127.0.0.1:8081/
 - Live endpoints (chart/metrics/quotes) are NOT available in this static build;
   the UI shows an honest notice when clicked.
+- Per-security candlestick history: static_data/history/<SYM>.json (JSE/EGX,
+  Yahoo EOD 1y daily bars). NGX/NSE have no free historical feed.
 
-Data snapshot: 2026-10-23 21:52
+Data snapshot: 2026-08-30 18:43
