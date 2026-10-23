@@ -22,7 +22,7 @@
  *   - NSE official / a licensed data vendor (the correct route for a product you
  *     license on; matches your data-redistribution posture).
  *   - The kwayisi/afx NSE endpoint you already use for EOD period returns.
- *   - Your own backend (afri_server.py) that stores bars in Timescale/ClickHouse.
+ *   - Your own backend (the bundled Python server) that stores bars in Timescale/ClickHouse.
  *   Do NOT scrape TradingView - it breaks their ToS and creates the exact
  *   liability the licensing-protection plan is trying to avoid.
  */

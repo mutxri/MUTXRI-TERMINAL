@@ -7,7 +7,7 @@
  * and NEVER fabricated: if the source has no history, return [].
  */
 
-/* A) Via your own backend (afri_server.py), which stores bars you have the right
+/* A) Via your own backend (the bundled Python server), which stores bars you have the right
  *    to serve. This is the correct route for a product you license to others. */
 var BackendAdapter = {
   getBars: function (ticker, opts) {
