@@ -68,7 +68,19 @@ def build():
         "EGS38171C012": ("GlaxoSmithKline Egypt S.A.E. (BIOC)", "Pharmaceuticals"),
         "EGS23141C012": ("Creast Mark for Real Estate Investment (CRST)", "Real Estate"),
         "EGS78021C010": ("Egyptian Media Production City (MPRC)", "Real Estate"),
+        # EGX Listing Committee 26/08/2026 (effective 31/08/2026): the SPAC renamed
+        # from "Hassan Allam Investments & Venture Capital" to Grova Special Purpose
+        # Acquisition Company. Source: beta.egx.com.eg/en/news/293979
+        "EGS69921C012": ("Grova Special Purpose Acquisition Company", "Financial Services"),
     }
+
+    # CODES THE EXCHANGE RETIRED. HAVC was Hassan Allam Investments & Venture
+    # Capital; the EGX Listing Committee of 26/08/2026 approved the name change to
+    # Grova Special Purpose Acquisition Company AND the ticker change to GROV.CA,
+    # effective from the trading session of 31/08/2026 (EGX news 293979). The
+    # upstream feed kept serving HAVC, so the board printed a code the exchange had
+    # retired seven weeks earlier and a search for Grova found nothing.
+    EGX_CODE_FIXES = {"HAVC": "GROV"}
 
     def normalize_code(code):
         """Strip a stray market suffix from an upstream symbol.
@@ -87,6 +99,7 @@ def build():
 
     for x in egx:
         s = normalize_code(x["symbol"])
+        s = EGX_CODE_FIXES.get(s, s)
         if s in seen: continue
         seen.add(s)
         # The upstream feed carries a WRONG company name for some EGX securities,
@@ -101,6 +114,30 @@ def build():
         if sec: row["sector"] = sec
         stocks["EGX"].append(row)
     print(f"  EGX: {len(stocks['EGX'])} stocks")
+
+    # ---- EGX pinned additions -------------------------------------------------
+    # Securities the upstream XCAI feed carries under a form that never reaches
+    # the board. The most visible one: Ezz Steel Company S.A.E. (ISIN
+    # EGS3C251C013, Reuters ESRS.CA, listed on EGX since 1999, shares outstanding
+    # 543,265,027) arrives from the feed as "EGS3C251C013.EGP" and is dropped
+    # before the listing is written because it has no Yahoo symbol, so nothing in
+    # the EGX history chain can price it. Its statements (ESRS__income/balance/
+    # cashflow), its 600x600 logo and its managing director were all collected and
+    # were unreachable without a listing row. The row is pinned HERE, where the
+    # listing is built, because listing_EGX.json and stocks.json are regenerated
+    # every cycle and a fix applied to a shipped file is reverted by the next run.
+    # Source: issuer share-information page,
+    # https://www.ezzsteel.com/investor-relations/ezz-steel-co-s-a-e/share-information
+    EGX_PINNED = [
+        {"sym": "EGS3C251C013.CA", "code": "EGS3C251C013", "ticker": "ESRS",
+         "short": "ESRS", "name": "Ezz Steel Company S.A.E.", "currency": "EGP",
+         "country": "Egypt", "sector": "Basic Materials", "instrument": "common"},
+    ]
+    _have = {r["sym"] for r in stocks["EGX"]}
+    for _row in EGX_PINNED:
+        if _row["sym"] not in _have:
+            stocks["EGX"].append(dict(_row))
+    print(f"  EGX after pinned additions: {len(stocks['EGX'])} stocks")
 
     # ---- NGX (Nigeria) — EOD from African Financials ----
     print("fetching NGX table…")
@@ -164,6 +201,33 @@ def build():
                               "sector": r["sector"], "date": r["date"],
                               "currency": "KES", "country": "Kenya"})
     print(f"  NSE: {len(stocks['NSE'])} stocks (EOD {nse[0]['date'] if nse else '?'})")
+
+    # ---- NSE pinned additions --------------------------------------------------
+    # Three securities that trade on the Nairobi board and are priced by the NSE
+    # official ticker feed, but that the African Financials table does not carry,
+    # so every rebuild of stocks.json and listing_<EX> dropped them out of search
+    # and out of the board. Olympia Capital Holdings (OCH) and Uchumi Supermarket
+    # (UCHM) are ordinary shares; Satrix MSCI World Feeder (SMWF) is an ETF. The
+    # pin lives HERE because stocks.json and listing_NSE.json are regenerated from
+    # that table every cycle, and a row added to the shipped JSON alone is reverted
+    # by the next run.
+    NSE_PINNED = [
+        {"sym": "OCH", "ticker": "OCH", "short": "OCH",
+         "name": "Olympia Capital Holdings Ltd", "currency": "KES",
+         "country": "Kenya", "sector": "Investment", "instrument": "common"},
+        {"sym": "UCHM", "ticker": "UCHM", "short": "UCHM",
+         "name": "Uchumi Supermarket", "currency": "KES",
+         "country": "Kenya", "sector": "Commercial & Services", "instrument": "common"},
+        {"sym": "SMWF", "ticker": "SMWF", "short": "SMWF",
+         "name": "Satrix MSCI World Feeder ETF", "currency": "KES",
+         "country": "Kenya", "sector": "Exchange Traded Funds", "instrument": "structured"},
+    ]
+    _nse_have = {str(r.get("sym") or r.get("ticker") or r.get("name") or "").upper()
+                 for r in stocks["NSE"]}
+    for _row in NSE_PINNED:
+        if _row["sym"] not in _nse_have:
+            stocks["NSE"].append(dict(_row))
+    print(f"  NSE after pinned additions: {len(stocks['NSE'])} stocks")
 
     meta = {"generated": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
             "note": "JSE/EGX = live via Yahoo chart API. NGX/NSE = end-of-day from African Financials."}
