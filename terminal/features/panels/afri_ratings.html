@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<!--
+  AFRI Terminal — RATINGS (Analyst Ratings, indicative) panel. Spec 9.3 (P2).
+  Aggregates INDICATIVE rating signals from public news. Prominently
+  labeled as not-a-licensed-consensus. Never fabricates a rating.
+
+  Standalone-viewable on SAMPLE data; auto-uses /api/ratings when live.
+  Vanilla JS, exact Godel tokens, no build step.
+
+  INTEGRATE: lift .rat-* markup into a right-panel tab (RATINGS), lift the
+  <script>, wire the RATINGS command to window.showRatings(symbol).
+  Delete SAMPLE once /api/ratings is live.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AFRI Terminal — RATINGS</title>
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
+    --line:#1a1a1a; --line2:#262626;
+    --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
+    --up:#33e29a; --down:#f87171; --acc:#33e29a; --warn:#e0a340;
+    --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx); font-family:var(--ui); font-size:13px; }
+  .rat-wrap { border:1px solid var(--line2); border-radius:2px; background:var(--bg2); max-width:480px; margin:24px auto; }
+  .rat-head { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--line2); }
+  .rat-title { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
+  .rat-title b { color:var(--acc); font-weight:700; }
+  .rat-sym { font-family:var(--mono); font-size:12px; color:var(--tx); }
+  /* prominent disclaimer strip */
+  .rat-disc { padding:8px 14px; background:rgba(224,163,64,.08); border-bottom:1px solid var(--line); color:var(--warn); font-size:10px; font-family:var(--mono); line-height:1.4; }
+  .rat-summary { display:flex; gap:18px; align-items:center; padding:14px; border-bottom:1px solid var(--line); }
+  .rat-cons { font-family:var(--mono); font-size:18px; font-weight:700; }
+  .rat-cons.buy { color:var(--up); } .rat-cons.sell { color:var(--down); } .rat-cons.hold { color:var(--tx2); } .rat-cons.none { color:var(--tx3); }
+  .rat-meta { font-family:var(--mono); font-size:11px; color:var(--tx3); line-height:1.6; }
+  .rat-bars { display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-bottom:1px solid var(--line); }
+  .rat-bar { display:grid; grid-template-columns:44px 1fr 30px; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; }
+  .rat-bar .lab { color:var(--tx2); } .rat-bar .n { text-align:right; color:var(--tx3); }
+  .rat-track { height:8px; background:var(--bg4); border-radius:2px; overflow:hidden; }
+  .rat-fill.buy { background:var(--up); height:100%; } .rat-fill.hold { background:var(--tx3); height:100%; } .rat-fill.sell { background:var(--down); height:100%; }
+  .rat-signals { max-height:180px; overflow-y:auto; }
+  .rat-sig { padding:8px 14px; border-bottom:1px solid var(--line); }
+  .rat-sig .h { font-size:12px; color:var(--tx); font-family:Inter; line-height:1.4; }
+  .rat-sig .m { font-family:var(--mono); font-size:10px; color:var(--tx3); margin-top:2px; }
+  .rat-tag { font-size:9px; padding:1px 5px; border-radius:2px; }
+  .rat-tag.buy { color:var(--up); border:1px solid rgba(51,226,154,.4); }
+  .rat-tag.sell { color:var(--down); border:1px solid rgba(248,113,113,.4); }
+  .rat-tag.hold { color:var(--tx2); border:1px solid var(--line2); }
+  .rat-empty { padding:28px 14px; text-align:center; color:var(--tx3); font-family:var(--mono); font-size:12px; }
+  .rat-foot { padding:8px 14px; color:var(--tx3); font-family:var(--mono); font-size:10px; }
+</style>
+</head>
+<body>
+
+<div class="rat-wrap" id="rat">
+  <div class="rat-head">
+    <div class="rat-title"><b>RATINGS</b> · Indicative</div>
+    <span class="rat-sym" id="ratSym">—</span>
+  </div>
+  <div class="rat-disc" id="ratDisc">Indicative only — from public news, not a licensed consensus.</div>
+  <div id="ratContent"></div>
+  <div class="rat-foot" id="ratFoot">—</div>
+</div>
+
+<script>
+(function () {
+  window.STATIC_MODE = true;
+  "use strict";
+  var RAT_ENDPOINT = "../../static_data/ratings.json";
+
+  var SAMPLE = {
+    symbol: "EQTY", consensus: "Buy (lean)", confidence: "moderate",
+    tally: { Buy: 4, Hold: 1, Sell: 0 }, signal_count: 5,
+    avg_target: 60.0, target_count: 3,
+    disclaimer: "Indicative only — derived from public news mentions, NOT a licensed analyst consensus. Full consensus and verified price targets require Refinitiv/Bloomberg/FactSet.",
+    signals: [
+      { headline:"Broker A initiates EQTY at Buy, price target of 60", rating:"Buy", target:60, date:"2026-08-20", link:"#" },
+      { headline:"Broker B upgrades to Outperform, target 58", rating:"Buy", target:58, date:"2026-08-18", link:"#" },
+      { headline:"Bank E rates Overweight, PT 62", rating:"Buy", target:62, date:"2026-08-15", link:"#" },
+      { headline:"Broker D maintains Hold on valuation", rating:"Hold", target:null, date:"2026-08-12", link:"#" }
+    ]
+  };
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+
+  function consClass(c) {
+    if (!c) return "none";
+    if (c.indexOf("Buy") === 0) return "buy";
+    if (c.indexOf("Sell") === 0) return "sell";
+    return "hold";
+  }
+  function tagClass(r) {
+    return r === "Buy" ? "buy" : r === "Sell" ? "sell" : "hold";
+  }
+
+  function render(d) {
+    $("ratSym").textContent = d.symbol || "—";
+    $("ratDisc").textContent = d.disclaimer || "Indicative only — from public news, not a licensed consensus.";
+
+    if (!d.consensus || d.signal_count === 0) {
+      $("ratContent").innerHTML = '<div class="rat-empty">No rating signal found in recent public news.<br>This is not the same as "no coverage" — it means nothing was detected, and nothing is invented.</div>';
+      $("ratFoot").textContent = "0 signals";
+      return;
+    }
+
+    var t = d.tally || { Buy:0, Hold:0, Sell:0 };
+    var max = Math.max(1, t.Buy, t.Hold, t.Sell);
+    function bar(lab, n, cls) {
+      var pct = Math.round((n / max) * 100);
+      return '<div class="rat-bar"><span class="lab">' + lab + '</span>' +
+        '<span class="rat-track"><span class="rat-fill ' + cls + '" style="width:' + pct + '%"></span></span>' +
+        '<span class="n">' + n + '</span></div>';
+    }
+
+    var html = '';
+    html += '<div class="rat-summary">' +
+      '<span class="rat-cons ' + consClass(d.consensus) + '">' + esc(d.consensus) + '</span>' +
+      '<span class="rat-meta">confidence: ' + esc(d.confidence) + '<br>' +
+      d.signal_count + ' news signals' +
+      (d.avg_target != null ? '<br>avg target: ' + Number(d.avg_target).toLocaleString() + ' (' + d.target_count + ')' : '') +
+      '</span></div>';
+    html += '<div class="rat-bars">' + bar("Buy", t.Buy, "buy") + bar("Hold", t.Hold, "hold") + bar("Sell", t.Sell, "sell") + '</div>';
+    html += '<div class="rat-signals">' + (d.signals || []).map(function (s) {
+      var href = s.link && s.link !== "#" ? ' href="' + esc(s.link) + '" target="_blank" rel="noopener"' : '';
+      var tag = s.rating ? '<span class="rat-tag ' + tagClass(s.rating) + '">' + esc(s.rating) + '</span> ' : '';
+      var tgt = s.target != null ? ' · target ' + Number(s.target).toLocaleString() : '';
+      return '<a class="rat-sig" style="display:block;text-decoration:none;color:inherit;"' + href + '>' +
+        '<div class="h">' + esc(s.headline) + '</div>' +
+        '<div class="m">' + tag + esc(s.date || '') + tgt + '</div></a>';
+    }).join("") + '</div>';
+
+    $("ratContent").innerHTML = html;
+    $("ratFoot").textContent = d.signal_count + " signals · news-derived, indicative";
+  }
+
+  function load(symbol) {
+    var url = RAT_ENDPOINT + (symbol ? "?symbol=" + encodeURIComponent(symbol) : "");
+    fetch(url)
+      .then(function (r) { if (!r.ok) throw new Error("no endpoint"); return r.json(); })
+      .then(render)
+      .catch(function () {
+        render(SAMPLE);
+        $("ratFoot").textContent = "SAMPLE DATA (server /api/ratings not reachable)";
+      });
+  }
+
+  window.showRatings = function (symbol) {
+    var el = $("rat"); if (el) el.scrollIntoView({ behavior:"smooth" });
+    if (symbol) load(symbol);
+  };
+
+  function init() { load(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>
