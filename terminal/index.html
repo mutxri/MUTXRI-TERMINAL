@@ -143,6 +143,26 @@ body{
   width:28px;height:28px;display:flex;align-items:center;justify-content:center;
   border-radius:4px;cursor:pointer;transition:border-color .15s,color .15s}
 .settings>button:hover{border-color:var(--mint-line)}
+/* GUEST SIGN-IN: one small control beside the account button, shown only when
+   this page has decided there is no session. It is the guest's way in, and the
+   only thing it does is open the sign-in card the gate already carries. No
+   pop-up, no interstitial, no timer: it waits in the bar like any other
+   control, and it is gone the moment a session exists. */
+.guest-chip{background:var(--bg3);border:1px solid var(--line2);color:var(--acc);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;line-height:1;
+  padding:7px 8px;border-radius:4px;cursor:pointer;flex:0 0 auto;
+  transition:border-color .15s,color .15s}
+.guest-chip:hover{border-color:var(--mint-line);color:var(--acc2,var(--acc))}
+.guest-chip[hidden]{display:none}
+@media (max-width:430px){.guest-chip{padding:6px;font-size:9px;letter-spacing:.04em}}
+/* a guest asked for something that needs an account: ONE line and the control
+   that fixes it, where the request was made. */
+.guest-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:11px;color:var(--tx2);padding:6px 0}
+.guest-line .guest-signin{background:none;border:1px solid var(--mint-line,var(--line2));
+  color:var(--acc);font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
+  padding:3px 8px;border-radius:2px;cursor:pointer}
+.guest-line .guest-signin:hover{background:var(--mint-dim,var(--bg3))}
 .settings-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:300px;max-width:calc(100vw - 20px);
   max-height:calc(100vh - 76px);overflow:hidden;
   background:var(--bg2);border:1px solid var(--line2);border-radius:8px;
@@ -375,6 +395,17 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
   font-family:var(--mono);font-size:13px;font-weight:700;line-height:1;padding:1px 8px 2px;
   border-radius:2px;cursor:pointer}
 .wsbar .ws-add:hover{border-color:var(--acc);color:var(--acc)}
+/* A GUEST ASKED TO SAVE A LAYOUT: one short line and the control that fixes it,
+   in the strip the request came from. It is not shown until they ask, and it is
+   gone the moment a session exists. */
+.wsbar .ws-guest{flex:0 0 auto;display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--tx3);
+  white-space:nowrap}
+.wsbar .ws-guest[hidden]{display:none}
+.wsbar .ws-signin{background:none;border:1px solid var(--line2);color:var(--acc);
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;line-height:1;
+  padding:3px 7px;border-radius:2px;cursor:pointer;flex:0 0 auto}
+.wsbar .ws-signin:hover{border-color:var(--mint-line);background:var(--bg3)}
 /* the six approved default sets, offered from the + as ADDITIONS. Right-click
    (or Alt-click) the + and pick one: it is ADDED to the set the reader already
    has, so a preset can never replace an arrangement of their own. */
@@ -1028,7 +1059,36 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   // hide() used to remove the gate node, which made the gate one-way: a later
   // show() had a detached element to style and nothing came back on screen. It
   // only hides now, so a failed session check can put the gate straight back.
-  function hide(){ if(gate){ gate.style.display = "none"; } try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){} }
+  function hide(){ if(gate){ gate.style.display = "none"; } try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){} try{ syncGuestChip(); }catch(e){} }
+
+  // ===== THE GUEST PATH =====================================================
+  // The terminal is a product a stranger can look at. A visitor with no session
+  // used to meet a full-screen sign-in card on arrival, with no dismiss control
+  // on it, so a link to this page showed a wall and never the thing being sold.
+  // The gate is now the path from "sign in" and from the actions that genuinely
+  // need an account - it is not the door to the page. `__mtGuest` is true only
+  // when this page has DECIDED there is no confirmed session; until the check
+  // says so it stays false, so a reader with a token is never treated as a
+  // guest while the call is in flight.
+  //
+  // NOTHING IS WEAKENED. The flag only changes what is shown and whether a
+  // local arrangement is written: it never stands in for a token, no request
+  // carries it, and every write to the backend is still refused by a server
+  // that has no session for the reader.
+  window.__mtGuest = false;
+  function guest(){
+    window.__mtGuest = true;
+    hide();                       // the terminal itself, not a card in front of it
+    try{ syncGuestChip(); }catch(e){}
+  }
+  // The one control that says a guest may sign in: shown with the guest flag,
+  // hidden the moment a session exists (and while the card is open).
+  function syncGuestChip(){
+    var chip = document.getElementById("guestSignIn");
+    if(chip) chip.hidden = !window.__mtGuest;
+    var ws = document.getElementById("wsGuest");
+    if(ws && !window.__mtGuest) ws.hidden = true;
+  }
   // The chat window is behind this gate for a visitor and has to be able to
   // offer the way in from where the reader is standing, so the one control that
   // belongs to the gate is published: showing the sign-in card. Nothing else of
@@ -1070,21 +1130,22 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   function tok(){ try{ return localStorage.getItem("mt_token") || ""; }catch(e){ return ""; } }
   function check(){
     var t = tok();
-    if(!t){ show(); return; }
+    // NO SESSION AT ALL: this is a guest, and a guest gets the terminal. There
+    // is nothing to verify and nothing to block - the gate opens only from the
+    // control that offers it.
+    if(!t){ guest(); return; }
     // A token hides the gate straight away rather than parking a returning user
-    // on a sign-in screen while a cold Render instance wakes up. Every way this
-    // check can fail puts the gate back: an error reply, an unreachable backend,
-    // and now a hung request too - the call used to be able to stay unresolved
-    // forever, leaving the terminal open behind a token the server never
-    // confirmed. The gate is visible in the static HTML, so a page whose script
-    // did not run is behind it as well.
+    // on a sign-in screen while a cold Render instance wakes up.
     hide();
     msg("Verifying session…");
     var settled = false;
     var timer = setTimeout(function(){
       if(settled) return;
       settled = true;
-      show();
+      // An unanswered check is not proof of anything, so the reader is let in as
+      // a guest with their token untouched: the card keeps the reason, and the
+      // next load verifies again.
+      guest();
       msg("Could not verify the session. Sign in to continue.");
     }, 12000);
     fetch(AUTH_API + "/api/auth/me", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t})})
@@ -1092,7 +1153,9 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
       .then(function(d){
         if(settled) return;
         settled = true; clearTimeout(timer);
-        if(d && d.ok){ hide(); try{
+        if(d && d.ok){
+          window.__mtGuest = false;          // a confirmed session is not a guest
+          hide(); try{
           // /api/auth/me is authoritative, so persist the CURRENT email too. It was
           // previously dropped while username/name were refreshed, which left
           // mt_email frozen at the value cached at sign-in: an email changed on the
@@ -1103,11 +1166,11 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
         }catch(e){}
         try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){}
         try{ if(window.__renderAccount) window.__renderAccount(); }catch(e){}
-      } else { show(); msg("Session expired. Sign in to continue."); } })
+      } else { guest(); msg("Session expired. Sign in to continue."); } })
       .catch(function(){
         if(settled) return;
         settled = true; clearTimeout(timer);
-        show(); msg("Could not reach the sign-in server. Check your connection and try again.");
+        guest(); msg("Could not reach the sign-in server. Check your connection and try again.");
       });
   }
   window.gateSubmit = function(){
@@ -1126,6 +1189,7 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
         if(d && d.ok){
           try{ localStorage.setItem("mt_token", d.token || ""); localStorage.setItem("mt_email", d.email || email); localStorage.setItem("mt_username", d.username || ""); localStorage.setItem("mt_name", d.name || ""); }catch(e){}
           msg("Welcome. Loading the terminal…", true);
+          window.__mtGuest = false;         // signed in now, so not a guest
           setTimeout(hide, 600);
         } else {
           var _err = (d && d.error) ? d.error : "Sign in failed. Try again.";
@@ -1138,6 +1202,12 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
       .catch(function(){ msg("Could not reach the sign-in server. Try again shortly."); });
   };
   check();
+  // The chip and the guest line live further down the document than this script,
+  // so the first paint is synced as soon as the bar exists (a guest's check
+  // returns synchronously, before the top bar has been parsed).
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", function(){ try{ syncGuestChip(); }catch(e){} });
+  } else { try{ syncGuestChip(); }catch(e){} }
 })();
 </script>
 <div class="term">
@@ -1154,6 +1224,14 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
       <input id="q" placeholder="Ticker, company or market - SCOM, MTN JSE, FA…" autocomplete="off" aria-label="Search">
     </label>
     <div class="clock"><span class="dot"></span><span id="clock">-</span></div>
+    <!-- GUEST SIGN-IN: the small way in, beside the account button. Hidden in the
+         markup and revealed only when the page has confirmed there is no
+         session, so a signed-in reader never sees it. It opens the sign-in card
+         and nothing else. -->
+    <button type="button" id="guestSignIn" class="guest-chip" hidden
+            title="Sign in or create an account"
+            aria-label="Sign in or create an account"
+            onclick="if(window.mtShowSignIn)window.mtShowSignIn()">SIGN IN</button>
     <div class="settings" id="settings">
       <button id="settingsBtn" type="button" title="Account" aria-label="Account" aria-haspopup="true" aria-expanded="false">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -1437,6 +1515,122 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
     </aside>
 
     <!-- CENTER PANEL -->
+    <script>
+    // ===== BACKEND CONFIG: ONE API BASE =====================================
+    // Every data request the terminal makes goes to this ONE origin. Change it
+    // here and nowhere else. The static host has no backend, so a bare
+    // /api/quotes on it is a 404 and every panel fell back to a dated file.
+    window.MUTXRI_API_BASE = 'https://mutxri-terminal.onrender.com';
+    // A cold Render service takes about 30 seconds to answer its first request,
+    // and the terminal must never wait for that. Each /api call is given
+    // MUTXRI_API_WAIT_MS; when the base has not answered by then the call is
+    // abandoned so the caller's own static fallback runs, as it did before. A
+    // failed call marks the base DOWN for MUTXRI_API_DOWN_MS, during which calls
+    // reject at once (0 ms) instead of each paying the wait again. Any success
+    // closes it. Every failure surfaces as a rejected promise, never a throw, so
+    // an "await fetch" inside a try block lands in that try's catch exactly as a
+    // hung request would, and the static branch runs.
+    window.MUTXRI_API_WAIT_MS = 1500;
+    window.MUTXRI_API_DOWN_MS = 20000;
+    (function(){
+      var base = '';
+      try{
+        var allow = (typeof window.__mxAllowedApi === 'function') ? window.__mxAllowedApi : function(){ return ''; };
+        // ?api= and window.AUTH_API may name this origin or the known backend
+        // (__mxAllowedApi enforces that); anything else is ignored, so a crafted
+        // link cannot aim the terminal's requests at a host of its choosing.
+        base = allow(window.AUTH_API) || allow(new URLSearchParams(location.search).get('api')) || window.MUTXRI_API_BASE;
+      }catch(e){ base = window.MUTXRI_API_BASE; }
+      window.API_BASE = base;
+      var raw = window.fetch.bind(window);
+      var downUntil = 0;
+      function apiUrl(u){ return base + u; }
+      function isApiPath(u){ return u.indexOf('/api/') === 0; }
+      function isGet(o){ return !o || !o.method || String(o.method).toUpperCase() === 'GET'; }
+      function reject(why){ var e = new Error(why); e.mxApi = true; return Promise.reject(e); }
+      // one routed call: same-shape Response on success, rejection on any failure
+      function call(u, opts){
+        var o = opts ? Object.assign({}, opts) : {};
+        var waitMs = o.mxWaitMs != null ? o.mxWaitMs : window.MUTXRI_API_WAIT_MS;
+        delete o.mxWaitMs;
+        var get = isGet(o);
+        if(get && Date.now() < downUntil) return reject('api base down, using the static file');
+        var ctl = null;
+        try{ ctl = new AbortController(); }catch(e){}
+        if(ctl){
+          if(o.signal){
+            try{ o.signal.addEventListener('abort', function(){ try{ ctl.abort(); }catch(e){} }); }catch(e){}
+          }
+          o.signal = ctl.signal;
+        }
+        var slow = false;
+        var to = setTimeout(function(){
+          slow = true;
+          if(get) downUntil = Date.now() + window.MUTXRI_API_DOWN_MS;
+          if(ctl){ try{ ctl.abort(); }catch(e){} }
+        }, waitMs);
+        return raw(apiUrl(u), o).then(function(r){
+          clearTimeout(to);
+          if(!r.ok){
+            if(get) downUntil = Date.now() + window.MUTXRI_API_DOWN_MS;
+            var e = new Error('api ' + r.status + ' ' + u); e.mxStatus = r.status; e.mxApi = true; throw e;
+          }
+          downUntil = 0;
+          return r;
+        }, function(err){
+          clearTimeout(to);
+          if(get && !slow) downUntil = Date.now() + window.MUTXRI_API_DOWN_MS;
+          var e = new Error('api unreachable: ' + u); e.mxApi = true; e.cause = err; throw e;
+        });
+      }
+      window.fetch = function(url, opts){
+        var u = String(url);
+        if(isApiPath(u) && base) return call(u, opts);
+        return raw(url, opts);
+      };
+      // A panel runs in its own frame and made its own bare /api call, which is
+      // what reached the static host. Its window is same-origin, so the shell
+      // points that window's fetch at the same base: its later poll or refresh
+      // reaches the live route instead of 404ing. Panels that read ?api= (the
+      // heatmap does) are already pointed at the base by panelUrl(), so their
+      // FIRST call is live too.
+      window.MX_PATCH_FRAME = function(f){
+        try{
+          var w = f && f.contentWindow;
+          if(!w || w.__mxApiPatched) return;
+          var of = w.fetch;
+          if(typeof of !== 'function') return;
+          w.fetch = function(u, o){
+            var s = String(u);
+            if(isApiPath(s) && base) return call(s, o);
+            return of.call(w, u, o);
+          };
+          w.__mxApiPatched = true;
+        }catch(e){}
+      };
+      window.MX_API = {
+        base: base,
+        url: apiUrl,
+        call: call,
+        isDown: function(){ return Date.now() < downUntil; },
+        downFor: function(){ return Math.max(0, downUntil - Date.now()); }
+      };
+      // A frame that finishes loading is patched. The listener is on the DOCUMENT
+      // in the capture phase because an iframe's load event does not bubble.
+      document.addEventListener('load', function(ev){
+        var t = ev.target;
+        if(t && String(t.tagName).toUpperCase() === 'IFRAME') window.MX_PATCH_FRAME(t);
+      }, true);
+      // and one quiet reachability probe so a dead base is known before the
+      // panels ask: if it fails the breaker is already open and every later call
+      // rejects in 0 ms.
+      setTimeout(function(){
+        call('/api/health', {mxWaitMs: 1200})['catch'](function(){});
+      }, 0);
+    })();
+    // ===== END BACKEND CONFIG =====
+    </script>
+
     <section class="panel" id="colCenter">
       <div class="panel-head" data-drag="center" title="Drag to move this window">
         <span class="dgrip">⠿</span>
@@ -1548,6 +1742,10 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
        and the locked phone stack is untouched. -->
   <div class="wsbar" id="wsBar" role="tablist" aria-label="Workspaces">
     <span class="wstabs" id="wsTabs" title="Workspaces"></span>
+    <span class="ws-guest" id="wsGuest" hidden role="status">Saving a layout is for signed-in users.
+      <button type="button" class="ws-signin" title="Sign in to save a layout"
+              aria-label="Sign in to save a layout"
+              onclick="if(window.mtShowSignIn)window.mtShowSignIn()">SIGN IN</button></span>
     <button type="button" id="wsAddBtn" class="ws-add" title="New workspace" aria-label="New workspace">+</button>
   </div>
 
@@ -1557,32 +1755,14 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
 <script src="tickerfix.js"></script>
 <script>
 
-// ===== BACKEND CONFIG (GitHub Pages deployment) =====
-// Empty string = local/snapshot mode. Set to deployed backend URL (NO trailing
-// slash) to route all /api/* calls to the live server.
-// API_BASE: Render backend URL. Auto-detected: ?api= param > window.AUTH_API
-// (set by landing) > default Render service. Empty = snapshot mode.
-const API_BASE = (function(){
-  try{
-    // Allowed through the same origin check the sign-in form uses: a ?api= value
-    // that points anywhere but this origin or the known backend is ignored, so a
-    // crafted link cannot aim the terminal's requests at a host of its choosing.
-    var allow = (typeof window.__mxAllowedApi === "function") ? window.__mxAllowedApi : function(){ return ""; };
-    if(window.AUTH_API) return allow(window.AUTH_API);
-    return allow(new URLSearchParams(location.search).get("api"));
-  }catch(e){}
-  return "";
-})();
-const __origFetch = window.fetch;
-window.fetch = function(url, opts){
-  const u = String(url);
-  const isApi = u.indexOf('/api/') === 0;
-  if(isApi && API_BASE){
-    return __origFetch(API_BASE + u, opts);
-  }
-  return __origFetch(url, opts);
-};
-window.API_BASE = API_BASE;
+// ===== BACKEND CONFIG =====
+// The base is defined ONCE, in the head of this document (search for
+// "BACKEND CONFIG: ONE API BASE"), and published as window.API_BASE. It is set
+// before any panel frame exists, so a panel that reads window.parent.API_BASE
+// gets the live base on its first load rather than an empty string. This block
+// used to hold a second copy of the constant and a plain pass-through wrapper.
+// Both were removed: two copies of a URL drift, and a wrapper with no wait on it
+// left the terminal hanging on a cold backend instead of falling back.
 // ===== END BACKEND CONFIG =====
 
 // ===== App state =====
@@ -1830,8 +2010,13 @@ function panelUrl(p, symArg){
   const _file = _path.substring(_path.lastIndexOf('/') + 1);
   if(!_file || _file.toLowerCase() === 'index.html') return 'about:blank';
   const s = (symArg === undefined) ? curSec : symArg;
+  // The frame is told where the data API lives. A panel cannot read the shell's
+  // wrapper (it is a separate document), so without this it resolved a bare
+  // /api/... against the static host and got a 404; ?api= is the one way to hand
+  // it over that happens before the panel's own first fetch.
   return p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 'ex=' + currentEx
-    + (s ? '&sym=' + encodeURIComponent(s) : '') + '&v=' + Date.now();
+    + (s ? '&sym=' + encodeURIComponent(s) : '') + '&v=' + Date.now()
+    + (window.API_BASE ? '&api=' + encodeURIComponent(window.API_BASE) : '');
 }
 // render the center panel tabs (rebuilt when the user drags them into a new order)
 function renderTabs(){
@@ -2134,6 +2319,15 @@ function renderTabs(){
     }
 
     function save(){
+      // A GUEST'S ARRANGEMENT IS NOT AN ACCOUNT'S, so a guest writes NOTHING to
+      // storage. The arrangement still works for as long as the page is open
+      // (every window keeps its place, size and stacking in `spaces`, in memory),
+      // but it is never put under `mt_ws`: that key belongs to a signed-in
+      // reader's saved layout, and a visitor with no account must not be able to
+      // leave a record there or replace one that is already there. Nothing else
+      // is held back - moving, opening and closing windows is reading, and stays
+      // free. Saving a layout is the gated action (see saveLayout).
+      if(window.__mtGuest) return;
       const sp = cur();
       if(sp){
         // SAVING CAPTURES THE ARRANGEMENT AS IT IS ON SCREEN: every window's
@@ -2882,6 +3076,15 @@ function renderTabs(){
       if(!desk()) return;                 // desktop only, like the whole layer
       const sp = cur();
       if(!sp) return;
+      // SAVING IS ONE OF THE FEW THINGS THAT NEEDS AN ACCOUNT. A guest is told so
+      // in ONE line, in this strip, with the control that fixes it beside it -
+      // the same pattern the chat window carries for the room. Their arrangement
+      // keeps working on screen; it simply is not stored.
+      if(window.__mtGuest){
+        const line = document.getElementById('wsGuest');
+        if(line) line.hidden = false;
+        return;
+      }
       sp.auto = false;
       save();
       toast('LAYOUT SAVED - ' + sp.name);
@@ -3421,6 +3624,10 @@ window.MTPanelWins = (function(){
     });
   }
   function save(){
+    // The panel-window set is part of the arrangement, so a guest's copy stays in
+    // `state` (memory) only: it must not land under mt_panelwins either, or a
+    // visitor's arrangement would read back as an account's on this machine.
+    if(window.__mtGuest){ syncOwner(); return; }
     try{
       const out = {};
       Object.keys(WINS).forEach(function(id){
@@ -4290,9 +4497,22 @@ async function loadListing(ex){
   // security while this load is in flight, the board render below stands down
   const __selGen0 = __mkSelGen;
   try{
-    const url = window.API_BASE ? ('/api/listing?exchange=' + ex) : ('static_data/listing_' + ex + '.json');
-    const r = await fetch(url);
-    const d = await r.json();
+    // API first when a base is set, then the published file. A cold or dead base
+    // rejects inside MUTXRI_API_WAIT_MS (or at once, 0 ms, while it is marked
+    // down), so the fallback below is reached straight away and the board is
+    // built from the file exactly as it was before the API was wired in.
+    let d = null;
+    if(window.API_BASE){
+      try{
+        const ra = await fetch('/api/listing?exchange=' + ex);
+        const da = await ra.json();
+        if(da && Array.isArray(da.stocks) && da.stocks.length) d = da;
+      }catch(e){ mxFetchFailQuiet('listing api fail, reading the static file', e); }
+    }
+    if(!d){
+      const rf = await fetch('static_data/listing_' + ex + '.json');
+      d = await rf.json();
+    }
     listing[ex] = d.stocks || [];
     // Overlay the freshest market-snapshot prices onto the listing (EOD base)
     // in BOTH modes: pure static AND API mode (backend /api/quotes returns a
@@ -4580,30 +4800,39 @@ let quotes = {};
 async function primeQuotes(ex){
   const syms = (listing[ex]||[]).filter(s => s.sym).slice(0, 80).map(s => s.sym);
   if(!syms.length) return;
-  // static mode (GitHub Pages): load the per-exchange market snapshot so the
-  // watchlist shows the REAL current data (official feeds), not stale listing prices
-  if(!window.API_BASE){
-    try{
-      const r = await fetch('static_data/market_' + ex + '.json');
-      const d = await r.json();
-      window.__MKASOF = window.__MKASOF || {};
-      window.__MKASOF[ex] = fixMeridiem(d.asOf || d.generated || '');
-      (d.stocks || []).forEach(s => {
-        quotes[s.sym] = { price: s.price, changePct: s.chgPct, volume: s.volume, currency: s.currency };
-        if(s.ticker) quotes[s.ticker] = quotes[s.sym];
-      });
-      renderWatchlist($('q').value);
-      buildTape(ex);
-      return;
-    }catch(e){ console.error('market snapshot fail', e); }
-  }
+  // The per-exchange market snapshot is loaded FIRST, in both modes. It is the
+  // published base for every row on the watchlist and on the tape, and it is what
+  // makes the fallback immediate: the board is already filled before the API is
+  // asked, so a rejected call (cold, down, or slow) costs nothing on screen. The
+  // live route is a throttled subset on top of it, never a replacement for it.
+  try{
+    const r = await fetch('static_data/market_' + ex + '.json');
+    const d = await r.json();
+    window.__MKASOF = window.__MKASOF || {};
+    window.__MKASOF[ex] = fixMeridiem(d.asOf || d.generated || '');
+    (d.stocks || []).forEach(s => {
+      quotes[s.sym] = { price: s.price, changePct: s.chgPct, volume: s.volume, currency: s.currency };
+      if(s.ticker) quotes[s.ticker] = quotes[s.sym];
+    });
+    renderWatchlist($('q').value);
+    buildTape(ex);
+  }catch(e){ console.error('market snapshot fail', e); }
+  if(!window.API_BASE) return;
   try{
     const r = await fetch('/api/quotes?symbols=' + syms.join(','));
     const d = await r.json();
-    Object.assign(quotes, d);
+    // Per symbol: a record the route could not fill carries an "error" and no
+    // price, and that must leave the snapshot's row alone rather than blank it.
+    Object.keys(d || {}).forEach(function(k){
+      const q = d[k];
+      if(!q || typeof q !== 'object' || q.error || q.price == null) return;
+      quotes[k] = { price: q.price,
+                    changePct: q.changePct != null ? q.changePct : q.change,
+                    volume: q.volume, currency: q.currency };
+    });
     renderWatchlist($('q').value);
     buildTape(ex);
-  }catch(e){ console.error('quotes fail', e); }
+  }catch(e){ console.error('quotes fail, keeping the snapshot', e); }
 }
 
 // ===== Ticker tape =====
@@ -5335,9 +5564,39 @@ function openPanelTab(p){
 // else (mobile, the embed views, or a browser too narrow for windows) the legacy
 // single stage is used exactly as before, so nothing regresses there.
 // mode 'toggle' is for a bare panel code: typing it again closes that window.
+// Panels whose whole job is the paper book: trading in it and reading its
+// positions. Nothing about them is a live endpoint (the book is local), but they
+// are an account's trade record, so a guest asking for one is told, in one line
+// and in the place the request was made, that it is for signed-in users. Every
+// other panel - financials, bonds, news, heatmap - opens for a guest exactly as
+// it does for a reader with an account.
+var GUEST_PANELS = {
+  trade: 'Paper trading is for signed-in users.',
+  portfolio: 'The paper portfolio is for signed-in users.'
+};
+// ONE SHORT LINE AND THE CONTROL BESIDE IT, the pattern the chat window already
+// uses for the room. Nothing is asked for here and no field is filled: the
+// button only opens the sign-in card the gate already carries.
+function guestPrompt(msg, host){
+  const el = host || $('rightInfo');
+  if(!el) return;
+  el.innerHTML = '<div class="guest-line"><span>' + esc(msg) + '</span>' +
+    '<button type="button" class="guest-signin" aria-label="Sign in">SIGN IN</button></div>';
+  const b = el.querySelector('.guest-signin');
+  if(b) b.addEventListener('click', function(){
+    try{ if(window.mtShowSignIn) window.mtShowSignIn(); }catch(e){}
+  });
+}
 function openPanelWin(p, mode){
   if(typeof p === 'string') p = PANELS.find(x => x.id === String(p).toLowerCase()) || null;
   if(!p) return false;
+  // A GUEST ASKED FOR A GATED PANEL: say why, at the point of use, and open
+  // nothing. 'guest' tells the caller the panel did not open, so no answer can
+  // claim that it did.
+  if(window.__mtGuest && GUEST_PANELS[p.id]){
+    guestPrompt(GUEST_PANELS[p.id]);
+    return 'guest';
+  }
   if(window.MTPanelWins && window.MTPanelWins.active()){
     if(mode === 'toggle') window.MTPanelWins.toggle(p.id);
     else window.MTPanelWins.open(p.id);
@@ -6874,7 +7133,7 @@ function openStock(sym){
   // security's quote: the sections are cleared at selection, then drawn again by
   // mkRailRender once this security's files resolve
   try{ mkRailClear(); }catch(e){}
-  if(!window.API_BASE){
+  function mkInfoStatic(){
     fetch('static_data/market_' + ex + '.json').then(r => { if(!r.ok) throw 0; return r.json(); })
       .then(d => {
         const rows = d.stocks || [];
@@ -7576,6 +7835,10 @@ function renderStockInfo(d, sym){
         // a panel window on desktop, the centre stage everywhere else; the
         // answer names the one that actually happened
         const inWin = openPanelWin(p);
+        // A gated panel did not open, so the answer must not say it did: it says
+        // the same one line the finder shows, with the room's own sign-in
+        // control already sitting under this window.
+        if(inWin === 'guest') return esc((window.GUEST_PANELS && window.GUEST_PANELS[p.id]) || 'That panel is for signed-in users.');
         // On the stage path the panel lands in the centre window. Only where the
         // window manager is the thing placing windows: in an embed view it is
         // not, so opening it there would reopen nothing on screen and would only
