@@ -14,10 +14,11 @@
   With no ?view= the page draws THE DESK: the terminal's own START HERE
   workspace, as a picture. WATCHLIST runs down the left, MARKET is the large
   centre window (breadth, top gainers, top losers, most active), and FOCUS sits
-  above NEWS in the right column. Each window wears the shell's chrome: 1px
-  borders, a mono caps title bar with the mint underline, tabular numerals and
-  the same up and down colours. Each ?view= draws ONE panel instead, still a
-  picture and still inert:
+  above CHAT in the right column. CHAT is the shell's room window drawn as a
+  picture: a channel header and its message rows, never a composer. Each window
+  wears the shell's chrome: 1px borders, a mono caps title bar with the mint
+  underline, tabular numerals and the same up and down colours. Each ?view=
+  draws ONE panel instead, still a picture and still inert:
     watchlist   the board ordered by volume: ticker, name, price, change, volume
     chart       the candle chart alone, larger, 40 to 60 recent sessions
     financials  one liquid name's stored income statement, every period, with
@@ -37,6 +38,9 @@
 
   DATA READ (all static, all published):
     terminal/static_data/market_<EX>.json              quotes, breadth, tape
+    terminal/static_data/screener_<EX>.json            fallback board (price,
+                                                       change, volume, sector)
+    terminal/static_data/ex_<EX>_indices.json          index levels for the tape
     terminal/static_data/history/<KEY>.json            daily OHLC bars -> candles
     terminal/static_data/financials/<KEY>__income.json stored statement rows
     terminal/static_data/company_info.json             descriptive company facts
@@ -45,6 +49,14 @@
     terminal/static_data/ngx_corporate_actions.json    NGX dated actions
     terminal/static_data/jse_announcements.json        JSE SENS announcements
     terminal/static_data/egx_announcements.json        EGX announcements
+
+  SOURCE ORDER:
+    MARKET and FOCUS both read the board the WATCHLIST reads. market_<EX>.json
+    is asked for first because it carries the whole quote; if it is absent or
+    empty the same board is taken from screener_<EX>.json, which carries price,
+    change and volume but no previous close, open, high, low or market cap, and
+    those cells then print the house empty marker. The empty state names both
+    files and is only reached when neither one answers.
 
   HONESTY:
     - the exchange's own as-of string is printed in full in the top bar, and the
@@ -117,7 +129,7 @@
 
   /* ---------- layout: the desk ---------- */
   /* START HERE proportions: WATCHLIST down the left, MARKET large in the
-     centre, the right column split FOCUS over NEWS. Every window is the
+     centre, the right column split FOCUS over CHAT. Every window is the
      shell's own chrome: 1px line2 border, black body, a mono caps title bar
      carrying the drag glyph, the mint underline and the close glyph. */
   .grid{flex:1 1 auto;min-height:0;display:grid;gap:6px;padding:6px;min-width:0;}
@@ -126,8 +138,8 @@
   .win{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--bg);
     border:1px solid var(--line2);border-radius:3px;overflow:hidden;}
   .rcol{display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0;}
-  .w-focus{flex:0 0 44%;min-height:0;}
-  .w-news{flex:1 1 auto;min-height:0;}
+  .w-focus{flex:0 0 46%;min-height:0;}
+  .w-chat{flex:1 1 auto;min-height:0;}
 
   .whead{flex:0 0 auto;display:flex;align-items:stretch;gap:0;height:27px;padding:0 5px;
     background:#050505;border-bottom:1px solid var(--line2);}
@@ -203,12 +215,29 @@
   .fx-range{font-family:var(--mono);font-size:7.5px;color:var(--tx3);letter-spacing:.03em;
     padding:1px 10px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
-  /* ---------- NEWS window ---------- */
-  .nr{padding:4px 9px;border-bottom:1px solid var(--line);}
-  .nr-d{font-family:var(--mono);font-size:7.5px;letter-spacing:.04em;color:var(--tx3);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .nr-h{font-family:var(--ui);font-size:9.5px;line-height:1.32;color:var(--tx);padding-top:1px;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  /* ---------- CHAT window ---------- */
+  /* The shell's room window, drawn as a picture: a channel header, a room tag
+     and message rows carrying author, time and text. There is no composer, no
+     send control and no field, so nothing here can be typed into. */
+  .ch-top{display:flex;align-items:baseline;gap:6px;padding:6px 9px 5px;
+    border-bottom:1px solid var(--line);}
+  .ch-chan{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;
+    color:var(--acc);white-space:nowrap;}
+  .ch-room{font-family:var(--mono);font-size:7.5px;letter-spacing:.14em;color:var(--tx3);
+    border:1px solid var(--line2);border-radius:2px;padding:1px 4px;white-space:nowrap;}
+  .ch-sub{margin-left:auto;font-family:var(--mono);font-size:8px;letter-spacing:.04em;
+    color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ch-log{display:flex;flex-direction:column;gap:6px;padding:6px 9px;}
+  .ch-msg{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .ch-h{display:flex;align-items:baseline;gap:6px;font-family:var(--mono);font-size:8px;
+    letter-spacing:.06em;color:var(--tx3);white-space:nowrap;overflow:hidden;}
+  .ch-h .n{color:var(--acc);overflow:hidden;text-overflow:ellipsis;}
+  .ch-h .t{margin-left:auto;font-variant-numeric:tabular-nums;}
+  .ch-t{background:var(--bg3);border:1px solid var(--line);border-radius:3px;padding:4px 7px;
+    font-family:var(--mono);font-size:9.5px;line-height:1.45;color:var(--tx2);
+    word-wrap:break-word;overflow-wrap:anywhere;}
+  .ch-empty{padding:7px 9px;font-family:var(--mono);font-size:9px;line-height:1.65;
+    color:var(--tx3);letter-spacing:.02em;}
 
   /* ---------- chart, shared by ?view=chart ---------- */
   .chart-wrap{flex:1 1 auto;min-height:0;padding:0 8px;pointer-events:none;cursor:default;}
@@ -393,7 +422,7 @@
 
   <!-- THE DESK: the terminal's START HERE workspace, drawn as a picture.
        WATCHLIST runs down the left, MARKET is the large centre window, FOCUS
-       sits above NEWS in the right column. Each window carries the shell's own
+       sits above CHAT in the right column. Each window carries the shell's own
        chrome (drag glyph, mono caps title with the mint underline, close glyph)
        and nothing in any of them can be typed into, clicked or focused. -->
   <div class="grid desk" id="gridHero">
@@ -413,9 +442,9 @@
         <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">FOCUS</span><span class="wmeta" id="fxMeta"></span><span class="wx">X</span></div>
         <div class="wbody" id="fxBody"></div>
       </section>
-      <section class="win w-news">
-        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">NEWS</span><span class="wmeta" id="nwMetaMark"></span><span class="wx">X</span></div>
-        <div class="wbody" id="nwBody"></div>
+      <section class="win w-chat">
+        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">CHAT</span><span class="wmeta" id="chMeta"></span><span class="wx">X</span></div>
+        <div class="wbody" id="chBody"></div>
       </section>
     </div>
 
@@ -428,13 +457,10 @@
     </div>
   </div>
 
-  <div class="foot" id="foot">
-    <span>Display only: no search, no selection, no controls.</span>
-    <span class="sep">|</span>
-    <span id="footSrc">terminal/static_data/market_NSE.json</span>
-    <span class="sp"></span>
-    <span id="footBasis">every figure read from the published snapshot at render time</span>
-  </div>
+  <!-- The footer strip is not part of the display. It stays in the tree with an
+       empty body so the CSS rule that hides it is the only thing it carries;
+       no status line, no file path and no basis note is printed under the desk. -->
+  <div class="foot" id="foot" aria-hidden="true"></div>
 
 </div>
 
@@ -454,11 +480,13 @@
   if (!EXS[EX]) EX = "NSE";
   var CFG = EXS[EX];
 
-  var MB = null;      // market_<EX>.json
+  var MB = null;      // the board: market_<EX>.json, else screener_<EX>.json
   var IX = null;      // ex_<EX>_indices.json
   var HIST = null;    // history/<KEY>.json
   var HKEY = "";      // the history key that answered
   var HROW = null;    // the market row the candles belong to
+  var BOARD_FILE = "";   // the file the board came from
+  var BOARD_FULL = false; // true when the board carried the whole quote
 
   function $(id){ return document.getElementById(id); }
 
