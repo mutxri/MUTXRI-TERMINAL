@@ -2307,6 +2307,26 @@
       return;
     }
     try{
+      // The window is laid out by a CSS grid, so the container can still be
+      // zero sized when createChart runs. A chart created against a 0x0 box
+      // draws nothing and stays blank for the life of the page. Measure after
+      // layout, retry once, and keep watching the box.
+      (function(){
+        function fit(){
+          try{
+            var r = box.getBoundingClientRect();
+            if (r.width > 8 && r.height > 8){ CHT.chart.resize(Math.round(r.width), Math.round(r.height)); return true; }
+          }catch(e){}
+          return false;
+        }
+        if (!fit()){ setTimeout(fit, 250); setTimeout(fit, 900); setTimeout(fit, 2000); }
+        try {
+          if (typeof ResizeObserver !== "undefined"){
+            var ro = new ResizeObserver(function(){ fit(); });
+            ro.observe(box);
+          } else { window.addEventListener("resize", fit); }
+        } catch(e){}
+      })();
       CHT.series = CHT.chart.addSeries(LightweightCharts.CandlestickSeries, {
         upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
         wickUpColor:MINT, wickDownColor:RED,
