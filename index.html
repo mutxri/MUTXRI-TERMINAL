@@ -227,7 +227,26 @@ a{color:var(--acc);text-decoration:none;}
 
 .tf-url{font-family:var(--mono);font-size:11px;color:var(--tx3);margin-left:12px;letter-spacing:.03em;}
 
+/* the exchange buttons choose which snapshot the display frame shows; they sit
+   outside the frame, so the display itself stays a picture */
+.tf-ex{display:flex;align-items:center;gap:5px;margin-left:auto;}
+
+.tf-ex .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase;padding-right:3px;}
+
+.tf-ex button{font-family:var(--mono);font-size:10px;letter-spacing:.07em;color:var(--tx2);background:var(--bg2);
+  border:1px solid var(--line2);border-radius:3px;padding:4px 9px;cursor:pointer;transition:color .15s,border-color .15s;}
+
+.tf-ex button:hover{color:var(--tx);border-color:#3a3a3a;}
+
+.tf-ex button.on{color:var(--acc);border-color:rgba(51,226,154,.45);background:rgba(51,226,154,.07);}
+
 .tf-body{position:relative;height:min(74vh,720px);min-height:520px;background:var(--bg);}
+
+@media (max-width:700px){
+  .tf-bar{flex-wrap:wrap;row-gap:8px;}
+  .tf-ex{order:2;}
+  .tf-url{order:3;flex:1 1 100%;margin-left:0;font-size:10px;}
+}
 
 .tf-body iframe{width:100%;height:100%;border:0;display:block;pointer-events:none;}
 
@@ -296,7 +315,7 @@ a{color:var(--acc);text-decoration:none;}
 .f-shot .shot-placeholder{color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center;padding:20px;}
 
 .f-shot img{width:100%;height:100%;object-fit:cover;display:block;}
-.f-shot iframe{width:100%;height:100%;border:0;display:block;background:#000;}
+.f-shot iframe{width:100%;height:100%;border:0;display:block;background:#000;pointer-events:none;}
 
 .f-shot .shot-tag{position:absolute;bottom:10px;left:10px;font-family:var(--mono);font-size:10px;color:var(--acc);background:rgba(0,0,0,.7);padding:3px 8px;border-radius:3px;border:1px solid var(--line2);}
 
@@ -539,13 +558,21 @@ a{color:var(--acc);text-decoration:none;}
 
         <span class="tf-dot r"></span><span class="tf-dot y"></span><span class="tf-dot g"></span>
 
-        <span class="tf-url">mutxriterminal.com: the live terminal</span>
+        <span class="tf-url">mutxriterminal.com: the terminal, view only</span>
+
+        <span class="tf-ex">
+          <span class="lbl">Display</span>
+          <button type="button" data-ex="NSE" class="on">NSE</button>
+          <button type="button" data-ex="JSE">JSE</button>
+          <button type="button" data-ex="NGX">NGX</button>
+          <button type="button" data-ex="EGX">EGX</button>
+        </span>
 
       </div>
 
       <div class="tf-body">
 
-        <iframe src="terminal/" loading="lazy" scrolling="no" inert tabindex="-1" aria-hidden="true" title="MUTXRI TERMINAL preview"></iframe>
+        <iframe src="preview.html?ex=NSE" data-preview="1" loading="lazy" scrolling="no" inert tabindex="-1" aria-hidden="true" title="MUTXRI TERMINAL display preview"></iframe>
 
       </div>
 
@@ -834,7 +861,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/?ex=NSE" target="_blank" rel="noopener noreferrer">Open Watchlist</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/?ex=NSE&view=watchlist" data-ex="NSE" data-quote="1" loading="lazy" title="Live quote monitor"></iframe>
+        <iframe inert tabindex="-1" aria-hidden="true" src="terminal/?ex=NSE&view=watchlist" data-ex="NSE" data-quote="1" loading="lazy" title="Live quote monitor"></iframe>
         <span class="shot-tag">QUOTE MONITOR · NSE</span>
       </div>
     </div>
@@ -853,7 +880,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/?ex=JSE" target="_blank" rel="noopener noreferrer">Open Charts</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/?ex=JSE&view=watchlist&sym=SOL.JO" data-ex="JSE" loading="lazy" title="Live charts"></iframe>
+        <iframe inert tabindex="-1" aria-hidden="true" src="terminal/?ex=JSE&view=watchlist&sym=SOL.JO" data-ex="JSE" loading="lazy" title="Live charts"></iframe>
         <span class="shot-tag">CHARTS · JSE CANDLES</span>
       </div>
     </div>
@@ -872,7 +899,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/features/panels/mx_financials.html?ex=JSE" target="_blank" rel="noopener noreferrer">Open Financials</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/mx_financials.html?ex=JSE" data-ex="JSE" loading="lazy" title="Live financials"></iframe>
+        <iframe inert tabindex="-1" aria-hidden="true" src="terminal/features/panels/mx_financials.html?ex=JSE" data-ex="JSE" loading="lazy" title="Live financials"></iframe>
         <span class="shot-tag">FINANCIALS · STATEMENTS</span>
       </div>
     </div>
@@ -890,7 +917,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/features/panels/mx_screener.html?ex=NGX" target="_blank" rel="noopener noreferrer">Open Screener</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/mx_screener.html?ex=NGX" data-ex="NGX" loading="lazy" title="Live screener"></iframe>
+        <iframe inert tabindex="-1" aria-hidden="true" src="terminal/features/panels/mx_screener.html?ex=NGX" data-ex="NGX" loading="lazy" title="Live screener"></iframe>
         <span class="shot-tag">SCREENER · DATA-DRIVEN</span>
       </div>
     </div>
@@ -909,7 +936,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/?ex=JSE" target="_blank" rel="noopener noreferrer">Open Terminal</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/?ex=JSE&view=info&sym=SBK.JO" data-ex="JSE" loading="lazy" title="Company info"></iframe>
+        <iframe inert tabindex="-1" aria-hidden="true" src="terminal/?ex=JSE&view=info&sym=SBK.JO" data-ex="JSE" loading="lazy" title="Company info"></iframe>
         <span class="shot-tag">COMPANY INFO · SOURCED</span>
       </div>
     </div>
@@ -927,7 +954,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/features/panels/mx_news.html?ex=NGX" target="_blank" rel="noopener noreferrer">Open NEWS</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/mx_news.html?ex=NGX" data-ex="NGX" loading="lazy" title="News, wire and corporate actions"></iframe>
+        <iframe inert tabindex="-1" aria-hidden="true" src="terminal/features/panels/mx_news.html?ex=NGX" data-ex="NGX" loading="lazy" title="News, wire and corporate actions"></iframe>
         <span class="shot-tag">NEWS · DISCLOSURES</span>
       </div>
     </div>
@@ -945,7 +972,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/features/panels/mx_news.html?ex=NSE" target="_blank" rel="noopener noreferrer">Open News</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/mx_news.html?ex=NSE" data-ex="NSE" loading="lazy" title="News"></iframe>
+        <iframe inert tabindex="-1" aria-hidden="true" src="terminal/features/panels/mx_news.html?ex=NSE" data-ex="NSE" loading="lazy" title="News"></iframe>
         <span class="shot-tag">NEWS · REGULATORY</span>
       </div>
     </div>
@@ -970,7 +997,7 @@ a{color:var(--acc);text-decoration:none;}
         <a class="btn btn-ghost" href="terminal/?ex=NSE&amp;panel=trade" target="_blank" rel="noopener noreferrer">Open the demo</a>
       </div>
       <div class="f-shot">
-        <iframe src="terminal/features/panels/mx_trade.html?ex=NSE" data-ex="NSE" loading="lazy" title="Paper trading demo"></iframe>
+        <iframe inert tabindex="-1" aria-hidden="true" src="terminal/features/panels/mx_trade.html?ex=NSE" data-ex="NSE" loading="lazy" title="Paper trading demo"></iframe>
         <span class="shot-tag">TRADE &middot; DEMO</span>
       </div>
     </div>
@@ -1575,6 +1602,31 @@ function submitAuth(e){
     if(fr.contentDocument && fr.contentDocument.readyState === "complete") swallow(fr);
     fr.addEventListener("load", function(){ swallow(fr); });
   }
+})();
+</script>
+
+<script>
+// HERO DISPLAY FRAME: the frame shows landing/preview.html, a static display
+// with no search, no buttons and no links inside it. The exchange buttons in the
+// window bar are the only control, and they live out here on the landing page.
+// The frame itself keeps inert, tabindex="-1", aria-hidden and pointer-events:none,
+// so it cannot be clicked, focused or tabbed into whichever market it shows.
+(function(){
+  var fr = document.querySelector('iframe[data-preview="1"]');
+  if(!fr) return;
+  var btns = Array.prototype.slice.call(document.querySelectorAll('.tf-ex button[data-ex]'));
+  var ALLOWED = {NSE:1, JSE:1, NGX:1, EGX:1};
+  function show(ex){
+    ex = String(ex || '').toUpperCase();
+    if(!ALLOWED[ex]) ex = 'NSE';
+    var url = 'preview.html?ex=' + ex;
+    if(fr.getAttribute('src') !== url) fr.setAttribute('src', url);
+    btns.forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-ex') === ex); });
+  }
+  btns.forEach(function(b){
+    b.addEventListener('click', function(){ show(b.getAttribute('data-ex')); });
+  });
+  show('NSE');
 })();
 </script>
 </body>

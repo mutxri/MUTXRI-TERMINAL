@@ -145,7 +145,7 @@
     });
   }
   function body(){
-    var rows=sortRows(state.rows.slice());
+    var rows=sortRows(localFilter(state.rows,readFilters()));
     $("empty").textContent=state.dataErr?("Screener data unavailable for "+state.ex+" - no snapshot on file."):"No stocks match these filters.";
     $("empty").style.display=rows.length?"none":"block";
     $("body").innerHTML=rows.map(function(r){
@@ -208,7 +208,12 @@
     // honor ?ex= deep-link from the terminal (landing exchange dropdown) -
     // set AFTER restore() so the URL param wins over saved filters
     
-    $("bRun").onclick=run;$("bCsv").onclick=csv;$("bReset").onclick=reset;run();}
+    $("bRun").onclick=run;$("bCsv").onclick=csv;$("bReset").onclick=reset;
+    $("fSec").onchange=run;
+    ["fPmin","fPmax","fCmin","fVmin","fDmin"].forEach(function(id){
+      var el=$(id); if(el){el.oninput=function(){clearTimeout(window.__scrT);window.__scrT=setTimeout(run,250);};}
+    });
+    run();}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
 </script>
