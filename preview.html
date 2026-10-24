@@ -2161,6 +2161,16 @@
       CHT.pending = false;
       chtSetBars(hit);
       tryDraw(chtPaint);
+    }).catch(function(err){
+      // A rejected history read used to leave CHT.pending true for the life of
+      // the page: the panel sat on "Reading the published bars" and drew
+      // nothing, and because tryDraw returns false without reporting, no
+      // error was visible anywhere. Clear the flag and say so on the panel.
+      if (seq !== CHT.seq) return;
+      CHT.pending = false;
+      CHT.miss = "history read failed";
+      try { console.error("CHT history failed", err && (err.stack || err.message || err)); } catch(_){}
+      tryDraw(chtPaint);
     });
   }
 
