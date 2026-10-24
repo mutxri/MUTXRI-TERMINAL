@@ -7,11 +7,30 @@
   on it responds to a mouse or a keyboard. It exists so the landing page can show
   what the terminal looks like without handing the visitor a working application.
 
-  ONE FIXED VIEW, chosen only by the ?ex= parameter (NSE, JSE, NGX, EGX):
-    ../static_data/market_<EX>.json      ticker tape, market table, summary facts
-    ../static_data/ex_<EX>_indices.json  index levels for the summary column
-    ../static_data/history/<KEY>.json    the last 30 to 45 daily OHLC bars, drawn
-                                         as static candles in inline SVG
+  TWO PARAMETERS, nothing else:
+    ?ex=NSE|JSE|NGX|EGX   picks the board
+    ?view=NAME            picks which static panel is drawn under the header
+
+  With no ?view= the page draws its original composite: the market table, the
+  index and facts column and a candle chart. Each ?view= draws ONE panel, still
+  a picture and still inert:
+    watchlist   the board ordered by volume: ticker, name, price, change, volume
+    chart       the candle chart alone, larger, 40 to 60 recent sessions
+    financials  one liquid name's stored income statement, every period, with
+                its source file named in the caption
+    screener    the board ordered by change percent, with sector
+    info        the company profile facts on file for one name
+    news        the exchange's wire items: date, headline, source
+    trade       a paper blotter, or an honest empty state when no paper book
+                exists in this browser
+
+  DATA READ (all static, all published):
+    ../static_data/market_<EX>.json              ticker tape, market table, facts
+    ../static_data/ex_<EX>_indices.json          index levels for the summary column
+    ../static_data/history/<KEY>.json            daily OHLC bars, drawn as candles
+    ../static_data/financials/<KEY>__income.json stored statement rows and periods
+    ../static_data/company_info.json             descriptive company facts
+    ../static_data/<ex>_news.json                dated wire items
 
   HONESTY:
     - the exchange's own as-of string is printed in full, in the top bar and in
@@ -153,6 +172,68 @@
   .foot .sep{color:var(--line2);}
   .foot .sp{flex:1 1 auto;}
 
+  /* ---------- static display views (preview.html?view=...) ---------- */
+  /* every rule here builds a picture: no control, no hover state, no pointer */
+  .grid.one{grid-template-columns:minmax(0,1fr);grid-template-areas:"main";}
+  .grid.one>.card{grid-area:main;min-height:0;}
+  .vcard{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+  .vbody{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;}
+
+  .vrow{display:grid;align-items:center;gap:10px;height:24px;padding:0 11px;
+    border-bottom:1px solid var(--line);}
+  .vrow.hd{height:20px;background:var(--bg3);border-bottom:1px solid var(--line2);}
+  .vrow.hd span{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--tx3);
+    text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .vrow .num{text-align:right;}
+  .vw{grid-template-columns:78px minmax(0,1fr) 118px 84px 72px 96px;}
+  .vs{grid-template-columns:78px minmax(0,1fr) 168px 112px 76px;}
+  .vt{grid-template-columns:78px 76px 108px 108px 118px;}
+
+  .fcap{flex:0 0 auto;padding:6px 11px 5px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:8.5px;line-height:1.5;color:var(--tx3);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fcap b{color:var(--tx2);font-weight:400;}
+
+  .fintab{width:100%;border-collapse:collapse;table-layout:fixed;}
+  .finwrap{flex:1 1 auto;min-height:0;overflow:hidden;}
+  .fintab th{font-family:var(--mono);font-size:8px;font-weight:400;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--tx2);text-align:right;padding:4px 8px;
+    border-bottom:1px solid var(--line2);background:var(--bg3);height:28px;line-height:1.2;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fintab th span{display:block;font-size:6.5px;color:var(--tx3);letter-spacing:.1em;}
+  .fintab th:first-child{text-align:left;width:36%;}
+  .fintab td{font-family:var(--mono);font-size:10px;font-variant-numeric:tabular-nums;color:var(--tx);
+    text-align:right;padding:0 8px;height:var(--frow,17px);border-bottom:1px solid var(--line);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fintab td:first-child{text-align:left;font-family:var(--ui);font-size:10.5px;color:var(--tx2);}
+  .fintab td.abs{color:var(--tx3);}
+  .fintab tr.tot td:first-child{color:var(--tx);}
+
+  .nw{display:grid;grid-template-columns:88px minmax(0,1fr) 150px;gap:10px;padding:5px 11px;
+    border-bottom:1px solid var(--line);align-items:start;}
+  .nw-d{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.03em;padding-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nw-h{font-family:var(--ui);font-size:11px;line-height:1.35;color:var(--tx);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .nw-s{font-family:var(--mono);font-size:9px;color:var(--tx2);text-align:right;padding-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .inf{flex:0 0 auto;display:grid;grid-template-columns:136px minmax(0,1fr);gap:0 14px;padding:8px 12px 4px;}
+  .inf .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--tx3);
+    text-transform:uppercase;padding:4px 0;border-bottom:1px solid var(--line);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;}
+  .inf .v{font-family:var(--ui);font-size:11px;color:var(--tx);padding:4px 0;
+    border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .inftxt{flex:0 0 auto;padding:8px 12px;font-family:var(--ui);font-size:11px;line-height:1.55;
+    color:var(--tx2);overflow:hidden;}
+
+  .vempty{padding:12px;font-family:var(--mono);font-size:9.5px;line-height:1.7;color:var(--tx3);
+    letter-spacing:.03em;}
+  .vempty b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--tx2);
+    text-transform:uppercase;margin-bottom:4px;font-weight:700;}
+  .vempty .warn{color:var(--warn);}
+  .vchart{flex:1 1 auto;min-height:0;}
+
   @media (max-width:1100px){
     .tr{grid-template-columns:70px minmax(0,1fr) 96px 74px 88px;gap:8px;}
     .tr .c-lvl{display:none;}
@@ -198,6 +279,25 @@
     .tr{grid-template-columns:46px minmax(0,1fr) 60px 46px 52px;gap:5px;}
     .tr.hd span{font-size:7px;letter-spacing:.04em;}
   }
+  @media (max-width:900px){
+    .vw{grid-template-columns:62px minmax(0,1fr) 92px 64px 78px;}
+    .vw .c-lvl{display:none;}
+    .vs{grid-template-columns:62px minmax(0,1fr) 92px 88px 62px;}
+    .vt{grid-template-columns:62px 62px 84px 84px 96px;}
+    .vrow{gap:7px;padding:0 8px;height:22px;}
+    .vrow.hd{height:19px;}
+    .vrow.hd span{font-size:7.5px;letter-spacing:.06em;}
+    .nw{grid-template-columns:66px minmax(0,1fr) 112px;gap:7px;padding:4px 8px;}
+    .nw-h{font-size:10px;}
+    .nw-d,.nw-s{font-size:8px;}
+    .fintab th{font-size:6.5px;padding:4px 4px;letter-spacing:.02em;}
+    .fintab td{padding:0 4px;font-size:8.5px;}
+    .fintab td:first-child{font-size:9px;}
+    .fcap{font-size:7.5px;padding:4px 8px;}
+    .inf{grid-template-columns:104px minmax(0,1fr);gap:0 9px;padding:6px 8px 2px;}
+    .inf .k{font-size:7.5px;} .inf .v{font-size:10px;}
+    .inftxt{font-size:10px;padding:6px 8px;}
+  }
 </style>
 </head>
 <body>
@@ -213,7 +313,7 @@
 
   <div class="tape"><div class="tape-in" id="tapeIn"></div></div>
 
-  <div class="grid">
+  <div class="grid" id="gridHero">
 
     <div class="col-main">
 
@@ -255,6 +355,13 @@
       </div>
     </div>
 
+  </div>
+
+  <div class="grid one" id="gridView" hidden>
+    <div class="card vcard">
+      <div class="card-h"><span class="l" id="vTitle">-</span><span class="r" id="vMeta">-</span></div>
+      <div class="vbody" id="vbody"></div>
+    </div>
   </div>
 
   <div class="foot" id="foot">
@@ -402,20 +509,24 @@
     return out;
   }
 
-  function renderChart(){
-    var wrap = $("chartWrap"), svg = $("chart");
+  // One drawing routine, used twice: by the fixed hero card above (the default
+  // composite) and by ?view=chart, which asks for more sessions, fatter bodies
+  // and intermediate dates labelled. Every number comes from HIST; nothing is
+  // smoothed, filled or invented.
+  function drawCandles(opt){
+    var wrap = opt.wrap, svg = opt.svg, headEl = opt.head, noteEl = opt.note;
     var W = Math.max(180, wrap.clientWidth), H = Math.max(60, wrap.clientHeight);
     var bars = (HIST && HIST.bars) ? HIST.bars : [];
     var symTxt = HROW ? String(HROW.ticker || HROW.sym || "") : CFG.sym;
 
     if (!bars.length){
       svg.innerHTML = "";
-      $("chHead").textContent = symTxt + " no history on file";
-      $("chNote").textContent = "No daily history file answered for " + symTxt + " on " + EX + ", so no price series is drawn.";
+      headEl.textContent = symTxt + " no history on file";
+      noteEl.textContent = "No daily history file answered for " + symTxt + " on " + EX + ", so no price series is drawn.";
       return;
     }
 
-    var winN = W >= 1100 ? 45 : (W >= 700 ? 40 : 30);
+    var winN = opt.winN || (W >= 1100 ? 45 : (W >= 700 ? 40 : 30));
     var win = bars.slice(-winN).filter(function(b){ return b && b.t; });
 
     var full = [], closesOnly = 0;
@@ -428,12 +539,12 @@
     }
 
     var head = symTxt + " &middot; " + EX + " &middot; " + esc((HIST && HIST.currency) || CFG.cur);
-    $("chHead").innerHTML = head + " &middot; " + (full.length || win.length) + " sessions";
+    headEl.innerHTML = head + " &middot; " + (full.length || win.length) + " sessions";
 
     var note = "";
     if (!full.length){
       svg.innerHTML = "";
-      $("chNote").innerHTML = '<span class="warn">The history file for ' + esc(symTxt) +
+      noteEl.innerHTML = '<span class="warn">The history file for ' + esc(symTxt) +
         ' gives only a close for the window, so open, high and low are not available and no candles are drawn.</span>';
       return;
     }
@@ -457,13 +568,13 @@
       if (lag > 1) note += ' &middot; <span class="warn">last bar ' + esc(hiDate) + ', ' + lag +
         ' days before the ' + esc(sAsOf.iso) + ' session</span>';
     }
-    $("chNote").innerHTML = note;
+    noteEl.innerHTML = note;
 
     // ---- geometry ----
     var padL = 4, padR = 62, padT = 10, padB = 16;
     var plotW = Math.max(40, W - padL - padR), plotH = Math.max(30, H - padT - padB);
     var slot = plotW / full.length;
-    var bodyW = Math.max(3, Math.min(26, slot * 0.62));
+    var bodyW = Math.max(3, Math.min(opt.bodyCap || 26, slot * (opt.bodyFrac || 0.62)));
     var span = hi - lo;
     var padY = span > 0 ? span * 0.08 : (Math.abs(hi) > 0 ? Math.abs(hi) * 0.02 : 1);
     var yMin = lo - padY, yMax = hi + padY;
@@ -504,7 +615,17 @@
                  '" fill="' + col + '"/>');
     }
 
-    // first and last date shown
+    // first and last date shown; the standalone chart also labels two interior
+    // dates so the reader can place the middle of the window
+    if (opt.dateTicks){
+      var marks = [0.25, 0.5, 0.75];
+      for (var q = 0; q < marks.length; q++){
+        var idx = Math.min(full.length - 1, Math.max(0, Math.round((full.length - 1) * marks[q])));
+        var mx = padL + slot * (idx + 0.5);
+        parts.push('<text x="' + mx.toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle" fill="#6a6a6a" ' +
+                   'font-family="Oxygen Mono, monospace" font-size="9">' + esc(full[idx].t) + '</text>');
+      }
+    }
     parts.push('<text x="' + padL + '" y="' + (H - 4) + '" fill="#6a6a6a" font-family="Oxygen Mono, monospace" font-size="9">' +
                esc(loDate) + '</text>');
     parts.push('<text x="' + (W - padR) + '" y="' + (H - 4) + '" text-anchor="end" fill="#6a6a6a" ' +
@@ -514,6 +635,10 @@
     svg.setAttribute("width", W);
     svg.setAttribute("height", H);
     svg.innerHTML = parts.join("");
+  }
+
+  function renderChart(){
+    drawCandles({ wrap: $("chartWrap"), svg: $("chart"), head: $("chHead"), note: $("chNote") });
   }
 
   // ---- market table ------------------------------------------------------
@@ -656,17 +781,7 @@
   // history request. The key that answers is the key the chart panel would use:
   // EX_<ticker> on the NSE and NGX, <sym> on the JSE, <ticker>.CA on the EGX.
   // If no file answers, the chart says so rather than drawing something else.
-  function loadHistory(){
-    var rows = allRows();
-    var pref = String(CFG.sym).toUpperCase();
-    var row = null;
-    for (var i = 0; i < rows.length; i++){
-      if (String(rows[i].ticker || "").toUpperCase() === pref){ row = rows[i]; break; }
-    }
-    if (!row){
-      var p = priced();
-      row = p.length ? p[0] : null;
-    }
+  function loadHistoryFor(row){
     if (!row) return Promise.resolve(null);
     var keys = histKeys(row), kc = Promise.resolve(null);
     keys.forEach(function(k){
@@ -680,7 +795,497 @@
           .catch(function(){ return null; });
       });
     });
-    return kc.then(function(d){ HIST = d || null; });
+    return kc.then(function(d){ HIST = d || null; return HIST; });
+  }
+  function loadHistory(){
+    var rows = allRows();
+    var pref = String(CFG.sym).toUpperCase();
+    var row = null;
+    for (var i = 0; i < rows.length; i++){
+      if (String(rows[i].ticker || "").toUpperCase() === pref){ row = rows[i]; break; }
+    }
+    if (!row){
+      var p = priced();
+      row = p.length ? p[0] : null;
+    }
+    return loadHistoryFor(row);
+  }
+  // the standalone chart walks down the volume ranking until one security has a
+  // history file, and names whichever one answered. It never draws a series
+  // under another security's name.
+  function loadHistoryAny(){
+    var rows = priced();
+    var pref = String(CFG.sym).toUpperCase();
+    var order = rows.slice().sort(function(a, b){
+      var aw = String(a.ticker || "").toUpperCase() === pref ? 0 : 1;
+      var bw = String(b.ticker || "").toUpperCase() === pref ? 0 : 1;
+      return aw - bw;
+    }).slice(0, 14);
+    var i = 0;
+    function step(){
+      if (i >= order.length) return Promise.resolve(null);
+      var row = order[i++];
+      return loadHistoryFor(row).then(function(d){ return d ? d : step(); });
+    }
+    return step();
+  }
+
+  // ---- static display views ------------------------------------------------
+  // ?view= chooses the single panel drawn under the header. Every view is a
+  // picture built from divs, spans, one table and one SVG. There is no input,
+  // select, textarea, button or link in any of them, and no element that
+  // reports cursor:pointer: nothing here can be typed into, clicked, tabbed to
+  // or dragged. Figures come straight out of the published files; anything
+  // missing prints the house empty marker and never a zero or an estimate.
+  var VIEWS = ["watchlist", "chart", "financials", "screener", "info", "news", "trade"];
+  var VIEW = String(Q.get("view") || "").toLowerCase();
+  if (VIEWS.indexOf(VIEW) < 0) VIEW = "";
+
+  var CACHE = { fin: null, news: null, ci: null };
+
+  function curOf(r){ return String((r && r.currency) || CFG.cur).toUpperCase(); }
+
+  // a level change is printed only when the row's own percent agrees with it,
+  // the same guard the default table uses
+  function levelOf(r){
+    var p = num(r.price), prev = num(r.prevClose), c = num(r.chgPct);
+    if (p === null || prev === null || c === null || prev === 0) return null;
+    var calc = (p - prev) / prev * 100;
+    return Math.abs(calc - c) <= 0.02 ? p - prev : null;
+  }
+  function pxCell(r){
+    var p = num(r.price);
+    if (p === null) return '<span class="nq">no quote</span>';
+    var cur = curOf(r);
+    return fmtPx(p) + (cur !== CFG.cur.toUpperCase() ? '<span class="cur">' + esc(cur) + '</span>' : "");
+  }
+  function pctCell(c){ return c === null ? "-" : fmtPct(c); }
+  function lvlCell(l){
+    return '<span class="num c-lvl ' + cls(l) + '">' + (l === null ? "-" : (l > 0 ? "+" : "") + fmtPx(l)) + '</span>';
+  }
+  function fitRows(host, rowH, reserve){
+    var h = host.clientHeight || 240;
+    return Math.max(3, Math.floor((h - (reserve || 20)) / rowH));
+  }
+  function setView(title, meta){
+    $("vTitle").textContent = title || "";
+    $("vMeta").textContent = meta || "";
+  }
+  function setFoot(src, basis){
+    if (src) $("footSrc").textContent = src;
+    if (basis) $("footBasis").textContent = basis;
+  }
+  function viewError(title, msg){
+    $("vMeta").textContent = EX;
+    $("vbody").innerHTML = '<div class="vempty"><b>' + esc(title) + '</b>' + esc(msg) + '</div>';
+  }
+  function renderView(){
+    if (VIEW === "chart") return viewChart();
+    if (VIEW === "financials") return viewFinancials();
+    if (VIEW === "screener") return viewScreener();
+    if (VIEW === "info") return viewInfo();
+    if (VIEW === "news") return viewNews();
+    if (VIEW === "trade") return viewTrade();
+    return viewWatchlist();
+  }
+
+  // ---- watchlist: the board by volume, no controls -------------------------
+  function viewWatchlist(){
+    setView("Quote monitor", EX + " " + CFG.full);
+    var host = $("vbody"), rows = ranked(), rowH = 24;
+    var n = Math.min(fitRows(host, rowH), rows.length);
+    var out = ['<div class="vrow vw hd"><span>Ticker</span><span>Security</span>' +
+      '<span class="num">Price (' + esc(CFG.cur) + ')</span><span class="num c-lvl">Chg</span>' +
+      '<span class="num">Chg %</span><span class="num">Volume</span></div>'];
+    for (var i = 0; i < n; i++){
+      var r = rows[i], c = num(r.chgPct), v = num(r.volume);
+      out.push('<div class="vrow vw">' +
+        '<span class="tk">' + esc(r.ticker || r.sym || "") + '</span>' +
+        '<span class="nm">' + esc(r.name || "") + '</span>' +
+        '<span class="num">' + pxCell(r) + '</span>' +
+        lvlCell(levelOf(r)) +
+        '<span class="num ' + cls(c) + '">' + pctCell(c) + '</span>' +
+        '<span class="num dim">' + (v === null ? "-" : fmtInt(v)) + '</span>' +
+      '</div>');
+    }
+    host.innerHTML = out.join("");
+    setFoot("static_data/market_" + EX + ".json",
+      n + " of " + rows.length + " listed securities, ordered by volume, most traded first");
+  }
+
+  // ---- screener: the board by change percent, no filters -------------------
+  function viewScreener(){
+    setView("Screener", EX + " ordered by change percent");
+    var host = $("vbody"), rowH = 24;
+    var rows = allRows().filter(function(r){ return num(r.chgPct) !== null; });
+    rows.sort(function(a, b){ return num(b.chgPct) - num(a.chgPct); });
+    var n = Math.min(fitRows(host, rowH), rows.length);
+    var out = ['<div class="vrow vs hd"><span>Ticker</span><span>Security</span>' +
+      '<span>Sector</span><span class="num">Price (' + esc(CFG.cur) + ')</span>' +
+      '<span class="num">Chg %</span></div>'];
+    for (var i = 0; i < n; i++){
+      var r = rows[i], c = num(r.chgPct);
+      out.push('<div class="vrow vs">' +
+        '<span class="tk">' + esc(r.ticker || r.sym || "") + '</span>' +
+        '<span class="nm">' + esc(r.name || "") + '</span>' +
+        '<span class="nm">' + esc(r.sector || "-") + '</span>' +
+        '<span class="num">' + pxCell(r) + '</span>' +
+        '<span class="num ' + cls(c) + '">' + pctCell(c) + '</span>' +
+      '</div>');
+    }
+    host.innerHTML = out.join("");
+    setFoot("static_data/market_" + EX + ".json",
+      n + " of " + rows.length + " securities with a published change, highest change percent first");
+  }
+
+  // ---- chart: the same candles, alone and larger ---------------------------
+  function viewChart(){
+    setView("Price history", "loading the published bars");
+    $("vbody").innerHTML =
+      '<div class="chart-wrap vchart" id="vChartWrap">' +
+        '<svg id="vChart" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>' +
+      '</div>' +
+      '<div class="chart-note" id="vChartNote">-</div>';
+    return loadHistoryAny().then(function(){
+      function draw(){
+        var wrap = $("vChartWrap");
+        if (!wrap || !wrap.clientWidth) return;
+        var W = wrap.clientWidth;
+        drawCandles({
+          wrap: wrap, svg: $("vChart"), head: $("vMeta"), note: $("vChartNote"),
+          winN: W >= 1000 ? 56 : (W >= 700 ? 48 : 44),
+          bodyCap: 34, bodyFrac: 0.74, dateTicks: true
+        });
+      }
+      draw();
+      requestAnimationFrame(draw);
+      if (document.fonts && document.fonts.ready){ document.fonts.ready.then(draw).catch(function(){}); }
+      setFoot(HKEY ? "static_data/history/" + HKEY + ".json" : "static_data/history",
+        "candles from the published daily open, high, low and close, nothing interpolated");
+    });
+  }
+
+  // ---- financials: one stored income statement -----------------------------
+  // Statement lines only: ratio rows are left out (this is a statement view, not
+  // a ratio block) and a grouped line is printed as its stored total, so every
+  // figure on screen is one figure from the file, never a sum of my own.
+  function finKeys(row){
+    var t = String((row && row.ticker) || "").toUpperCase();
+    var s = String((row && row.sym) || "").toUpperCase();
+    var out = [];
+    function push(k){
+      k = String(k || "").toUpperCase();
+      if (k && out.indexOf(k) < 0) out.push(k);
+    }
+    push(s); push(t); push(s.split(".")[0]); push(t + ".JO"); push(t + ".CA");
+    return out;
+  }
+  var FIN_RANK = [
+    [/^revenue/i, 0], [/^turnover/i, 0], [/^direct costs/i, 1], [/^cost of sales/i, 1],
+    [/^cost of revenue/i, 1], [/^gross profit/i, 2], [/^operating expenses/i, 3],
+    [/^other operating/i, 4], [/^ebitda/i, 5], [/^operating profit/i, 6],
+    [/^net finance/i, 7], [/^finance/i, 7], [/^share of/i, 8], [/^profit before/i, 9],
+    [/^income tax/i, 10], [/^tax/i, 10],
+    [/^profit for/i, 11], [/^total profit/i, 11], [/^net profit/i, 11], [/^profit/i, 11],
+    [/^eps/i, 12], [/earnings per share/i, 12]
+  ];
+  function finRank(lbl){
+    for (var i = 0; i < FIN_RANK.length; i++){ if (FIN_RANK[i][0].test(lbl)) return FIN_RANK[i][1]; }
+    return 9.5;   // an unclassified line sits with the pre-tax block
+  }
+  function statementRows(rows){
+    var out = [];
+    for (var i = 0; i < rows.length; i++){
+      var r = rows[i] || {}, lbl = String(r.label || "").trim();
+      if (!lbl) continue;
+      if (r.isGroupHeader) continue;                                       // its total carries it
+      if (r.group && r.group !== "Ungrouped" && !r.isGroupTotal) continue;  // component lines
+      if (lbl === "Ungrouped" || lbl === "Group Total") continue;           // stored placeholders
+      if (/\(%\)$/.test(lbl) || /\bmargin\b/i.test(lbl)) continue;          // ratio block
+      if (/^roe\b/i.test(lbl) || /^roa\b/i.test(lbl) || /^debt to equity/i.test(lbl)) continue;
+      out.push({ label: lbl, values: r.values || [], tot: !!r.isGroupTotal || !!r.isStatementTotal, rank: finRank(lbl) });
+    }
+    out.sort(function(a, b){ return a.rank - b.rank; });   // stable within a rank
+    return out;
+  }
+  function finCell(v){
+    if (v === null || v === undefined || v === "") return '<td class="abs">-</td>';
+    var n = Number(v);
+    if (!isFinite(n)) return '<td class="abs">-</td>';
+    return '<td>' + esc(compact(n)) + '</td>';
+  }
+  function loadStatement(rows){
+    var order = rows.slice(0, 12), i = 0;
+    function step(){
+      if (i >= order.length) return Promise.resolve(null);
+      var row = order[i++];
+      var keys = finKeys(row), j = 0;
+      function tryKey(){
+        if (j >= keys.length) return step();
+        var k = keys[j++];
+        return get("../static_data/financials/" + encodeURIComponent(k) + "__income.json")
+          .then(function(d){
+            if (d && (d.rows || []).length && d.available !== false){
+              return { row: row, file: k + "__income.json", data: d };
+            }
+            return tryKey();
+          })
+          .catch(function(){ return tryKey(); });
+      }
+      return tryKey();
+    }
+    return step();
+  }
+  function drawStatement(hit){
+    var d = hit.data, row = hit.row;
+    var lines = statementRows(d.rows || []);
+    var periods = (d.periods || []).slice();
+    var cur = String(d.currency || curOf(row)).toUpperCase();
+    if (!lines.length || !periods.length){
+      viewError("Statement not on file", "The stored income statement for " + (row.ticker || row.sym) + " holds no line items.");
+      return;
+    }
+    var name = String(row.name || d.name || "").trim();
+    var cap = '<div class="fcap"><b>' + esc(name) + (row.ticker ? " &middot; " + esc(row.ticker) : "") +
+      " &middot; " + esc(EX) + '</b> &middot; income statement &middot; source static_data/financials/' +
+      esc(hit.file) + " &middot; " + lines.length + " statement lines of " + (d.rows || []).length +
+      " stored rows &middot; figures in " + esc(cur) + '</div>';
+
+    var head = '<tr><th>Line item &middot; ' + esc(cur) + '</th>';
+    for (var p = 0; p < periods.length; p++){
+      head += '<th>' + esc(periods[p]) + '<span>' + esc(cur) + '</span></th>';
+    }
+    head += '</tr>';
+
+    var body = '';
+    for (var i = 0; i < lines.length; i++){
+      var ln = lines[i];
+      body += '<tr' + (ln.tot ? ' class="tot"' : '') + '><td>' + esc(ln.label) + '</td>';
+      for (var c = 0; c < periods.length; c++){ body += finCell(ln.values[c]); }
+      body += '</tr>';
+    }
+
+    var host = $("vbody");
+    host.innerHTML = cap + '<div class="finwrap"><table class="fintab"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+    // the rows keep every line item: if they do not fit the frame at a legible
+    // height the table shrinks to the floor and the caption still names the file
+    var tab = host.querySelector(".fintab");
+    var avail = (host.clientHeight || 280) - (cap ? 24 : 0) - 30;
+    var rowH = Math.floor(avail / (lines.length + 1));
+    rowH = Math.max(12, Math.min(19, rowH));
+    if (tab) tab.style.setProperty("--frow", rowH + "px");
+
+    setView("Income statement", name + " · " + EX + " · " + hits(d));
+    setFoot("static_data/financials/" + hit.file,
+      "as stored in the file" + (d.asOf ? " on " + d.asOf : "") + "; an absent cell prints -, nothing is estimated");
+  }
+  function hits(d){ return ((d.periods || []).length) + " periods"; }
+  function viewFinancials(){
+    setView("Income statement", EX + " " + CFG.full);
+    if (CACHE.fin) { drawStatement(CACHE.fin); return Promise.resolve(); }
+    return loadStatement(ranked()).then(function(hit){
+      if (!hit){
+        viewError("No statement on file", "No income statement file answered for the most traded names on " + EX + ".");
+        setFoot("static_data/financials/", "no income statement file answered");
+        return;
+      }
+      CACHE.fin = hit;
+      drawStatement(hit);
+    }).catch(function(){
+      viewError("No statement on file", "The stored income statements could not be read for " + EX + ".");
+    });
+  }
+
+  // ---- info: the descriptive facts on file ---------------------------------
+  var INFO_FIELDS = [
+    ["Sector", "sector"], ["Currency", "currency"], ["Country", "country"],
+    ["Founded", "founded"], ["Listed", "listed"], ["Year end", "year_end"],
+    ["Transfer secretary", "transfer_secretary"], ["Indices", "indices"]
+  ];
+  function ciFor(CI, row){
+    if (!CI) return null;
+    var t = String(row.ticker || "").toUpperCase();
+    var s = String(row.sym || "").toUpperCase();
+    var bare = s.split(".")[0];
+    var cands = [t, s, bare, t + ".JO", t + ".CA", t + ".ZAc",
+      EX + ":" + t.toLowerCase(), EX.toLowerCase() + "-" + t.toLowerCase(),
+      EX.toLowerCase() + ":ke-" + t.toLowerCase(), "ke-" + t.toLowerCase(), "ng-" + t.toLowerCase()];
+    for (var i = 0; i < cands.length; i++){
+      var v = CI[cands[i]];
+      if (v && typeof v === "object") return v;
+    }
+    return null;
+  }
+  function viewInfo(){
+    setView("Company profile", EX + " " + CFG.full);
+    var rows = ranked();
+    var pref = String(CFG.sym).toUpperCase();
+    var order = rows.slice().sort(function(a, b){
+      return (String(a.ticker || "").toUpperCase() === pref ? 0 : 1) -
+             (String(b.ticker || "").toUpperCase() === pref ? 0 : 1);
+    }).slice(0, 30);
+    function paint(CI){
+      var pick = null, info = null;
+      for (var i = 0; i < order.length && !pick; i++){
+        var cand = ciFor(CI, order[i]);
+        if (cand){ info = cand; pick = order[i]; }
+      }
+      if (!pick){ pick = order[0] || null; info = null; }
+      if (!pick){ viewError("No security", "The market snapshot for " + EX + " holds no rows."); return; }
+
+      var name = String(info && info.name || pick.name || pick.ticker || "");
+      var f = [];
+      function line(k, v){
+        v = (v === null || v === undefined) ? "" : String(v).trim();
+        if (!v) return;
+        f.push('<div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div>');
+      }
+      line("Name", name);
+      line("Ticker", pick.ticker || pick.sym);
+      line("Exchange", EX + " " + CFG.full);
+      for (var q = 0; q < INFO_FIELDS.length; q++){
+        var key = INFO_FIELDS[q][1], sub = info ? info[key] : null;
+        if (!sub && key === "sector") sub = pick.sector;
+        if (!sub && key === "currency") sub = curOf(pick);
+        if (!sub && key === "country") sub = pick.country;
+        line(INFO_FIELDS[q][0], sub);
+      }
+      if (info && info.source) line("Entry source", info.source);
+
+      var html = '<div class="inf">' + f.join("") + '</div>';
+      if (info && info.description) html += '<div class="inftxt">' + esc(info.description) + '</div>';
+      $("vbody").innerHTML = html;
+      $("vMeta").textContent = name + (pick.ticker ? " · " + pick.ticker : "") + " · " + EX;
+      setFoot("static_data/company_info.json" + (info ? "" : " (no entry)"),
+        info ? "descriptive fields only; anything not on file is left out" : "no company profile entry on file for this security");
+    }
+    if (CACHE.ci){ paint(CACHE.ci); return Promise.resolve(); }
+    return get("../static_data/company_info.json").then(function(CI){
+      CACHE.ci = CI || {};
+      paint(CACHE.ci);
+    }).catch(function(){
+      viewError("Profile unavailable", "The company profile file could not be read.");
+    });
+  }
+
+  // ---- news: dated wire items, headlines as text ---------------------------
+  function tsISO(it){
+    var t = num(it && it.ts);
+    if (t === null || t < 100000000) return "";
+    var d = new Date(t * 1000);
+    if (isNaN(d.getTime())) return "";
+    var y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, dd = d.getUTCDate();
+    return y + "-" + (m < 10 ? "0" : "") + m + "-" + (dd < 10 ? "0" : "") + dd;
+  }
+  function paintNews(list){
+    var host = $("vbody"), rowH = 30;
+    var items = list.slice();
+    items.sort(function(a, b){
+      var x = num(a.ts), y = num(b.ts);
+      if (x === null && y === null) return 0;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return y - x;
+    });
+    var n = Math.min(fitRows(host, rowH, 26), items.length);
+    var out = [];
+    var firstD = "", lastD = "";
+    for (var i = 0; i < n; i++){
+      var it = items[i] || {};
+      var iso = tsISO(it);
+      var shown = iso || (it.date ? String(it.date).trim() : "");
+      if (!shown) shown = "undated";
+      if (!firstD) firstD = shown;
+      lastD = shown;
+      out.push('<div class="nw">' +
+        '<span class="nw-d">' + esc(shown) + '</span>' +
+        '<span class="nw-h">' + esc(it.title || "untitled item") + '</span>' +
+        '<span class="nw-s">' + esc(it.publisher || "source not stated") + '</span>' +
+      '</div>');
+    }
+    host.innerHTML = out.join("") ||
+      '<div class="vempty"><b>No wire items</b>No item is published in the file for ' + esc(EX) + '.</div>';
+    setView("News", EX + " " + CFG.full);
+    $("vMeta").textContent = n + " items · " + firstD + " to " + lastD;
+    setFoot("static_data/" + EX.toLowerCase() + "_news.json",
+      n + " of " + items.length + " wire items, newest first, dated from the item timestamp");
+  }
+  function viewNews(){
+    setView("News", EX + " " + CFG.full);
+    if (CACHE.news){ paintNews(CACHE.news); return Promise.resolve(); }
+    return get("../static_data/" + EX.toLowerCase() + "_news.json").then(function(list){
+      if (!list || !list.length){
+        viewError("No wire file", "No published news file answered for " + EX + ".");
+        setFoot("static_data/" + EX.toLowerCase() + "_news.json", "no items on file");
+        return;
+      }
+      CACHE.news = list;
+      paintNews(list);
+    }).catch(function(){
+      viewError("No wire file", "The news file for " + EX + " could not be read.");
+      setFoot("static_data/" + EX.toLowerCase() + "_news.json", "no items on file");
+    });
+  }
+
+  // ---- trade: a static paper blotter --------------------------------------
+  // The paper account lives in the visitor's own browser (the trade panel's
+  // mx_paper_v1 key). This page only reads it. If it holds no position for this
+  // exchange the blotter says so; no example trade is ever drawn.
+  function viewTrade(){
+    setView("Paper trading", EX + " paper blotter");
+    var host = $("vbody");
+    var book = null;
+    try{
+      var all = JSON.parse(localStorage.getItem("mx_paper_v1") || "{}");
+      book = (all && all[EX]) || null;
+    }catch(e){ book = null; }
+    var pos = (book && book.positions) || {};
+    var keys = Object.keys(pos).filter(function(k){
+      var q = num(pos[k] && pos[k].qty);
+      return q !== null && q !== 0;
+    });
+    var head = '<div class="vrow vt hd"><span>Ticker</span><span class="num">Quantity</span>' +
+               '<span class="num">Entry</span><span class="num">Current</span>' +
+               '<span class="num">Unrealised</span></div>';
+    if (!keys.length){
+      host.innerHTML = head + '<div class="vempty"><b>No open positions</b>' +
+        'This paper account is held in this browser (mx_paper_v1) and holds no ' + esc(EX) +
+        ' position, so there is nothing to value. Nothing is drawn here that was not traded.</div>';
+      setFoot("browser storage mx_paper_v1", "no paper position for " + EX + " in this browser");
+      return;
+    }
+    var idx = {};
+    var rows = allRows();
+    for (var i = 0; i < rows.length; i++){
+      var t = String(rows[i].ticker || "").toUpperCase();
+      if (t && !idx[t]) idx[t] = rows[i];
+      var s2 = String(rows[i].sym || "").toUpperCase();
+      if (s2 && !idx[s2]) idx[s2] = rows[i];
+    }
+    var out = [head], rowH = 24, shown = 0, total = 0;
+    var n = fitRows(host, rowH);
+    keys.sort();
+    for (var k = 0; k < keys.length; k++){
+      var sym = keys[k], p = pos[sym] || {};
+      var qty = num(p.qty), entry = num(p.avg);
+      var mrow = idx[String(sym).toUpperCase()] || null;
+      var now = mrow ? num(mrow.price) : null;
+      var un = (qty !== null && entry !== null && now !== null)
+        ? (qty > 0 ? (now - entry) * qty : (entry - now) * -qty) : null;
+      if (un !== null) total += un;
+      if (shown >= n) continue;
+      shown++;
+      out.push('<div class="vrow vt">' +
+        '<span class="tk">' + esc(sym) + '</span>' +
+        '<span class="num">' + (qty === null ? "-" : fmtInt(qty)) + '</span>' +
+        '<span class="num">' + (entry === null ? "-" : fmtPx(entry)) + '</span>' +
+        '<span class="num">' + (now === null ? '<span class="nq">no quote</span>' : fmtPx(now)) + '</span>' +
+        '<span class="num ' + cls(un) + '">' + (un === null ? "-" : (un > 0 ? "+" : "") + fmtPx(un)) + '</span>' +
+      '</div>');
+    }
+    host.innerHTML = out.join("");
+    setFoot("browser storage mx_paper_v1",
+      shown + " of " + keys.length + " open positions; current price from static_data/market_" + EX + ".json");
   }
 
   // ---- boot --------------------------------------------------------------
@@ -692,14 +1297,25 @@
     $("topAsOf").textContent = "loading the published snapshot";
     $("mktAsOf").textContent = "loading the published snapshot";
 
+    // ?view= swaps the composite for one panel; the header and the tape stay
+    var hero = !VIEW;
+    if (!hero){
+      $("gridHero").hidden = true;
+      $("gridView").hidden = false;
+    }
+
     return Promise.all([
       get("../static_data/market_" + EX + ".json").catch(function(){ return null; }),
       get("../static_data/ex_" + EX + "_indices.json").catch(function(){ return null; })
     ]).then(function(res){
       MB = res[0]; IX = res[1];
       if (!MB || !MB.stocks){
-        $("rows").innerHTML = '<div class="tr"><span class="nq" style="grid-column:1/-1">Market snapshot unavailable for ' + esc(EX) + '</span></div>';
         $("topAsOf").textContent = "session as-of not stated";
+        if (!hero){
+          viewError("Snapshot unavailable", "No market snapshot answered for " + EX + ", so there is nothing to draw.");
+          return null;
+        }
+        $("rows").innerHTML = '<div class="tr"><span class="nq" style="grid-column:1/-1">Market snapshot unavailable for ' + esc(EX) + '</span></div>';
         $("mktAsOf").textContent = "session as-of not stated";
         $("chNote").textContent = "No market snapshot answered for " + EX + ", so no candles are drawn.";
         renderIndices();
@@ -707,12 +1323,14 @@
       }
       renderChrome();
       renderTape();
+      if (!hero) return renderView();
       renderIndices();
       renderFacts();
       renderTable();
       return loadHistory();
     }).then(function(){
       renderChrome();
+      if (VIEW){ return; }
       renderChart();
       // the side column is content-sized on a narrow screen, so the table is
       // measured only once that content is in place; one more pass after the
@@ -722,6 +1340,7 @@
         document.fonts.ready.then(function(){ renderTable(); renderChart(); }).catch(function(){});
       }
     }).catch(function(){
+      if (VIEW){ viewError("Could not read the snapshot", "Nothing is drawn rather than something guessed."); return; }
       $("chNote").textContent = "The snapshot could not be read, so nothing is drawn.";
     });
   }
@@ -732,6 +1351,7 @@
     rt = setTimeout(function(){
       if (!MB) return;
       renderTape();
+      if (VIEW){ renderView(); return; }
       renderTable();
       renderChart();
     }, 140);
