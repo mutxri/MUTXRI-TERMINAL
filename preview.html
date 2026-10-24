@@ -11,14 +11,18 @@
     ?ex=NSE|JSE|NGX|EGX   picks the board
     ?view=NAME            picks which static panel is drawn under the header
 
-  With no ?view= the page draws THE DESK: the terminal's own START HERE
-  workspace, as a picture. WATCHLIST runs down the left, MARKET is the large
-  centre window (breadth, top gainers, top losers, most active), and FOCUS sits
-  above CHAT in the right column. CHAT is the shell's room window drawn as a
-  picture: a channel header and its message rows, never a composer. Each window
-  wears the shell's chrome: 1px borders, a mono caps title bar with the mint
-  underline, tabular numerals and the same up and down colours. Each ?view=
-  draws ONE panel instead, still a picture and still inert:
+  With no ?view= the page draws THE DESK: eight windows tiled edge to edge the
+  way a desk terminal tiles its wall, so the visitor sees a whole workspace
+  rather than one panel. Band A carries WATCHLIST down the narrow left column,
+  MARKET as the large centre window (breadth, top gainers, top losers, most
+  active) and FOCUS as the narrow right column. Band B carries COMPARE (four
+  securities read across), HEATMAP (a treemap of the exchange) and MACRO (the
+  policy rate, inflation, GDP, the exchange rate, the fiscal balance and the
+  debt ratio). Band C carries CHART (the candles, small) and CHAT (the shell's
+  room window drawn as a picture: a channel header and its message rows, never
+  a composer). Each window wears the shell's chrome: 1px borders, a mono caps
+  title bar with the mint underline, tabular numerals and the same up and down
+  colours. Each ?view= draws ONE panel instead, still a picture and still inert:
     watchlist   the board ordered by volume: ticker, name, price, change, volume
     chart       the candle chart alone, larger, 40 to 60 recent sessions
     financials  one liquid name's stored income statement, every period, with
@@ -37,7 +41,14 @@
   production even though it resolves in the source tree.
 
   DATA READ (all static, all published):
-    terminal/static_data/market_<EX>.json              quotes, breadth, tape
+    terminal/static_data/market_<EX>.json              quotes, breadth, tape,
+                                                       the COMPARE columns and
+                                                       the HEATMAP tile sizes
+    terminal/static_data/heatmap_<EX>.json             treemap names, change %
+    terminal/static_data/macro_rates.json              policy rate, 91-day bill
+    terminal/static_data/macro.json                    inflation, GDP, GDP growth
+    terminal/static_data/macro_fiscal.json             fiscal balance, gross debt
+    terminal/static_data/fx.json                       the exchange rate
     terminal/static_data/screener_<EX>.json            fallback board (price,
                                                        change, volume, sector)
     terminal/static_data/ex_<EX>_indices.json          index levels for the tape
@@ -126,18 +137,21 @@
   .tape-i .ch{font-family:var(--mono);font-size:10px;font-variant-numeric:tabular-nums;}
 
   /* ---------- layout: the desk ---------- */
-  /* START HERE proportions: WATCHLIST down the left, MARKET large in the
-     centre, the right column split FOCUS over CHAT. Every window is the
-     shell's own chrome: 1px line2 border, black body, a mono caps title bar
-     carrying the drag glyph, the mint underline and the close glyph. */
-  .grid{flex:1 1 auto;min-height:0;display:grid;gap:6px;padding:6px;min-width:0;}
-  .grid.desk{grid-template-columns:minmax(146px,.21fr) minmax(0,1fr) minmax(152px,.245fr);
-    grid-template-rows:minmax(0,1fr);}
+  /* Eight tiles on three bands, tiled edge to edge the way a desk terminal
+     tiles its wall: a narrow WATCHLIST column, the big MARKET window in the
+     centre with the narrow FOCUS column beside it, then a band of three
+     (COMPARE, HEATMAP, MACRO) and a band of two (CHART, CHAT). The bands are
+     flex children of the desk and each band is its own grid, so the tiles
+     cover the frame with no uncovered pixel and no overlap at any size: the
+     tiles abut, each carrying its own 1px border as the seam. */
+  .grid{flex:1 1 auto;min-height:0;display:grid;padding:0;min-width:0;}
+  .grid.desk{display:flex;flex-direction:column;gap:0;padding:0;}
+  .band{display:grid;gap:0;min-height:0;min-width:0;}
+  .band-a{flex:1.65 1 0;grid-template-columns:minmax(150px,.19fr) minmax(0,1fr) minmax(196px,.25fr);}
+  .band-b{flex:1.1 1 0;grid-template-columns:minmax(0,1.45fr) minmax(0,1.45fr) minmax(0,1fr);}
+  .band-c{flex:.8 1 0;grid-template-columns:minmax(0,2.2fr) minmax(0,1fr);}
   .win{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--bg);
-    border:1px solid var(--line2);border-radius:3px;overflow:hidden;}
-  .rcol{display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0;}
-  .w-focus{flex:0 0 50%;min-height:0;}
-  .w-chat{flex:1 1 auto;min-height:0;}
+    border:1px solid var(--line2);border-radius:0;overflow:hidden;}
 
   .whead{flex:0 0 auto;display:flex;align-items:stretch;gap:0;height:27px;padding:0 5px;
     background:#050505;border-bottom:1px solid var(--line2);}
@@ -183,7 +197,8 @@
   .mk-br{display:flex;gap:10px;padding:5px 0 0;font-family:var(--mono);font-size:10px;
     font-variant-numeric:tabular-nums;}
   .mk-br .tone{margin-left:auto;font-size:8.5px;letter-spacing:.1em;align-self:center;}
-  .mk-body{padding:2px 10px 6px;}
+  .mk-body{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px;padding:2px 10px 6px;}
+  .mcol{min-width:0;overflow:hidden;}
   .msec{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;font-weight:700;color:var(--tx3);
     padding:6px 0 3px;border-bottom:1px solid var(--line2);}
   .mrow{display:grid;grid-template-columns:52px minmax(0,1fr) auto auto;gap:1px 8px;padding:3px 0;
@@ -236,6 +251,61 @@
     word-wrap:break-word;overflow-wrap:anywhere;}
   .ch-empty{padding:7px 9px;font-family:var(--mono);font-size:9px;line-height:1.65;
     color:var(--tx3);letter-spacing:.02em;}
+
+  /* ---------- COMPARE: four securities side by side ---------- */
+  /* One row per measure, one column per security, so the four are read across
+     rather than one after another: the same last, change, change percent,
+     session low and high and the same range bar for each of them. */
+  .cmp-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+  #cmpBody{display:flex;flex-direction:column;}
+  .cmp-r{display:grid;grid-template-columns:54px repeat(var(--cc,4),minmax(0,1fr));gap:0 6px;
+    flex:0 0 auto;align-items:center;height:17px;padding:0 7px;border-bottom:1px solid var(--line);}
+  .cmp-r.hdr{height:19px;background:var(--bg3);border-bottom:1px solid var(--line2);}
+  .cmp-r.nm{height:13px;border-bottom:1px solid var(--line2);}
+  .cmp-r .l{font-family:var(--mono);font-size:7px;letter-spacing:.1em;color:var(--tx3);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cmp-r b{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.04em;color:var(--acc);
+    text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cmp-r .v{font-family:var(--mono);font-size:9px;font-variant-numeric:tabular-nums;color:var(--tx);
+    text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cmp-r .n{font-family:var(--ui);font-size:7.5px;color:var(--tx3);text-align:right;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cmp-bar{display:block;height:5px;background:#0b0b0b;border:1px solid #1d1d1d;position:relative;}
+  .cmp-bar i{position:absolute;top:-1px;width:2px;height:5px;background:var(--acc);}
+
+  /* ---------- MACRO: one indicator per row, with value, period and unit --- */
+  #mcBody{display:flex;flex-direction:column;}
+  .mc-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+  .mc-r{display:grid;grid-template-columns:minmax(0,1fr) auto 40px;gap:0 6px;flex:0 0 auto;
+    align-items:baseline;padding:2px 8px;border-bottom:1px solid var(--line);}
+  .mc-r .k{font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--tx2);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mc-r .k i{display:block;font-style:normal;font-family:var(--ui);font-size:7px;letter-spacing:.02em;
+    color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mc-r .v{font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums;color:var(--tx);
+    text-align:right;white-space:nowrap;}
+  .mc-r .v em{font-style:normal;font-size:7px;color:var(--tx3);letter-spacing:.02em;padding-left:3px;}
+  .mc-r .p{font-family:var(--mono);font-size:7.5px;color:var(--tx3);text-align:right;
+    font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* ---------- HEATMAP: static treemap blocks, no hover, no click ---------- */
+  #hmBody{display:flex;flex-direction:column;}
+  .hm-plot{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;background:#000;}
+  .hm-t{position:absolute;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;border:1px solid #000;}
+  .hm-t b{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.02em;color:#f2fbf6;
+    line-height:1.05;white-space:nowrap;}
+  .hm-t i{font-style:normal;font-family:var(--mono);font-size:7.5px;font-variant-numeric:tabular-nums;
+    color:rgba(242,251,246,.74);line-height:1.05;white-space:nowrap;}
+  .tile-cap{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:2px 7px;border-top:1px solid var(--line);font-family:var(--mono);font-size:7px;
+    letter-spacing:.03em;color:var(--tx3);white-space:nowrap;overflow:hidden;}
+  .tile-cap b{color:var(--tx2);font-weight:400;}
+
+  /* ---------- CHART tile: candles only, no axis labels at this size ------ */
+  #chBodyChart{display:flex;flex-direction:column;}
+  .chart-tile{flex:1 1 auto;min-height:0;padding:3px 5px 0;pointer-events:none;}
+  .chart-tile svg{display:block;width:100%;height:100%;pointer-events:none;}
 
   /* ---------- chart, shared by ?view=chart ---------- */
   .chart-wrap{flex:1 1 auto;min-height:0;padding:0 8px;pointer-events:none;cursor:default;}
@@ -337,9 +407,12 @@
   .vchart{flex:1 1 auto;min-height:0;}
 
   @media (max-width:1100px){
-    .grid.desk{grid-template-columns:minmax(126px,.22fr) minmax(0,1fr) minmax(132px,.25fr);}
+    .band-a{grid-template-columns:minmax(126px,.22fr) minmax(0,1fr) minmax(168px,.26fr);}
+    .band-b{grid-template-columns:minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1fr);}
+    .band-c{grid-template-columns:minmax(0,2fr) minmax(0,1fr);}
     .mrow{grid-template-columns:46px minmax(0,1fr) auto auto;gap:1px 6px;}
     .fx-px{font-size:18px;}
+    .cmp-r{grid-template-columns:46px repeat(var(--cc,4),minmax(0,1fr));gap:0 4px;}
   }
   @media (max-width:860px){
     .top{height:40px;gap:9px;padding:0 10px;}
@@ -347,9 +420,10 @@
     .top-ex i{display:none;}
     .top-asof{font-size:9px;}
     .tape{height:30px;}
-    .grid{gap:5px;padding:5px;}
-    .grid.desk{grid-template-columns:minmax(104px,.30fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);}
-    .rcol{display:none;}
+    .band-a{grid-template-columns:minmax(104px,.3fr) minmax(0,1fr);}
+    .band-b{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
+    .band-c{grid-template-columns:minmax(0,1fr);}
+    .w-focus,.w-chat{display:none;}
     .whead{height:23px;}
     .wtab{font-size:8px;letter-spacing:.1em;padding:0 4px;}
     .wmeta{font-size:7px;}
@@ -380,7 +454,7 @@
   /* A short frame: the FOCUS quote keeps every one of its fields and gives up
      the room the sparkline was taking, rather than dropping a line of the
      quote. The range note stays, so the window still says what history it had. */
-  @media (max-height:790px){
+  @media (max-height:900px){
     .fx-kv span,.fx-kv b{padding:1.5px 0;}
     .fx-line{height:34px;}
     .fx-px{font-size:18px;padding-top:2px;}
@@ -428,32 +502,69 @@
 
   <div class="tape"><div class="tape-in" id="tapeIn"></div></div>
 
-  <!-- THE DESK: the terminal's START HERE workspace, drawn as a picture.
-       WATCHLIST runs down the left, MARKET is the large centre window, FOCUS
-       sits above CHAT in the right column. Each window carries the shell's own
-       chrome (drag glyph, mono caps title with the mint underline, close glyph)
-       and nothing in any of them can be typed into, clicked or focused. -->
+  <!-- THE DESK: eight tiles on three bands, drawn as a picture.
+       Band A: WATCHLIST (narrow) | MARKET (the big centre window) | FOCUS
+       (narrow). Band B: COMPARE | HEATMAP | MACRO. Band C: CHART | CHAT.
+       Each tile carries the shell's chrome (drag glyph, mono caps title with
+       the mint underline, close glyph) and nothing in any of them can be
+       typed into, clicked, focused or hovered. -->
   <div class="grid desk" id="gridHero">
 
-    <section class="win w-watch">
-      <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">WATCHLIST</span><span class="wmeta" id="wlMeta"></span><span class="wx">X</span></div>
-      <div class="wbody" id="wlBody"></div>
-    </section>
+    <div class="band band-a">
 
-    <section class="win w-mkt">
-      <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">MARKET</span><span class="wmeta" id="mkMetaMark"></span><span class="wx">X</span></div>
-      <div class="wbody" id="mkBody"></div>
-    </section>
+      <section class="win w-watch">
+        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">WATCHLIST</span><span class="wmeta" id="wlMeta"></span><span class="wx">X</span></div>
+        <div class="wbody" id="wlBody"></div>
+      </section>
 
-    <div class="rcol">
+      <section class="win w-mkt">
+        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">MARKET</span><span class="wmeta" id="mkMetaMark"></span><span class="wx">X</span></div>
+        <div class="wbody" id="mkBody"></div>
+      </section>
+
       <section class="win w-focus">
         <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">FOCUS</span><span class="wmeta" id="fxMeta"></span><span class="wx">X</span></div>
         <div class="wbody" id="fxBody"></div>
       </section>
+
+    </div>
+
+    <div class="band band-b">
+
+      <section class="win w-cmp">
+        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">COMPARE</span><span class="wmeta" id="cmpMeta"></span><span class="wx">X</span></div>
+        <div class="wbody" id="cmpBody"></div>
+      </section>
+
+      <section class="win w-hm">
+        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">HEATMAP</span><span class="wmeta" id="hmMeta"></span><span class="wx">X</span></div>
+        <div class="wbody" id="hmBody"></div>
+      </section>
+
+      <section class="win w-mc">
+        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">MACRO</span><span class="wmeta" id="mcMeta"></span><span class="wx">X</span></div>
+        <div class="wbody" id="mcBody"></div>
+      </section>
+
+    </div>
+
+    <div class="band band-c">
+
+      <section class="win w-chart">
+        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">CHART</span><span class="wmeta" id="chartMeta"></span><span class="wx">X</span></div>
+        <div class="wbody" id="chBodyChart">
+          <div class="chart-tile" id="chChartWrap">
+            <svg id="chChart" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
+          </div>
+          <div class="tile-cap" id="chCap">loading the published bars</div>
+        </div>
+      </section>
+
       <section class="win w-chat">
         <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">CHAT</span><span class="wmeta" id="chMeta"></span><span class="wx">X</span></div>
         <div class="wbody" id="chBody"></div>
       </section>
+
     </div>
 
   </div>
@@ -486,10 +597,10 @@
   "use strict";
 
   var EXS = {
-    NSE: { full: "Nairobi Securities Exchange", cur: "KES", sym: "SCOM", country: "Kenya" },
-    JSE: { full: "Johannesburg Stock Exchange", cur: "ZAc", sym: "NPN", country: "South Africa" },
-    NGX: { full: "Nigerian Exchange",           cur: "NGN", sym: "GTCO", country: "Nigeria" },
-    EGX: { full: "Egyptian Exchange",           cur: "EGP", sym: "HRHO", country: "Egypt" }
+    NSE: { full: "Nairobi Securities Exchange", cur: "KES", sym: "SCOM", country: "Kenya", iso: "KE" },
+    JSE: { full: "Johannesburg Stock Exchange", cur: "ZAc", sym: "NPN", country: "South Africa", iso: "ZA" },
+    NGX: { full: "Nigerian Exchange",           cur: "NGN", sym: "GTCO", country: "Nigeria", iso: "NG" },
+    EGX: { full: "Egyptian Exchange",           cur: "EGP", sym: "HRHO", country: "Egypt", iso: "EG" }
   };
 
   var Q = new URLSearchParams(location.search);
@@ -504,6 +615,11 @@
   var HROW = null;    // the market row the candles belong to
   var BOARD_FILE = "";   // the file the board came from
   var BOARD_FULL = false; // true when the board carried the whole quote
+  var HM = null;         // heatmap_<EX>.json
+  var HM_LOADED = false; // true once that request has answered or failed
+  var MC = null;         // { rates, cpi, fisc, fx } from the macro files
+  var MC_LOADED = false; // true once those requests have answered or failed
+  var HDONE = null;      // the security whose history is loaded for the desk
 
   function $(id){ return document.getElementById(id); }
 
@@ -650,15 +766,16 @@
   // and intermediate dates labelled. Every number comes from HIST; nothing is
   // smoothed, filled or invented.
   function drawCandles(opt){
-    var wrap = opt.wrap, svg = opt.svg, headEl = opt.head, noteEl = opt.note;
+    var wrap = opt.wrap, svg = opt.svg, headEl = opt.head || null, noteEl = opt.note || null;
+    var lite = !!opt.lite;                        // the desk tile: candles only
     var W = Math.max(180, wrap.clientWidth), H = Math.max(60, wrap.clientHeight);
     var bars = (HIST && HIST.bars) ? HIST.bars : [];
     var symTxt = HROW ? String(HROW.ticker || HROW.sym || "") : CFG.sym;
 
     if (!bars.length){
       svg.innerHTML = "";
-      headEl.textContent = symTxt + " no history on file";
-      noteEl.textContent = "No daily history file answered for " + symTxt + " on " + EX + ", so no price series is drawn.";
+      if (headEl) headEl.textContent = symTxt + " no history on file";
+      if (noteEl) noteEl.textContent = "No daily history file answered for " + symTxt + " on " + EX + ", so no price series is drawn.";
       return;
     }
 
@@ -675,12 +792,12 @@
     }
 
     var head = symTxt + " &middot; " + EX + " &middot; " + esc((HIST && HIST.currency) || CFG.cur);
-    headEl.innerHTML = head + " &middot; " + (full.length || win.length) + " sessions";
+    if (headEl) headEl.innerHTML = head + " &middot; " + (full.length || win.length) + " sessions";
 
     var note = "";
     if (!full.length){
       svg.innerHTML = "";
-      noteEl.innerHTML = '<span class="warn">The history file for ' + esc(symTxt) +
+      if (noteEl) noteEl.innerHTML = '<span class="warn">The history file for ' + esc(symTxt) +
         ' gives only a close for the window, so open, high and low are not available and no candles are drawn.</span>';
       return;
     }
@@ -704,10 +821,11 @@
       if (lag > 1) note += ' &middot; <span class="warn">last bar ' + esc(hiDate) + ', ' + lag +
         ' days before the ' + esc(sAsOf.iso) + ' session</span>';
     }
-    noteEl.innerHTML = note;
+    noteEl && (noteEl.innerHTML = note);
 
     // ---- geometry ----
     var padL = 4, padR = 62, padT = 10, padB = 16;
+    if (lite){ padR = 4; padT = 6; padB = 5; }
     var plotW = Math.max(40, W - padL - padR), plotH = Math.max(30, H - padT - padB);
     var slot = plotW / full.length;
     var bodyW = Math.max(3, Math.min(opt.bodyCap || 26, slot * (opt.bodyFrac || 0.62)));
@@ -723,9 +841,11 @@
     }
 
     var parts = [];
-    // horizontal grid and the price labels on the right; these are the range
+    // horizontal grid and the price labels on the right; these are the range.
+    // The desk tile leaves them out: at that size the labels would be the only
+    // thing you could read, and the caption carries the numbers instead.
     var ticks = 4;
-    for (var t = 0; t <= ticks; t++){
+    for (var t = 0; !lite && t <= ticks; t++){
       var v = yMax - (yMax - yMin) * (t / ticks);
       var y = Y(v);
       parts.push('<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) +
@@ -762,10 +882,12 @@
                    'font-family="Oxygen Mono, monospace" font-size="9">' + esc(full[idx].t) + '</text>');
       }
     }
-    parts.push('<text x="' + padL + '" y="' + (H - 4) + '" fill="#6a6a6a" font-family="Oxygen Mono, monospace" font-size="9">' +
-               esc(loDate) + '</text>');
-    parts.push('<text x="' + (W - padR) + '" y="' + (H - 4) + '" text-anchor="end" fill="#6a6a6a" ' +
-               'font-family="Oxygen Mono, monospace" font-size="9">' + esc(hiDate) + '</text>');
+    if (!lite){
+      parts.push('<text x="' + padL + '" y="' + (H - 4) + '" fill="#6a6a6a" font-family="Oxygen Mono, monospace" font-size="9">' +
+                 esc(loDate) + '</text>');
+      parts.push('<text x="' + (W - padR) + '" y="' + (H - 4) + '" text-anchor="end" fill="#6a6a6a" ' +
+                 'font-family="Oxygen Mono, monospace" font-size="9">' + esc(hiDate) + '</text>');
+    }
 
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     svg.setAttribute("width", W);
@@ -774,12 +896,14 @@
   }
 
   // ---- the desk ----------------------------------------------------------
-  // Four windows, the START HERE workspace: WATCHLIST left, MARKET centre,
-  // FOCUS over CHAT on the right. Every block below is painted from the
-  // published files and nothing on the desk responds to a pointer or a key.
+  // Eight windows, tiled on three bands: WATCHLIST, MARKET and FOCUS across the
+  // top with MARKET as the big centre window; COMPARE, HEATMAP and MACRO on the
+  // middle band; CHART and CHAT on the bottom band. Every block below is
+  // painted from the published files and nothing on the desk responds to a
+  // pointer or a key.
 
   // Each window is drawn inside its own guard. One window that cannot be drawn
-  // says so in its own frame; it never leaves the three beside it blank, which
+  // says so in its own frame; it never leaves the seven beside it blank, which
   // is what one uncaught exception in the centre window used to do.
   function tryDraw(fn){ try { fn(); return true; } catch(e){ return false; } }
   function guardDraw(id, label, fn){
@@ -797,6 +921,9 @@
     guardDraw("wlBody", "Watchlist", renderWatch);
     guardDraw("mkBody", "Market", renderMarket);
     guardDraw("fxBody", "Focus", renderFocus);
+    guardDraw("cmpBody", "Compare", renderCompare);
+    guardDraw("hmBody", "Heatmap", renderHeatmap);
+    guardDraw("mcBody", "Macro", renderMacro);
     guardDraw("chBody", "Chat", renderChat);
     tryDraw(loadDeskHistory);
   }
@@ -940,29 +1067,30 @@
     '</div><div class="mk-body">';
 
     var sections = 0;
+    var N = 10;
     if (gain.length){
-      html += '<div class="msec">TOP GAINERS</div><div class="sec-gain">' + gain.slice(0, 6).map(mover).join("") + '</div>';
+      html += '<div class="mcol"><div class="msec">TOP GAINERS</div><div class="sec-gain">' + gain.slice(0, N).map(mover).join("") + '</div></div>';
       sections++;
     }
     if (lose.length){
-      html += '<div class="msec">TOP LOSERS</div><div class="sec-lose">' + lose.slice(0, 6).map(mover).join("") + '</div>';
+      html += '<div class="mcol"><div class="msec">TOP LOSERS</div><div class="sec-lose">' + lose.slice(0, N).map(mover).join("") + '</div></div>';
       sections++;
     }
     if (active.length){
-      html += '<div class="msec">MOST ACTIVE</div><div class="sec-act">' + active.slice(0, 6).map(volumeRow).join("") + '</div>';
+      html += '<div class="mcol"><div class="msec">MOST ACTIVE</div><div class="sec-act">' + active.slice(0, N).map(volumeRow).join("") + '</div></div>';
       sections++;
     }
     // a board with no published change still gets one ranked table of real
     // securities, with its price and its (absent) change shown as absent
     if (!sections){
-      html += '<div class="msec">THE BOARD BY VOLUME</div><div class="sec-board">' +
-        active.slice(0, 8).map(mover).join("") + '</div>';
+      html += '<div class="mcol"><div class="msec">THE BOARD BY VOLUME</div><div class="sec-board">' +
+        active.slice(0, 16).map(mover).join("") + '</div></div>';
     }
     html += '</div>';
 
     host.innerHTML = html;
     trimMarket(host);
-    $("mkMetaMark").textContent = session + (BOARD_FULL ? "" : " - screener file");
+    $("mkMetaMark").textContent = noDates((BOARD_FULL ? "quotes" : "screener file") + " - " + priced.length + " priced");
   }
 
   // ---- FOCUS window: one security, its quote and its recent line ----------
@@ -1058,9 +1186,13 @@
   }
   function loadDeskHistory(){
     var r = focusRow();
-    if (!r){ tryDraw(drawFocusLine); return; }
-    return loadHistoryFor(r).then(function(){ tryDraw(drawFocusLine); })
-      .catch(function(){ tryDraw(drawFocusLine); });
+    if (!r){ tryDraw(drawFocusLine); tryDraw(drawDeskChart); return Promise.resolve(null); }
+    if (HDONE === r){
+      tryDraw(drawFocusLine); tryDraw(drawDeskChart);
+      return Promise.resolve(HIST);
+    }
+    function done(){ HDONE = r; tryDraw(drawFocusLine); tryDraw(drawDeskChart); }
+    return loadHistoryFor(r).then(done).catch(done);
   }
 
   // ---- CHAT window: the terminal's room, drawn as a picture ----------------
@@ -1087,6 +1219,396 @@
     $("chMeta").textContent = "0 messages";
   }
 
+  // ---- COMPARE window: four securities read across ------------------------
+  // The four are the session's four most traded priced securities on the board
+  // the WATCHLIST reads. One row per measure, one column per security, so the
+  // four are read across instead of one after another. Every cell is a
+  // published field of market_<EX>.json: last, change, change percent, the
+  // session low and high, previous close, open, volume and market cap. The one
+  // derived figure is the range bar, which places the last between the
+  // published low and the published high on the same 0 to 100 scale for all
+  // four. An absent field prints the house marker and no number.
+  function renderCompare(){
+    var host = $("cmpBody");
+    var all = priced();
+    var four = all.slice(0, 4);
+    if (!four.length){
+      host.innerHTML = '<div class="vempty"><b>Nothing to compare</b>No priced security is published for ' +
+        esc(EX) + ' in terminal/static_data/market_' + esc(EX) +
+        '.json, so there are no columns to compare.</div>';
+      $("cmpMeta").textContent = "";
+      return;
+    }
+    var n = four.length, i;
+    var head = '<div class="cmp-r hdr"><span class="l">TICKER</span>';
+    var names = '<div class="cmp-r nm"><span class="l"></span>';
+    for (i = 0; i < n; i++){
+      head += '<b>' + esc(String(four[i].ticker || four[i].sym || "")) + '</b>';
+      names += '<span class="n">' + esc(String(four[i].name || "").slice(0, 20)) + '</span>';
+    }
+    head += '</div>';
+    names += '</div>';
+
+    var last = "", chg = "", pct = "", bar = "", low = "", high = "", prev = "", open = "", vol = "", cap = "";
+    for (i = 0; i < n; i++){
+      var r = four[i];
+      var p = num(r.price), lv = levelOf(r), c = num(r.chgPct);
+      var lo = num(r.low), hi = num(r.high);
+      var pos = (p === null || lo === null || hi === null || hi <= lo) ? null
+        : Math.max(0, Math.min(100, (p - lo) / (hi - lo) * 100));
+      last += '<span class="v">' + (p === null ? "-" : fmtPx(p)) + '</span>';
+      chg  += '<span class="v ' + cls(lv) + '">' + (lv === null ? "-" : (lv > 0 ? "+" : "") + fmtPx(lv)) + '</span>';
+      pct  += '<span class="v ' + cls(c) + '">' + pctCell(c) + '</span>';
+      bar  += '<span class="v">' + (pos === null ? "-" :
+        '<span class="cmp-bar"><i style="left:calc(' + pos.toFixed(0) + '% - 1px)"></i></span>') + '</span>';
+      low  += '<span class="v">' + (lo === null ? "-" : fmtPx(lo)) + '</span>';
+      high += '<span class="v">' + (hi === null ? "-" : fmtPx(hi)) + '</span>';
+      prev += '<span class="v">' + (num(r.prevClose) === null ? "-" : fmtPx(num(r.prevClose))) + '</span>';
+      open += '<span class="v">' + (num(r.open) === null ? "-" : fmtPx(num(r.open))) + '</span>';
+      vol  += '<span class="v">' + (num(r.volume) === null ? "-" : fmtInt(num(r.volume))) + '</span>';
+      cap  += '<span class="v">' + (compact(r.marketCap) === null ? "-" : esc(compact(r.marketCap))) + '</span>';
+    }
+    function row(label, cells){
+      return '<div class="cmp-r"><span class="l">' + label + '</span>' + cells + '</div>';
+    }
+    host.style.setProperty("--cc", n);
+    host.innerHTML = head + names +
+      row("LAST", last) + row("CHG", chg) + row("CHG %", pct) + row("RANGE", bar) +
+      row("LOW", low) + row("HIGH", high) + row("PREV", prev) + row("OPEN", open) +
+      row("VOL", vol) + row("CAP", cap);
+    trimToFit(host, ".cmp-r", 7);
+    $("cmpMeta").textContent = noDates(n + " of " + all.length + " by volume");
+  }
+
+  // ---- MACRO window: the indicators the published files carry -------------
+  // One row per indicator the files actually carry for this exchange's country:
+  // the policy rate and its instrument from macro_rates.json, the 91-day bill
+  // where that file carries one, inflation, GDP growth and the GDP level from
+  // macro.json, the exchange rate from fx.json, and the fiscal balance and
+  // gross debt from macro_fiscal.json. Each row prints the value, the period
+  // the value belongs to and its unit. An indicator a file does not carry is
+  // left out, never zeroed and never carried over from another country.
+  var MC_FILES = [
+    ["rates", "terminal/static_data/macro_rates.json"],
+    ["cpi",   "terminal/static_data/macro.json"],
+    ["fisc",  "terminal/static_data/macro_fiscal.json"],
+    ["fx",    "terminal/static_data/fx.json"]
+  ];
+  function loadMacro(){
+    var jobs = MC_FILES.map(function(f){
+      return get(f[1]).then(function(d){ return [f[0], d || null]; })
+        .catch(function(){ return [f[0], null]; });
+    });
+    return Promise.all(jobs).then(function(res){
+      var out = {};
+      for (var i = 0; i < res.length; i++) out[res[i][0]] = res[i][1];
+      MC = out; MC_LOADED = true;
+      return MC;
+    });
+  }
+  function mcCountry(list){
+    if (!list) return null;
+    var arr = list.countries || [];
+    for (var i = 0; i < arr.length; i++){
+      var c = arr[i] || {};
+      if (String(c.exchange || "").toUpperCase() === EX) return c;
+      if (String(c.iso2 || "").toUpperCase() === CFG.iso) return c;
+    }
+    return null;
+  }
+  function mcNum(v){
+    var n = num(v);
+    if (n === null) return null;
+    if (Math.abs(n) >= 1e9) return compact(n);
+    return n.toLocaleString("en-US", { maximumFractionDigits: 3 });
+  }
+  function mcYear(s){
+    var m = /(\d{4})/.exec(String(s == null ? "" : s));
+    return m ? m[1] : "";
+  }
+  function mcFx(){
+    if (!MC || !MC.fx) return null;
+    var arr = (MC.fx.fx_rates && MC.fx.fx_rates.rates) || MC.fx.rates || [];
+    var want = String(CFG.cur).toUpperCase();
+    for (var i = 0; i < arr.length; i++){
+      if (String(arr[i].code || "").toUpperCase() !== want) continue;
+      var cur = arr[i].current || {};
+      var mk = cur.market || {};
+      if (num(mk.value) !== null) return { v: num(mk.value), src: "market" };
+      if (cur.official && num(cur.official.value) !== null) return { v: num(cur.official.value), src: "official" };
+      return null;
+    }
+    return null;
+  }
+  function renderMacro(){
+    var host = $("mcBody");
+    if (!MC_LOADED){
+      host.innerHTML = '<div class="vempty"><b>Macro</b>Reading the published macro files.</div>';
+      $("mcMeta").textContent = "";
+      return;
+    }
+    var R = [];
+    function add(label, sub, val, unit, period, c){
+      if (val === null || val === undefined || val === "") return;
+      R.push({ l: label, s: sub || "", v: String(val), u: unit || "", p: period || "-", c: c || "" });
+    }
+    var cr = mcCountry(MC.rates);
+    if (cr && cr.policy_rate){
+      // a central bank that publishes a corridor publishes two rates and no
+      // single policy rate, so both ends are printed as the file states them
+      var pr = cr.policy_rate;
+      var cor = (pr.corridor && pr.rates) ? pr.rates : null;
+      var dep = cor ? num(cor.overnight_deposit_rate) : null;
+      var lend = cor ? num(cor.overnight_lending_rate) : null;
+      if (dep !== null && lend !== null){
+        add("POLICY RATE", "overnight deposit / lending", mcNum(dep) + " / " + mcNum(lend),
+          pr.unit || "%", mcYear(pr.as_of) || "latest", "");
+      } else {
+        add("POLICY RATE", String(pr.name || cr.central_bank || ""), mcNum(pr.value), pr.unit || "%",
+          mcYear(pr.as_of) || "latest", "");
+      }
+    }
+    if (cr && cr.market_rates && cr.market_rates.t_bill_91d){
+      var tb = cr.market_rates.t_bill_91d;
+      add("91-DAY BILL", String(tb.name || "Treasury bill"), mcNum(tb.value), tb.unit || "%",
+        mcYear(tb.as_of) || "latest", "");
+    }
+    var cc = mcCountry(MC.cpi);
+    if (cc) add("INFLATION", "consumer prices, annual", mcNum(cc.inflation), "%",
+      cc.inflation_year ? String(cc.inflation_year) : "-", "");
+    var gg = (MC.cpi && MC.cpi.gdp) ? mcCountry(MC.cpi.gdp) : null;
+    if (gg){
+      add("GDP GROWTH", "real, annual", mcNum(gg.gdp_growth), "%",
+        gg.gdp_growth_year ? String(gg.gdp_growth_year) : "-", "");
+      add("GDP", "current prices", mcNum(gg.gdp), "USD",
+        gg.gdp_year ? String(gg.gdp_year) : "-", "");
+    }
+    var fx = mcFx();
+    if (fx) add("EXCHANGE RATE", "USD in " + CFG.cur, mcNum(fx.v), "per USD", "latest", "");
+    var cf = mcCountry(MC.fisc);
+    if (cf && cf.fiscal_balance && num(cf.fiscal_balance.value) !== null){
+      var fb = cf.fiscal_balance;
+      add("FISCAL BALANCE", "general government", mcNum(fb.value), fb.unit || "% of GDP",
+        fb.year ? String(fb.year) : (mcYear(fb.period) || "-"), cls(fb.value));
+    }
+    if (cf && cf.debt_ratio && num(cf.debt_ratio.value) !== null){
+      var dr = cf.debt_ratio;
+      add("GROSS DEBT", "general government, gross", mcNum(dr.value), dr.unit || "% of GDP",
+        dr.year ? String(dr.year) : "-", "");
+    }
+    if (!R.length){
+      host.innerHTML = '<div class="vempty"><b>No macro rows</b>terminal/static_data/macro_rates.json, ' +
+        'macro.json, macro_fiscal.json and fx.json carry no indicator for ' + esc(CFG.country) +
+        ', so no row is drawn and nothing is filled in.</div>';
+      $("mcMeta").textContent = "";
+      return;
+    }
+    var src = [];
+    if (MC.rates) src.push("macro_rates.json");
+    if (MC.cpi) src.push("macro.json");
+    if (MC.fisc) src.push("macro_fiscal.json");
+    if (MC.fx) src.push("fx.json");
+    var html = R.map(function(r){
+      return '<div class="mc-r"><span class="k">' + esc(r.l) +
+        (r.s ? '<i>' + esc(r.s) + '</i>' : '') + '</span>' +
+        '<span class="v ' + r.c + '">' + esc(r.v) + (r.u ? '<em>' + esc(r.u) + '</em>' : '') + '</span>' +
+        '<span class="p">' + esc(r.p) + '</span></div>';
+    }).join("");
+    host.innerHTML = '<div class="mc-body">' + html + '</div>' +
+      '<div class="tile-cap"><span>' + src.map(esc).join(" &middot; ") + '</span></div>';
+    var body = host.querySelector(".mc-body");
+    if (body) trimToFit(body, ".mc-r", 3);
+    $("mcMeta").textContent = noDates(host.querySelectorAll(".mc-r").length + " indicators");
+  }
+
+  // ---- HEATMAP window: a static treemap of the exchange -------------------
+  // Tile area is the published market cap from market_<EX>.json, joined to
+  // heatmap_<EX>.json by ticker or code; tile colour is the change percent the
+  // heatmap file carries. Blocks only: no hover state, no cursor change, no
+  // click, no scroll. A name the board publishes no market cap for is not
+  // tiled, and the caption says how many of the file's names were tiled.
+  function loadHeatmap(){
+    return get("terminal/static_data/heatmap_" + EX + ".json")
+      .then(function(d){ HM = d || null; HM_LOADED = true; return HM; })
+      .catch(function(){ HM = null; HM_LOADED = true; return null; });
+  }
+  // a market cap is published as a number on one exchange and as a written
+  // size ("1.36B", "17.47M") on the others; the tile size reads either, and the
+  // figure printed on screen is always the published one, never this scale
+  function capNum(v){
+    if (v === null || v === undefined || v === "") return null;
+    if (typeof v === "number") return isFinite(v) ? v : null;
+    var s = String(v).replace(/[,\s]/g, "").replace(/[^0-9.KMBTkmbt]/g, "");
+    var m = /^([0-9]*\.?[0-9]+)([KMBTkmbt])?$/.exec(s);
+    if (!m) return null;
+    var n = parseFloat(m[1]);
+    if (!isFinite(n)) return null;
+    var mult = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 }[String(m[2] || "").toLowerCase()] || 1;
+    return n * mult;
+  }
+  function capIndex(){
+    var idx = {}, rows = allRows();
+    for (var i = 0; i < rows.length; i++){
+      var r = rows[i], c = capNum(r.marketCap);
+      if (c === null) continue;
+      var t = String(r.ticker || "").toUpperCase();
+      var s = String(r.sym || "").toUpperCase();
+      var bare = s ? s.split(".")[0] : "";
+      if (t) idx[t] = c;
+      if (s) idx[s] = c;
+      if (bare && idx[bare] === undefined) idx[bare] = c;
+    }
+    return idx;
+  }
+  function hmShade(c){
+    if (c === null) return "background:#161616";
+    var a = Math.min(Math.abs(c), 5) / 5;
+    var al = (0.12 + a * 0.34).toFixed(3);
+    if (c > 0) return "background:rgba(51,226,154," + al + ")";
+    if (c < 0) return "background:rgba(248,113,113," + al + ")";
+    return "background:#151515";
+  }
+  function worstRatio(row, area, side){
+    if (!(area > 0) || !(side > 0)) return Infinity;
+    var thick = area / side, worst = 1;
+    for (var i = 0; i < row.length; i++){
+      var len = row[i].a / thick;
+      if (!(len > 0)) return Infinity;
+      var r = Math.max(thick / len, len / thick);
+      if (r > worst) worst = r;
+    }
+    return worst;
+  }
+  // classic squarified treemap: rows are laid along the short side while that
+  // improves the worst aspect ratio. Edges are rounded once so neighbouring
+  // tiles share a boundary and the plot is covered with no gap.
+  function squarify(items, W, H){
+    var out = [], total = 0, i;
+    for (i = 0; i < items.length; i++) total += items[i].cap;
+    if (!(total > 0) || W <= 8 || H <= 8) return out;
+    var scale = (W * H) / total;
+    var queue = items.map(function(d){ return { d: d, a: d.cap * scale }; });
+    var x = 0, y = 0, w = W, h = H, guard = 0;
+    while (queue.length && guard++ < 400){
+      var col = w >= h;                     // a strip off the long side
+      var side = col ? h : w;
+      var row = [queue.shift()], area = row[0].a;
+      var worst = worstRatio(row, area, side);
+      while (queue.length){
+        var a2 = area + queue[0].a;
+        var wr = worstRatio(row.concat([queue[0]]), a2, side);
+        if (wr > worst) break;
+        row.push(queue.shift()); area = a2; worst = wr;
+      }
+      var thick = area / side;
+      var edge = col ? y : x;
+      var edgePx = Math.round(edge);
+      for (i = 0; i < row.length; i++){
+        var len = side * (row[i].a / area);
+        var nextPx = Math.round(edge + len);
+        if (col){
+          out.push({ d: row[i].d, x: Math.round(x), y: edgePx,
+                     w: Math.round(x + thick) - Math.round(x), h: nextPx - edgePx });
+        } else {
+          out.push({ d: row[i].d, x: edgePx, y: Math.round(y),
+                     w: nextPx - edgePx, h: Math.round(y + thick) - Math.round(y) });
+        }
+        edge += len;
+        edgePx = nextPx;
+      }
+      if (col){ x += thick; w -= thick; } else { y += thick; h -= thick; }
+      if (w <= 1 || h <= 1) break;
+    }
+    return out;
+  }
+  function renderHeatmap(){
+    var host = $("hmBody");
+    if (!HM_LOADED){
+      host.innerHTML = '<div class="vempty"><b>Heatmap</b>Reading terminal/static_data/heatmap_' +
+        esc(EX) + '.json.</div>';
+      $("hmMeta").textContent = "";
+      return;
+    }
+    if (!HM || !HM.stocks || !HM.stocks.length){
+      host.innerHTML = '<div class="vempty"><b>No heatmap file</b>terminal/static_data/heatmap_' + esc(EX) +
+        '.json did not answer for ' + esc(EX) + ', so no tile is drawn and nothing is filled in ' +
+        'from a neighbouring name.</div>';
+      $("hmMeta").textContent = "";
+      return;
+    }
+    var caps = capIndex(), list = [], i;
+    for (i = 0; i < HM.stocks.length; i++){
+      var s = HM.stocks[i] || {};
+      var keys = [String(s.sym || "").toUpperCase(), String(s.code || "").toUpperCase(),
+                  String(s.short || "").toUpperCase()];
+      var cap = null;
+      for (var k = 0; k < keys.length && cap === null; k++){
+        if (keys[k] && caps[keys[k]] !== undefined) cap = caps[keys[k]];
+      }
+      if (cap === null) continue;
+      list.push({ tick: String(s.short || s.code || s.sym || ""), cap: cap, chg: num(s.chgPct) });
+    }
+    if (!list.length){
+      host.innerHTML = '<div class="vempty"><b>No market cap</b>heatmap_' + esc(EX) + '.json and market_' +
+        esc(EX) + '.json share no name with a published market cap, so no tile can be sized and ' +
+        'none is drawn.</div>';
+      $("hmMeta").textContent = "";
+      return;
+    }
+    list.sort(function(a, b){ return b.cap - a.cap; });
+    host.innerHTML = '<div class="hm-plot" id="hmPlot"></div><div class="tile-cap" id="hmCap"></div>';
+    var plot = $("hmPlot");
+    var W = plot.clientWidth, H = plot.clientHeight;
+    if (W < 40 || H < 30) return;
+    var want = Math.max(10, Math.min(36, Math.floor((W * H) / 4200)));
+    var take = list.slice(0, want);
+    var boxes = squarify(take, W, H), out = [];
+    for (i = 0; i < boxes.length; i++){
+      var box = boxes[i], t = box.d;
+      // keep every tile inside the plot: rounding at the last strip can push a
+      // tile a pixel or two past the edge, and a clipped tile reads as a bug
+      box.x = Math.max(0, box.x);
+      box.y = Math.max(0, box.y);
+      box.w = Math.min(box.w, W - box.x);
+      box.h = Math.min(box.h, H - box.y);
+      if (box.w < 2 || box.h < 2) continue;
+      var lbl = (box.w >= 26 && box.h >= 12) ? '<b>' + esc(t.tick.slice(0, 6)) + '</b>' : "";
+      var sub = (box.w >= 34 && box.h >= 26 && t.chg !== null)
+        ? '<i>' + (t.chg > 0 ? "+" : "") + t.chg.toFixed(1) + '%</i>' : "";
+      out.push('<span class="hm-t" style="left:' + box.x + 'px;top:' + box.y + 'px;width:' +
+        box.w + 'px;height:' + box.h + 'px;' + hmShade(t.chg) + '">' + lbl + sub + '</span>');
+    }
+    plot.innerHTML = out.join("");
+    $("hmCap").innerHTML = '<span><b>' + take.length + '</b> largest of ' + list.length +
+      ' names with a published market cap</span><span>size by cap, colour by change</span>';
+    $("hmMeta").textContent = noDates(take.length + " of " + HM.stocks.length + " names");
+  }
+
+  // ---- CHART window: the same candles, drawn small ------------------------
+  // The candles only: no axis labels, no date labels, no grid at this size. The
+  // series is the same security FOCUS quotes and the same history file, and the
+  // caption states how many of its sessions are drawn.
+  function drawDeskChart(){
+    var wrap = $("chChartWrap"), svg = $("chChart"), cap = $("chCap");
+    if (!wrap || !svg || !wrap.clientWidth) return;
+    var sym = HROW ? String(HROW.ticker || HROW.sym || "") : String(CFG.sym);
+    var bars = (HIST && HIST.bars) ? HIST.bars : [];
+    if (!bars.length){
+      svg.innerHTML = "";
+      if (cap) cap.innerHTML = 'no daily history file answered for <b>' + esc(sym) + '</b> on ' + esc(EX);
+      $("chartMeta").textContent = noDates(sym);
+      return;
+    }
+    var W = wrap.clientWidth;
+    var winN = W >= 900 ? 60 : (W >= 500 ? 44 : 28);
+    drawCandles({ wrap: wrap, svg: svg, head: null, note: null, lite: true,
+      winN: winN, bodyCap: 12, bodyFrac: 0.62 });
+    var drawn = Math.min(bars.length, winN);
+    if (cap) cap.innerHTML = '<b>' + esc(sym) + '</b> &middot; ' + drawn + ' of ' + bars.length +
+      ' daily sessions &middot; open, high, low, close';
+    $("chartMeta").textContent = noDates(sym + " - " + drawn + " sessions");
+  }
+
   // ---- header ------------------------------------------------------------
   // The footer strip is not part of this display: .foot is display:none and
   // carries no text, so nothing under the desk is written from here.
@@ -1096,7 +1618,7 @@
     $("exFull").textContent = " " + CFG.full;
     $("topAsOf").textContent = asOf;
     $("wlMeta").textContent = EX + (MB && MB.stocks ? " - " + MB.stocks.length : "");
-    $("mkMetaMark").textContent = mkSession() + (BOARD_FULL || !BOARD_FILE ? "" : " - screener file");
+    $("mkMetaMark").textContent = "";
     $("chMeta").textContent = "";
   }
 
@@ -1771,6 +2293,12 @@
       $("gridView").hidden = false;
     }
 
+    // the heatmap and the macro files are read alongside the board; each panel
+    // repaints itself when its own file lands, so a slow or absent file never
+    // holds up a window beside it
+    var heat = hero ? loadHeatmap() : null;
+    var macro = hero ? loadMacro() : null;
+
     return Promise.all([
       loadBoard(),
       get("terminal/static_data/ex_" + EX + "_indices.json").catch(function(){ return null; })
@@ -1788,11 +2316,17 @@
         $("mkBody").innerHTML = box;
         $("fxBody").innerHTML = '<div class="vempty"><b>Focus</b>No security is published for ' +
           esc(EX) + ', so there is no quote to draw.</div>';
-        renderChat();
+        tryDraw(renderCompare);
+        tryDraw(renderHeatmap);
+        tryDraw(renderMacro);
+        tryDraw(renderChat);
+        tryDraw(drawDeskChart);
         return null;
       }
       if (!hero) { renderChrome(); renderTape(); return renderView(); }
       renderDesk();
+      if (heat) heat.then(function(){ tryDraw(renderHeatmap); });
+      if (macro) macro.then(function(){ tryDraw(renderMacro); });
       // one more pass once the frame and the webfont settle, so each window
       // trims against its real row height instead of the fallback metrics
       requestAnimationFrame(function(){ renderDesk(); });
