@@ -217,36 +217,9 @@ a{color:var(--acc);text-decoration:none;}
 
 /* ---------- terminal preview ---------- */
 
-.terminal-frame{margin-top:56px;width:92vw;margin-left:calc(50% - 46vw);border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:var(--bg2);box-shadow:0 24px 80px rgba(0,0,0,.6);}
+.terminal-frame{margin-top:64px;width:100%;border:0;border-radius:0;overflow:hidden;background:var(--bg);box-shadow:none;}
 
-.tf-bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--bg3);}
-
-.tf-dot{width:10px;height:10px;border-radius:50%;}
-
-.tf-dot.r{background:#f87171;}.tf-dot.y{background:#e0a340;}.tf-dot.g{background:#33e29a;}
-
-.tf-url{font-family:var(--mono);font-size:11px;color:var(--tx3);margin-left:12px;letter-spacing:.03em;}
-
-/* the exchange buttons choose which snapshot the display frame shows; they sit
-   outside the frame, so the display itself stays a picture */
-.tf-ex{display:flex;align-items:center;gap:5px;margin-left:auto;}
-
-.tf-ex .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase;padding-right:3px;}
-
-.tf-ex button{font-family:var(--mono);font-size:10px;letter-spacing:.07em;color:var(--tx2);background:var(--bg2);
-  border:1px solid var(--line2);border-radius:3px;padding:4px 9px;cursor:pointer;transition:color .15s,border-color .15s;}
-
-.tf-ex button:hover{color:var(--tx);border-color:#3a3a3a;}
-
-.tf-ex button.on{color:var(--acc);border-color:rgba(51,226,154,.45);background:rgba(51,226,154,.07);}
-
-.tf-body{position:relative;height:min(74vh,720px);min-height:520px;background:var(--bg);}
-
-@media (max-width:700px){
-  .tf-bar{flex-wrap:wrap;row-gap:8px;}
-  .tf-ex{order:2;}
-  .tf-url{order:3;flex:1 1 100%;margin-left:0;font-size:10px;}
-}
+.tf-body{position:relative;height:min(80vh,860px);min-height:560px;background:var(--bg);}
 
 .tf-body iframe{width:100%;height:100%;border:0;display:block;pointer-events:none;}
 
@@ -538,6 +511,22 @@ a{color:var(--acc);text-decoration:none;}
 
     </div>
 
+  </div>
+
+  <!-- The display sits outside the text container so it spans the full page width.
+       It is a plain frame: no window bar, no dots, no fake URL, no border, no radius. -->
+  <div class="terminal-frame">
+
+    <div class="tf-body">
+
+      <iframe src="preview.html?ex=NSE" data-preview="1" loading="lazy" scrolling="no" inert tabindex="-1" aria-hidden="true" title="MUTXRI TERMINAL display preview"></iframe>
+
+    </div>
+
+  </div>
+
+  <div class="container">
+
     <!--
       HEADLINE FIGURES. Every figure below is produced by a named file and is
       re-measured from that file, not carried over from an earlier copy.
@@ -555,32 +544,6 @@ a{color:var(--acc);text-decoration:none;}
       the day, so a count of files or of values moves with the tree: re-measure with
       the same arithmetic rather than copying these numbers forward.
     -->
-    <div class="terminal-frame">
-
-      <div class="tf-bar">
-
-        <span class="tf-dot r"></span><span class="tf-dot y"></span><span class="tf-dot g"></span>
-
-        <span class="tf-url">mutxriterminal.com: the terminal, view only</span>
-
-        <span class="tf-ex">
-          <span class="lbl">Display</span>
-          <button type="button" data-ex="NSE" class="on">NSE</button>
-          <button type="button" data-ex="JSE">JSE</button>
-          <button type="button" data-ex="NGX">NGX</button>
-          <button type="button" data-ex="EGX">EGX</button>
-        </span>
-
-      </div>
-
-      <div class="tf-body">
-
-        <iframe src="preview.html?ex=NSE" data-preview="1" loading="lazy" scrolling="no" inert tabindex="-1" aria-hidden="true" title="MUTXRI TERMINAL display preview"></iframe>
-
-      </div>
-
-    </div>
-
     <div class="hero-stats">
 
       <div class="stat"><div class="n"><b>910</b></div><div class="l">Securities covered</div></div>
@@ -1379,27 +1342,9 @@ function submitAuth(e){
 
 <script>
 // HERO DISPLAY FRAME: the frame shows landing/preview.html, a static display
-// with no search, no buttons and no links inside it. The exchange buttons in the
-// window bar are the only control, and they live out here on the landing page.
-// The frame itself keeps inert, tabindex="-1", aria-hidden and pointer-events:none,
-// so it cannot be clicked, focused or tabbed into whichever market it shows.
-(function(){
-  var fr = document.querySelector('iframe[data-preview="1"]');
-  if(!fr) return;
-  var btns = Array.prototype.slice.call(document.querySelectorAll('.tf-ex button[data-ex]'));
-  var ALLOWED = {NSE:1, JSE:1, NGX:1, EGX:1};
-  function show(ex){
-    ex = String(ex || '').toUpperCase();
-    if(!ALLOWED[ex]) ex = 'NSE';
-    var url = 'preview.html?ex=' + ex;
-    if(fr.getAttribute('src') !== url) fr.setAttribute('src', url);
-    btns.forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-ex') === ex); });
-  }
-  btns.forEach(function(b){
-    b.addEventListener('click', function(){ show(b.getAttribute('data-ex')); });
-  });
-  show('NSE');
-})();
+// with no search, no buttons and no links inside it, and no window bar above it.
+// The frame keeps inert, tabindex="-1", aria-hidden and pointer-events:none,
+// so it cannot be clicked, focused or tabbed into.
 </script>
 </body>
 
