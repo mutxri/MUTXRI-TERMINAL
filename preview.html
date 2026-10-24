@@ -17,8 +17,10 @@
   horizontal strips the desk used to carry. MARKET is the large window at the
   left (breadth, the session's most traded names in full detail, then the top
   gainers, top losers and most active lists); COMPARE and MACRO are the two
-  beside and below it (four securities read across with a candlestick
-  sparkline each, and the policy rate, inflation, GDP, the exchange rate, the
+  beside and below it (four securities on one chart, one coloured line each,
+  every line rebased to 100 at the start of the window the four share, with the
+  total return per series in the legend and a metric table under it; and the
+  policy rate, inflation, GDP, the exchange rate, the
   fiscal balance and the debt ratios); FOCUS is the tall window at the top
   right. WATCHLIST, HEATMAP, CHART and CHAT are the read-out windows round
   them. Each window wears the shell's chrome: 1px borders, a mono caps
@@ -298,37 +300,62 @@
   .ch-kv span{color:#4a4a4a;letter-spacing:.08em;}
   .ch-kv b{font-weight:400;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-  /* ---------- COMPARE: four securities side by side ---------- */
-  /* One row per measure, one column per security, so the four are read across
-     rather than one after another: the same last, change, change percent,
-     session low and high and the same range bar for each of them. */
+  /* ---------- COMPARE: four securities on one rebased chart ---------- */
+  /* The four are drawn the way the terminal's own COMPARE draws them: one
+     header line naming them in their series colours, ONE plot carrying one
+     coloured line per security on common axes, a caption naming the window all
+     four share, a legend printing each series total return over that window,
+     and a metric table reading the published quote fields across the four.
+     Every line is rebased to 100 at the first session of the window, so a line
+     is percent return rather than a price and four currencies compare. */
   .cmp-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
   #cmpBody{display:flex;flex-direction:column;}
-  .cmp-r{display:grid;grid-template-columns:54px repeat(var(--cc,4),minmax(0,1fr));gap:0 6px;
-    flex:0 0 auto;align-items:center;height:17px;padding:0 7px;border-bottom:1px solid var(--line);}
-  .cmp-r.hdr{height:19px;background:var(--bg3);border-bottom:1px solid var(--line2);}
-  .cmp-r.nm{height:13px;border-bottom:1px solid var(--line2);}
-  .cmp-r .l{font-family:var(--mono);font-size:7px;letter-spacing:.1em;color:var(--tx3);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .cmp-r b{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.04em;color:var(--acc);
-    text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .cmp-r .v{font-family:var(--mono);font-size:9px;font-variant-numeric:tabular-nums;color:var(--tx);
-    text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .cmp-r .n{font-family:var(--ui);font-size:7.5px;color:var(--tx3);text-align:right;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  /* one candlestick sparkline per security, drawn from the same
-     terminal/static_data/history/<KEY>.json the CHART window reads */
-  .cmp-r.spark{flex:1 1 auto;min-height:64px;align-items:stretch;padding:3px 7px 3px;background:#030303;}
-  /* the cell is a fixed box: the svg is taken out of flow and clipped to it,
-     so a chart can never stretch the row it sits in */
-  .cmp-sp{min-width:0;height:100%;position:relative;overflow:hidden;}
-  .cmp-sp svg{position:absolute;left:0;top:0;width:100%;height:100%;display:block;
+  /* the header names the four in their series colours, wrapping only between
+     one security and the next so a name is never broken in half */
+  .cmp-head{flex:0 0 auto;padding:4px 8px 3px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:7.5px;line-height:1.5;letter-spacing:.02em;
+    color:var(--tx2);overflow:hidden;}
+  .cmp-head .hs{display:inline-block;white-space:nowrap;vertical-align:bottom;}
+  .cmp-head .hs b{font-weight:700;letter-spacing:.06em;}
+  .cmp-head .hs i{font-style:normal;color:inherit;opacity:.6;letter-spacing:.06em;padding-left:3px;}
+  .cmp-head .vs{color:var(--tx3);padding:0 4px;letter-spacing:.04em;}
+  /* the plot: a fixed box clipped to itself, so a line can never stretch the
+     window it sits in. No candle, no bar, no wick: polylines only. */
+  .cmp-plot{flex:1 1 auto;min-height:96px;position:relative;overflow:hidden;background:#030303;}
+  .cmp-plot svg{position:absolute;left:0;top:0;width:100%;height:100%;display:block;
     pointer-events:none;}
-  .cmp-sp .no{font-family:var(--mono);font-size:7px;line-height:1.4;color:var(--tx3);
-    text-align:right;padding:24px 2px 0;}
-  .cmp-sp .no em{font-style:normal;color:var(--tx2);}
-  .cmp-bar{display:block;height:5px;background:#0b0b0b;border:1px solid #1d1d1d;position:relative;}
-  .cmp-bar i{position:absolute;top:-1px;width:2px;height:5px;background:var(--acc);}
+  .cmp-plot .no{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+    font-family:var(--mono);font-size:8px;line-height:1.5;color:var(--tx3);
+    text-align:center;padding:0 12px;letter-spacing:.02em;}
+  .cmp-cap{flex:0 0 auto;padding:3px 8px 4px;font-family:var(--mono);font-size:7px;
+    line-height:1.5;letter-spacing:.01em;color:var(--tx3);border-bottom:1px solid var(--line);}
+  .cmp-cap b{color:var(--tx2);font-weight:400;}
+  .cmp-leg{flex:0 0 auto;display:flex;align-items:center;gap:0 11px;height:16px;padding:0 8px;
+    border-bottom:1px solid var(--line2);font-family:var(--mono);font-size:8px;
+    font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;}
+  .cmp-leg .li{display:flex;align-items:center;gap:4px;min-width:0;}
+  .cmp-leg .sw{display:block;width:9px;height:2px;flex:0 0 auto;}
+  .cmp-leg b{font-weight:700;letter-spacing:.05em;}
+  .cmp-leg em{font-style:normal;letter-spacing:.02em;}
+  /* the metric table: METRIC on the left, one column per security headed by
+     its ticker and its currency */
+  .cmp-tab{flex:0 0 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+  .cmp-hd,.cmp-tr{display:grid;grid-template-columns:72px repeat(var(--cc,4),minmax(0,1fr));
+    gap:0 6px;align-items:center;padding:0 8px;}
+  .cmp-hd{height:16px;background:var(--bg3);border-bottom:1px solid var(--line2);}
+  .cmp-hd .k{font-family:var(--mono);font-size:7px;letter-spacing:.1em;color:var(--tx3);}
+  .cmp-hd .c{display:flex;align-items:baseline;justify-content:flex-end;gap:3px;
+    font-family:var(--mono);font-size:6.5px;letter-spacing:.05em;color:var(--tx3);
+    white-space:nowrap;overflow:hidden;}
+  .cmp-hd .c b{font-weight:700;font-size:7.5px;letter-spacing:.05em;}
+  .cmp-hd .c i.nh{color:var(--warn);opacity:.85;padding-left:3px;letter-spacing:.02em;}
+  .cmp-tr{height:15px;border-bottom:1px solid var(--line);}
+  .cmp-tr .k{font-family:var(--mono);font-size:7px;letter-spacing:.08em;color:var(--tx3);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cmp-tr .v{font-family:var(--mono);font-size:8px;font-variant-numeric:tabular-nums;color:var(--tx);
+    text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cmp-tr .v u{text-decoration:none;font-size:6.5px;color:var(--tx3);padding-left:2px;letter-spacing:.04em;}
+  .cmp-tr .v.n{font-family:var(--ui);font-size:8px;color:var(--tx2);}
 
   /* ---------- MACRO: one indicator per row, with value, period and unit --- */
   #mcBody{display:flex;flex-direction:column;}
@@ -467,7 +494,7 @@
     .mrow{grid-template-columns:44px minmax(0,1fr) 50px 44px;gap:0 5px;}
     .mk-dh,.mk-dr{grid-template-columns:46px minmax(0,1.3fr) 58px 50px 48px 58px 50px minmax(0,.8fr);gap:0 5px;}
     .fx-px{font-size:18px;}
-    .cmp-r{grid-template-columns:46px repeat(var(--cc,4),minmax(0,1fr));gap:0 4px;}
+    .cmp-hd,.cmp-tr{grid-template-columns:60px repeat(var(--cc,4),minmax(0,1fr));gap:0 4px;}
     .wr{grid-template-columns:40px minmax(0,1fr) 52px 46px 48px;gap:0 5px;}
     .wl-h{grid-template-columns:40px minmax(0,1fr) 52px 46px 48px;gap:0 5px;}
   }
@@ -1323,74 +1350,81 @@
     $("chMeta").textContent = "0 messages";
   }
 
-  // ---- COMPARE window: four securities read across ------------------------
+  // ---- COMPARE window: four securities on one rebased chart ---------------
   // The four are the session's four most traded priced securities on the board
-  // the WATCHLIST reads. One row per measure, one column per security, so the
-  // four are read across instead of one after another, and one candlestick
-  // sparkline per security drawn from the same history file the CHART window
-  // reads. Every cell is a published field of market_<EX>.json: last, change,
-  // change percent, the session low and high, the 52 week bounds, previous
-  // close, open, volume, turnover, market cap, shares and sector. The one
-  // derived figure is the range bar, which places the last between the
-  // published low and the published high on the same 0 to 100 scale. An
-  // absent field prints the house marker and no number.
+  // the WATCHLIST reads, drawn the way the terminal's own COMPARE draws them:
+  // a header line naming them in their series colours, ONE plot carrying one
+  // coloured line per security on common axes, a caption naming the window all
+  // four share, a legend printing each series total return over that window,
+  // and a metric table reading the published quote fields across the four.
+  //
+  // Every line is REBASED to 100 at the first session of the window, so a line
+  // is percent return rather than a price. That is the whole point: the four
+  // need not share a currency, and a return is unit free.
+  //
+  // The window is the set of sessions every plotted series actually carries,
+  // cut to its most recent CMP_PTS dates: an honest common window, stated with
+  // its point count in the caption, rather than four lines each starting from
+  // a different day. A security with no history file draws no line at all, its
+  // legend entry says so and the caption names only what plotted. Nothing is
+  // interpolated, carried forward or filled from a neighbour.
+  var CMP_COL = ["#33e29a", "#5aa9ff", "#e0a340", "#b07cff"];  // mint, blue, amber, violet
+  var CMP_PTS = 260;    // most recent common sessions the plot carries
   var CMP_HIST = {};    // ticker -> { key, bars } or null
-  var CMP_DONE = "";    // the four tickers whose history has been asked for
-  var CMP_DRAWN = [];   // [{ sym, bars, key }] per column, for the caption
+  var CMP_DONE = "";    // signature of the four whose history is now loaded
+  var CMP_DRAWN = [];   // [{ sym, key, pts, ret }] per series that plotted
 
-  function drawSpark(svg, bars){
-    var cell = svg.parentNode;
-    var W = Math.max(40, cell.clientWidth || 90), H = Math.max(24, cell.clientHeight || 60);
-    var win = bars.slice(-30), full = [];
-    for (var i = 0; i < win.length; i++){
-      var b = win[i] || {};
+  function cmpTicks(four){
+    var out = [];
+    for (var i = 0; i < four.length; i++) out.push(String(four[i].ticker || four[i].sym || "").toUpperCase());
+    return out;
+  }
+  function cmpSig(four){ return cmpTicks(four).join("|"); }
+
+  // date -> published close, one entry per dated bar. A bar with no date or no
+  // usable close is skipped; the close is the file's own close, never derived.
+  function cmpCloses(bars){
+    var map = {}, dates = [], arr = bars || [];
+    for (var i = 0; i < arr.length; i++){
+      var b = arr[i] || {};
+      var t = String(b.t == null ? "" : b.t).slice(0, 10);
       var c = num(b.c);
-      if (c === null) continue;
-      var o = num(b.o), hh = num(b.h), ll = num(b.l);
-      if (o === null || hh === null || ll === null) continue;
-      full.push({ o: o, h: hh, l: ll, c: c });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(t) || c === null || c <= 0) continue;
+      if (Object.prototype.hasOwnProperty.call(map, t)) continue;
+      map[t] = c; dates.push(t);
     }
-    if (!full.length){ svg.innerHTML = ""; return 0; }
-    var lo = full[0].l, hi = full[0].h;
-    for (var j = 1; j < full.length; j++){
-      if (full[j].l < lo) lo = full[j].l;
-      if (full[j].h > hi) hi = full[j].h;
-    }
-    var span = hi - lo, pad = span > 0 ? span * 0.06 : (Math.abs(hi) > 0 ? Math.abs(hi) * 0.02 : 1);
-    var yMin = lo - pad, yMax = hi + pad;
-    var padT = 2, padB = 2, padL = 1, padR = 1;
-    var plotH = Math.max(8, H - padT - padB), plotW = Math.max(10, W - padL - padR);
-    var slot = plotW / full.length;
-    var bw = Math.max(1.2, Math.min(7, slot * 0.62));
-    function Y(v){ return padT + (yMax - v) / (yMax - yMin) * plotH; }
-    var parts = [];
-    for (var k = 0; k < full.length; k++){
-      var d = full[k];
-      var col = d.c >= d.o ? "#33e29a" : "#f87171";
-      var cx = padL + slot * (k + 0.5);
-      var yo = Y(d.o), yc = Y(d.c), yh = Y(d.h), yl = Y(d.l);
-      var top = Math.min(yo, yc), bot = Math.max(yo, yc);
-      if (bot - top < 1) bot = top + 1;
-      parts.push('<line x1="' + cx.toFixed(1) + '" y1="' + yh.toFixed(1) + '" x2="' + cx.toFixed(1) +
-        '" y2="' + yl.toFixed(1) + '" stroke="' + col + '" stroke-width="1"/>');
-      parts.push('<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' +
-        bw.toFixed(1) + '" height="' + (bot - top).toFixed(1) + '" fill="' + col + '"/>');
-    }
-    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-    svg.setAttribute("width", W);
-    svg.setAttribute("height", H);
-    svg.innerHTML = parts.join("");
-    return full.length;
+    dates.sort();
+    return { map: map, dates: dates };
   }
 
-  // One history request per column, walked down the same keys the CHART window
-  // uses. A column whose security has no history file says so in one line and
-  // still shows its numbers.
+  // the sessions every series in the list carries, most recent last
+  function cmpCommon(series){
+    var common = [];
+    if (!series.length) return common;
+    common = series[0].dates.slice();
+    for (var i = 1; i < series.length; i++){
+      var m = series[i].map;
+      common = common.filter(function(d){
+        return Object.prototype.hasOwnProperty.call(m, d);
+      });
+    }
+    common.sort();
+    if (common.length > CMP_PTS) common = common.slice(common.length - CMP_PTS);
+    return common;
+  }
+
+  function fmtRet(v){
+    if (v === null || v === undefined || !isFinite(v)) return "-";
+    return (v >= 0 ? "+" : "") + Number(v).toFixed(1) + "%";
+  }
+
+  // One history request per security, walked down the same keys the CHART
+  // window uses. Held in CMP_HIST so a resize does not re-ask for a file.
   function loadCompareHistory(){
     var four = priced().slice(0, 4);
     if (!four.length) return Promise.resolve([]);
-    var sig = four.map(function(r){ return String(r.ticker || r.sym || "").toUpperCase(); }).join("|");
-    if (CMP_DONE === sig){ tryDraw(drawCompareSparks); return Promise.resolve(CMP_DRAWN); }
+    var sig = cmpSig(four);
+    if (CMP_DONE === sig){ tryDraw(drawCompareLines); return Promise.resolve(CMP_HIST); }
     var jobs = four.map(function(r){
       var tick = String(r.ticker || r.sym || "").toUpperCase();
       if (Object.prototype.hasOwnProperty.call(CMP_HIST, tick)) return Promise.resolve(CMP_HIST[tick]);
@@ -1409,35 +1443,150 @@
     });
     return Promise.all(jobs).then(function(res){
       CMP_DONE = sig;
-      tryDraw(drawCompareSparks);
+      tryDraw(drawCompareLines);
       return res;
     });
   }
 
-  function drawCompareSparks(){
+  // The plot: four polylines, no candle and no bar anywhere in it. Each series
+  // is divided by its own close at the first session of the window and
+  // multiplied by 100, so every line starts at exactly 100 and the y axis is a
+  // rebased index whose 100 line is the window's opening level.
+  function drawCompareLines(){
+    var host = $("cmpBody");
     var four = priced().slice(0, 4);
     CMP_DRAWN = [];
-    for (var i = 0; i < four.length; i++){
-      var cell = $("cmpSp" + i);
-      if (!cell) continue;
+    if (!host || !four.length) return CMP_DRAWN;
+
+    var plot = $("cmpPlot"), svg = $("cmpSvg"), cap = $("cmpCaption"), leg = $("cmpLeg");
+    if (!plot || !svg) return CMP_DRAWN;
+
+    var series = [], missing = [], i, k;
+    for (i = 0; i < four.length; i++){
       var tick = String(four[i].ticker || four[i].sym || "");
       var hit = CMP_HIST[tick.toUpperCase()] || null;
-      var svg = cell.querySelector("svg");
-      if (!hit || !hit.bars || !hit.bars.length){
-        cell.innerHTML = '<div class="no">no history file for <em>' + esc(tick) + '</em></div>';
-        CMP_DRAWN.push({ sym: tick, bars: 0, key: "" });
-        continue;
-      }
-      var n = svg ? drawSpark(svg, hit.bars) : 0;
-      if (!n){
-        cell.innerHTML = '<div class="no">closes only, no candles for <em>' + esc(tick) + '</em></div>';
-        CMP_DRAWN.push({ sym: tick, bars: 0, key: hit.key });
-        continue;
-      }
-      svg.setAttribute("data-sym", tick);
-      svg.setAttribute("data-bars", String(n));
-      CMP_DRAWN.push({ sym: tick, bars: n, key: hit.key });
+      var cl = (hit && hit.bars && hit.bars.length) ? cmpCloses(hit.bars) : null;
+      if (!cl || !cl.dates.length){ missing.push({ tick: tick, col: CMP_COL[i % 4], idx: i }); continue; }
+      series.push({ tick: tick, col: CMP_COL[i % 4], key: hit.key, map: cl.map, dates: cl.dates });
     }
+
+    var common = cmpCommon(series);
+    var legendParts = [];
+
+    // a security with no history file draws no line, and its own column in the
+    // metric table says why, in place of nothing being said at all
+    function markMissing(){
+      for (var m = 0; m < missing.length; m++){
+        var cell = document.getElementById("cmpHd" + missing[m].idx);
+        if (cell && !cell.querySelector(".nh")){
+          var tag = document.createElement("i");
+          tag.className = "nh";
+          tag.textContent = "no history";
+          cell.appendChild(tag);
+        }
+      }
+    }
+
+    if (!common.length){
+      svg.innerHTML = "";
+      var why = series.length ? "No session is carried by every plotted series, so no rebased line is drawn."
+        : "No history file answered for any of the four, so no line is drawn.";
+      plot.innerHTML = '<svg id="cmpSvg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>' +
+        '<div class="no">' + why + '</div>';
+      if (cap) cap.innerHTML = esc(why + " Nothing is interpolated and no figure is invented to fill the plot.");
+      if (leg){
+        for (i = 0; i < missing.length; i++){
+          legendParts.push('<span class="li"><i class="sw" style="background:' + missing[i].col +
+            ';opacity:.35"></i><b style="color:' + missing[i].col + '">' + esc(missing[i].tick) +
+            '</b><em>no history</em></span>');
+        }
+        leg.innerHTML = legendParts.join("");
+      }
+      markMissing();
+      return CMP_DRAWN;
+    }
+
+    var lo = Infinity, hi = -Infinity;
+    var n = common.length;
+    for (i = 0; i < series.length; i++){
+      var s = series[i], base = s.map[common[0]], vals = [];
+      for (k = 0; k < common.length; k++){
+        var v = s.map[common[k]] / base * 100;
+        vals.push(v);
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+      s.vals = vals;
+      s.ret = (vals[vals.length - 1] / 100 - 1) * 100;
+      CMP_DRAWN.push({ sym: s.tick, key: s.key, pts: vals.length, ret: s.ret });
+    }
+    if (!isFinite(lo) || !isFinite(hi)) return CMP_DRAWN;
+
+    for (i = 0; i < series.length; i++){
+      legendParts.push('<span class="li"><i class="sw" style="background:' + series[i].col +
+        '"></i><b style="color:' + series[i].col + '">' + esc(series[i].tick) + '</b>' +
+        '<em class="' + cls(series[i].ret) + '">' + fmtRet(series[i].ret) + '</em></span>');
+    }
+    for (i = 0; i < missing.length; i++){
+      legendParts.push('<span class="li"><i class="sw" style="background:' + missing[i].col +
+        ';opacity:.35"></i><b style="color:' + missing[i].col + '">' + esc(missing[i].tick) +
+        '</b><em>no history</em></span>');
+    }
+    if (leg) leg.innerHTML = legendParts.join("");
+    markMissing();
+
+    if (cap){
+      var names = [];
+      for (i = 0; i < series.length; i++) names.push(series[i].tick);
+      var txt = n + " sessions shared by " + names.join(", ") + ", " + common[0] + " to " + common[n - 1] +
+        ". Each series is rebased to 100 at the first session of the window, so a line is percent return, not price." +
+        " Currencies differ across markets, but a return is unit free.";
+      if (missing.length){
+        var mn = [];
+        for (i = 0; i < missing.length; i++) mn.push(missing[i].tick);
+        txt += " No line is drawn for " + mn.join(", ") +
+          ": no history file answered for it, so the window and the returns above are the other " +
+          (series.length === 1 ? "series alone" : series.length + " alone") + ".";
+      }
+      cap.textContent = txt;
+    }
+
+    // the metric rows give up their room before the chart does, and the plot
+    // is measured and painted only after that, so nothing is ever clipped
+    trimToFit(host, ".cmp-tr", 2);
+
+    var W = Math.max(120, plot.clientWidth || 520), H = Math.max(60, plot.clientHeight || 170);
+    var pl = 4, pr = 4, pt = 5, pb = 5;
+    var plotW = Math.max(20, W - pl - pr), plotH = Math.max(20, H - pt - pb);
+    var span = hi - lo, pad = span > 0 ? span * 0.06 : Math.max(1, Math.abs(hi) * 0.02);
+    var yMin = lo - pad, yMax = hi + pad;
+    function CX(j){ return n > 1 ? pl + plotW * (j / (n - 1)) : pl + plotW / 2; }
+    function CY(val){ return pt + (yMax - val) / (yMax - yMin) * plotH; }
+
+    var parts = [];
+    // the 100 line: where every series opened the window, so a reader can see
+    // at a glance which of the four is above its own starting level
+    var y100 = CY(100);
+    parts.push('<line x1="' + pl.toFixed(1) + '" y1="' + y100.toFixed(1) + '" x2="' +
+      (pl + plotW).toFixed(1) + '" y2="' + y100.toFixed(1) +
+      '" stroke="#222" stroke-width="1" stroke-dasharray="2 3"/>');
+    var labY = Math.max(8, Math.min(H - 2, y100 - 2));
+    parts.push('<text x="' + (pl + 2).toFixed(1) + '" y="' + labY.toFixed(1) +
+      '" fill="#4a4a4a" font-family="Oxygen Mono, monospace" font-size="6">100</text>');
+    for (i = 0; i < series.length; i++){
+      var ser = series[i], pts = [];
+      for (k = 0; k < n; k++) pts.push(CX(k).toFixed(1) + "," + CY(ser.vals[k]).toFixed(1));
+      parts.push('<polyline fill="none" stroke="' + ser.col + '" stroke-width="1.2" ' +
+        'stroke-linejoin="round" stroke-linecap="round" data-sym="' + esc(ser.tick) +
+        '" data-pts="' + n + '" data-ret="' + ser.ret.toFixed(2) + '" points="' + pts.join(" ") + '"/>');
+    }
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("width", W);
+    svg.setAttribute("height", H);
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("data-win", common[0] + "|" + common[n - 1] + "|" + n);
+    svg.innerHTML = parts.join("");
+
     return CMP_DRAWN;
   }
 
@@ -1448,76 +1597,63 @@
     if (!four.length){
       host.innerHTML = '<div class="vempty"><b>Nothing to compare</b>No priced security is published for ' +
         esc(EX) + ' in terminal/static_data/market_' + esc(EX) +
-        '.json, so there are no columns to compare.</div>';
+        '.json, so there is no line to draw.</div>';
       $("cmpMeta").textContent = "";
       return;
     }
     var n = four.length, i;
-    var head = '<div class="cmp-r hdr"><span class="l">TICKER</span>';
-    var names = '<div class="cmp-r nm"><span class="l"></span>';
-    var spark = '<div class="cmp-r spark"><span class="l">30 DAYS</span>';
+
+    // 1. the header: the four named in their series colours
+    var head = '<div class="cmp-head">';
     for (i = 0; i < n; i++){
-      head += '<b>' + esc(String(four[i].ticker || four[i].sym || "")) + '</b>';
-      names += '<span class="n">' + esc(String(four[i].name || "").slice(0, 22)) + '</span>';
-      spark += '<span class="cmp-sp" id="cmpSp' + i + '"><svg xmlns="http://www.w3.org/2000/svg" ' +
-        'preserveAspectRatio="none"></svg></span>';
+      var r0 = four[i];
+      if (i) head += '<span class="vs">vs</span>';
+      head += '<span class="hs" style="color:' + CMP_COL[i % 4] + '"><b>' +
+        esc(String(r0.ticker || r0.sym || "")) + '</b> ' +
+        esc(String(r0.name || "").slice(0, 46)) + '<i>' + esc(EX) + '</i></span>';
     }
     head += '</div>';
-    names += '</div>';
-    spark += '</div>';
 
-    var last = "", chg = "", pct = "", bar = "", low = "", high = "", wl = "", wh = "", wbar = "",
-        prev = "", open = "", spread = "", vol = "", turn = "", cap = "", shr = "", typ = "", sec = "";
+    // 2. the metric table: METRIC on the left, one column per security headed
+    // by its ticker and its currency. Every cell is a published field of
+    // market_<EX>.json; an absent one prints the house marker.
+    var hd = '<div class="cmp-hd"><span class="k">METRIC</span>';
+    var price = "", chg = "", pct = "", vol = "", turn = "", cap = "", sec = "";
     for (i = 0; i < n; i++){
       var r = four[i];
+      var cur = curOf(r);
       var p = num(r.price), lv = levelOf(r), c = num(r.chgPct);
-      var lo = num(r.low), hi = num(r.high);
-      var wlo = num(r.w52Low), whi = num(r.w52High);
-      var pos = (p === null || lo === null || hi === null || hi <= lo) ? null
-        : Math.max(0, Math.min(100, (p - lo) / (hi - lo) * 100));
-      var wpos = (p === null || wlo === null || whi === null || whi <= wlo) ? null
-        : Math.max(0, Math.min(100, (p - wlo) / (whi - wlo) * 100));
-      last += '<span class="v">' + (p === null ? "-" : fmtPx(p)) + '</span>';
-      chg  += '<span class="v ' + cls(lv) + '">' + (lv === null ? "-" : (lv > 0 ? "+" : "") + fmtPx(lv)) + '</span>';
-      pct  += '<span class="v ' + cls(c) + '">' + pctCell(c) + '</span>';
-      bar  += '<span class="v">' + (pos === null ? "-" :
-        '<span class="cmp-bar"><i style="left:calc(' + pos.toFixed(0) + '% - 1px)"></i></span>') + '</span>';
-      low  += '<span class="v">' + (lo === null ? "-" : fmtPx(lo)) + '</span>';
-      high += '<span class="v">' + (hi === null ? "-" : fmtPx(hi)) + '</span>';
-      wl   += '<span class="v">' + (num(r.w52Low) === null ? "-" : fmtPx(num(r.w52Low))) + '</span>';
-      wh   += '<span class="v">' + (num(r.w52High) === null ? "-" : fmtPx(num(r.w52High))) + '</span>';
-      wbar += '<span class="v">' + (wpos === null ? "-" :
-        '<span class="cmp-bar"><i style="left:calc(' + wpos.toFixed(0) + '% - 1px)"></i></span>') + '</span>';
-      prev += '<span class="v">' + (num(r.prevClose) === null ? "-" : fmtPx(num(r.prevClose))) + '</span>';
-      open += '<span class="v">' + (num(r.open) === null ? "-" : fmtPx(num(r.open))) + '</span>';
-      spread += '<span class="v">' + ((hi === null || lo === null) ? "-" : fmtPx(hi - lo)) + '</span>';
-      vol  += '<span class="v">' + (num(r.volume) === null ? "-" : compact(num(r.volume))) + '</span>';
-      turn += '<span class="v">' + (num(r.turnover) === null ? "-" : compact(num(r.turnover))) + '</span>';
-      cap  += '<span class="v">' + (compact(r.marketCap) === null ? "-" : esc(compact(r.marketCap))) + '</span>';
-      shr  += '<span class="v">' + (num(r.sharesIssued) === null ? "-" : compact(num(r.sharesIssued))) + '</span>';
-      typ  += '<span class="n">' + esc(String(r.instrument || "-").slice(0, 18)) + '</span>';
-      sec  += '<span class="n">' + esc(String(r.sector || "-").slice(0, 18)) + '</span>';
+      hd += '<span class="c" id="cmpHd' + i + '"><b style="color:' + CMP_COL[i % 4] + '">' +
+        esc(String(r.ticker || r.sym || "")) + '</b><i>' + esc(cur) + '</i></span>';
+      price += '<span class="v">' + (p === null ? "-" : fmtPx(p) + '<u>' + esc(cur) + '</u>') + '</span>';
+      chg   += '<span class="v ' + cls(lv) + '">' +
+        (lv === null ? "-" : (lv > 0 ? "+" : "") + fmtPx(lv) + '<u>' + esc(cur) + '</u>') + '</span>';
+      pct   += '<span class="v ' + cls(c) + '">' + pctCell(c) + '</span>';
+      vol   += '<span class="v">' + (num(r.volume) === null ? "-" : compact(num(r.volume))) + '</span>';
+      turn  += '<span class="v">' + (num(r.turnover) === null ? "-" : compact(num(r.turnover)) + '<u>' + esc(cur) + '</u>') + '</span>';
+      cap   += '<span class="v">' + (compact(r.marketCap) === null ? "-" : esc(compact(r.marketCap)) + '<u>' + esc(cur) + '</u>') + '</span>';
+      sec   += '<span class="v n">' + esc(String(r.sector || "-").slice(0, 18)) + '</span>';
     }
-    function row(label, cells){
-      return '<div class="cmp-r"><span class="l">' + label + '</span>' + cells + '</div>';
+    hd += '</div>';
+    function tr(label, cells){
+      return '<div class="cmp-tr"><span class="k">' + label + '</span>' + cells + '</div>';
     }
+    var tab = hd + tr("PRICE", price) + tr("CHANGE", chg) + tr("CHANGE %", pct) +
+      tr("VOLUME", vol) + tr("TURNOVER", turn) + tr("MKT CAP", cap) + tr("SECTOR", sec);
+
     host.style.setProperty("--cc", n);
-    // the 52 week bounds are carried by three of the four boards; a board
-    // whose file has none does not get three rows of dashes, the sparkline
-    // simply takes the space instead
-    var has52 = false;
-    for (i = 0; i < n; i++){
-      if (num(four[i].w52Low) !== null || num(four[i].w52High) !== null){ has52 = true; break; }
-    }
-    host.innerHTML = head + names + spark +
-      row("LAST", last) + row("CHG", chg) + row("CHG %", pct) + row("RANGE", bar) +
-      row("LOW", low) + row("HIGH", high) +
-      (has52 ? row("52W LOW", wl) + row("52W HIGH", wh) + row("52W RANGE", wbar) : "") +
-      row("PREV", prev) + row("OPEN", open) + row("HI-LO", spread) +
-      row("VOL", vol) + row("TURNOVER", turn) + row("MKT CAP", cap) + row("SHARES", shr) +
-      row("TYPE", typ) + row("SECTOR", sec);
-    trimToFit(host, ".cmp-r", 8);
-    tryDraw(drawCompareSparks);
+    host.innerHTML = head +
+      '<div class="cmp-plot" id="cmpPlot"><svg id="cmpSvg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg></div>' +
+      '<div class="cmp-cap" id="cmpCaption">Reading the published closes for the four.</div>' +
+      '<div class="cmp-leg" id="cmpLeg"></div>' +
+      '<div class="cmp-tab" id="cmpTab">' + tab + '</div>';
+
+    // 3. if the frame is too short, metric rows go before the chart does
+    trimToFit(host, ".cmp-tr", 2);
+
+    // 4. the plot, legend and caption, once the three files have answered.
+    // Drawing is a separate step so a failure in it cannot cost the table.
+    if (CMP_DONE === cmpSig(four)) tryDraw(drawCompareLines);
     $("cmpMeta").textContent = noDates(n + " of " + all.length + " by volume");
   }
 
