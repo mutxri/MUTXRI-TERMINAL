@@ -107,8 +107,6 @@
   .top-ex i{font-style:normal;color:var(--tx3);letter-spacing:.04em;}
   .top-asof{flex:1 1 auto;min-width:0;font-family:var(--mono);font-size:10px;color:var(--tx2);
     letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;}
-  .disp{flex:0 0 auto;font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--tx3);
-    border:1px solid var(--line2);border-radius:2px;padding:4px 8px;white-space:nowrap;}
 
   /* ---------- ticker tape ---------- */
   .tape{flex:0 0 auto;height:34px;border-bottom:1px solid var(--line2);background:#040404;
@@ -348,7 +346,6 @@
     .brand{font-size:10px;letter-spacing:.12em;}
     .top-ex i{display:none;}
     .top-asof{font-size:9px;}
-    .disp{font-size:8px;padding:3px 6px;}
     .tape{height:30px;}
     .grid{gap:5px;padding:5px;}
     .grid.desk{grid-template-columns:minmax(104px,.30fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);}
@@ -376,10 +373,22 @@
     .brand{font-size:9px;letter-spacing:.08em;}
     .top-ex{font-size:10px;}
     .top-asof{font-size:8px;}
-    .disp{display:none;}
     .grid.desk{grid-template-columns:minmax(0,1fr);}
     .w-watch{display:none;}
     .mk-ex{font-size:9px;}
+  }
+  /* A short frame: the FOCUS quote keeps every one of its fields and gives up
+     the room the sparkline was taking, rather than dropping a line of the
+     quote. The range note stays, so the window still says what history it had. */
+  @media (max-height:790px){
+    .fx-kv span,.fx-kv b{padding:1.5px 0;}
+    .fx-line{height:34px;}
+    .fx-px{font-size:18px;padding-top:2px;}
+  }
+  @media (max-height:660px){
+    .fx-line{display:none;}
+    .fx-kv span,.fx-kv b{padding:1px 0;font-size:8px;}
+    .ch-t{font-size:9px;}
   }
   @media (max-width:900px){
     .vw{grid-template-columns:62px minmax(0,1fr) 92px 64px 78px;}
@@ -415,7 +424,6 @@
     <div class="brand">MUTXRI <b>TERMINAL</b></div>
     <div class="top-ex"><span id="exName">NSE</span><i id="exFull"></i></div>
     <div class="top-asof" id="topAsOf">session as-of not stated</div>
-    <div class="disp">DISPLAY ONLY</div>
   </div>
 
   <div class="tape"><div class="tape-in" id="tapeIn"></div></div>
@@ -758,23 +766,40 @@
 
   // ---- the desk ----------------------------------------------------------
   // Four windows, the START HERE workspace: WATCHLIST left, MARKET centre,
-  // FOCUS over NEWS on the right. Every block below is painted from the
+  // FOCUS over CHAT on the right. Every block below is painted from the
   // published files and nothing on the desk responds to a pointer or a key.
 
+  // Each window is drawn inside its own guard. One window that cannot be drawn
+  // says so in its own frame; it never leaves the three beside it blank, which
+  // is what one uncaught exception in the centre window used to do.
+  function tryDraw(fn){ try { fn(); return true; } catch(e){ return false; } }
+  function guardDraw(id, label, fn){
+    var ok = tryDraw(fn);
+    if (ok) return;
+    var host = $(id);
+    if (host && !String(host.textContent).trim()){
+      host.innerHTML = '<div class="vempty"><b>' + esc(label) +
+        '</b>This window could not be drawn from the published file.</div>';
+    }
+  }
   function renderDesk(){
-    renderChrome();
-    renderTape();
-    renderWatch();
-    renderMarket();
-    renderFocus();
-    loadDeskHistory();
-    loadDeskNews();
+    tryDraw(renderChrome);
+    tryDraw(renderTape);
+    guardDraw("wlBody", "Watchlist", renderWatch);
+    guardDraw("mkBody", "Market", renderMarket);
+    guardDraw("fxBody", "Focus", renderFocus);
+    guardDraw("chBody", "Chat", renderChat);
+    tryDraw(loadDeskHistory);
   }
 
   // drop rows from the bottom of a window until its content fits, so a short
   // frame clips nothing and a tall one wastes no space. The drop count is
   // worked out from the measured row height, not one row per pass, because a
   // board like the JSE can be 300 rows deep.
+  // A row is removed from ITS OWN parent: in the MARKET window that parent is
+  // the section (.sec-gain and friends), not the window body, and asking the
+  // body to remove a node it does not own throws NotFoundError and blanked the
+  // window on any frame short enough to need a trim.
   function trimToFit(host, sel, keep){
     var nodes = host.querySelectorAll(sel);
     if (!nodes.length) return;
@@ -786,7 +811,31 @@
     var guard = 0;
     while (host.querySelectorAll(sel).length > want && guard++ < 4000){
       var cur = host.querySelectorAll(sel);
-      host.removeChild(cur[cur.length - 1]);
+      var last = cur[cur.length - 1];
+      if (!last || !last.parentNode) return;
+      last.parentNode.removeChild(last);
+    }
+  }
+
+  // Rows leave the sections from the bottom, most active first, until the window
+  // fits. No section is ever emptied and no section is left as a heading with
+  // nothing under it: the MARKET window always carries real rows.
+  function trimMarket(host){
+    var order = [".sec-act", ".sec-lose", ".sec-gain", ".sec-board"];
+    var guard = 0;
+    while (host.scrollHeight - host.clientHeight > 1 && guard++ < 400){
+      var moved = false;
+      for (var i = 0; i < order.length; i++){
+        var sec = host.querySelector(order[i]);
+        if (!sec) continue;
+        var rows = sec.querySelectorAll(".mrow");
+        if (rows.length > 1){
+          rows[rows.length - 1].parentNode.removeChild(rows[rows.length - 1]);
+          moved = true;
+          break;
+        }
+      }
+      if (!moved) return;
     }
   }
 
@@ -822,13 +871,20 @@
   }
 
   // ---- MARKET window: breadth, then gainers, losers, most active ----------
+  // The board is whatever loadBoard() answered: market_<EX>.json first, the
+  // screener file only if that one is absent. Only when neither file carries a
+  // security does this window print an empty state, and that state names both
+  // files rather than claiming the snapshot could not be read.
   function renderMarket(){
     var host = $("mkBody");
-    if (!MB || !MB.stocks){
-      host.innerHTML = '<div class="vempty"><b>No snapshot</b>Nothing is published for ' + esc(EX) + '.</div>';
+    var all = allRows();
+    if (!all.length){
+      host.innerHTML = '<div class="vempty"><b>No snapshot</b>Neither terminal/static_data/market_' +
+        esc(EX) + '.json nor terminal/static_data/screener_' + esc(EX) +
+        '.json carries a security for ' + esc(EX) + '.</div>';
+      $("mkMetaMark").textContent = "";
       return;
     }
-    var all = allRows();
     var priced = all.filter(function(r){ return num(r.price) !== null; });
     var adv = 0, dec = 0, unc = 0;
     for (var i = 0; i < all.length; i++){
@@ -874,33 +930,53 @@
         '<span class="tone ' + toneCls + '">' + tone + '</span></div>' +
     '</div><div class="mk-body">';
 
-    html += '<div class="msec">TOP GAINERS</div><div class="sec-gain">' + gain.slice(0, 6).map(mover).join("") + '</div>';
-    html += '<div class="msec">TOP LOSERS</div><div class="sec-lose">' + lose.slice(0, 6).map(mover).join("") + '</div>';
-    html += '<div class="msec">MOST ACTIVE</div><div class="sec-act">' + active.slice(0, 6).map(volumeRow).join("") + '</div>';
+    var sections = 0;
+    if (gain.length){
+      html += '<div class="msec">TOP GAINERS</div><div class="sec-gain">' + gain.slice(0, 6).map(mover).join("") + '</div>';
+      sections++;
+    }
+    if (lose.length){
+      html += '<div class="msec">TOP LOSERS</div><div class="sec-lose">' + lose.slice(0, 6).map(mover).join("") + '</div>';
+      sections++;
+    }
+    if (active.length){
+      html += '<div class="msec">MOST ACTIVE</div><div class="sec-act">' + active.slice(0, 6).map(volumeRow).join("") + '</div>';
+      sections++;
+    }
+    // a board with no published change still gets one ranked table of real
+    // securities, with its price and its (absent) change shown as absent
+    if (!sections){
+      html += '<div class="msec">THE BOARD BY VOLUME</div><div class="sec-board">' +
+        active.slice(0, 8).map(mover).join("") + '</div>';
+    }
     html += '</div>';
 
     host.innerHTML = html;
-    trimToFit(host, ".sec-act .mrow", 2);
-    trimToFit(host, ".sec-lose .mrow", 2);
-    trimToFit(host, ".sec-gain .mrow", 2);
-    trimToFit(host, ".sec-act .mrow", 1);
-    trimToFit(host, ".sec-lose .mrow", 1);
+    trimMarket(host);
+    $("mkMetaMark").textContent = session + (BOARD_FULL ? "" : " - screener file");
   }
 
   // ---- FOCUS window: one security, its quote and its recent line ----------
+  // The preference is the exchange's lead name, then the most traded security
+  // that carries a price, then the first row of the board: FOCUS names a
+  // security whenever the board carries one, and prints absent cells as absent.
   function focusRow(){
     var rows = priced();
     var pref = String(CFG.sym).toUpperCase();
     for (var i = 0; i < rows.length; i++){
-      if (String(rows[i].ticker || "").toUpperCase() === pref) return rows[i];
+      if (String(rows[i].ticker || rows[i].sym || "").toUpperCase() === pref) return rows[i];
     }
-    return rows.length ? rows[0] : null;
+    if (rows.length) return rows[0];
+    var all = allRows();
+    return all.length ? all[0] : null;
   }
   function renderFocus(){
     var host = $("fxBody");
     var r = focusRow();
     if (!r){
-      host.innerHTML = '<div class="vempty"><b>FOCUS</b>No security carries a published quote on ' + esc(EX) + '.</div>';
+      host.innerHTML = '<div class="vempty"><b>Focus</b>No security is published for ' + esc(EX) +
+        ', so there is no quote to draw.</div>';
+      $("fxMeta").textContent = EX;
       return;
     }
     var p = num(r.price), c = num(r.chgPct), lvl = levelOf(r);
@@ -908,28 +984,33 @@
     function kv(k, v){ return '<span>' + k + '</span><b>' + (v === null || v === "" ? "-" : esc(v)) + '</b>'; }
     var vol = num(r.volume), cap = compact(r.marketCap);
     var asof = r.asOf ? String(r.asOf).slice(0, 10) : "";
+    var chgTxt = (lvl === null ? null : (lvl > 0 ? "+" : "") + fmtPx(lvl));
     host.innerHTML =
       '<div class="fx-top">' +
         '<div class="fx-sym">' + esc(String(r.ticker || r.sym || "")) + '<span>' + esc(EX) + '</span></div>' +
         '<div class="fx-nm">' + esc(r.name || "") + '</div>' +
         '<div class="fx-px">' + (p === null ? '<span class="nq">no quote</span>' : fmtPx(p)) + '</div>' +
         '<div class="fx-ch"><span class="' + cls(c) + '">' + pctCell(c) + '</span>' +
-          (lvl === null ? ' <span class="flat">-</span>' : ' <span class="' + cls(lvl) + '">' + (lvl > 0 ? "+" : "") + fmtPx(lvl) + '</span>') +
+          (lvl === null ? ' <span class="flat">-</span>' : ' <span class="' + cls(lvl) + '">' + chgTxt + '</span>') +
           '<span class="cur">' + esc(cur) + '</span></div>' +
       '</div>' +
       '<div class="fx-kv">' +
+        kv("LAST", p === null ? null : fmtPx(p)) +
+        kv("CHG", chgTxt) +
+        kv("CHG %", c === null ? null : fmtPct(c)) +
         kv("PREV", num(r.prevClose) === null ? null : fmtPx(num(r.prevClose))) +
         kv("OPEN", num(r.open) === null ? null : fmtPx(num(r.open))) +
         kv("HIGH", num(r.high) === null ? null : fmtPx(num(r.high))) +
         kv("LOW", num(r.low) === null ? null : fmtPx(num(r.low))) +
         kv("VOL", vol === null ? null : fmtInt(vol)) +
-        kv("CAP", cap) +
+        kv("MKT CAP", cap) +
+        kv("CUR", cur) +
         kv("SECTOR", r.sector || null) +
         kv("AS OF", asof || null) +
       '</div>' +
       '<div class="fx-line" id="fxLine"><svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg></div>' +
       '<div class="fx-range" id="fxRange">no price history on file</div>';
-    $("fxMeta").textContent = EX + (r.sector ? " · " + r.sector : "");
+    $("fxMeta").textContent = EX + (r.sector ? " - " + r.sector : "");
   }
   function drawFocusLine(){
     var box = $("fxLine");
@@ -964,61 +1045,50 @@
     svg.innerHTML = '<path d="' + d + '" fill="none" stroke="#33e29a" stroke-width="1.2"/>' +
       '<circle cx="' + (pad + (W - pad * 2)).toFixed(1) + '" cy="' +
       (pad + (H - pad * 2) * (1 - (last.c - lo) / span)).toFixed(1) + '" r="1.6" fill="#33e29a"/>';
-    $("fxRange").textContent = pts[0].t + " to " + last.t + " · " + pts.length + " sessions";
+    $("fxRange").textContent = pts[0].t + " to " + last.t + " - " + pts.length + " sessions";
   }
   function loadDeskHistory(){
     var r = focusRow();
-    if (!r){ drawFocusLine(); return; }
-    return loadHistoryFor(r).then(function(){ drawFocusLine(); });
-  }
-  function loadDeskNews(){
-    var host = $("nwBody");
-    if (CACHE.news){ paintDeskNews(CACHE.news); return; }
-    return get("terminal/static_data/" + EX.toLowerCase() + "_news.json").then(function(list){
-      if (!list || !list.length){ paintDeskNews([]); return; }
-      CACHE.news = list;
-      paintDeskNews(list);
-    }).catch(function(){ paintDeskNews([]); });
-  }
-  function paintDeskNews(list){
-    var host = $("nwBody");
-    if (!list.length){
-      host.innerHTML = '<div class="vempty"><b>NEWS</b>No wire file answered for ' + esc(EX) + '.</div>';
-      return;
-    }
-    var items = list.slice().sort(function(a, b){
-      var x = num(a.ts), y = num(b.ts);
-      if (x === null && y === null) return 0;
-      if (x === null) return 1;
-      if (y === null) return -1;
-      return y - x;
-    });
-    var out = [];
-    for (var i = 0; i < items.length && i < 14; i++){
-      var it = items[i] || {};
-      var iso = tsISO(it);
-      var when = iso || (it.date ? String(it.date).trim() : "undated");
-      out.push('<div class="nr"><div class="nr-d">' + esc(when) + (it.publisher ? ' &middot; ' + esc(it.publisher) : "") + '</div>' +
-        '<div class="nr-h">' + esc(it.title || "untitled item") + '</div></div>');
-    }
-    host.innerHTML = out.join("");
-    trimToFit(host, ".nr", 2);
+    if (!r){ tryDraw(drawFocusLine); return; }
+    return loadHistoryFor(r).then(function(){ tryDraw(drawFocusLine); })
+      .catch(function(){ tryDraw(drawFocusLine); });
   }
 
-  // ---- header, foot ------------------------------------------------------
+  // ---- CHAT window: the terminal's room, drawn as a picture ----------------
+  // The shell's chat window is served live by the application, and no message
+  // file is published beside the snapshots (static_data carries no chat, room or
+  // message file for any exchange). So this window draws the room's own frame -
+  // channel, room tag and the exchange it belongs to - and one honest line
+  // saying there is nothing published to read. No message, author or time is
+  // invented to fill it, and there is no composer, send control or field: the
+  // window is a picture, exactly like the rest of the desk.
+  function chatHead(){
+    return '<div class="ch-top">' +
+      '<span class="ch-chan"># ' + esc(EX) + '</span>' +
+      '<span class="ch-room">ROOM</span>' +
+      '<span class="ch-sub">' + esc(CFG.full) + '</span>' +
+    '</div>';
+  }
+  function renderChat(){
+    var host = $("chBody");
+    host.innerHTML = chatHead() +
+      '<div class="ch-log"><div class="ch-empty">No message is published for this room: ' +
+        'the chat runs live in the terminal and no message file sits beside the snapshots, ' +
+        'so nothing is shown here.</div></div>';
+    $("chMeta").textContent = "0 messages";
+  }
+
+  // ---- header ------------------------------------------------------------
+  // The footer strip is not part of this display: .foot is display:none and
+  // carries no text, so nothing under the desk is written from here.
   function renderChrome(){
     var asOf = (MB && MB.asOf) ? String(MB.asOf) : "session as-of not stated";
     $("exName").textContent = EX;
     $("exFull").textContent = " " + CFG.full;
     $("topAsOf").textContent = asOf;
-    $("wlMeta").textContent = EX + (MB && MB.stocks ? " · " + MB.stocks.length : "");
-    $("mkMetaMark").textContent = mkSession();
-    $("nwMetaMark").textContent = EX;
-    $("footSrc").textContent = "terminal/static_data/market_" + EX + ".json";
-    var basis = (HIST && HIST.basis_note) ? String(HIST.basis_note) : "";
-    $("footBasis").textContent = basis
-      ? "bars split-adjusted, not dividend-adjusted"
-      : "every figure read from the published snapshot at render time";
+    $("wlMeta").textContent = EX + (MB && MB.stocks ? " - " + MB.stocks.length : "");
+    $("mkMetaMark").textContent = mkSession() + (BOARD_FULL || !BOARD_FILE ? "" : " - screener file");
+    $("chMeta").textContent = "";
   }
 
   // ---- history -----------------------------------------------------------
@@ -1116,10 +1186,9 @@
     $("vTitle").textContent = title || "";
     $("vMeta").textContent = meta || "";
   }
-  function setFoot(src, basis){
-    if (src) $("footSrc").textContent = src;
-    if (basis) $("footBasis").textContent = basis;
-  }
+  // the footer strip is gone: each view names the file it read in its own
+  // caption, so nothing is written under the page any more
+  function setFoot(){}
   function viewError(title, msg){
     $("vMeta").textContent = EX;
     $("vbody").innerHTML = '<div class="vempty"><b>' + esc(title) + '</b>' + esc(msg) + '</div>';
@@ -1311,7 +1380,7 @@
 
     var head = '<tr><th>Line item &middot; ' + esc(cur) + '</th>';
     for (var p = 0; p < periods.length; p++){
-      head += '<th>' + esc(periods[p]) + '<span>· ' + esc(cur) + '</span></th>';
+      head += '<th>' + esc(periods[p]) + '<span>&middot; ' + esc(cur) + '</span></th>';
     }
     head += '</tr>';
 
@@ -1333,7 +1402,7 @@
     rowH = Math.max(12, Math.min(19, rowH));
     if (tab) tab.style.setProperty("--frow", rowH + "px");
 
-    setView("Income statement", name + " · " + EX + " · " + hits(d));
+    setView("Income statement", name + " - " + EX + " - " + hits(d));
     setFoot("terminal/static_data/financials/" + hit.file,
       "as stored in the file" + (d.asOf ? " on " + d.asOf : "") + "; an absent cell prints -, nothing is estimated");
   }
@@ -1413,7 +1482,7 @@
       var html = '<div class="inf">' + f.join("") + '</div>';
       if (info && info.description) html += '<div class="inftxt">' + esc(info.description) + '</div>';
       $("vbody").innerHTML = html;
-      $("vMeta").textContent = name + (pick.ticker ? " · " + pick.ticker : "") + " · " + EX;
+      $("vMeta").textContent = name + (pick.ticker ? " - " + pick.ticker : "") + " - " + EX;
       setFoot("terminal/static_data/company_info.json" + (info ? "" : " (no entry)"),
         info ? "descriptive fields only; anything not on file is left out" : "no company profile entry on file for this security");
     }
@@ -1464,7 +1533,7 @@
     host.innerHTML = out.join("") ||
       '<div class="vempty"><b>No wire items</b>No item is published in the file for ' + esc(EX) + '.</div>';
     setView("News", EX + " " + CFG.full);
-    $("vMeta").textContent = n + " items · " + firstD + " to " + lastD;
+    $("vMeta").textContent = n + " items - " + firstD + " to " + lastD;
     setFoot("terminal/static_data/" + EX.toLowerCase() + "_news.json",
       n + " of " + items.length + " wire items, newest first, dated from the item timestamp");
   }
@@ -1561,7 +1630,7 @@
     host.innerHTML = out.join("");
     var a = rows[0].date || "undated", b2 = rows[n - 1].date || "undated";
     setView("Corporate actions", EX + " " + CFG.full);
-    $("vMeta").textContent = n + " actions · " + a + " to " + b2;
+    $("vMeta").textContent = n + " actions - " + a + " to " + b2;
     setFoot("terminal/static_data/" + file, n + " of " + rows.length + " corporate-action rows, newest first");
   }
   function viewCorpActions(){
@@ -1648,12 +1717,43 @@
       shown + " of " + keys.length + " open positions; current price from terminal/static_data/market_" + EX + ".json");
   }
 
+  // ---- the board ----------------------------------------------------------
+  // market_<EX>.json is the file the WATCHLIST is drawn from and the one that
+  // carries the whole quote: previous close, open, high, low and market cap.
+  // screener_<EX>.json is the fallback: the same board from the same build,
+  // carrying price, change and volume and nothing else. A window reads one
+  // board, so MARKET, FOCUS and the WATCHLIST can never disagree about which
+  // securities exist, and the empty state is only reached when NEITHER file
+  // answers.
+  function loadBoard(){
+    var prim = "terminal/static_data/market_" + EX + ".json";
+    var alt  = "terminal/static_data/screener_" + EX + ".json";
+    function take(d, file, full){
+      if (!d || !d.stocks || !d.stocks.length) return null;
+      MB = d; BOARD_FILE = file; BOARD_FULL = full;
+      return d;
+    }
+    return get(prim).then(function(d){ return take(d, prim, true); })
+      .catch(function(){ return null; })
+      .then(function(hit){
+        if (hit) return hit;
+        return get(alt).then(function(d){ return take(d, alt, false); })
+          .catch(function(){ return null; });
+      })
+      .catch(function(){ return null; });
+  }
+
   // ---- boot --------------------------------------------------------------
+  function noBoardNote(){
+    return "Neither terminal/static_data/market_" + EX + ".json nor terminal/static_data/screener_" +
+      EX + ".json answered for " + EX + ", so there is nothing to draw.";
+  }
   function boot(){
     $("exName").textContent = EX;
     $("exFull").textContent = " " + CFG.full;
     $("topAsOf").textContent = "loading the published snapshot";
     $("mkMetaMark").textContent = "";
+    $("chMeta").textContent = "";
 
     // ?view= swaps the desk for one panel; the header and the tape stay
     var hero = !VIEW;
@@ -1663,38 +1763,44 @@
     }
 
     return Promise.all([
-      get("terminal/static_data/market_" + EX + ".json").catch(function(){ return null; }),
+      loadBoard(),
       get("terminal/static_data/ex_" + EX + "_indices.json").catch(function(){ return null; })
     ])
     .then(function(res){
-      MB = res[0]; IX = res[1];
-      if (!MB || !MB.stocks){
+      IX = res[1];
+      if (!MB || !MB.stocks || !MB.stocks.length){
         $("topAsOf").textContent = "session as-of not stated";
         if (!hero){
-          viewError("Snapshot unavailable", "No market snapshot answered for " + EX + ", so there is nothing to draw.");
+          viewError("Snapshot unavailable", noBoardNote());
           return null;
         }
-        $("wlBody").innerHTML = '<div class="vempty"><b>No snapshot</b>No market snapshot answered for ' + esc(EX) + '.</div>';
-        $("mkBody").innerHTML = '<div class="vempty"><b>No snapshot</b>No market snapshot answered for ' + esc(EX) + '.</div>';
-        $("fxBody").innerHTML = '<div class="vempty"><b>No snapshot</b>No market snapshot answered for ' + esc(EX) + '.</div>';
-        $("nwBody").innerHTML = '<div class="vempty"><b>No snapshot</b>No market snapshot answered for ' + esc(EX) + '.</div>';
+        var box = '<div class="vempty"><b>No snapshot</b>' + esc(noBoardNote()) + '</div>';
+        $("wlBody").innerHTML = box;
+        $("mkBody").innerHTML = box;
+        $("fxBody").innerHTML = '<div class="vempty"><b>Focus</b>No security is published for ' +
+          esc(EX) + ', so there is no quote to draw.</div>';
+        renderChat();
         return null;
       }
       if (!hero) { renderChrome(); renderTape(); return renderView(); }
       renderDesk();
-      // one more pass once the webfont settles, so each window trims against
-      // its real row height instead of the fallback metrics
-      requestAnimationFrame(function(){ renderWatch(); renderMarket(); drawFocusLine(); paintDeskNews(CACHE.news || []); });
+      // one more pass once the frame and the webfont settle, so each window
+      // trims against its real row height instead of the fallback metrics
+      requestAnimationFrame(function(){ renderDesk(); });
       if (document.fonts && document.fonts.ready){
-        document.fonts.ready.then(function(){
-          renderWatch(); renderMarket(); drawFocusLine();
-          if (CACHE.news) paintDeskNews(CACHE.news);
-        }).catch(function(){});
+        document.fonts.ready.then(function(){ renderDesk(); }).catch(function(){});
       }
       return null;
     }).catch(function(){
       if (VIEW){ viewError("Could not read the snapshot", "Nothing is drawn rather than something guessed."); return; }
-      $("mkBody").innerHTML = '<div class="vempty"><b>No snapshot</b>The snapshot could not be read, so nothing is drawn.</div>';
+      // this page never blanks one window and leaves the others blank beside it
+      var msg = noBoardNote();
+      $("topAsOf").textContent = "session as-of not stated";
+      $("wlBody").innerHTML = '<div class="vempty"><b>No snapshot</b>' + esc(msg) + '</div>';
+      $("mkBody").innerHTML = '<div class="vempty"><b>No snapshot</b>' + esc(msg) + '</div>';
+      $("fxBody").innerHTML = '<div class="vempty"><b>Focus</b>No security is published for ' +
+        esc(EX) + ', so there is no quote to draw.</div>';
+      tryDraw(renderChat);
     });
   }
 
@@ -1703,12 +1809,9 @@
     if (rt) clearTimeout(rt);
     rt = setTimeout(function(){
       if (!MB) return;
-      renderTape();
+      tryDraw(renderTape);
       if (VIEW){ renderView(); return; }
-      renderWatch();
-      renderMarket();
-      drawFocusLine();
-      if (CACHE.news) paintDeskNews(CACHE.news);
+      renderDesk();
     }, 140);
   });
 
