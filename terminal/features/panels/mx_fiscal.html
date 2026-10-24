@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - FISCAL panel.
+
+  Three sections, in this order:
+
+    1. BUDGET BY SECTOR for the selected exchange. Each sector line carries its
+       allocation, the recurrent and development split the source prints, and the
+       change against the paired view as an AMOUNT and a PERCENTAGE. The two
+       amounts the change is computed from are both printed in the row, and the
+       view each figure came from sits in the same row as the figure. A sector
+       the source does not carry is omitted, never zeroed.
+
+    2. WHO IT REACHES. Under each sector, the listed companies the exposure file
+       places against it, DIRECT and INDIRECT marked differently, each with its
+       one line reason. A sector with no company prints the structural reason the
+       exposure file records. Companies the file excludes are kept OUT of the
+       sector list and shown in their own block with the reason recorded for them.
+
+    3. LAWS IN FORCE. The Acts and statutory instruments in gov_laws_KE.json, each
+       with its year, its status, the one sentence mechanism, the sectors and the
+       tickers it touches. A withdrawn or repealed instrument is marked distinctly
+       from an enacted one, in the label and not only in colour. A ticker is
+       clickable and becomes the selected security through the shell's own
+       selection hook (the element carries data-sym, which mtHookSelect reads).
+
+  NO ADVICE. Nothing here says a security will rise or fall, is cheap or dear.
+  The panel states what an allocation is, which budget line pays which company,
+  and what a statute does. This file's own copy carries no advisory verb: every
+  sentence is a figure, a mechanism or a source.
+
+  DATA INTERFACE. Reads, per exchange and with no restatement:
+    static_data/gov_budget_KE.json     + gov_exposure_KE.json + gov_laws_KE.json
+    static_data/gov_budget_SA.json     + gov_exposure_SA.json
+  NGX and EGX have no official sector budget table in this build, and the panel
+  says so rather than printing a table it does not have. ?ex= comes from the
+  shell. ?b= is a local verification hook naming one budget file only.
+
+  Vanilla JS, terminal tokens, no build step.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MUTXRI TERMINAL - FISCAL</title>
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--warn:#e0a340;--blue:#6ea8fe;
+    --mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:transparent;color:var(--tx);font-family:var(--ui);font-size:12.5px;padding:0}
+  .fis-wrap{margin:0;padding:0;border:0;background:transparent;max-width:none;border-radius:0}
+
+  .fis-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+            padding:10px 14px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+  .fis-t{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--tx2)}
+  .fis-t b{color:var(--acc);font-weight:700}
+  .fis-sub{font-family:var(--mono);font-size:9.5px;color:var(--tx3);letter-spacing:.04em}
+  .fis-ex{display:flex;border:1px solid var(--line2);border-radius:2px;overflow:hidden}
+  .fis-ex button{background:transparent;border:0;border-right:1px solid var(--line2);color:var(--tx3);
+                 font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:4px 9px;cursor:pointer}
+  .fis-ex button:last-child{border-right:0}
+  .fis-ex button.on{background:var(--bg4);color:var(--acc)}
+  .fis-ex button:hover{color:var(--acc)}
+
+  .sec{border-top:1px solid var(--line2)}
+  .sec:first-of-type{border-top:0}
+  .sec-h{display:flex;align-items:baseline;gap:9px;padding:9px 14px;background:var(--bg2);
+         border-bottom:1px solid var(--line2);flex-wrap:wrap}
+  .sec-n{font-family:var(--mono);font-size:9.5px;color:var(--tx3)}
+  .sec-t{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx)}
+  .sec-c{font-family:var(--mono);font-size:9.5px;color:var(--tx3);margin-left:auto}
+
+  .views{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
+         border-bottom:1px solid var(--line);background:var(--bg3)}
+  .views button{background:transparent;border:0;border-right:1px solid var(--line);
+                color:var(--tx3);font-family:var(--mono);font-size:9px;letter-spacing:.03em;
+                padding:6px 6px;cursor:pointer;text-align:center;line-height:1.3}
+  .views button:last-child{border-right:0}
+  .views button.on{background:var(--bg4);color:var(--acc)}
+  .views button:hover{color:var(--acc)}
+
+  .cols,.srow{display:grid;grid-template-columns:minmax(178px,1.85fr) minmax(92px,.95fr) minmax(146px,1.3fr) minmax(96px,.85fr);
+              gap:8px;padding:6px 14px;align-items:start}
+  .cols{font-family:var(--mono);font-size:8.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--tx3);
+        border-bottom:1px solid var(--line2);padding-top:7px;padding-bottom:7px;background:var(--bg3)}
+  .cols span:not(:first-child){text-align:right}
+  .cols .hchg{color:var(--tx2)}
+  .cols .hchg i{display:block;font-style:normal;color:var(--tx3);font-size:8px;letter-spacing:.02em;text-transform:none;margin-top:2px}
+  .srow{border-bottom:1px solid var(--line)}
+  .srow:hover{background:var(--bg3)}
+  .sn{font-size:12.5px;line-height:1.35;color:var(--tx)}
+  .sn .code{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-right:5px}
+  .spl{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:3px;line-height:1.45}
+  .spl b{color:var(--tx2);font-weight:400}
+  .alloc{font-family:var(--mono);font-size:13px;color:var(--tx);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .alloc .u{display:block;font-size:8.5px;color:var(--tx3);letter-spacing:.04em}
+  .chg{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;
+       border-left:2px solid var(--line2);padding-left:9px;margin-left:-2px}
+  .chg .amt{display:block;font-size:16px;font-weight:700;line-height:1.15;letter-spacing:-.01em}
+  .chg .pct{font-size:12px;font-weight:700;margin-left:6px}
+  .chg .ins{display:block;font-size:8.5px;color:var(--tx3);margin-top:3px;letter-spacing:.02em;white-space:nowrap}
+  .chg.up{border-left-color:var(--up)} .chg.up .amt,.chg.up .pct{color:var(--up)}
+  .chg.dn{border-left-color:var(--down)} .chg.dn .amt,.chg.dn .pct{color:var(--down)}
+  .chg.flat{border-left-color:var(--line2)} .chg.flat .amt,.chg.flat .pct{color:var(--tx2)}
+  .chg .dash{font-size:13px;color:var(--tx3)}
+  .chg-l{display:none;font-size:8px;letter-spacing:.08em;color:var(--tx3);margin-right:5px}
+  .vt{font-family:var(--mono);font-size:8.5px;letter-spacing:.03em;color:var(--tx2);text-align:right;
+      border:1px solid var(--line2);border-radius:2px;padding:2px 5px;display:inline-block;line-height:1.35;cursor:help;white-space:normal}
+  .vt.on{color:var(--acc);border-color:#1f4f3c}
+  .vcell{text-align:right}
+
+  .legend{padding:8px 14px;font-family:var(--mono);font-size:9px;color:var(--tx3);line-height:1.6;border-bottom:1px solid var(--line)}
+  .legend b{color:var(--tx2);font-weight:400}
+  .legend .lgN{display:none}
+
+  .exp{padding:9px 14px 11px;border-bottom:1px solid var(--line)}
+  .exp-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .exp-h .nm{font-size:12px;color:var(--tx)}
+  .exp-h .al{font-family:var(--mono);font-size:9.5px;color:var(--tx3);margin-left:auto;white-space:nowrap}
+  .co{display:grid;grid-template-columns:66px 1fr;gap:8px;padding:5px 0 5px 2px;border-top:1px solid var(--line);margin-top:6px}
+  .co:first-of-type{border-top:1px solid var(--line2)}
+  .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-align:center;padding:2px 0;
+       border:1px solid var(--line2);border-radius:2px;height:17px;line-height:12px;white-space:nowrap}
+  .tag.direct{color:var(--acc);border-color:var(--acc);background:#0a1c15}
+  .tag.indirect{color:var(--warn);border-color:var(--warn);border-style:dashed;background:#1a1205}
+  .co-b{font-family:var(--ui);font-size:11.5px;line-height:1.5;color:var(--tx2)}
+  .co-b .tk{font-family:var(--mono);font-size:10.5px;color:var(--tx);border-bottom:1px dotted var(--tx3);
+            cursor:pointer;padding-bottom:1px;margin-right:5px}
+  .co-b .tk:hover{color:var(--acc);border-bottom-color:var(--acc)}
+  .co-b .tk.dead{color:var(--tx2);border-bottom:0;cursor:default}
+  .noline{font-size:11px;line-height:1.5;color:var(--tx3);margin-top:6px;padding-left:2px}
+  .noline b{color:var(--warn);font-weight:600;font-family:var(--mono);font-size:9px;letter-spacing:.06em}
+  .noline.q{color:var(--tx2);font-family:var(--ui)}
+
+  .block{border-top:1px solid var(--line2);padding:10px 14px 12px;background:var(--bg2)}
+  .block h4{margin:0 0 6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--tx2);font-weight:600}
+  .block p{margin:0 0 7px;font-size:11px;line-height:1.55;color:var(--tx3)}
+  .bfig{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 8px;font-family:var(--mono);font-size:9.5px;color:var(--tx2)}
+  .bfig b{color:var(--tx);font-weight:400}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 7px}
+  .chip{border:1px solid var(--line2);border-radius:2px;padding:3px 7px;font-family:var(--mono);font-size:9.5px;cursor:pointer;color:var(--tx2)}
+  .chip.direct{color:var(--acc);border-color:#1f4f3c}
+  .chip.indirect{color:var(--warn);border-color:#4a3810}
+  .chip:hover{border-color:var(--acc);color:var(--acc)}
+
+  .filters{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--line);background:var(--bg3)}
+  .filters button{background:transparent;border:0;border-right:1px solid var(--line);color:var(--tx3);
+                  font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;padding:6px 10px;cursor:pointer}
+  .filters button.on{background:var(--bg4);color:var(--acc)}
+  .filters button:hover{color:var(--acc)}
+
+  .law{padding:9px 14px 10px;border-bottom:1px solid var(--line);border-left:2px solid var(--line2)}
+  .law.enacted{border-left-color:var(--acc)}
+  .law.repealed{border-left-color:var(--down);background:#120a0a}
+  .law.withdrawn{border-left-color:var(--warn);border-left-style:dashed;background:#141004}
+  .law-h{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+  .law-nm{font-size:12.5px;line-height:1.35;color:var(--tx)}
+  .law.repealed .law-nm{text-decoration:line-through;color:var(--tx2)}
+  .yr{font-family:var(--mono);font-size:9px;color:var(--tx3);border:1px solid var(--line2);border-radius:2px;padding:1px 4px}
+  .st{font-family:var(--mono);font-size:8.5px;letter-spacing:.07em;padding:1px 5px;border-radius:2px;border:1px solid var(--line2);white-space:nowrap}
+  .st.enacted{color:var(--acc);border-color:#1f4f3c}
+  .st.repealed{color:var(--down);border-color:#5b2626;background:#1a0a0a}
+  .st.withdrawn{color:var(--warn);border-color:#5d4715;border-style:dashed;background:#181204}
+  .law-mech{margin:5px 0 0;font-size:11.5px;line-height:1.5;color:var(--tx2)}
+  .law-st{margin:4px 0 0;font-size:10.5px;line-height:1.45;color:var(--tx3)}
+  .law.repealed .law-st,.law.withdrawn .law-st{color:var(--tx2)}
+  .law-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
+  .lab{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;color:var(--tx3);text-transform:uppercase}
+  .sec-chip{font-family:var(--mono);font-size:8.5px;color:var(--tx2);border:1px solid var(--line);border-radius:2px;padding:1px 4px}
+  .tkchip{font-family:var(--mono);font-size:9px;color:var(--tx);border:1px solid var(--line2);border-radius:2px;
+          padding:1px 5px;cursor:pointer;background:var(--bg3)}
+  .tkchip:hover{color:var(--acc);border-color:var(--acc)}
+  .tkchip.dead{color:var(--tx3);cursor:default;border-style:dotted}
+  .tkchip.dead:hover{color:var(--tx3);border-color:var(--line2)}
+
+  .muted-list{margin:6px 0 0;padding:0 0 0 16px;list-style:none}
+  .muted-list li{font-size:10.5px;line-height:1.5;color:var(--tx3);padding:3px 0;border-top:1px solid var(--line)}
+  .muted-list li:first-child{border-top:0}
+
+  /* A PANEL WINDOW CAN BE NARROW. The budget row reads across at width, and when
+     the window is too narrow for four columns the same facts stack: sector and
+     allocation, then the change under them with its two inputs, then the view.
+     The change keeps its label in the stack, so the figure never travels without
+     the view it came from. */
+  @media (max-width:560px){
+    .cols{display:none}
+    .srow{grid-template-columns:minmax(0,1fr) auto;gap:5px 8px}
+    .sn{font-size:12px}
+    .chg{grid-column:1;text-align:left;border-left:0;padding-left:0;margin-left:0}
+    .chg .amt{display:inline;font-size:15px}
+    .chg .pct{margin-left:5px;font-size:11.5px}
+    .chg .ins{display:inline;margin-left:7px;margin-top:0}
+    .chg .chg-l{display:inline}
+    .vcell{grid-column:2;text-align:right}
+    .legend .lgW{display:none}
+    .legend .lgN{display:inline}
+    .legend{padding:6px 14px;font-size:8.5px}
+  }
+
+  .empt{padding:30px 18px;text-align:center;font-family:var(--mono);font-size:11.5px;line-height:1.8;color:var(--tx3)}
+  .empt b{display:block;color:var(--warn);font-size:12px;margin-bottom:6px;letter-spacing:.04em}
+  .empt .q{font-family:var(--ui);font-size:11.5px;color:var(--tx2);max-width:520px;margin:8px auto 0;line-height:1.6}
+
+  .fis-foot{padding:10px 14px 14px;border-top:1px solid var(--line2);background:var(--bg2)}
+  .fis-foot .fh{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);margin-bottom:5px}
+  .fis-foot .fl{font-size:10.5px;line-height:1.55;color:var(--tx3);margin:2px 0}
+  .fis-foot .fl b{color:var(--tx2);font-weight:500}
+  .fis-foot a{color:var(--tx2);text-decoration:none;border-bottom:1px solid var(--line2)}
+  .fis-foot a:hover{color:var(--acc)}
+  .loading{padding:26px 16px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--tx3)}
+  .stealth{position:absolute;left:-9999px;top:0}
+</style>
+</head>
+<body>
+<div class="fis-wrap" id="fis">
+  <div class="fis-head">
+    <div>
+      <div class="fis-t"><b>FISCAL</b> - budget, reach, laws</div>
+      <div class="fis-sub" id="fisSub">loading</div>
+    </div>
+    <div class="fis-ex" id="fisEx"></div>
+  </div>
+  <div id="fisBody"><div class="loading">loading&hellip;</div></div>
+  <div class="fis-foot" id="fisFoot"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var Q = new URLSearchParams(location.search);
+var EXES = ['NSE','NGX','JSE','EGX'];
+var CCY = {NSE:'KES', NGX:'NGN', JSE:'ZAR', EGX:'EGP'};
+var ex = (Q.get('ex') || '').toUpperCase();
+if(EXES.indexOf(ex) < 0) ex = 'NSE';
+
+/* Which budget+exposure pair an exchange has. NGX and EGX have none, and the
+   panel says so: no official sector budget table was sourced for either, and a
+   table it does not have is not drawn. */
+var SETS = {
+  NSE: {budget:'../../static_data/gov_budget_KE.json',
+        exposure:'../../static_data/gov_exposure_KE.json',
+        laws:'../../static_data/gov_laws_KE.json'},
+  JSE: {budget:'../../static_data/gov_budget_SA.json',
+        exposure:'../../static_data/gov_exposure_SA.json',
+        laws:null}
+};
+var BUDGET_OVERRIDE = Q.get('b') || '';
+
+/* The pair each view is measured against, stated per jurisdiction so no two
+   views are ever subtracted without the reader seeing which two they were. */
+var PAIR = {
+  KE: {
+    'fy2026-27-bps-projection':   {against:'fy2025-26-approved',          yoy:true},
+    'fy2025-26-approved':         {against:'fy2025-26-original-ceiling',  yoy:false},
+    'fy2025-26-original-ceiling': {against:'fy2025-26-approved',          yoy:false}
+  },
+  SA: {
+    'fy2026-27-budget-estimate':    {against:'fy2025-26-revised-estimate', yoy:true},
+    'fy2025-26-revised-estimate':   {against:'fy2026-27-budget-estimate',  yoy:false}
+  }
+};
+var BTN = {
+  'fy2026-27-bps-projection':'FY26/27 projection',
+  'fy2025-26-approved':'FY25/26 approved',
+  'fy2025-26-original-ceiling':'FY25/26 original',
+  'fy2026-27-budget-estimate':'FY26/27 estimate',
+  'fy2025-26-revised-estimate':'FY25/26 revised'
+};
+var SHORT = {
+  'fy2026-27-bps-projection':'FY26/27 BPS proj',
+  'fy2025-26-approved':'FY25/26 approved',
+  'fy2025-26-original-ceiling':'FY25/26 original',
+  'fy2026-27-budget-estimate':'FY26/27 estimate',
+  'fy2025-26-revised-estimate':'FY25/26 revised'
+};
+
+var D = {budget:null, exposure:null, laws:null};
+var viewIdx = 0, lawsFilter = 'all', loadedEx = null, listingNSE = null, tickSet = {};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function isNum(v){ return v!==null && v!==undefined && v!=='' && !isNaN(v); }
+function n(v){ return isNum(v) ? Number(v) : null; }
+
+/* Money, in the unit the file states (KES million, ZAR million). One decimal is
+   the precision the Treasury tables print; nothing is rounded away silently. */
+function fm(v){
+  if(!isNum(v)) return null;
+  return Number(v).toLocaleString('en-US',{minimumFractionDigits:1, maximumFractionDigits:1});
+}
+function fp(v){
+  if(!isNum(v)) return null;
+  var x = Number(v);
+  return (x>0?'+':'') + x.toFixed(1) + '%';
+}
+function sgn(v){
+  if(!isNum(v)) return '';
+  return (Number(v)>0?'+':'');
+}
+
+function load(url){
+  return fetch(url + (url.indexOf('?')<0?'?t=':'&t=') + Date.now(), {cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); });
+}
+
+function init(){
+  renderExSwitch();
+  if(ex === 'NSE' || ex === 'JSE'){
+    var s = SETS[ex];
+    var bud = BUDGET_OVERRIDE || s.budget;
+    var jobs = [load(bud).then(function(d){D.budget=d;}).catch(function(){D.budget=null;}),
+                load(s.exposure).then(function(d){D.exposure=d;}).catch(function(){D.exposure=null;})];
+    if(s.laws) jobs.push(load(s.laws).then(function(d){D.laws=d;}).catch(function(){D.laws=null;}));
+    /* the listed tickers of this exchange, so a ticker a reader can click is one
+       the shell can actually select, and one it cannot is not dressed as a link */
+    jobs.push(load('../../static_data/listing_' + ex + '.json').then(function(d){
+      listingNSE = d; (d.stocks||[]).forEach(function(r){
+        [r.ticker, r.sym, r.code].forEach(function(t){ if(t) tickSet[String(t).toUpperCase()] = 1; });
+      });
+    }).catch(function(){}));
+    Promise.all(jobs).then(function(){ loadedEx = ex; render(); });
+  } else {
+    loadedEx = ex; render();
+  }
+}
+
+function renderExSwitch(){
+  $('fisEx').innerHTML = EXES.map(function(e){
+    return '<button type="button" data-ex="' + e + '"' + (e===ex?' class="on"':'') + '>' + e + '</button>';
+  }).join('');
+}
+$('fisEx').addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('button[data-ex]');
+  if(!b) return;
+  var nx = b.getAttribute('data-ex');
+  if(nx === ex) return;
+  ex = nx; viewIdx = 0; lawsFilter = 'all';
+  D = {budget:null, exposure:null, laws:null}; tickSet = {};
+  $('fisBody').innerHTML = '<div class="loading">loading&hellip;</div>';
+  init();
+});
+
+/* ---------- 1. budget by sector ---------------------------------------- */
+
+function curView(){ return (D.budget && D.budget.views && D.budget.views[viewIdx]) || null; }
+function juris(){ return (D.budget && D.budget.exchange === 'NSE') ? 'KE' : 'SA'; }
+function viewById(id){
+  var vs = (D.budget && D.budget.views) || [];
+  for(var i=0;i<vs.length;i++) if(vs[i].id === id) return vs[i];
+  return null;
+}
+function sectorName(s){ return s.sector || s.function || ''; }
+
+function renderViews(){
+  if(!D.budget || !D.budget.views) return '';
+  return '<div class="views" id="fisViews">' + D.budget.views.map(function(v,i){
+    return '<button type="button" data-v="' + i + '"' + (i===viewIdx?' class="on"':'') +
+      ' title="' + esc(v.label + ' | ' + (v.document||'')) + '">' + esc(BTN[v.id] || v.label) + '</button>';
+  }).join('') + '</div>';
+}
+
+function renderBudget(){
+  var v = curView();
+  if(!v) return '';
+  var pair = (PAIR[juris()]||{})[v.id] || null;
+  var against = pair ? viewById(pair.against) : null;
+  var unit = D.budget.unit || '';
+  var cur = D.budget.currency || CCY[ex] || '';
+
+  /* change header names both views, because the change is the difference
+     between exactly two printed figures and nothing else */
+  var head = pair && against
+    ? (pair.yoy ? 'CHANGE, YEAR ON YEAR' : 'CHANGE, A REVISION ONLY')
+    : 'CHANGE';
+  var sub = pair && against
+    ? esc(SHORT[v.id] || v.id) + ' minus ' + esc(SHORT[against.id] || against.id)
+    : 'no second view to measure against';
+
+  var h = '<div class="sec">' +
+    '<div class="sec-h"><span class="sec-n">01</span>' +
+      '<span class="sec-t">Budget by sector</span>' +
+      '<span class="sec-c">' + esc(D.budget.jurisdiction || '') + ' | ' + esc(unit) + '</span>' +
+    '</div>' + renderViews() +
+    '<div class="legend"><span class="lgW">' +
+      '<b>Change</b> = ' + (pair && against
+        ? esc(SHORT[v.id] || v.id) + ' minus ' + esc(SHORT[against.id] || against.id) + '. ' +
+          (pair.yoy
+            ? 'Year on year, between the two financial years.'
+            : 'A revision inside one financial year, not a year on year movement.')
+        : 'this view has no paired view in the file.') +
+      ' Both amounts are printed in the row; the percentage is computed from them. ' +
+      '<b>Estimates only</b>: no outturn figure is carried in this file.' +
+    '</span>' +
+    /* the same rule, said in one line, for a window too narrow to spend four
+       lines on it: the column header above already names both views */
+    '<span class="lgN"><b>Change</b> = ' + esc(SHORT[v.id] || v.id) +
+      (against ? ' minus ' + esc(SHORT[against.id] || against.id) : '') +
+      '; both amounts are in the row, the percentage is computed from them. Estimates only.</span>' +
+    '</div>' +
+    '<div class="cols"><span>Sector</span><span>Allocation</span>' +
+      '<span class="hchg">' + head + '<i>' + sub + '</i></span><span>View</span></div>';
+
+  var rows = (v.sectors||[]);
+  var sumCur = 0, sumPrev = 0, countedCur = 0, countedPrev = 0;
+  /* the same sector in the paired view, matched on the name the source prints */
+  var prevOf = {};
+  if(against) (against.sectors||[]).forEach(function(x){ prevOf[sectorName(x)] = n(x.allocation); });
+  h += rows.map(function(s){
+    var a = n(s.allocation), b = (against && prevOf[sectorName(s)] !== undefined) ? prevOf[sectorName(s)] : null;
+
+    if(a !== null){ sumCur += a; countedCur++; }
+    if(b !== null){ sumPrev += b; countedPrev++; }
+
+    var split;
+    if(isNum(s.recurrent_gross) || isNum(s.development_gross)){
+      split = '<b>recurrent</b> ' + (isNum(s.recurrent_gross) ? fm(s.recurrent_gross) : 'not printed') +
+              ' &nbsp;<b>development</b> ' + (isNum(s.development_gross) ? fm(s.development_gross) : 'not printed');
+    } else if(juris() === 'SA'){
+      split = '<b>no current and capital split</b> in this table';
+    } else {
+      split = '<b>no split</b> printed for this view';
+    }
+
+    var chgCls = 'flat', chgHtml;
+    if(a !== null && b !== null && b !== 0){
+      var d = a - b, p = (d / b) * 100;
+      chgCls = d > 0 ? 'up' : (d < 0 ? 'dn' : 'flat');
+      chgHtml = '<span class="amt">' + sgn(d) + fm(d) + '</span>' +
+                '<span class="pct">' + fp(p) + '</span>' +
+                '<span class="ins">' + fm(b) + ' to ' + fm(a) + '</span>';
+    } else if(a !== null && b === null){
+      chgHtml = '<span class="dash" title="the paired view carries no figure for this sector, so no change can be computed">-</span>' +
+                '<span class="ins">no paired figure</span>';
+    } else if(a !== null && b === 0){
+      chgHtml = '<span class="dash" title="the paired figure is zero, so no percentage can be computed from it">-</span>' +
+                '<span class="ins">paired figure is zero</span>';
+    } else {
+      chgHtml = '<span class="dash" title="no figure in the selected view">-</span>';
+    }
+
+    var srcT = s.source || {};
+    var vTitle = v.label + ' | ' + (srcT.table || '') + ' | ' + (srcT.column || '') +
+                 ' | ' + (srcT.row || '') + ' | ' + (srcT.page || '');
+    var chgTitle = (a!==null && b!==null)
+      ? fm(a) + ' minus ' + fm(b) + ' = ' + fm(a-b) + ' (' + fp(b?((a-b)/b)*100:null) + ')'
+      : 'change not computed: one of the two figures is absent';
+
+    return '<div class="srow">' +
+      '<div><div class="sn"><span class="code">' + esc(s.code || '') + '</span>' + esc(sectorName(s)) + '</div>' +
+        '<div class="spl">' + split + '</div></div>' +
+      '<div class="alloc">' + (a!==null ? fm(a) : '-') + '<span class="u">' + esc(cur) + ' m</span></div>' +
+      '<div class="chg ' + chgCls + '" title="' + esc(chgTitle) + '"><span class="chg-l">change</span>' + chgHtml + '</div>' +
+      '<div class="vcell"><span class="vt' + (viewIdx===0?' on':'') + '" title="' + esc(vTitle) + '">' +
+        esc(SHORT[v.id] || v.financial_year || '') + '</span></div>' +
+    '</div>';
+  }).join('');
+
+  /* the figures this table adds up to, and what it does not cover */
+  var foot = '';
+  if(countedCur){
+    foot += countedCur + ' sector lines shown: <b>' + fm(sumCur) + '</b> ' + esc(cur) + ' million in ' + esc(v.label) + '.';
+    if(countedPrev) foot += ' The same lines in ' + esc(against.label) + ': <b>' + fm(sumPrev) + '</b> ' + esc(cur) + ' million.';
+  }
+  if(juris() === 'KE' && D.budget.reconciliation){
+    var r = D.budget.reconciliation;
+    foot += '<br>Sector ceilings do not equal the total budget: <b>' + fm(r.total_budget_fy2026_27) + '</b> ' +
+            esc(cur) + ' million projected for FY 2026/27 against <b>' + fm(r.sector_ceiling_total_fy2026_27) +
+            '</b> million of sector ceilings. Public debt related costs of <b>' + fm(r.public_debt_related_costs_fy2026_27) +
+            '</b> million, transfers to counties of <b>' + fm(r.transfers_to_counties_fy2026_27) +
+            '</b> million and the contingency fund sit outside the ten ceilings, and the Budget Policy Statement publishes no reconciliation between the two totals.';
+  }
+  if(juris() === 'SA' && D.budget.reconciliation){
+    var rs = D.budget.reconciliation;
+    foot += '<br>Functions do not include debt service: <b>' + fm(rs.debt_service_costs_fy2026_27) + '</b> ' +
+            esc(cur) + ' million of debt-service costs and <b>' + fm(rs.contingency_reserve_fy2026_27) +
+            '</b> million of contingency reserve sit beside the function rows. Allocated by function plus those two lines equals consolidated expenditure of <b>' +
+            fm(rs.consolidated_expenditure_fy2026_27) + '</b> million, as the table prints it.';
+  }
+  if(foot) h += '<div class="legend" style="border-bottom:0">' + foot + '</div>';
+  h += '</div>';
+  return h;
+}
+
+/* ---------- 2. who it reaches ------------------------------------------ */
+
+function tickHtml(t, base){
+  var B = base || 'tk';
+  var T = String(t==null?'':t).toUpperCase();
+  if(!T) return '';
+  /* ALL is a sentinel, not a security: it names every issuer in the listing file
+     and selects nothing */
+  if(T === 'ALL') return '<span class="' + B + ' dead" title="the sentinel ALL: every issuer in the listing file">ALL</span>';
+  if(tickSet[T]) return '<span class="' + B + '" data-sym="' + esc(T) + '" title="select ' + esc(T) + '">' + esc(T) + '</span>';
+  return '<span class="' + B + ' dead" title="not a ticker in the current ' + esc(ex) + ' listing file">' + esc(T) + '</span>';
+}
+
+function coParts(c){
+  if(Array.isArray(c)) return {t: c[0], r: c[1] || ''};
+  if(typeof c === 'string') return {t: c, r: ''};
+  return {t: (c && c.ticker), r: (c && c.reason) || ''};
+}
+function coRow(kind, c){
+  var P = coParts(c), tk = P.t, rs = P.r;
+  return '<div class="co"><span class="tag ' + kind + '">' + kind.toUpperCase() + '</span>' +
+    '<span class="co-b">' + tickHtml(tk) + esc(rs) + '</span></div>';
+}
+
+function renderExposure(){
+  var E = D.exposure;
+  if(!E) return '';
+  var v = (D.budget && D.budget.views && D.budget.views[0]) || null;
+  var unit = (D.budget && D.budget.unit) || E.currency || '';
+  var allocOf = {};
+  if(v) (v.sectors||[]).forEach(function(s){ allocOf[sectorName(s)] = n(s.allocation); });
+
+  var map = E.sector_exposure || {};
+  var keys = Object.keys(map);
+  /* the budget's own order first, so the two sections read the same way */
+  var order = v ? (v.sectors||[]).map(sectorName) : [];
+  keys.sort(function(x,y){
+    var ix = order.indexOf(x), iy = order.indexOf(y);
+    if(ix < 0) ix = 999; if(iy < 0) iy = 999;
+    return ix - iy;
+  });
+
+  var h = '<div class="sec">' +
+    '<div class="sec-h"><span class="sec-n">02</span><span class="sec-t">Who it reaches</span>' +
+      '<span class="sec-c">' + keys.length + ' sector lines | ' + esc(E.jurisdiction || '') + '</span></div>' +
+    '<div class="legend">Each entry is a channel recorded in ' +
+      '<b>' + esc((E.dataset||'gov_exposure') ) + '</b>: the listed company whose product or service the line pays for reads ' +
+      '<b style="color:#33e29a">DIRECT</b>, one whose revenue arrives through an intermediate party or through costs and demand reads ' +
+      '<b style="color:#e0a340">INDIRECT</b>. Sectors with no company carry the reason the file records. ' +
+      'Companies the file excludes are listed separately as <b>not in a budget line</b>.</div>';
+
+  h += keys.map(function(k){
+    var g = map[k] || {};
+    var dir = g.direct || [], ind = g.indirect || [];
+    var a = allocOf[k];
+    /* built in its own string: an accumulator returned from inside a map would
+       repeat every group already appended to it */
+    var blk = '';
+    blk += '<div class="exp">' +
+      '<div class="exp-h"><span class="nm">' + esc(k) + '</span>' +
+        (a !== null && a !== undefined ? '<span class="al">' + fm(a) + ' ' + esc(unit) + '</span>' : '') +
+      '</div>';
+    if(dir.length || ind.length){
+      blk += dir.map(function(c){ return coRow('direct', c); }).join('');
+      blk += ind.map(function(c){ return coRow('indirect', c); }).join('');
+      if(!dir.length && g.no_direct_supplier_reason){
+        blk += '<div class="noline"><b>No direct channel</b> ' + esc(g.no_direct_supplier_reason) + '</div>';
+      }
+    } else {
+      blk += '<div class="noline"><b>No listed company</b> ' +
+        esc(g.no_direct_supplier_reason ||
+            'No listed issuer is placed against this line in the exposure file for this exchange.') +
+        '</div>';
+    }
+    blk += '</div>';
+    return blk;
+  }).join('');
+
+  /* cross-cutting: government borrowing, deliberately outside every sector line */
+  var cc = E.cross_cutting;
+  if(cc){
+    var bf = cc.budget_figures || {};
+    var figs = [];
+    if(isNum(bf.net_domestic_financing_fy2026_27)) figs.push('net domestic financing <b>' + fm(bf.net_domestic_financing_fy2026_27) + '</b> ' + esc(bf.unit||unit));
+    if(isNum(bf.net_external_financing_fy2026_27)) figs.push('net external financing <b>' + fm(bf.net_external_financing_fy2026_27) + '</b> ' + esc(bf.unit||unit));
+    if(isNum(bf.public_debt_related_costs_fy2026_27)) figs.push('public debt related costs <b>' + fm(bf.public_debt_related_costs_fy2026_27) + '</b> ' + esc(bf.unit||unit));
+    if(isNum(bf.debt_service_costs_fy2026_27)) figs.push('debt-service costs <b>' + fm(bf.debt_service_costs_fy2026_27) + '</b> ' + esc(bf.unit||unit));
+    h += '<div class="block"><h4>' + esc(cc.label || 'Government borrowing') + ' (' + esc(cc.directness || 'indirect') + ')</h4>' +
+      '<p>' + esc(cc.note || '') + '</p>' +
+      (figs.length ? '<div class="bfig">' + figs.join(' <span style="color:#262626">|</span> ') + '</div>' : '') +
+      '<div class="chips">' + (cc.companies||[]).map(function(c){
+        var P = coParts(c), T = String(P.t==null?'':P.t).toUpperCase();
+        var live = tickSet[T] === 1;
+        return '<span class="chip indirect"' + (live ? ' data-sym="' + esc(T) + '"' : '') +
+          ' title="' + esc(P.r || 'a bank that holds government securities') + '">' +
+          esc(T) + '</span>';
+      }).join('') + '</div>' +
+      '<p style="margin:0;color:#6a6a6a">The reasons for each bank are recorded in the exposure file; the chip carries its own on hover.</p>' +
+    '</div>';
+  }
+
+  /* excluded on purpose: never under a sector */
+  if(E.excluded && E.excluded.length){
+    h += '<div class="block"><h4>Not in a budget line (' + E.excluded.length + ')</h4>' +
+      '<p>These names are in the listing and are recorded in the exposure file as having no budget line that pays them. They are not counted under any sector above.</p>' +
+      E.excluded.map(function(c){
+        return '<div class="co"><span class="tag" style="color:#6a6a6a">EXCLUDED</span>' +
+          '<span class="co-b">' + tickHtml(c.ticker) + esc(c.reason || '') + '</span></div>';
+      }).join('') +
+    '</div>';
+  }
+
+  h += '</div>';
+  return h;
+}
+
+/* ---------- 3. laws in force ------------------------------------------- */
+
+var STATUS_LABEL = {enacted:'ENACTED', repealed:'REPEALED', withdrawn:'WITHDRAWN', amended:'AMENDED', bill:'BILL'};
+
+function renderLaws(){
+  var L = D.laws;
+  if(!L || !L.laws) return '';
+  var all = L.laws;
+  var by = {};
+  all.forEach(function(l){ var s = l.status || 'unknown'; by[s] = (by[s]||0)+1; });
+  var counts = Object.keys(by).sort(function(a,b){ return by[b]-by[a]; });
+
+  var shown = all.filter(function(l){ return lawsFilter === 'all' || l.status === lawsFilter; });
+  /* status is the fact a reader needs first, so the enacted/non-enacted split is
+     the default sort: the instruments that are not plain law come to the top */
+  shown.sort(function(a,b){
+    var rank = {repealed:0, withdrawn:1, enacted:2};
+    var ra = rank[a.status]!==undefined?rank[a.status]:3, rb = rank[b.status]!==undefined?rank[b.status]:3;
+    if(ra !== rb) return ra - rb;
+    return (b.year||0) - (a.year||0);
+  });
+
+  var h = '<div class="sec">' +
+    '<div class="sec-h"><span class="sec-n">03</span><span class="sec-t">Laws in force</span>' +
+      '<span class="sec-c">' + all.length + ' instruments | ' + esc(L.jurisdiction || 'Kenya') + '</span></div>' +
+    '<div class="filters" id="fisFilters">' +
+      '<button type="button" data-f="all"' + (lawsFilter==='all'?' class="on"':'') + '>All (' + all.length + ')</button>' +
+      counts.map(function(s){
+        return '<button type="button" data-f="' + esc(s) + '"' + (lawsFilter===s?' class="on"':'') + '>' +
+          esc(STATUS_LABEL[s] || s.toUpperCase()) + ' (' + by[s] + ')</button>';
+      }).join('') +
+    '</div>' +
+    '<div class="legend">Status is the legislative status of the instrument itself: ' + counts.map(function(s){
+        return '<b style="color:' + (s==='enacted'?'#33e29a':(s==='repealed'?'#f87171':'#e0a340')) + '">' +
+               esc(STATUS_LABEL[s] || s) + '</b> ' + by[s];
+      }).join(', ') + '. Each mechanism is the one sentence the file records for it. Tickers are the issuers the mechanism can reach, not a claim that it currently binds them.</div>';
+
+  h += shown.map(function(l){
+    var st = l.status || 'unknown';
+    var cls = (st === 'repealed') ? 'repealed' : (st === 'withdrawn' ? 'withdrawn' : 'enacted');
+    return '<div class="law ' + cls + '" data-status="' + esc(st) + '">' +
+      '<div class="law-h"><span class="law-nm">' + esc(l.name) + '</span>' +
+        '<span class="yr">' + esc(l.year) + '</span>' +
+        '<span class="st ' + cls + '">' + esc(STATUS_LABEL[st] || st.toUpperCase()) + '</span></div>' +
+      '<p class="law-mech">' + esc(l.mechanism || '') + '</p>' +
+      (l.status_note ? '<p class="law-st">' + esc(l.status_note) + '</p>' : '') +
+      '<div class="law-f"><span class="lab">Sectors</span>' +
+        (l.sectors||[]).map(function(s){ return '<span class="sec-chip">' + esc(s) + '</span>'; }).join('') +
+        '<span class="lab" style="margin-left:6px">Tickers</span>' +
+        (l.tickers||[]).map(function(t){ return tickHtml(t, 'tkchip'); }).join('') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  if(L.unresolved && L.unresolved.length){
+    h += '<div class="block"><h4>Not carried in this register (' + L.unresolved.length + ')</h4>' +
+      '<ul class="muted-list">' + L.unresolved.map(function(u){ return '<li>' + esc(u) + '</li>'; }).join('') + '</ul></div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* A section whose file is absent says so in place of the section, rather than
+   disappearing: a missing block reads as "there is nothing to see", which is a
+   different claim from "the file did not load". */
+function absentSection(num, title, what){
+  return '<div class="sec"><div class="sec-h"><span class="sec-n">' + num + '</span>' +
+    '<span class="sec-t">' + esc(title) + '</span><span class="sec-c">not carried</span></div>' +
+    '<div class="empt" style="padding:22px 18px">' + esc(what) + '</div></div>';
+}
+
+/* ---------- honest states ---------------------------------------------- */
+
+function emptyState(){
+  var nm = {NSE:'Kenya (NSE)', NGX:'Nigeria (NGX)', JSE:'South Africa (JSE)', EGX:'Egypt (EGX)'}[ex] || ex;
+  if(ex === 'NSE' || ex === 'JSE'){
+    return '<div class="empt"><b>Budget data not available</b>' +
+      'The budget or exposure file for ' + esc(nm) + ' did not load, so no sector line is shown.<br>' +
+      '<span class="q">Nothing is zeroed and no sector is invented: the panel prints only what the file carries.</span></div>';
+  }
+  return '<div class="empt"><b>No official sector budget table for ' + esc(nm) + '</b>' +
+    'No primary document publishing this government\'s budget by sector or function, with the figures machine readable, ' +
+    'was sourced for this exchange.<br>' +
+    '<span class="q">The panel therefore shows no sector allocation, no change and no company map for ' + esc(nm) +
+    '. A sector table is not inferred from press coverage, and a missing figure is not printed as zero. ' +
+    'The FISCAL panel carries Kenya (NSE) and South Africa (JSE) only.</span></div>';
+}
+
+function renderFoot(){
+  var docs = [];
+  if(D.budget && D.budget.sources) D.budget.sources.forEach(function(s){ docs.push(s); });
+  if(D.exposure && D.exposure.sources) D.exposure.sources.forEach(function(s){ docs.push(s); });
+  if(D.laws && D.laws.sources) D.laws.sources.forEach(function(s){ docs.push(s); });
+  var seen = {}, out = [];
+  docs.forEach(function(s){
+    var key = (s.document || s.name || s.url || '') + '|' + (s.url || '');
+    if(seen[key]) return; seen[key] = 1; out.push(s);
+  });
+  if(!out.length) return '';
+  return '<div class="fh">Source documents</div>' + out.map(function(s){
+    var t = s.document || s.name || s.url || '';
+    var u = s.url || '';
+    var r = s.retrieved || s.retrieved_on || '';
+    return '<div class="fl"><b>' + esc(t) + '</b>' +
+      (u ? ' <a href="' + esc(u) + '" target="_blank" rel="nofollow noopener">source</a>' : '') +
+      (r ? ' | retrieved ' + esc(r) : '') + '</div>';
+  }).join('') +
+  '<div class="fl" style="margin-top:6px;color:#4f4f4f">Figures only. No allocation, change or statute here is a statement about what a security will do.</div>';
+}
+
+function render(){
+  var body = $('fisBody');
+  var sub = $('fisSub');
+
+  if(ex === 'NGX' || ex === 'EGX'){
+    body.innerHTML = emptyState();
+    sub.textContent = ex + ' | no official sector budget table sourced';
+    $('fisFoot').innerHTML = '';
+    return;
+  }
+  if(!D.budget){
+    body.innerHTML = emptyState();
+    sub.textContent = ex + ' | budget file not loaded';
+    $('fisFoot').innerHTML = renderFoot();
+    return;
+  }
+
+  var v = curView();
+  sub.textContent = (D.budget.jurisdiction || ex) + ' | ' + (D.budget.unit || '') + ' | ' +
+                    (v ? v.financial_year : '') + ' | as of ' + (D.budget.asOf || '');
+
+  var h = renderBudget();
+  h += (D.exposure ? renderExposure()
+      : absentSection('02', 'Who it reaches', 'The exposure file for this exchange did not load, so no company is placed against any sector line.'));
+  h += (D.laws ? renderLaws()
+      : absentSection('03', 'Laws in force',
+          (ex === 'NSE')
+            ? 'The statutory register did not load, so no Act is listed.'
+            : 'The statutory register in this build covers Kenya (NSE) only. No register of Acts for this exchange is carried, so none is shown.'));
+  body.innerHTML = h;
+  $('fisFoot').innerHTML = renderFoot();
+
+  var vw = $('fisViews');
+  if(vw) vw.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('button[data-v]');
+    if(!b) return;
+    var i = parseInt(b.getAttribute('data-v'), 10);
+    if(isNaN(i) || i === viewIdx) return;
+    viewIdx = i; render();
+  });
+  var fl = $('fisFilters');
+  if(fl) fl.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('button[data-f]');
+    if(!b) return;
+    lawsFilter = b.getAttribute('data-f'); render();
+  });
+}
+
+window.showFiscal = function(){ var el = $('fis'); if(el) el.scrollIntoView({behavior:'smooth'}); };
+
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+})();
+</script>
+</body>
+</html>

@@ -1987,6 +1987,17 @@ let PANELS = [
   // Data, FP.CPI.TOTL.ZG). Annual, not a live monthly print - the panel states
   // the series and its publication date rather than implying a current rate.
   {id:'macro',   label:'MACRO',    url:'features/panels/mx_macro.html'},
+  // FISCAL is the government view: the budget by sector for the selected
+  // exchange with the year on year change printed as an amount and a
+  // percentage, the listed companies each sector line reaches (DIRECT or
+  // INDIRECT, each with its one line reason, and sectors with none carrying the
+  // structural reason the file records), and the Acts in force with their
+  // mechanism and their status. It reads static_data/gov_budget_KE.json,
+  // gov_exposure_KE.json and gov_laws_KE.json for NSE and gov_budget_SA.json
+  // with gov_exposure_SA.json for JSE. NGX and EGX show an honest empty state:
+  // no official sector budget table was sourced for either, and a sector table
+  // is not invented to fill the panel.
+  {id:'fiscal',  label:'FISCAL',   url:'features/panels/mx_fiscal.html'},
   {id:'portfolio', label:'PORTFOLIO', url:'features/panels/mx_portfolio.html'},
   // RESEARCH is the equity research view for one security: price history drawn
   // as a chart, valuation, growth, quality/risk, ratios and audit flags, all
@@ -2553,12 +2564,19 @@ function renderTabs(){
                                                {flex: 1, min: 140, win: 'news'}]}]}},
 
       // 6 ECONOMIST - what is happening to this country.
+      // FISCAL sits in the centre column under MACRO, at the widest supporting
+      // share the tree can give it, because the budget table is read across: an
+      // allocation, the recurrent and development split, the change and the view
+      // it came from have to stand side by side. MACRO keeps the largest window
+      // (it is the set's named main), so the country view stays the one the eye
+      // lands on and the budget is the working surface beside it.
       {name: 'ECONOMIST', main: 'macro',
        tile: {cols: [{f: .16, min: 220, win: 'watch'},
                      {flex: 1, min: 220, rows: [
-                        {f: .60, min: 140, win: 'macro'},
-                        {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'fx'},
-                                                   {flex: 1, min: 240, win: 'bnd'}]}]},
+                        {f: .52, min: 140, win: 'macro'},
+                        {flex: 1, min: 140, cols: [{f: .46, min: 240, win: 'fiscal'},
+                                                   {flex: 1, min: 240, rows: [{f: .5, min: 120, win: 'fx'},
+                                                                              {flex: 1, min: 120, win: 'bnd'}]}]}]},
                      {f: .20, min: 240, rows: [{f: .30, min: 140, win: 'focus'},
                                                {flex: 1, min: 140, win: 'news'}]}]}},
     ];
@@ -5546,7 +5564,11 @@ window.__getRecents = function(){
 const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'financials', CN:'news', NEWS:'news', REG:'news',
                       HP:'financials', EQS:'screener', RV:'financials', SPLC:'info', CMP:'compare', CMPR:'compare', TR:'trade',
                       DERIV:'der', DERIVATIVES:'der', BOND:'bnd', BONDS:'bnd', FINANCIAL:'financials', FINANCIALS:'financials',
-                      PORTFOLIO:'portfolio', PF:'portfolio'};
+                      PORTFOLIO:'portfolio', PF:'portfolio',
+                      // BUDGET is the word a reader types for the FISCAL panel:
+                      // its own id and label give FISCAL and FISCALS, and the
+                      // budget is the thing the panel is about.
+                      BUDGET:'fiscal', BUDGETS:'fiscal'};
 // SHAREHOLDERS and SHAREHOLDER used to be codes here, pointing at the HOLDERS
 // panel. That panel is gone from the product, so they are gone with it: a code
 // that resolves to nothing is worse than no code, because it hides the word from
