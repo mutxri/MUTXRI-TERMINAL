@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - PREVIEW: a display-only view of the terminal.
+
+  This page is a picture made of HTML. There is no search field, no button, no
+  link, no tab, no select and no collapsible section anywhere on it, and nothing
+  on it responds to a mouse or a keyboard. It exists so the landing page can show
+  what the terminal looks like without handing the visitor a working application.
+
+  ONE FIXED VIEW, chosen only by the ?ex= parameter (NSE, JSE, NGX, EGX):
+    ../static_data/market_<EX>.json      ticker tape, market table, summary facts
+    ../static_data/ex_<EX>_indices.json  index levels for the summary column
+    ../static_data/history/<KEY>.json    the last 30 to 45 daily OHLC bars, drawn
+                                         as static candles in inline SVG
+
+  HONESTY:
+    - the exchange's own as-of string is printed in full, in the top bar and in
+      the market block, so a reader can see how current the snapshot is
+    - a security with no published price prints "no quote" and no number, and a
+      missing change or market cap prints the house empty marker "-" in muted
+      grey. Nothing is estimated and nothing is filled in from a neighbour
+    - an index with no published level prints "withheld"
+    - candles use open, high, low and close. A history file that carries only
+      closes says so on one line and no candle is drawn from a repeated close
+
+  Vanilla JS, Godel tokens (mint #33e29a on black, Oxygen Mono, uppercase labels,
+  tabular numerals), no libraries, no build step. Every affordance that would
+  suggest the page is usable has been left out on purpose.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - PREVIEW</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html,body{height:100%;}
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;display:none;}
+
+  :root{
+    --bg:#000;--bg2:#070707;--bg3:#0d0d0d;--bg4:#141414;
+    --line:#161616;--line2:#242424;--tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--warn:#e0a340;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+    --rowh:26px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--ui);font-size:13px;
+    overflow:hidden;user-select:none;-webkit-user-select:none;cursor:default;}
+
+  .pg{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
+
+  /* ---------- top bar ---------- */
+  .top{flex:0 0 auto;display:flex;align-items:center;gap:14px;height:46px;padding:0 14px;
+    border-bottom:1px solid var(--line2);background:var(--bg2);}
+  .brand{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--tx);white-space:nowrap;}
+  .brand b{color:var(--acc);font-weight:700;}
+  .top-ex{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--acc);white-space:nowrap;}
+  .top-ex i{font-style:normal;color:var(--tx3);letter-spacing:.04em;}
+  .top-asof{flex:1 1 auto;min-width:0;font-family:var(--mono);font-size:10px;color:var(--tx2);
+    letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;}
+  .disp{flex:0 0 auto;font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--tx3);
+    border:1px solid var(--line2);border-radius:2px;padding:4px 8px;white-space:nowrap;}
+
+  /* ---------- ticker tape ---------- */
+  .tape{flex:0 0 auto;height:34px;border-bottom:1px solid var(--line2);background:#040404;
+    overflow:hidden;position:relative;pointer-events:none;}
+  .tape:after{content:"";position:absolute;top:0;right:0;bottom:0;width:44px;
+    background:linear-gradient(90deg,rgba(4,4,4,0),#040404);}
+  .tape:before{content:"";position:absolute;top:0;left:0;bottom:0;width:30px;z-index:1;
+    background:linear-gradient(90deg,#040404,rgba(4,4,4,0));}
+  .tape-in{display:flex;align-items:center;height:100%;width:max-content;
+    animation:tape 140s linear infinite;}
+  @keyframes tape{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+  @media (prefers-reduced-motion: reduce){ .tape-in{animation:none;} }
+  .tape-i{display:flex;align-items:baseline;gap:7px;padding:0 12px;height:100%;
+    border-right:1px solid var(--line);white-space:nowrap;}
+  .tape-i b{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--tx);}
+  .tape-i .px{font-family:var(--mono);font-size:10.5px;color:var(--tx2);font-variant-numeric:tabular-nums;}
+  .tape-i .ch{font-family:var(--mono);font-size:10px;font-variant-numeric:tabular-nums;}
+
+  /* ---------- layout ---------- */
+  .grid{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 272px;
+    grid-template-areas:"main side";gap:10px;padding:10px 12px;}
+  .col-main{grid-area:main;display:flex;flex-direction:column;gap:10px;min-height:0;min-width:0;}
+  .col-side{grid-area:side;display:flex;flex-direction:column;gap:10px;min-height:0;min-width:0;}
+
+  .card{border:1px solid var(--line2);border-radius:3px;background:var(--bg2);min-width:0;}
+  .card-h{flex:0 0 auto;display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+    padding:7px 11px;border-bottom:1px solid var(--line);}
+  .card-h .l{font-family:var(--mono);font-size:8.5px;letter-spacing:.15em;color:var(--tx3);text-transform:uppercase;white-space:nowrap;}
+  .card-h .r{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--tx2);
+    min-width:0;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* ---------- chart ---------- */
+  .chart-card{flex:0 0 clamp(170px,31vh,296px);display:flex;flex-direction:column;min-height:0;}
+  .chart-wrap{flex:1 1 auto;min-height:0;padding:0 8px;pointer-events:none;cursor:default;}
+  .chart-wrap svg{display:block;width:100%;height:100%;pointer-events:none;}
+  .chart-note{flex:0 0 auto;font-family:var(--mono);font-size:9.5px;line-height:1.6;color:var(--tx3);
+    letter-spacing:.03em;padding:4px 11px 8px;}
+  .chart-note b{color:var(--tx2);font-weight:400;}
+  .chart-note .warn{color:var(--warn);}
+
+  /* ---------- market table ---------- */
+  .mkt-card{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+  .mkt-head{flex:0 0 auto;display:flex;align-items:baseline;gap:12px;padding:8px 11px 7px;
+    border-bottom:1px solid var(--line);}
+  .mkt-ex{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.1em;color:var(--acc);white-space:nowrap;}
+  .mkt-ex i{font-style:normal;font-weight:400;font-size:10px;letter-spacing:.05em;color:var(--tx2);padding-left:6px;}
+  .mkt-asof{flex:1 1 auto;min-width:0;text-align:right;font-family:var(--mono);font-size:9.5px;
+    color:var(--tx2);letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tr{display:grid;grid-template-columns:76px minmax(0,1fr) 108px 84px 76px 98px;
+    align-items:center;gap:10px;height:var(--rowh);padding:0 11px;border-bottom:1px solid var(--line);}
+  .tr.hd{height:22px;border-bottom:1px solid var(--line2);background:var(--bg3);}
+  .tr.hd span{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase;}
+  .tr.hd .num,.tr .num{text-align:right;}
+  .rows{flex:1 1 auto;min-height:0;overflow:hidden;}
+  .tk{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--tx);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nm{font-family:var(--ui);font-size:11px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .num{font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums;color:var(--tx);white-space:nowrap;}
+  .num.dim{color:var(--tx3);}
+  .cur{font-family:var(--mono);font-size:8px;color:var(--tx3);letter-spacing:.06em;padding-left:4px;}
+  .up{color:var(--up);} .down{color:var(--down);} .flat{color:var(--tx3);}
+  .nq{font-family:var(--mono);font-size:10px;color:var(--warn);letter-spacing:.04em;}
+
+  /* ---------- side column ---------- */
+  .side-card{flex:0 0 auto;border:1px solid var(--line2);border-radius:3px;background:var(--bg2);}
+  .ix{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+    padding:6px 11px;border-bottom:1px solid var(--line);}
+  .ix:last-child{border-bottom:0;}
+  .ix-l{min-width:0;}
+  .ix-l b{display:block;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--tx);}
+  .ix-l span{display:block;font-family:var(--ui);font-size:9px;color:var(--tx3);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:132px;}
+  .ix-r{text-align:right;flex:0 0 auto;}
+  .ix-r .px{display:block;font-family:var(--mono);font-size:11.5px;color:var(--tx);font-variant-numeric:tabular-nums;}
+  .ix-r .ch{display:block;font-family:var(--mono);font-size:9.5px;font-variant-numeric:tabular-nums;}
+  .fct{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:5px 11px;
+    border-bottom:1px solid var(--line);}
+  .fct:last-child{border-bottom:0;}
+  .fct .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase;}
+  .fct .v{font-family:var(--mono);font-size:10.5px;color:var(--tx);text-align:right;
+    font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* ---------- foot ---------- */
+  .foot{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:6px 14px;
+    border-top:1px solid var(--line2);background:var(--bg2);font-family:var(--mono);
+    font-size:9px;letter-spacing:.04em;color:var(--tx3);white-space:nowrap;overflow:hidden;}
+  .foot .sep{color:var(--line2);}
+  .foot .sp{flex:1 1 auto;}
+
+  @media (max-width:1100px){
+    .tr{grid-template-columns:70px minmax(0,1fr) 96px 74px 88px;gap:8px;}
+    .tr .c-lvl{display:none;}
+    .grid{grid-template-columns:minmax(0,1fr) 236px;}
+  }
+  @media (max-width:860px){
+    :root{--rowh:24px;}
+    .top{height:40px;gap:9px;padding:0 10px;}
+    .brand{font-size:10px;letter-spacing:.12em;}
+    .top-ex i{display:none;}
+    .top-asof{font-size:9px;}
+    .disp{font-size:8px;padding:3px 6px;}
+    .tape{height:30px;}
+    .grid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);
+      grid-template-areas:"side" "main";gap:8px;padding:8px 8px;}
+    .col-side{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;}
+    .side-card{min-width:0;}
+    .ix{padding:3px 8px;}
+    .ix-l b{font-size:9px;}
+    .ix-l span{display:none;}
+    .ix-r .px{font-size:10px;}
+    .ix-r .ch{font-size:8.5px;}
+    .fct{padding:3px 8px;}
+    .fct .k{font-size:7.5px;letter-spacing:.06em;}
+    .fct .v{font-size:9px;}
+    .chart-card{flex:0 0 178px;}
+    .chart-note{font-size:8.5px;padding:3px 8px 6px;line-height:1.5;}
+    .mkt-head{padding:6px 8px 5px;gap:8px;}
+    .mkt-ex{font-size:11px;}
+    .mkt-ex i{display:none;}
+    .mkt-asof{font-size:8.5px;}
+    .tr{grid-template-columns:54px minmax(0,1fr) 70px 52px 62px;gap:6px;padding:0 8px;}
+    .tr.hd{height:20px;}
+    .tr.hd span{font-size:7.5px;letter-spacing:.06em;}
+    .tk{font-size:10px;} .nm{font-size:9.5px;} .num{font-size:10px;}
+    .foot{font-size:8px;padding:5px 8px;gap:6px;}
+  }
+  @media (max-width:420px){
+    .brand{font-size:9px;letter-spacing:.08em;}
+    .top-ex{font-size:10px;}
+    .top-asof{font-size:8px;}
+    .disp{display:none;}
+    .tr{grid-template-columns:46px minmax(0,1fr) 60px 46px 52px;gap:5px;}
+    .tr.hd span{font-size:7px;letter-spacing:.04em;}
+  }
+</style>
+</head>
+<body>
+
+<div class="pg" id="pg">
+
+  <div class="top">
+    <div class="brand">MUTXRI <b>TERMINAL</b></div>
+    <div class="top-ex"><span id="exName">NSE</span><i id="exFull"></i></div>
+    <div class="top-asof" id="topAsOf">session as-of not stated</div>
+    <div class="disp">DISPLAY ONLY</div>
+  </div>
+
+  <div class="tape"><div class="tape-in" id="tapeIn"></div></div>
+
+  <div class="grid">
+
+    <div class="col-main">
+
+      <div class="card chart-card">
+        <div class="card-h">
+          <span class="l">Price history</span>
+          <span class="r" id="chHead">-</span>
+        </div>
+        <div class="chart-wrap" id="chartWrap"><svg id="chart" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg></div>
+        <div class="chart-note" id="chNote">-</div>
+      </div>
+
+      <div class="card mkt-card">
+        <div class="mkt-head">
+          <div class="mkt-ex"><span id="mktEx">NSE</span><i id="mktFull"></i></div>
+          <div class="mkt-asof" id="mktAsOf">-</div>
+        </div>
+        <div class="tr hd">
+          <span>Ticker</span>
+          <span>Security</span>
+          <span class="num" id="thPx">Price</span>
+          <span class="num c-lvl">Chg</span>
+          <span class="num">Chg %</span>
+          <span class="num c-mc" id="thMc">Mkt cap</span>
+        </div>
+        <div class="rows" id="rows"></div>
+      </div>
+
+    </div>
+
+    <div class="col-side">
+      <div class="side-card">
+        <div class="card-h"><span class="l">Index levels</span><span class="r" id="ixAsOf"></span></div>
+        <div id="ixBody"></div>
+      </div>
+      <div class="side-card">
+        <div class="card-h"><span class="l">Market facts</span><span class="r">snapshot</span></div>
+        <div id="factBody"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot" id="foot">
+    <span>Display only: no search, no selection, no controls.</span>
+    <span class="sep">|</span>
+    <span id="footSrc">static_data/market_NSE.json</span>
+    <span class="sp"></span>
+    <span id="footBasis">every figure read from the published snapshot at render time</span>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var EXS = {
+    NSE: { full: "Nairobi Securities Exchange", cur: "KES", sym: "SCOM" },
+    JSE: { full: "Johannesburg Stock Exchange", cur: "ZAc", sym: "NPN" },
+    NGX: { full: "Nigerian Exchange",           cur: "NGN", sym: "GTCO" },
+    EGX: { full: "Egyptian Exchange",           cur: "EGP", sym: "HRHO" }
+  };
+
+  var Q = new URLSearchParams(location.search);
+  var EX = String(Q.get("ex") || "NSE").toUpperCase();
+  if (!EXS[EX]) EX = "NSE";
+  var CFG = EXS[EX];
+
+  var MB = null;      // market_<EX>.json
+  var IX = null;      // ex_<EX>_indices.json
+  var HIST = null;    // history/<KEY>.json
+  var HKEY = "";      // the history key that answered
+  var HROW = null;    // the market row the candles belong to
+
+  function $(id){ return document.getElementById(id); }
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function num(v){
+    if (v === null || v === undefined || v === "") return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+  function fmtPx(n){
+    return Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtPct(p){
+    return (p >= 0 ? "+" : "") + Number(p).toFixed(2) + "%";
+  }
+  function fmtInt(n){ return Math.round(n).toLocaleString("en-US"); }
+  // a published market cap string is printed as published; a numeric one is
+  // scaled to the same shape so a column of them scans
+  function compact(v){
+    if (v === null || v === undefined || v === "") return null;
+    if (typeof v === "string") return v;
+    var n = Number(v);
+    if (!isFinite(n)) return null;
+    var u = [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]];
+    for (var i = 0; i < u.length; i++){
+      if (n >= u[i][0]) return (n / u[i][0]).toFixed(2) + u[i][1];
+    }
+    return n.toFixed(2);
+  }
+  function cls(v){
+    if (v === null || v === undefined) return "flat";
+    return v > 0 ? "up" : (v < 0 ? "down" : "flat");
+  }
+  function get(u){
+    return fetch(u, { cache: "default" }).then(function(r){
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    });
+  }
+
+  // the session date out of either stamp the tree uses
+  function asDate(s){
+    if (s == null) return null;
+    var t = String(s).trim();
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+    if (m) return { iso: m[1] + "-" + m[2] + "-" + m[3], ms: Date.parse(m[1] + "-" + m[2] + "-" + m[3] + "T00:00:00Z") };
+    m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(t);
+    if (m){
+      var iso = m[3] + "-" + m[2] + "-" + m[1];
+      return { iso: iso, ms: Date.parse(iso + "T00:00:00Z") };
+    }
+    return null;
+  }
+
+  // ---- the rows ----------------------------------------------------------
+  // the board as published, with the session's most traded first so the tape
+  // and the table open on names that actually traded
+  function allRows(){ return (MB && MB.stocks) ? MB.stocks.slice() : []; }
+  function ranked(){
+    var rows = allRows();
+    rows.sort(function(a, b){
+      var va = num(a.volume), vb = num(b.volume);
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      return vb - va;
+    });
+    return rows;
+  }
+  function priced(){
+    return ranked().filter(function(r){ return num(r.price) !== null; });
+  }
+
+  // ---- ticker tape -------------------------------------------------------
+  function tapeItem(r, dup){
+    var p = num(r.price), c = num(r.chgPct);
+    return '<span class="tape-i' + (dup ? " dup" : "") + '"' + (dup ? ' aria-hidden="true"' : "") + '>' +
+             '<b>' + esc(r.ticker || r.sym || "") + '</b>' +
+             '<span class="px">' + fmtPx(p) + '</span>' +
+             '<span class="ch ' + cls(c) + '">' + (c === null ? "-" : fmtPct(c)) + '</span>' +
+           '</span>';
+  }
+  function renderTape(){
+    var want = window.innerWidth >= 900 ? 16 : 12;
+    var list = priced().slice(0, want);
+    var el = $("tapeIn");
+    if (!list.length){ el.innerHTML = ""; return; }
+    var a = "", b = "";
+    for (var i = 0; i < list.length; i++){ a += tapeItem(list[i], false); b += tapeItem(list[i], true); }
+    el.innerHTML = a + b;
+  }
+
+  // ---- chart -------------------------------------------------------------
+  function histKeys(row){
+    var tick = String((row && row.ticker) || "").toUpperCase();
+    var sym = String((row && row.sym) || "").toUpperCase();
+    var bare = sym.split(".")[0];
+    var out = [];
+    function push(k){
+      k = String(k || "").toUpperCase();
+      if (k && out.indexOf(k) < 0) out.push(k);
+    }
+    if (EX === "NSE" || EX === "NGX"){ push(EX + "_" + tick); push(EX + "_" + bare); return out; }
+    if (EX === "EGX"){ push(tick + ".CA"); push(sym); push(tick); return out; }
+    push(sym);
+    push(tick + ".JO");
+    push(tick);
+    return out;
+  }
+
+  function renderChart(){
+    var wrap = $("chartWrap"), svg = $("chart");
+    var W = Math.max(180, wrap.clientWidth), H = Math.max(60, wrap.clientHeight);
+    var bars = (HIST && HIST.bars) ? HIST.bars : [];
+    var symTxt = HROW ? String(HROW.ticker || HROW.sym || "") : CFG.sym;
+
+    if (!bars.length){
+      svg.innerHTML = "";
+      $("chHead").textContent = symTxt + " no history on file";
+      $("chNote").textContent = "No daily history file answered for " + symTxt + " on " + EX + ", so no price series is drawn.";
+      return;
+    }
+
+    var winN = W >= 1100 ? 45 : (W >= 700 ? 40 : 30);
+    var win = bars.slice(-winN).filter(function(b){ return b && b.t; });
+
+    var full = [], closesOnly = 0;
+    for (var i = 0; i < win.length; i++){
+      var b = win[i];
+      var o = num(b.o), h = num(b.h), l = num(b.l), c = num(b.c);
+      if (c === null) continue;
+      if (o === null || h === null || l === null){ closesOnly++; continue; }
+      full.push({ t: String(b.t).slice(0, 10), o: o, h: h, l: l, c: c });
+    }
+
+    var head = symTxt + " &middot; " + EX + " &middot; " + esc((HIST && HIST.currency) || CFG.cur);
+    $("chHead").innerHTML = head + " &middot; " + (full.length || win.length) + " sessions";
+
+    var note = "";
+    if (!full.length){
+      svg.innerHTML = "";
+      $("chNote").innerHTML = '<span class="warn">The history file for ' + esc(symTxt) +
+        ' gives only a close for the window, so open, high and low are not available and no candles are drawn.</span>';
+      return;
+    }
+
+    // the honest note: the window, its first and last date, its range, and how
+    // far the last bar sits behind the exchange's own session
+    var lo = full[0].l, hi = full[0].h, loDate = full[0].t, hiDate = full[0].t;
+    for (var j = 1; j < full.length; j++){
+      if (full[j].l < lo) lo = full[j].l;
+      if (full[j].h > hi) hi = full[j].h;
+    }
+    loDate = full[0].t;
+    hiDate = full[full.length - 1].t;
+    note = "<b>" + full.length + " daily sessions</b> " + esc(loDate) + " to <b>" + esc(hiDate) +
+           "</b> &middot; range <b>" + fmtPx(lo) + "</b> to <b>" + fmtPx(hi) + "</b>";
+    if (closesOnly) note += " &middot; " + closesOnly + " bars in the window carry only a close and are not drawn";
+
+    var sAsOf = asDate(MB && MB.asOf), sBar = asDate(hiDate);
+    if (sAsOf && sBar && isFinite(sAsOf.ms) && isFinite(sBar.ms)){
+      var lag = Math.round((sAsOf.ms - sBar.ms) / 86400000);
+      if (lag > 1) note += ' &middot; <span class="warn">last bar ' + esc(hiDate) + ', ' + lag +
+        ' days before the ' + esc(sAsOf.iso) + ' session</span>';
+    }
+    $("chNote").innerHTML = note;
+
+    // ---- geometry ----
+    var padL = 4, padR = 62, padT = 10, padB = 16;
+    var plotW = Math.max(40, W - padL - padR), plotH = Math.max(30, H - padT - padB);
+    var slot = plotW / full.length;
+    var bodyW = Math.max(3, Math.min(26, slot * 0.62));
+    var span = hi - lo;
+    var padY = span > 0 ? span * 0.08 : (Math.abs(hi) > 0 ? Math.abs(hi) * 0.02 : 1);
+    var yMin = lo - padY, yMax = hi + padY;
+    function Y(v){ return padT + (yMax - v) / (yMax - yMin) * plotH; }
+    // one number format for the whole axis: a price axis that switches between
+    // 1,060 and 999.76 tick by tick reads as two different scales
+    var axisInt = Math.max(Math.abs(yMax), Math.abs(yMin)) >= 1000;
+    function axisLabel(v){
+      return axisInt ? Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 }) : fmtPx(v);
+    }
+
+    var parts = [];
+    // horizontal grid and the price labels on the right; these are the range
+    var ticks = 4;
+    for (var t = 0; t <= ticks; t++){
+      var v = yMax - (yMax - yMin) * (t / ticks);
+      var y = Y(v);
+      parts.push('<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) +
+                 '" y2="' + y.toFixed(1) + '" stroke="#141414" stroke-width="1"/>');
+      parts.push('<text x="' + (W - padR + 6) + '" y="' + (y + 3).toFixed(1) +
+                 '" fill="#6a6a6a" font-family="Oxygen Mono, monospace" font-size="9">' +
+                 axisLabel(v) + '</text>');
+    }
+
+    // candles: wick high to low, body open to close, mint up and red down
+    for (var k = 0; k < full.length; k++){
+      var d = full[k];
+      var up = d.c >= d.o;
+      var col = up ? "#33e29a" : "#f87171";
+      var cx = padL + slot * (k + 0.5);
+      var yo = Y(d.o), yc = Y(d.c), yh = Y(d.h), yl = Y(d.l);
+      var top = Math.min(yo, yc), bot = Math.max(yo, yc);
+      if (bot - top < 1) bot = top + 1;
+      parts.push('<line x1="' + cx.toFixed(1) + '" y1="' + yh.toFixed(1) + '" x2="' + cx.toFixed(1) +
+                 '" y2="' + yl.toFixed(1) + '" stroke="' + col + '" stroke-width="1"/>');
+      parts.push('<rect x="' + (cx - bodyW / 2).toFixed(1) + '" y="' + top.toFixed(1) +
+                 '" width="' + bodyW.toFixed(1) + '" height="' + (bot - top).toFixed(1) +
+                 '" fill="' + col + '"/>');
+    }
+
+    // first and last date shown
+    parts.push('<text x="' + padL + '" y="' + (H - 4) + '" fill="#6a6a6a" font-family="Oxygen Mono, monospace" font-size="9">' +
+               esc(loDate) + '</text>');
+    parts.push('<text x="' + (W - padR) + '" y="' + (H - 4) + '" text-anchor="end" fill="#6a6a6a" ' +
+               'font-family="Oxygen Mono, monospace" font-size="9">' + esc(hiDate) + '</text>');
+
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("width", W);
+    svg.setAttribute("height", H);
+    svg.innerHTML = parts.join("");
+  }
+
+  // ---- market table ------------------------------------------------------
+  function renderTable(){
+    var rows = ranked();
+    var body = $("rows");
+    if (!MB || !MB.stocks){
+      body.innerHTML = '<div class="tr"><span class="nq" style="grid-column:1/-1">Market snapshot unavailable for ' +
+                       esc(EX) + '</span></div>';
+      return;
+    }
+    var rowH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--rowh")) || 26;
+    var n = Math.max(5, Math.floor((body.clientHeight || 300) / rowH));
+
+    // the cap or the volume column, whichever the board actually carries
+    var withCap = 0;
+    for (var i = 0; i < rows.length; i++){ if (rows[i].marketCap !== null && rows[i].marketCap !== undefined && rows[i].marketCap !== "") withCap++; }
+    var useCap = rows.length > 0 && withCap >= rows.length * 0.6;
+    $("thMc").textContent = useCap ? "Mkt cap" : "Volume";
+    $("thPx").textContent = "Price (" + CFG.cur + ")";
+
+    var out = [];
+    for (var r = 0; r < Math.min(n, rows.length); r++){
+      var row = rows[r];
+      var p = num(row.price), c = num(row.chgPct), prev = num(row.prevClose);
+      var cur = String(row.currency || CFG.cur).toUpperCase();
+
+      // a level change is printed only when the row's own percent agrees with
+      // it, the same guard the FOCUS card uses
+      var lvl = null;
+      if (p !== null && prev !== null && c !== null && prev !== 0){
+        var calc = (p - prev) / prev * 100;
+        if (Math.abs(calc - c) <= 0.02) lvl = p - prev;
+      }
+
+      var priceCell = p === null
+        ? '<span class="nq">no quote</span>'
+        : fmtPx(p) + (cur !== CFG.cur.toUpperCase() ? '<span class="cur">' + esc(cur) + '</span>' : "");
+
+      var extra = useCap ? compact(row.marketCap) : (num(row.volume) === null ? null : fmtInt(num(row.volume)));
+
+      out.push(
+        '<div class="tr">' +
+          '<span class="tk">' + esc(row.ticker || row.sym || "") + '</span>' +
+          '<span class="nm">' + esc(row.name || "") + '</span>' +
+          '<span class="num">' + priceCell + '</span>' +
+          '<span class="num c-lvl ' + cls(lvl) + '">' + (lvl === null ? "-" : (lvl > 0 ? "+" : "") + fmtPx(lvl)) + '</span>' +
+          '<span class="num ' + cls(c) + '">' + (c === null ? "-" : fmtPct(c)) + '</span>' +
+          '<span class="num c-mc dim">' + (extra === null ? "-" : esc(extra)) + '</span>' +
+        '</div>'
+      );
+    }
+    body.innerHTML = out.join("");
+  }
+
+  // ---- side column -------------------------------------------------------
+  function renderIndices(){
+    var body = $("ixBody");
+    if (!IX || !IX.length){
+      body.innerHTML = '<div class="fct"><span class="k">Index levels</span><span class="v">none on file</span></div>';
+      return;
+    }
+    var out = [];
+    for (var i = 0; i < IX.length; i++){
+      var x = IX[i] || {};
+      var p = num(x.price);
+      var chTxt = "-", chCls = "flat";
+      if (typeof x.change === "string" && x.change.trim()){
+        chTxt = x.change;
+        chCls = x.change.trim().charAt(0) === "-" ? "down" : (x.change.trim().charAt(0) === "+" ? "up" : "flat");
+      } else if (num(x.change) !== null){
+        var cv = num(x.change), cp = num(x.changePct);
+        chTxt = (cv > 0 ? "+" : "") + fmtPx(cv) + (cp === null ? "" : " (" + fmtPct(cp) + ")");
+        chCls = cls(cv);
+      } else if (num(x.changePct) !== null){
+        chTxt = fmtPct(num(x.changePct));
+        chCls = cls(num(x.changePct));
+      }
+      out.push(
+        '<div class="ix">' +
+          '<div class="ix-l"><b>' + esc(x.ticker || "") + '</b><span>' + esc(x.name || "") + '</span></div>' +
+          '<div class="ix-r"><span class="px">' + (p === null ? '<span class="nq">withheld</span>' : fmtPx(p)) + '</span>' +
+          '<span class="ch ' + chCls + '">' + (p === null ? "-" : esc(chTxt)) + '</span></div>' +
+        '</div>'
+      );
+    }
+    body.innerHTML = out.join("");
+    $("ixAsOf").textContent = (IX[0] && IX[0].asOf) ? String(IX[0].asOf).slice(0, 10) : "";
+  }
+
+  function renderFacts(){
+    var rows = allRows();
+    var listed = rows.length;
+    var pricedN = 0, adv = 0, dec = 0, flatN = 0, best = null, worst = null;
+    for (var i = 0; i < rows.length; i++){
+      var r = rows[i], p = num(r.price), c = num(r.chgPct);
+      if (p !== null) pricedN++;
+      if (c === null) continue;
+      if (c > 0){ adv++; if (!best || c > best.c) best = { r: r, c: c }; }
+      else if (c < 0){ dec++; if (!worst || c < worst.c) worst = { r: r, c: c }; }
+      else flatN++;
+    }
+    var curSet = {};
+    for (var k = 0; k < rows.length; k++){ curSet[String(rows[k].currency || CFG.cur).toUpperCase()] = 1; }
+    var curs = Object.keys(curSet).sort();
+
+    var f = [];
+    function line(k, v){ f.push('<div class="fct"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>'); }
+
+    line("Listed", fmtInt(listed));
+    line("Priced", fmtInt(pricedN) + " <span style=\"color:#6a6a6a\">of " + fmtInt(listed) + "</span>");
+    if (listed - pricedN > 0) line("No quote", '<span style="color:#e0a340">' + fmtInt(listed - pricedN) + '</span>');
+    line("Advancers", '<span class="up">' + fmtInt(adv) + '</span>');
+    line("Decliners", '<span class="down">' + fmtInt(dec) + '</span>');
+    line("Unchanged", fmtInt(flatN));
+    if (best) line("Top gainer", esc(best.r.ticker || best.r.sym) + ' <span class="up">' + fmtPct(best.c) + '</span>');
+    if (worst) line("Top loser", esc(worst.r.ticker || worst.r.sym) + ' <span class="down">' + fmtPct(worst.c) + '</span>');
+    line("Currency", esc(curs.join(", ")));
+    $("factBody").innerHTML = f.join("");
+  }
+
+  // ---- header, foot ------------------------------------------------------
+  function renderChrome(){
+    var asOf = (MB && MB.asOf) ? String(MB.asOf) : "session as-of not stated";
+    $("exName").textContent = EX;
+    $("exFull").textContent = " " + CFG.full;
+    $("topAsOf").textContent = asOf;
+    $("mktEx").textContent = EX;
+    $("mktFull").textContent = CFG.full;
+    $("mktAsOf").textContent = asOf;
+    $("footSrc").textContent = "static_data/market_" + EX + ".json";
+    var basis = (HIST && HIST.basis_note) ? String(HIST.basis_note) : "";
+    $("footBasis").textContent = basis
+      ? "bars split-adjusted, not dividend-adjusted"
+      : "every figure read from the published snapshot at render time";
+  }
+
+  // ---- history -----------------------------------------------------------
+  // One security per exchange, named up front, so the page makes exactly one
+  // history request. The key that answers is the key the chart panel would use:
+  // EX_<ticker> on the NSE and NGX, <sym> on the JSE, <ticker>.CA on the EGX.
+  // If no file answers, the chart says so rather than drawing something else.
+  function loadHistory(){
+    var rows = allRows();
+    var pref = String(CFG.sym).toUpperCase();
+    var row = null;
+    for (var i = 0; i < rows.length; i++){
+      if (String(rows[i].ticker || "").toUpperCase() === pref){ row = rows[i]; break; }
+    }
+    if (!row){
+      var p = priced();
+      row = p.length ? p[0] : null;
+    }
+    if (!row) return Promise.resolve(null);
+    var keys = histKeys(row), kc = Promise.resolve(null);
+    keys.forEach(function(k){
+      kc = kc.then(function(hit){
+        if (hit) return hit;
+        return get("../static_data/history/" + encodeURIComponent(k) + ".json")
+          .then(function(d){
+            if (d && d.bars && d.bars.length){ HKEY = k; HROW = row; return d; }
+            return null;
+          })
+          .catch(function(){ return null; });
+      });
+    });
+    return kc.then(function(d){ HIST = d || null; });
+  }
+
+  // ---- boot --------------------------------------------------------------
+  function boot(){
+    $("exName").textContent = EX;
+    $("exFull").textContent = " " + CFG.full;
+    $("mktEx").textContent = EX;
+    $("mktFull").textContent = CFG.full;
+    $("topAsOf").textContent = "loading the published snapshot";
+    $("mktAsOf").textContent = "loading the published snapshot";
+
+    return Promise.all([
+      get("../static_data/market_" + EX + ".json").catch(function(){ return null; }),
+      get("../static_data/ex_" + EX + "_indices.json").catch(function(){ return null; })
+    ]).then(function(res){
+      MB = res[0]; IX = res[1];
+      if (!MB || !MB.stocks){
+        $("rows").innerHTML = '<div class="tr"><span class="nq" style="grid-column:1/-1">Market snapshot unavailable for ' + esc(EX) + '</span></div>';
+        $("topAsOf").textContent = "session as-of not stated";
+        $("mktAsOf").textContent = "session as-of not stated";
+        $("chNote").textContent = "No market snapshot answered for " + EX + ", so no candles are drawn.";
+        renderIndices();
+        return null;
+      }
+      renderChrome();
+      renderTape();
+      renderIndices();
+      renderFacts();
+      renderTable();
+      return loadHistory();
+    }).then(function(){
+      renderChrome();
+      renderChart();
+      // the side column is content-sized on a narrow screen, so the table is
+      // measured only once that content is in place; one more pass after the
+      // webfont settles keeps the last visible row whole instead of clipped
+      requestAnimationFrame(function(){ renderTable(); renderChart(); });
+      if (document.fonts && document.fonts.ready){
+        document.fonts.ready.then(function(){ renderTable(); renderChart(); }).catch(function(){});
+      }
+    }).catch(function(){
+      $("chNote").textContent = "The snapshot could not be read, so nothing is drawn.";
+    });
+  }
+
+  var rt = null;
+  window.addEventListener("resize", function(){
+    if (rt) clearTimeout(rt);
+    rt = setTimeout(function(){
+      if (!MB) return;
+      renderTape();
+      renderTable();
+      renderChart();
+    }, 140);
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
