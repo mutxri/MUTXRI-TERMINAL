@@ -11,16 +11,17 @@
     ?ex=NSE|JSE|NGX|EGX   picks the board
     ?view=NAME            picks which static panel is drawn under the header
 
-  With no ?view= the page draws THE DESK: eight windows tiled edge to edge the
+  With no ?view= the page draws THE DESK: eight windows tiled in one grid the
   way a desk terminal tiles its wall, so the visitor sees a whole workspace
-  rather than one panel. Band A carries WATCHLIST down the narrow left column,
-  MARKET as the large centre window (breadth, top gainers, top losers, most
-  active) and FOCUS as the narrow right column. Band B carries COMPARE (four
-  securities read across), HEATMAP (a treemap of the exchange) and MACRO (the
-  policy rate, inflation, GDP, the exchange rate, the fiscal balance and the
-  debt ratio). Band C carries CHART (the candles, small) and CHAT (the shell's
-  room window drawn as a picture: a channel header and its message rows, never
-  a composer). Each window wears the shell's chrome: 1px borders, a mono caps
+  rather than one panel. Every window is close to square instead of the long
+  horizontal strips the desk used to carry. MARKET is the large window at the
+  left (breadth, the session's most traded names in full detail, then the top
+  gainers, top losers and most active lists); COMPARE and MACRO are the two
+  beside and below it (four securities read across with a candlestick
+  sparkline each, and the policy rate, inflation, GDP, the exchange rate, the
+  fiscal balance and the debt ratios); FOCUS is the tall window at the top
+  right. WATCHLIST, HEATMAP, CHART and CHAT are the read-out windows round
+  them. Each window wears the shell's chrome: 1px borders, a mono caps
   title bar with the mint underline, tabular numerals and the same up and down
   colours. Each ?view= draws ONE panel instead, still a picture and still inert:
     watchlist   the board ordered by volume: ticker, name, price, change, volume
@@ -137,19 +138,41 @@
   .tape-i .ch{font-family:var(--mono);font-size:10px;font-variant-numeric:tabular-nums;}
 
   /* ---------- layout: the desk ---------- */
-  /* Eight tiles on three bands, tiled edge to edge the way a desk terminal
-     tiles its wall: a narrow WATCHLIST column, the big MARKET window in the
-     centre with the narrow FOCUS column beside it, then a band of three
-     (COMPARE, HEATMAP, MACRO) and a band of two (CHART, CHAT). The bands are
-     flex children of the desk and each band is its own grid, so the tiles
-     cover the frame with no uncovered pixel and no overlap at any size: the
-     tiles abut, each carrying its own 1px border as the seam. */
+  /* Eight tiles in ONE grid, tiled edge to edge with no gap: every tile is
+     close to square (w/h between 1.0 and 1.33) instead of the long horizontal
+     strips the desk used to be. The tracks are sized in fr so the same
+     proportions hold at any frame size, and the areas are laid out so the
+     three windows that carry the valuable information (MARKET, COMPARE,
+     MACRO) are the largest, FOCUS keeps the exact footprint the owner asked
+     for, and the four read-out windows sit round them:
+
+        +----------------+---------+--------+
+        |                | COMPARE | FOCUS  |
+        |     MARKET     |         +--------+
+        |                +---------+ CHART  |
+        +--------+-------+         |        |
+        |WATCHLIST|HEATMAP|  MACRO  |        |
+        |        |       |         +--------+
+        |        |       |         |  CHAT  |
+        +--------+-------+---------+--------+
+
+     at 1600x870 that resolves to the pixel boxes: MARKET 770x580,
+     COMPARE 552x445, MACRO 552x425, FOCUS 278x404, WATCHLIST 385x290,
+     HEATMAP 385x290, CHART 278x233, CHAT 278x233. No uncovered pixel, no
+     overlap: the tiles abut and each carries its own 1px border as the seam. */
   .grid{flex:1 1 auto;min-height:0;display:grid;padding:0;min-width:0;}
-  .grid.desk{display:flex;flex-direction:column;gap:0;padding:0;}
-  .band{display:grid;gap:0;min-height:0;min-width:0;}
-  .band-a{flex:1.65 1 0;grid-template-columns:minmax(150px,.19fr) minmax(0,1fr) minmax(196px,.25fr);}
-  .band-b{flex:1.1 1 0;grid-template-columns:minmax(0,1.45fr) minmax(0,1.45fr) minmax(0,1fr);}
-  .band-c{flex:.8 1 0;grid-template-columns:minmax(0,2.2fr) minmax(0,1fr);}
+  .grid.desk{display:grid;gap:0;padding:0;
+    grid-template-columns:385fr 385fr 552fr 278fr;
+    grid-template-rows:404fr 41fr 135fr 57fr 233fr;
+    grid-template-areas:
+      "mkt mkt cmp focus"
+      "mkt mkt cmp chart"
+      "mkt mkt macro chart"
+      "watch hmap macro chart"
+      "watch hmap macro chat";}
+  .w-watch{grid-area:watch;} .w-mkt{grid-area:mkt;} .w-focus{grid-area:focus;}
+  .w-cmp{grid-area:cmp;} .w-hm{grid-area:hmap;} .w-mc{grid-area:macro;}
+  .w-chart{grid-area:chart;} .w-chat{grid-area:chat;}
   .win{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--bg);
     border:1px solid var(--line2);border-radius:0;overflow:hidden;}
 
@@ -173,40 +196,59 @@
     min-width:0;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
   /* ---------- WATCHLIST window ---------- */
-  .wr{display:grid;grid-template-columns:19px minmax(0,1fr) auto;gap:1px 7px;align-items:center;
-    padding:4px 8px;border-bottom:1px solid var(--line);}
-  .wmono{grid-row:1/span 2;width:17px;height:17px;display:flex;align-items:center;justify-content:center;
-    border:1px solid var(--line2);border-radius:3px;background:var(--bg3);color:var(--acc);
-    font-family:var(--mono);font-size:8px;font-weight:700;}
-  .wmain{min-width:0;}
-  .wmain b{display:block;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.02em;
-    color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .wmain i{display:block;font-style:normal;font-family:var(--ui);font-size:8px;line-height:1.2;
-    color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .wprice{text-align:right;}
-  .wprice b{display:block;font-family:var(--mono);font-size:10px;color:var(--tx);font-variant-numeric:tabular-nums;}
-  .wprice i{display:block;font-style:normal;font-family:var(--mono);font-size:8.5px;font-variant-numeric:tabular-nums;}
+  /* One dense line per security: ticker, name, last, change percent, volume,
+     under a column head. The line is 17px so a 385x290 window carries 14 rows
+     of five fields rather than 14 rows of three. */
+  .wl-h{display:grid;grid-template-columns:56px minmax(0,1fr) 56px 50px 52px;gap:0 6px;
+    height:15px;align-items:center;padding:0 7px;background:var(--bg3);
+    border-bottom:1px solid var(--line2);font-family:var(--mono);font-size:7px;
+    letter-spacing:.1em;color:var(--tx3);text-transform:uppercase;}
+  .wr{display:grid;grid-template-columns:56px minmax(0,1fr) 56px 50px 52px;gap:0 6px;
+    align-items:center;height:17px;padding:0 7px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:9px;font-variant-numeric:tabular-nums;}
+  .wr .wt{color:var(--tx);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .wr .wn{font-family:var(--ui);font-size:8.5px;color:var(--tx3);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;}
+  .wr .wp{text-align:right;color:var(--tx);white-space:nowrap;}
+  .wr .wc{text-align:right;white-space:nowrap;}
+  .wr .wv{text-align:right;color:var(--tx2);white-space:nowrap;}
 
   /* ---------- MARKET window ---------- */
-  .mk-top{padding:7px 10px 6px;border-bottom:1px solid var(--line);}
+  .mk-top{padding:6px 10px 5px;border-bottom:1px solid var(--line);}
   .mk-ex{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.04em;color:#7ef0c0;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .mk-ex span{color:var(--tx3);font-weight:400;}
   .mk-sub{font-family:var(--mono);font-size:8.5px;color:var(--tx3);letter-spacing:.04em;padding:2px 0 0;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .mk-br{display:flex;gap:10px;padding:5px 0 0;font-family:var(--mono);font-size:10px;
+  .mk-br{display:flex;gap:10px;padding:4px 0 0;font-family:var(--mono);font-size:10px;
     font-variant-numeric:tabular-nums;}
   .mk-br .tone{margin-left:auto;font-size:8.5px;letter-spacing:.1em;align-self:center;}
-  .mk-body{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px;padding:2px 10px 6px;}
+  /* the security table: one line per name carrying ticker, name, last, change,
+     change percent, volume, market cap and sector, under a column head */
+  .mk-det{display:flex;flex-direction:column;min-height:0;}
+  .mk-dh,.mk-dr{display:grid;
+    grid-template-columns:64px minmax(0,1.35fr) 62px 54px 52px 64px 56px minmax(0,.85fr);
+    gap:0 7px;align-items:center;}
+  .mk-dh{height:15px;padding:0 10px;background:var(--bg3);border-bottom:1px solid var(--line2);
+    font-family:var(--mono);font-size:7px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase;}
+  .mk-dr{height:20px;padding:0 10px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:9.5px;font-variant-numeric:tabular-nums;}
+  .mk-dr .t{color:var(--tx);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mk-dr .n{font-family:var(--ui);font-size:9px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mk-dr .s{font-family:var(--ui);font-size:8.5px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mk-dr .r{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mk-body{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px;padding:0 10px 4px;
+    min-height:0;}
   .mcol{min-width:0;overflow:hidden;}
-  .msec{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;font-weight:700;color:var(--tx3);
-    padding:6px 0 3px;border-bottom:1px solid var(--line2);}
-  .mrow{display:grid;grid-template-columns:52px minmax(0,1fr) auto auto;gap:1px 8px;padding:3px 0;
-    font-family:var(--mono);font-size:9.5px;align-items:baseline;font-variant-numeric:tabular-nums;}
+  .msec{font-family:var(--mono);font-size:8px;letter-spacing:.12em;font-weight:700;color:var(--tx3);
+    padding:5px 0 3px;border-bottom:1px solid var(--line2);}
+  .mrow{display:grid;grid-template-columns:54px minmax(0,1fr) 54px 48px;gap:0 6px;height:17px;
+    align-items:center;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:9px;font-variant-numeric:tabular-nums;}
   .mrow .mt{color:var(--tx);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .mrow .mn{font-family:var(--ui);font-size:9px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .mrow .mp{text-align:right;color:var(--tx2);white-space:nowrap;}
   .mrow .mc{text-align:right;white-space:nowrap;}
+  .mrow .mv{text-align:right;color:var(--tx3);white-space:nowrap;}
 
   /* ---------- FOCUS window ---------- */
   .fx-top{padding:7px 10px 5px;border-bottom:1px solid var(--line);}
@@ -251,6 +293,10 @@
     word-wrap:break-word;overflow-wrap:anywhere;}
   .ch-empty{padding:7px 9px;font-family:var(--mono);font-size:9px;line-height:1.65;
     color:var(--tx3);letter-spacing:.02em;}
+  .ch-kv{display:grid;grid-template-columns:62px minmax(0,1fr);gap:0 6px;padding:2px 9px;
+    font-family:var(--mono);font-size:8px;letter-spacing:.03em;align-items:baseline;}
+  .ch-kv span{color:#4a4a4a;letter-spacing:.08em;}
+  .ch-kv b{font-weight:400;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
   /* ---------- COMPARE: four securities side by side ---------- */
   /* One row per measure, one column per security, so the four are read across
@@ -270,18 +316,29 @@
     text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .cmp-r .n{font-family:var(--ui);font-size:7.5px;color:var(--tx3);text-align:right;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* one candlestick sparkline per security, drawn from the same
+     terminal/static_data/history/<KEY>.json the CHART window reads */
+  .cmp-r.spark{flex:1 1 auto;min-height:64px;align-items:stretch;padding:3px 7px 3px;background:#030303;}
+  /* the cell is a fixed box: the svg is taken out of flow and clipped to it,
+     so a chart can never stretch the row it sits in */
+  .cmp-sp{min-width:0;height:100%;position:relative;overflow:hidden;}
+  .cmp-sp svg{position:absolute;left:0;top:0;width:100%;height:100%;display:block;
+    pointer-events:none;}
+  .cmp-sp .no{font-family:var(--mono);font-size:7px;line-height:1.4;color:var(--tx3);
+    text-align:right;padding:24px 2px 0;}
+  .cmp-sp .no em{font-style:normal;color:var(--tx2);}
   .cmp-bar{display:block;height:5px;background:#0b0b0b;border:1px solid #1d1d1d;position:relative;}
   .cmp-bar i{position:absolute;top:-1px;width:2px;height:5px;background:var(--acc);}
 
   /* ---------- MACRO: one indicator per row, with value, period and unit --- */
   #mcBody{display:flex;flex-direction:column;}
   .mc-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
-  .mc-r{display:grid;grid-template-columns:minmax(0,1fr) auto 40px;gap:0 6px;flex:0 0 auto;
-    align-items:baseline;padding:2px 8px;border-bottom:1px solid var(--line);}
+  .mc-r{display:grid;grid-template-columns:minmax(0,1fr) auto 56px;gap:0 6px;flex:0 0 auto;
+    align-items:center;height:18px;padding:0 8px;border-bottom:1px solid var(--line);}
   .mc-r .k{font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--tx2);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .mc-r .k i{display:block;font-style:normal;font-family:var(--ui);font-size:7px;letter-spacing:.02em;
-    color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mc-r .k i{font-style:normal;font-family:var(--ui);font-size:7.5px;letter-spacing:.02em;
+    color:var(--tx3);padding-left:5px;}
   .mc-r .v{font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums;color:var(--tx);
     text-align:right;white-space:nowrap;}
   .mc-r .v em{font-style:normal;font-size:7px;color:var(--tx3);letter-spacing:.02em;padding-left:3px;}
@@ -407,12 +464,12 @@
   .vchart{flex:1 1 auto;min-height:0;}
 
   @media (max-width:1100px){
-    .band-a{grid-template-columns:minmax(126px,.22fr) minmax(0,1fr) minmax(168px,.26fr);}
-    .band-b{grid-template-columns:minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1fr);}
-    .band-c{grid-template-columns:minmax(0,2fr) minmax(0,1fr);}
-    .mrow{grid-template-columns:46px minmax(0,1fr) auto auto;gap:1px 6px;}
+    .mrow{grid-template-columns:44px minmax(0,1fr) 50px 44px;gap:0 5px;}
+    .mk-dh,.mk-dr{grid-template-columns:46px minmax(0,1.3fr) 58px 50px 48px 58px 50px minmax(0,.8fr);gap:0 5px;}
     .fx-px{font-size:18px;}
     .cmp-r{grid-template-columns:46px repeat(var(--cc,4),minmax(0,1fr));gap:0 4px;}
+    .wr{grid-template-columns:40px minmax(0,1fr) 52px 46px 48px;gap:0 5px;}
+    .wl-h{grid-template-columns:40px minmax(0,1fr) 52px 46px 48px;gap:0 5px;}
   }
   @media (max-width:860px){
     .top{height:40px;gap:9px;padding:0 10px;}
@@ -420,25 +477,30 @@
     .top-ex i{display:none;}
     .top-asof{font-size:9px;}
     .tape{height:30px;}
-    .band-a{grid-template-columns:minmax(104px,.3fr) minmax(0,1fr);}
-    .band-b{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
-    .band-c{grid-template-columns:minmax(0,1fr);}
-    .w-focus,.w-chat{display:none;}
+    /* four windows only on a narrow frame: MARKET across the top, then
+       COMPARE and MACRO, then WATCHLIST and CHART beside HEATMAP */
+    .grid.desk{grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      grid-template-rows:1.5fr 1fr 1fr;
+      grid-template-areas:
+        "mkt mkt"
+        "cmp macro"
+        "watch chart";}
+    .w-focus,.w-chat,.w-hm{display:none;}
     .whead{height:23px;}
     .wtab{font-size:8px;letter-spacing:.1em;padding:0 4px;}
     .wmeta{font-size:7px;}
     .dg{display:none;}
-    .wr{padding:3px 6px;gap:1px 5px;grid-template-columns:15px minmax(0,1fr) auto;}
-    .wmono{width:14px;height:14px;font-size:7px;}
-    .wmain b{font-size:9px;} .wmain i{font-size:7px;} .wprice b{font-size:9px;} .wprice i{font-size:8px;}
+    .wr{grid-template-columns:40px minmax(0,1fr) 52px 46px 48px;gap:0 4px;padding:0 6px;height:16px;}
+    .wl-h{padding:0 6px;}
     .mk-top{padding:5px 7px 4px;}
     .mk-ex{font-size:10px;}
     .mk-sub{font-size:7.5px;}
     .mk-br{font-size:8.5px;gap:7px;}
-    .mk-body{padding:1px 7px 4px;}
+    .mk-body{padding:0 7px 4px;}
+    .mk-dh,.mk-dr{padding:0 7px;grid-template-columns:44px minmax(0,1.2fr) 56px 48px 46px 54px;}
+    .mk-dr .s,.mk-dh span:nth-child(7),.mk-dh span:nth-child(8){display:none;}
     .msec{font-size:7.5px;padding:4px 0 2px;}
-    .mrow{grid-template-columns:40px minmax(0,1fr) auto auto;font-size:8.5px;gap:1px 5px;padding:2px 0;}
-    .mrow .mn{font-size:8px;}
+    .mrow{grid-template-columns:40px minmax(0,1fr) 46px 44px;font-size:8.5px;gap:0 4px;}
     .chart-note{font-size:8.5px;padding:3px 8px 6px;line-height:1.5;}
     .tk{font-size:10px;} .nm{font-size:9.5px;} .num{font-size:10px;}
     .foot{font-size:8px;padding:5px 8px;gap:6px;}
@@ -447,8 +509,9 @@
     .brand{font-size:9px;letter-spacing:.08em;}
     .top-ex{font-size:10px;}
     .top-asof{font-size:8px;}
-    .grid.desk{grid-template-columns:minmax(0,1fr);}
-    .w-watch{display:none;}
+    .grid.desk{grid-template-columns:minmax(0,1fr);grid-template-rows:1.6fr 1fr 1fr;
+      grid-template-areas:"mkt" "cmp" "watch";}
+    .w-chart,.w-macro{display:none;}
     .mk-ex{font-size:9px;}
   }
   /* A short frame: the FOCUS quote keeps every one of its fields and gives up
@@ -502,20 +565,14 @@
 
   <div class="tape"><div class="tape-in" id="tapeIn"></div></div>
 
-  <!-- THE DESK: eight tiles on three bands, drawn as a picture.
-       Band A: WATCHLIST (narrow) | MARKET (the big centre window) | FOCUS
-       (narrow). Band B: COMPARE | HEATMAP | MACRO. Band C: CHART | CHAT.
+  <!-- THE DESK: eight tiles in one grid, drawn as a picture. MARKET is the
+       large centre window, COMPARE and MACRO the two beside and below it,
+       FOCUS the tall window at the top right at the size the owner asked for,
+       and WATCHLIST, HEATMAP, CHART and CHAT the read-out windows round them.
        Each tile carries the shell's chrome (drag glyph, mono caps title with
        the mint underline, close glyph) and nothing in any of them can be
        typed into, clicked, focused or hovered. -->
   <div class="grid desk" id="gridHero">
-
-    <div class="band band-a">
-
-      <section class="win w-watch">
-        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">WATCHLIST</span><span class="wmeta" id="wlMeta"></span><span class="wx">X</span></div>
-        <div class="wbody" id="wlBody"></div>
-      </section>
 
       <section class="win w-mkt">
         <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">MARKET</span><span class="wmeta" id="mkMetaMark"></span><span class="wx">X</span></div>
@@ -526,10 +583,6 @@
         <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">FOCUS</span><span class="wmeta" id="fxMeta"></span><span class="wx">X</span></div>
         <div class="wbody" id="fxBody"></div>
       </section>
-
-    </div>
-
-    <div class="band band-b">
 
       <section class="win w-cmp">
         <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">COMPARE</span><span class="wmeta" id="cmpMeta"></span><span class="wx">X</span></div>
@@ -546,9 +599,10 @@
         <div class="wbody" id="mcBody"></div>
       </section>
 
-    </div>
-
-    <div class="band band-c">
+      <section class="win w-watch">
+        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">WATCHLIST</span><span class="wmeta" id="wlMeta"></span><span class="wx">X</span></div>
+        <div class="wbody" id="wlBody"></div>
+      </section>
 
       <section class="win w-chart">
         <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">CHART</span><span class="wmeta" id="chartMeta"></span><span class="wx">X</span></div>
@@ -564,8 +618,6 @@
         <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">CHAT</span><span class="wmeta" id="chMeta"></span><span class="wx">X</span></div>
         <div class="wbody" id="chBody"></div>
       </section>
-
-    </div>
 
   </div>
 
@@ -896,11 +948,11 @@
   }
 
   // ---- the desk ----------------------------------------------------------
-  // Eight windows, tiled on three bands: WATCHLIST, MARKET and FOCUS across the
-  // top with MARKET as the big centre window; COMPARE, HEATMAP and MACRO on the
-  // middle band; CHART and CHAT on the bottom band. Every block below is
-  // painted from the published files and nothing on the desk responds to a
-  // pointer or a key.
+  // Eight windows in one grid: MARKET the large window, COMPARE and MACRO the
+  // two beside and below it, FOCUS the tall window at the top right, and
+  // WATCHLIST, HEATMAP, CHART and CHAT the read-out windows round them. Every
+  // block below is painted from the published files and nothing on the desk
+  // responds to a pointer or a key.
 
   // Each window is drawn inside its own guard. One window that cannot be drawn
   // says so in its own frame; it never leaves the seven beside it blank, which
@@ -925,7 +977,9 @@
     guardDraw("hmBody", "Heatmap", renderHeatmap);
     guardDraw("mcBody", "Macro", renderMacro);
     guardDraw("chBody", "Chat", renderChat);
+    guardDraw("chBodyChart", "Chart", drawDeskChart);
     tryDraw(loadDeskHistory);
+    tryDraw(function(){ if (MB && MB.stocks) loadCompareHistory(); });
   }
 
   // drop rows from the bottom of a window until its content fits, so a short
@@ -953,25 +1007,33 @@
     }
   }
 
-  // Rows leave the sections from the bottom, most active first, until the window
-  // fits. No section is ever emptied and no section is left as a heading with
-  // nothing under it: the MARKET window always carries real rows.
+  // Rows leave the sections from the bottom, the deepest section first, until
+  // the window fits: that keeps the three mover lists level instead of
+  // emptying one of them. No section is ever left as a heading with nothing
+  // under it, and the full-detail security table keeps at least six lines.
   function trimMarket(host){
-    var order = [".sec-act", ".sec-lose", ".sec-gain", ".sec-board"];
+    var secs = [".sec-gain", ".sec-lose", ".sec-act", ".sec-board"];
     var guard = 0;
-    while (host.scrollHeight - host.clientHeight > 1 && guard++ < 400){
-      var moved = false;
-      for (var i = 0; i < order.length; i++){
-        var sec = host.querySelector(order[i]);
+    while (host.scrollHeight - host.clientHeight > 1 && guard++ < 800){
+      var best = null, bestN = 3;
+      for (var i = 0; i < secs.length; i++){
+        var sec = host.querySelector(secs[i]);
         if (!sec) continue;
-        var rows = sec.querySelectorAll(".mrow");
-        if (rows.length > 1){
-          rows[rows.length - 1].parentNode.removeChild(rows[rows.length - 1]);
-          moved = true;
-          break;
-        }
+        var n = sec.querySelectorAll(".mrow").length;
+        if (n > bestN){ best = sec; bestN = n; }
       }
-      if (!moved) return;
+      if (best){
+        var rows = best.querySelectorAll(".mrow");
+        rows[rows.length - 1].parentNode.removeChild(rows[rows.length - 1]);
+        continue;
+      }
+      var det = host.querySelector("#mkDet");
+      var d = det ? det.querySelectorAll(".mk-dr") : [];
+      if (d.length > 6){
+        d[d.length - 1].parentNode.removeChild(d[d.length - 1]);
+        continue;
+      }
+      return;
     }
   }
 
@@ -981,6 +1043,10 @@
   }
 
   // ---- WATCHLIST window: the board, most traded first ---------------------
+  // One dense line per security under a column head: ticker, name, last,
+  // change percent and volume. The line is 17px, so the window carries 14
+  // rows of five fields. Rows are generated to a high cap and the ones that
+  // do not fit are dropped from the bottom, so the window is always full.
   function renderWatch(){
     var host = $("wlBody");
     if (!MB || !MB.stocks){
@@ -988,29 +1054,32 @@
       return;
     }
     var rows = ranked();
-    var out = [];
+    var out = ['<div class="wl-h"><span>TICKER</span><span>NAME</span>' +
+      '<span style="text-align:right">LAST</span>' +
+      '<span style="text-align:right">CHG %</span>' +
+      '<span style="text-align:right">VOL</span></div>'];
     for (var i = 0; i < rows.length; i++){
-      var r = rows[i], p = num(r.price), c = num(r.chgPct);
+      var r = rows[i], p = num(r.price), c = num(r.chgPct), v = num(r.volume);
       var tick = String(r.ticker || r.sym || "");
-      var mark = tick ? tick.charAt(0) : "-";
       out.push('<div class="wr">' +
-        '<span class="wmono">' + esc(mark) + '</span>' +
-        '<span class="wmain"><b>' + esc(tick) + '</b><i>' + esc(r.name || "") + '</i></span>' +
-        '<span class="wprice">' +
-          '<b>' + (p === null ? '<span class="nq">-</span>' : fmtPx(p)) + '</b>' +
-          '<i class="' + cls(c) + '">' + pctCell(c) + '</i>' +
-        '</span>' +
+        '<span class="wt">' + esc(tick || "-") + '</span>' +
+        '<span class="wn">' + esc(r.name || "") + '</span>' +
+        '<span class="wp">' + (p === null ? '<span class="nq">-</span>' : fmtPx(p)) + '</span>' +
+        '<span class="wc ' + cls(c) + '">' + pctCell(c) + '</span>' +
+        '<span class="wv">' + (v === null ? "-" : compact(v)) + '</span>' +
       '</div>');
     }
     host.innerHTML = out.join("");
-    trimToFit(host, ".wr", 4);
+    trimToFit(host, ".wr", 6);
   }
 
-  // ---- MARKET window: breadth, then gainers, losers, most active ----------
-  // The board is whatever loadBoard() answered: market_<EX>.json first, the
-  // screener file only if that one is absent. Only when neither file carries a
-  // security does this window print an empty state, and that state names both
-  // files rather than claiming the snapshot could not be read.
+  // ---- MARKET window: the board in full detail, then movers ---------------
+  // The window carries what a trader reads off a market screen: breadth for
+  // the session, then one line per security with ticker, name, last, change,
+  // change percent, volume, market cap and sector, then the three mover lists
+  // underneath. Every field is a published field of market_<EX>.json; the one
+  // derived figure is the change in price, and it is printed only when the
+  // row's own percent agrees with it (levelOf). An absent field prints "-".
   function renderMarket(){
     var host = $("mkBody");
     var all = allRows();
@@ -1036,25 +1105,39 @@
     var cur = Object.keys(curs).sort()[0] || CFG.cur;
     var session = mkSession();
 
-    function mover(s){
-      var ch = num(s.chgPct);
-      return '<div class="mrow"><span class="mt">' + esc(String(s.ticker || s.sym || "")) + '</span>' +
-        '<span class="mn">' + esc(String(s.name || "").slice(0, 26)) + '</span>' +
-        '<span class="mp">' + (num(s.price) === null ? "-" : fmtPx(num(s.price))) + '</span>' +
-        '<span class="mc ' + cls(ch) + '">' + pctCell(ch) + '</span></div>';
-    }
-    function volumeRow(s){
-      var v = num(s.volume), ch = num(s.chgPct);
-      return '<div class="mrow"><span class="mt">' + esc(String(s.ticker || s.sym || "")) + '</span>' +
-        '<span class="mn">' + esc(String(s.name || "").slice(0, 26)) + '</span>' +
-        '<span class="mp">' + (num(s.price) === null ? "-" : fmtPx(num(s.price))) + '</span>' +
-        '<span class="mc ' + cls(ch) + '">' + (v === null ? "-" : fmtInt(v)) + '</span></div>';
-    }
-
     var withChg = priced.filter(function(r){ return num(r.chgPct) !== null; });
     var gain = withChg.slice().sort(function(a, b){ return num(b.chgPct) - num(a.chgPct); });
     var lose = withChg.slice().sort(function(a, b){ return num(a.chgPct) - num(b.chgPct); });
     var active = priced.slice().sort(function(a, b){ return (num(b.volume) || 0) - (num(a.volume) || 0); });
+
+    function tkOf(s){ return String(s.ticker || s.sym || ""); }
+    function chgCell(s){
+      var lv = levelOf(s);
+      return lv === null ? '<span class="flat">-</span>'
+        : '<span class="' + cls(lv) + '">' + (lv > 0 ? "+" : "") + fmtPx(lv) + '</span>';
+    }
+    // one full-detail line for the security table
+    function detRow(s){
+      var p = num(s.price), pc = num(s.chgPct), v = num(s.volume), cap = compact(s.marketCap);
+      return '<div class="mk-dr">' +
+        '<span class="t">' + esc(tkOf(s) || "-") + '</span>' +
+        '<span class="n">' + esc(String(s.name || "")) + '</span>' +
+        '<span class="r">' + (p === null ? "-" : fmtPx(p)) + '</span>' +
+        '<span class="r">' + chgCell(s) + '</span>' +
+        '<span class="r ' + cls(pc) + '">' + pctCell(pc) + '</span>' +
+        '<span class="r">' + (v === null ? "-" : compact(v)) + '</span>' +
+        '<span class="r">' + (cap === null ? "-" : esc(cap)) + '</span>' +
+        '<span class="s">' + esc(String(s.sector || "-")) + '</span>' +
+      '</div>';
+    }
+    // one compact line for the three mover columns
+    function mover(s){
+      var ch = num(s.chgPct), v = num(s.volume);
+      return '<div class="mrow"><span class="mt">' + esc(tkOf(s) || "-") + '</span>' +
+        '<span class="mp">' + (num(s.price) === null ? "-" : fmtPx(num(s.price))) + '</span>' +
+        '<span class="mc ' + cls(ch) + '">' + pctCell(ch) + '</span>' +
+        '<span class="mv">' + (v === null ? "-" : compact(v)) + '</span></div>';
+    }
 
     var html = '<div class="mk-top">' +
       '<div class="mk-ex">' + esc(EX) + ' <span>&middot; ' + esc(CFG.full) + '</span></div>' +
@@ -1064,27 +1147,39 @@
         '<span class="down">&#9660; ' + dec + '</span>' +
         '<span class="flat">- ' + unc + '</span>' +
         '<span class="tone ' + toneCls + '">' + tone + '</span></div>' +
-    '</div><div class="mk-body">';
+    '</div>';
 
+    // the security table: the session's most traded names, in full detail
+    var det = active.slice(0, 14);
+    html += '<div class="mk-det" id="mkDet">' +
+      '<div class="mk-dh"><span>TICKER</span><span>NAME</span><span class="r">LAST</span>' +
+      '<span class="r">CHG</span><span class="r">CHG %</span><span class="r">VOL</span>' +
+      '<span class="r">MKT CAP</span><span>SECTOR</span></div>' +
+      det.map(detRow).join("") + '</div>';
+
+    var N = 18;
+    html += '<div class="mk-body">';
     var sections = 0;
-    var N = 10;
     if (gain.length){
-      html += '<div class="mcol"><div class="msec">TOP GAINERS</div><div class="sec-gain">' + gain.slice(0, N).map(mover).join("") + '</div></div>';
+      html += '<div class="mcol"><div class="msec">TOP GAINERS</div><div class="sec-gain">' +
+        gain.slice(0, N).map(mover).join("") + '</div></div>';
       sections++;
     }
     if (lose.length){
-      html += '<div class="mcol"><div class="msec">TOP LOSERS</div><div class="sec-lose">' + lose.slice(0, N).map(mover).join("") + '</div></div>';
+      html += '<div class="mcol"><div class="msec">TOP LOSERS</div><div class="sec-lose">' +
+        lose.slice(0, N).map(mover).join("") + '</div></div>';
       sections++;
     }
     if (active.length){
-      html += '<div class="mcol"><div class="msec">MOST ACTIVE</div><div class="sec-act">' + active.slice(0, N).map(volumeRow).join("") + '</div></div>';
+      html += '<div class="mcol"><div class="msec">MOST ACTIVE</div><div class="sec-act">' +
+        active.slice(0, N).map(mover).join("") + '</div></div>';
       sections++;
     }
     // a board with no published change still gets one ranked table of real
     // securities, with its price and its (absent) change shown as absent
     if (!sections){
       html += '<div class="mcol"><div class="msec">THE BOARD BY VOLUME</div><div class="sec-board">' +
-        active.slice(0, 16).map(mover).join("") + '</div></div>';
+        active.slice(0, N).map(mover).join("") + '</div></div>';
     }
     html += '</div>';
 
@@ -1213,21 +1308,132 @@
   function renderChat(){
     var host = $("chBody");
     host.innerHTML = chatHead() +
-      '<div class="ch-log"><div class="ch-empty">No message is published for this room: ' +
-        'the chat runs live in the terminal and no message file sits beside the snapshots, ' +
-        'so nothing is shown here.</div></div>';
+      '<div class="ch-kv"><span>CHANNEL</span><b># ' + esc(EX) + '</b></div>' +
+      '<div class="ch-kv"><span>MESSAGES</span><b>none published</b></div>' +
+      '<div class="ch-kv"><span>ROOM FILE</span><b>chat_' + esc(EX) + '.json absent</b></div>' +
+      '<div class="ch-empty">The room is served live by the terminal, so this window draws its ' +
+        'frame only. No message, author or time is invented to fill it.</div>';
     $("chMeta").textContent = "0 messages";
   }
 
   // ---- COMPARE window: four securities read across ------------------------
   // The four are the session's four most traded priced securities on the board
   // the WATCHLIST reads. One row per measure, one column per security, so the
-  // four are read across instead of one after another. Every cell is a
-  // published field of market_<EX>.json: last, change, change percent, the
-  // session low and high, previous close, open, volume and market cap. The one
+  // four are read across instead of one after another, and one candlestick
+  // sparkline per security drawn from the same history file the CHART window
+  // reads. Every cell is a published field of market_<EX>.json: last, change,
+  // change percent, the session low and high, the 52 week bounds, previous
+  // close, open, volume, turnover, market cap, shares and sector. The one
   // derived figure is the range bar, which places the last between the
-  // published low and the published high on the same 0 to 100 scale for all
-  // four. An absent field prints the house marker and no number.
+  // published low and the published high on the same 0 to 100 scale. An
+  // absent field prints the house marker and no number.
+  var CMP_HIST = {};    // ticker -> { key, bars } or null
+  var CMP_DONE = "";    // the four tickers whose history has been asked for
+  var CMP_DRAWN = [];   // [{ sym, bars, key }] per column, for the caption
+
+  function drawSpark(svg, bars){
+    var cell = svg.parentNode;
+    var W = Math.max(40, cell.clientWidth || 90), H = Math.max(24, cell.clientHeight || 60);
+    var win = bars.slice(-30), full = [];
+    for (var i = 0; i < win.length; i++){
+      var b = win[i] || {};
+      var c = num(b.c);
+      if (c === null) continue;
+      var o = num(b.o), hh = num(b.h), ll = num(b.l);
+      if (o === null || hh === null || ll === null) continue;
+      full.push({ o: o, h: hh, l: ll, c: c });
+    }
+    if (!full.length){ svg.innerHTML = ""; return 0; }
+    var lo = full[0].l, hi = full[0].h;
+    for (var j = 1; j < full.length; j++){
+      if (full[j].l < lo) lo = full[j].l;
+      if (full[j].h > hi) hi = full[j].h;
+    }
+    var span = hi - lo, pad = span > 0 ? span * 0.06 : (Math.abs(hi) > 0 ? Math.abs(hi) * 0.02 : 1);
+    var yMin = lo - pad, yMax = hi + pad;
+    var padT = 2, padB = 2, padL = 1, padR = 1;
+    var plotH = Math.max(8, H - padT - padB), plotW = Math.max(10, W - padL - padR);
+    var slot = plotW / full.length;
+    var bw = Math.max(1.2, Math.min(7, slot * 0.62));
+    function Y(v){ return padT + (yMax - v) / (yMax - yMin) * plotH; }
+    var parts = [];
+    for (var k = 0; k < full.length; k++){
+      var d = full[k];
+      var col = d.c >= d.o ? "#33e29a" : "#f87171";
+      var cx = padL + slot * (k + 0.5);
+      var yo = Y(d.o), yc = Y(d.c), yh = Y(d.h), yl = Y(d.l);
+      var top = Math.min(yo, yc), bot = Math.max(yo, yc);
+      if (bot - top < 1) bot = top + 1;
+      parts.push('<line x1="' + cx.toFixed(1) + '" y1="' + yh.toFixed(1) + '" x2="' + cx.toFixed(1) +
+        '" y2="' + yl.toFixed(1) + '" stroke="' + col + '" stroke-width="1"/>');
+      parts.push('<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' +
+        bw.toFixed(1) + '" height="' + (bot - top).toFixed(1) + '" fill="' + col + '"/>');
+    }
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("width", W);
+    svg.setAttribute("height", H);
+    svg.innerHTML = parts.join("");
+    return full.length;
+  }
+
+  // One history request per column, walked down the same keys the CHART window
+  // uses. A column whose security has no history file says so in one line and
+  // still shows its numbers.
+  function loadCompareHistory(){
+    var four = priced().slice(0, 4);
+    if (!four.length) return Promise.resolve([]);
+    var sig = four.map(function(r){ return String(r.ticker || r.sym || "").toUpperCase(); }).join("|");
+    if (CMP_DONE === sig){ tryDraw(drawCompareSparks); return Promise.resolve(CMP_DRAWN); }
+    var jobs = four.map(function(r){
+      var tick = String(r.ticker || r.sym || "").toUpperCase();
+      if (Object.prototype.hasOwnProperty.call(CMP_HIST, tick)) return Promise.resolve(CMP_HIST[tick]);
+      var keys = histKeys(r), p = Promise.resolve(null);
+      keys.forEach(function(k){
+        p = p.then(function(hit){
+          if (hit) return hit;
+          return get("terminal/static_data/history/" + encodeURIComponent(k) + ".json")
+            .then(function(d){
+              return (d && d.bars && d.bars.length) ? { key: k, bars: d.bars } : null;
+            })
+            .catch(function(){ return null; });
+        });
+      });
+      return p.then(function(hit){ CMP_HIST[tick] = hit; return hit; });
+    });
+    return Promise.all(jobs).then(function(res){
+      CMP_DONE = sig;
+      tryDraw(drawCompareSparks);
+      return res;
+    });
+  }
+
+  function drawCompareSparks(){
+    var four = priced().slice(0, 4);
+    CMP_DRAWN = [];
+    for (var i = 0; i < four.length; i++){
+      var cell = $("cmpSp" + i);
+      if (!cell) continue;
+      var tick = String(four[i].ticker || four[i].sym || "");
+      var hit = CMP_HIST[tick.toUpperCase()] || null;
+      var svg = cell.querySelector("svg");
+      if (!hit || !hit.bars || !hit.bars.length){
+        cell.innerHTML = '<div class="no">no history file for <em>' + esc(tick) + '</em></div>';
+        CMP_DRAWN.push({ sym: tick, bars: 0, key: "" });
+        continue;
+      }
+      var n = svg ? drawSpark(svg, hit.bars) : 0;
+      if (!n){
+        cell.innerHTML = '<div class="no">closes only, no candles for <em>' + esc(tick) + '</em></div>';
+        CMP_DRAWN.push({ sym: tick, bars: 0, key: hit.key });
+        continue;
+      }
+      svg.setAttribute("data-sym", tick);
+      svg.setAttribute("data-bars", String(n));
+      CMP_DRAWN.push({ sym: tick, bars: n, key: hit.key });
+    }
+    return CMP_DRAWN;
+  }
+
   function renderCompare(){
     var host = $("cmpBody");
     var all = priced();
@@ -1242,20 +1448,28 @@
     var n = four.length, i;
     var head = '<div class="cmp-r hdr"><span class="l">TICKER</span>';
     var names = '<div class="cmp-r nm"><span class="l"></span>';
+    var spark = '<div class="cmp-r spark"><span class="l">30 DAYS</span>';
     for (i = 0; i < n; i++){
       head += '<b>' + esc(String(four[i].ticker || four[i].sym || "")) + '</b>';
-      names += '<span class="n">' + esc(String(four[i].name || "").slice(0, 20)) + '</span>';
+      names += '<span class="n">' + esc(String(four[i].name || "").slice(0, 22)) + '</span>';
+      spark += '<span class="cmp-sp" id="cmpSp' + i + '"><svg xmlns="http://www.w3.org/2000/svg" ' +
+        'preserveAspectRatio="none"></svg></span>';
     }
     head += '</div>';
     names += '</div>';
+    spark += '</div>';
 
-    var last = "", chg = "", pct = "", bar = "", low = "", high = "", prev = "", open = "", vol = "", cap = "";
+    var last = "", chg = "", pct = "", bar = "", low = "", high = "", wl = "", wh = "", wbar = "",
+        prev = "", open = "", spread = "", vol = "", turn = "", cap = "", shr = "", typ = "", sec = "";
     for (i = 0; i < n; i++){
       var r = four[i];
       var p = num(r.price), lv = levelOf(r), c = num(r.chgPct);
       var lo = num(r.low), hi = num(r.high);
+      var wlo = num(r.w52Low), whi = num(r.w52High);
       var pos = (p === null || lo === null || hi === null || hi <= lo) ? null
         : Math.max(0, Math.min(100, (p - lo) / (hi - lo) * 100));
+      var wpos = (p === null || wlo === null || whi === null || whi <= wlo) ? null
+        : Math.max(0, Math.min(100, (p - wlo) / (whi - wlo) * 100));
       last += '<span class="v">' + (p === null ? "-" : fmtPx(p)) + '</span>';
       chg  += '<span class="v ' + cls(lv) + '">' + (lv === null ? "-" : (lv > 0 ? "+" : "") + fmtPx(lv)) + '</span>';
       pct  += '<span class="v ' + cls(c) + '">' + pctCell(c) + '</span>';
@@ -1263,20 +1477,40 @@
         '<span class="cmp-bar"><i style="left:calc(' + pos.toFixed(0) + '% - 1px)"></i></span>') + '</span>';
       low  += '<span class="v">' + (lo === null ? "-" : fmtPx(lo)) + '</span>';
       high += '<span class="v">' + (hi === null ? "-" : fmtPx(hi)) + '</span>';
+      wl   += '<span class="v">' + (num(r.w52Low) === null ? "-" : fmtPx(num(r.w52Low))) + '</span>';
+      wh   += '<span class="v">' + (num(r.w52High) === null ? "-" : fmtPx(num(r.w52High))) + '</span>';
+      wbar += '<span class="v">' + (wpos === null ? "-" :
+        '<span class="cmp-bar"><i style="left:calc(' + wpos.toFixed(0) + '% - 1px)"></i></span>') + '</span>';
       prev += '<span class="v">' + (num(r.prevClose) === null ? "-" : fmtPx(num(r.prevClose))) + '</span>';
       open += '<span class="v">' + (num(r.open) === null ? "-" : fmtPx(num(r.open))) + '</span>';
-      vol  += '<span class="v">' + (num(r.volume) === null ? "-" : fmtInt(num(r.volume))) + '</span>';
+      spread += '<span class="v">' + ((hi === null || lo === null) ? "-" : fmtPx(hi - lo)) + '</span>';
+      vol  += '<span class="v">' + (num(r.volume) === null ? "-" : compact(num(r.volume))) + '</span>';
+      turn += '<span class="v">' + (num(r.turnover) === null ? "-" : compact(num(r.turnover))) + '</span>';
       cap  += '<span class="v">' + (compact(r.marketCap) === null ? "-" : esc(compact(r.marketCap))) + '</span>';
+      shr  += '<span class="v">' + (num(r.sharesIssued) === null ? "-" : compact(num(r.sharesIssued))) + '</span>';
+      typ  += '<span class="n">' + esc(String(r.instrument || "-").slice(0, 18)) + '</span>';
+      sec  += '<span class="n">' + esc(String(r.sector || "-").slice(0, 18)) + '</span>';
     }
     function row(label, cells){
       return '<div class="cmp-r"><span class="l">' + label + '</span>' + cells + '</div>';
     }
     host.style.setProperty("--cc", n);
-    host.innerHTML = head + names +
+    // the 52 week bounds are carried by three of the four boards; a board
+    // whose file has none does not get three rows of dashes, the sparkline
+    // simply takes the space instead
+    var has52 = false;
+    for (i = 0; i < n; i++){
+      if (num(four[i].w52Low) !== null || num(four[i].w52High) !== null){ has52 = true; break; }
+    }
+    host.innerHTML = head + names + spark +
       row("LAST", last) + row("CHG", chg) + row("CHG %", pct) + row("RANGE", bar) +
-      row("LOW", low) + row("HIGH", high) + row("PREV", prev) + row("OPEN", open) +
-      row("VOL", vol) + row("CAP", cap);
-    trimToFit(host, ".cmp-r", 7);
+      row("LOW", low) + row("HIGH", high) +
+      (has52 ? row("52W LOW", wl) + row("52W HIGH", wh) + row("52W RANGE", wbar) : "") +
+      row("PREV", prev) + row("OPEN", open) + row("HI-LO", spread) +
+      row("VOL", vol) + row("TURNOVER", turn) + row("MKT CAP", cap) + row("SHARES", shr) +
+      row("TYPE", typ) + row("SECTOR", sec);
+    trimToFit(host, ".cmp-r", 8);
+    tryDraw(drawCompareSparks);
     $("cmpMeta").textContent = noDates(n + " of " + all.length + " by volume");
   }
 
@@ -1330,6 +1564,7 @@
     if (!MC || !MC.fx) return null;
     var arr = (MC.fx.fx_rates && MC.fx.fx_rates.rates) || MC.fx.rates || [];
     var want = String(CFG.cur).toUpperCase();
+    if (want === "ZAC") want = "ZAR";     // the file quotes the rand, not the cent
     for (var i = 0; i < arr.length; i++){
       if (String(arr[i].code || "").toUpperCase() !== want) continue;
       var cur = arr[i].current || {};
@@ -1337,6 +1572,21 @@
       if (num(mk.value) !== null) return { v: num(mk.value), src: "market" };
       if (cur.official && num(cur.official.value) !== null) return { v: num(cur.official.value), src: "official" };
       return null;
+    }
+    return null;
+  }
+  // the official reference rate, where the file carries one, printed beside
+  // the market rate so the two are never confused
+  function mcFxOfficial(){
+    if (!MC || !MC.fx) return null;
+    var arr = (MC.fx.fx_rates && MC.fx.fx_rates.rates) || MC.fx.rates || [];
+    var want = String(CFG.cur).toUpperCase();
+    if (want === "ZAC") want = "ZAR";
+    for (var i = 0; i < arr.length; i++){
+      if (String(arr[i].code || "").toUpperCase() !== want) continue;
+      var off = (arr[i].current || {}).official || {};
+      if (num(off.value) === null) return null;
+      return { v: num(off.value), series: String(off.series || "official reference"), as: off.as_of };
     }
     return null;
   }
@@ -1352,6 +1602,13 @@
       if (val === null || val === undefined || val === "") return;
       R.push({ l: label, s: sub || "", v: String(val), u: unit || "", p: period || "-", c: c || "" });
     }
+    // the unit as the file states it, with "per cent" printed as the sign
+    function mcUnit(u){
+      var s = String(u || "");
+      if (!s) return "";
+      if (s.toLowerCase().indexOf("per cent") >= 0 || s === "percent" || s === "%") return "%";
+      return s;
+    }
     var cr = mcCountry(MC.rates);
     if (cr && cr.policy_rate){
       // a central bank that publishes a corridor publishes two rates and no
@@ -1362,39 +1619,115 @@
       var lend = cor ? num(cor.overnight_lending_rate) : null;
       if (dep !== null && lend !== null){
         add("POLICY RATE", "overnight deposit / lending", mcNum(dep) + " / " + mcNum(lend),
-          pr.unit || "%", mcYear(pr.as_of) || "latest", "");
+          mcUnit(pr.unit), mcYear(pr.as_of) || "latest", "");
       } else {
-        add("POLICY RATE", String(pr.name || cr.central_bank || ""), mcNum(pr.value), pr.unit || "%",
+        add("POLICY RATE", String(pr.name || cr.central_bank || ""), mcNum(pr.value), mcUnit(pr.unit),
           mcYear(pr.as_of) || "latest", "");
+      }
+    }
+    if (cr && cr.facilities){
+      var fac = cr.facilities;
+      var fkeys = ["discount_window", "repo", "cash_reserve_requirement"];
+      var flabel = { discount_window: "DISCOUNT WINDOW", repo: "REPO RATE", cash_reserve_requirement: "CASH RESERVE" };
+      for (var fi = 0; fi < fkeys.length; fi++){
+        var f = fac[fkeys[fi]];
+        if (!f || num(f.value) === null) continue;
+        add(flabel[fkeys[fi]], String(f.name || ""), mcNum(f.value), mcUnit(f.unit),
+          mcYear(f.as_of) || "-", "");
       }
     }
     if (cr && cr.market_rates && cr.market_rates.t_bill_91d){
       var tb = cr.market_rates.t_bill_91d;
-      add("91-DAY BILL", String(tb.name || "Treasury bill"), mcNum(tb.value), tb.unit || "%",
+      add("91-DAY BILL", String(tb.name || "Treasury bill"), mcNum(tb.value), mcUnit(tb.unit),
         mcYear(tb.as_of) || "latest", "");
     }
     var cc = mcCountry(MC.cpi);
-    if (cc) add("INFLATION", "consumer prices, annual", mcNum(cc.inflation), "%",
-      cc.inflation_year ? String(cc.inflation_year) : "-", "");
+    if (cc){
+      add("INFLATION", "consumer prices, annual", mcNum(cc.inflation), "%",
+        cc.inflation_year ? String(cc.inflation_year) : "-", "");
+      if (num(cc.inflation_prior) !== null){
+        add("INFLATION, PRIOR", "the year before", mcNum(cc.inflation_prior), "%",
+          cc.inflation_prior_year ? String(cc.inflation_prior_year) : "-", "");
+      }
+    }
     var gg = (MC.cpi && MC.cpi.gdp) ? mcCountry(MC.cpi.gdp) : null;
     if (gg){
       add("GDP GROWTH", "real, annual", mcNum(gg.gdp_growth), "%",
-        gg.gdp_growth_year ? String(gg.gdp_growth_year) : "-", "");
+        gg.gdp_growth_year ? String(gg.gdp_growth_year) : "-", cls(num(gg.gdp_growth)));
       add("GDP", "current prices", mcNum(gg.gdp), "USD",
         gg.gdp_year ? String(gg.gdp_year) : "-", "");
+      if (num(gg.gdp_per_capita) !== null){
+        add("GDP PER CAPITA", "current prices", mcNum(gg.gdp_per_capita), "USD",
+          gg.gdp_per_capita_year ? String(gg.gdp_per_capita_year) : "-", "");
+      }
     }
     var fx = mcFx();
-    if (fx) add("EXCHANGE RATE", "USD in " + CFG.cur, mcNum(fx.v), "per USD", "latest", "");
+    if (fx) add("EXCHANGE RATE", "USD in " + CFG.cur + ", " + fx.src, mcNum(fx.v), "per USD", "latest", "");
+    var fxo = mcFxOfficial();
+    if (fxo) add("FX, OFFICIAL", fxo.series, mcNum(fxo.v), "per USD", mcYear(fxo.as) || "-", "");
     var cf = mcCountry(MC.fisc);
-    if (cf && cf.fiscal_balance && num(cf.fiscal_balance.value) !== null){
+    if (cf){
       var fb = cf.fiscal_balance;
-      add("FISCAL BALANCE", "general government", mcNum(fb.value), fb.unit || "% of GDP",
-        fb.year ? String(fb.year) : (mcYear(fb.period) || "-"), cls(fb.value));
-    }
-    if (cf && cf.debt_ratio && num(cf.debt_ratio.value) !== null){
+      if (fb && num(fb.value) !== null){
+        add("FISCAL BALANCE", fb.coverage || "general government", mcNum(fb.value),
+          mcUnit(fb.unit), fb.year ? String(fb.year) : (mcYear(fb.period) || "-"), cls(num(fb.value)));
+      }
+      var pb = cf.primary_balance;
+      if (pb && num(pb.value) !== null){
+        add("PRIMARY BALANCE", "general government", mcNum(pb.value), mcUnit(pb.unit),
+          pb.year ? String(pb.year) : "-", cls(num(pb.value)));
+      }
+      var rv = cf.revenue_pct_gdp;
+      if (rv && num(rv.value) !== null){
+        add("REVENUE", "general government", mcNum(rv.value), mcUnit(rv.unit),
+          rv.year ? String(rv.year) : "-", "");
+      }
+      var ex2 = cf.expenditure_pct_gdp;
+      if (ex2 && num(ex2.value) !== null){
+        add("EXPENDITURE", "general government", mcNum(ex2.value), mcUnit(ex2.unit),
+          ex2.year ? String(ex2.year) : "-", "");
+      }
+      var ip = cf.interest_paid_pct_gdp;
+      if (ip && num(ip.value) !== null){
+        add("INTEREST PAID", "on public debt", mcNum(ip.value), mcUnit(ip.unit),
+          ip.year ? String(ip.year) : "-", "");
+      }
       var dr = cf.debt_ratio;
-      add("GROSS DEBT", "general government, gross", mcNum(dr.value), dr.unit || "% of GDP",
-        dr.year ? String(dr.year) : "-", "");
+      if (dr && num(dr.value) !== null){
+        add("GROSS DEBT", "general government, gross", mcNum(dr.value), mcUnit(dr.unit),
+          dr.year ? String(dr.year) : "-", "");
+      }
+      var nd = cf.net_debt_ratio;
+      if (nd && num(nd.value) !== null){
+        add("NET DEBT", "general government, net", mcNum(nd.value), mcUnit(nd.unit),
+          nd.year ? String(nd.year) : "-", "");
+      }
+      var cd = cf.central_government_debt_ratio;
+      if (cd && num(cd.value) !== null){
+        add("CENTRAL GOV DEBT", "central government, gross", mcNum(cd.value), mcUnit(cd.unit),
+          cd.year ? String(cd.year) : "-", "");
+      }
+      var dl = cf.debt_local_currency;
+      if (dl && dl.latest && num(dl.latest.value) !== null){
+        add("DEBT STOCK", "public debt in " + String(dl.currency || CFG.cur),
+          compact(num(dl.latest.value)), String(dl.currency || CFG.cur),
+          String(dl.latest.fiscal_year || mcYear(dl.latest.year) || "-"), "");
+      }
+      var fn = cf.fiscal_balance_national;
+      if (fn && num(fn.value) !== null){
+        add("DEFICIT, CASH BASIS", String(fn.measure || "central government"),
+          mcNum(fn.value), mcUnit(fn.unit), String(fn.period || "-"), cls(num(fn.value)));
+      }
+    }
+    // the last few published meetings, so the window shows where the rate has
+    // been rather than only where it is
+    if (cr && cr.decisions && cr.decisions.length){
+      var dc = cr.decisions.slice(-4).reverse();
+      for (var di = 0; di < dc.length; di++){
+        var d2 = dc[di] || {};
+        if (num(d2.rate_after) === null) continue;
+        add("MPC DECISION", String(d2.meeting_date || ""), mcNum(d2.rate_after), "%", "", "");
+      }
     }
     if (!R.length){
       host.innerHTML = '<div class="vempty"><b>No macro rows</b>terminal/static_data/macro_rates.json, ' +
@@ -1417,7 +1750,7 @@
     host.innerHTML = '<div class="mc-body">' + html + '</div>' +
       '<div class="tile-cap"><span>' + src.map(esc).join(" &middot; ") + '</span></div>';
     var body = host.querySelector(".mc-body");
-    if (body) trimToFit(body, ".mc-r", 3);
+    if (body) trimToFit(body, ".mc-r", 6);
     $("mcMeta").textContent = noDates(host.querySelectorAll(".mc-r").length + " indicators");
   }
 
@@ -1560,7 +1893,7 @@
     var plot = $("hmPlot");
     var W = plot.clientWidth, H = plot.clientHeight;
     if (W < 40 || H < 30) return;
-    var want = Math.max(10, Math.min(36, Math.floor((W * H) / 4200)));
+    var want = Math.max(12, Math.min(60, Math.floor((W * H) / 2400)));
     var take = list.slice(0, want);
     var boxes = squarify(take, W, H), out = [];
     for (i = 0; i < boxes.length; i++){
@@ -1600,12 +1933,25 @@
       return;
     }
     var W = wrap.clientWidth;
-    var winN = W >= 900 ? 60 : (W >= 500 ? 44 : 28);
+    var winN = W >= 900 ? 70 : (W >= 500 ? 54 : (W >= 320 ? 40 : 32));
     drawCandles({ wrap: wrap, svg: svg, head: null, note: null, lite: true,
-      winN: winN, bodyCap: 12, bodyFrac: 0.62 });
+      winN: winN, bodyCap: 14, bodyFrac: 0.62 });
     var drawn = Math.min(bars.length, winN);
-    if (cap) cap.innerHTML = '<b>' + esc(sym) + '</b> &middot; ' + drawn + ' of ' + bars.length +
-      ' daily sessions &middot; open, high, low, close';
+    // the last bar in the window, printed under the candles so the window
+    // carries the session's open, high, low and close as well as the shape
+    var lastBar = null;
+    for (var b = bars.length - 1; b >= 0 && !lastBar; b--){
+      var bb = bars[b] || {};
+      if (num(bb.c) !== null && num(bb.o) !== null && num(bb.h) !== null && num(bb.l) !== null) lastBar = bb;
+    }
+    if (cap){
+      var right = lastBar
+        ? 'O ' + fmtPx(num(lastBar.o)) + ' H ' + fmtPx(num(lastBar.h)) +
+          ' L ' + fmtPx(num(lastBar.l)) + ' C ' + fmtPx(num(lastBar.c))
+        : 'close only';
+      cap.innerHTML = '<span><b>' + esc(sym) + '</b> &middot; ' + drawn + ' of ' + bars.length +
+        ' sessions</span><span>' + esc(right) + '</span>';
+    }
     $("chartMeta").textContent = noDates(sym + " - " + drawn + " sessions");
   }
 
