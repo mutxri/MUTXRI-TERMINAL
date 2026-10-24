@@ -21,6 +21,8 @@
     screener    the board ordered by change percent, with sector
     info        the company profile facts on file for one name
     news        the exchange's wire items: date, headline, source
+    corpactions the exchange's dated corporate actions: date, security, type,
+                and the detail as the file states it
     trade       a paper blotter, or an honest empty state when no paper book
                 exists in this browser
 
@@ -174,7 +176,8 @@
 
   /* ---------- static display views (preview.html?view=...) ---------- */
   /* every rule here builds a picture: no control, no hover state, no pointer */
-  .grid.one{grid-template-columns:minmax(0,1fr);grid-template-areas:"main";}
+  .grid.one{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);grid-template-areas:"main";}
+  .grid[hidden]{display:none;}
   .grid.one>.card{grid-area:main;min-height:0;}
   .vcard{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
   .vbody{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;}
@@ -188,6 +191,18 @@
   .vw{grid-template-columns:78px minmax(0,1fr) 118px 84px 72px 96px;}
   .vs{grid-template-columns:78px minmax(0,1fr) 168px 112px 76px;}
   .vt{grid-template-columns:78px 76px 108px 108px 118px;}
+  .vc{grid-template-columns:88px 116px 108px minmax(0,1fr);align-items:start;height:34px;}
+  .vc .sec{min-width:0;}
+  .vc .sec b{display:block;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.04em;
+    color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .vc .sec span{display:block;font-family:var(--ui);font-size:9px;color:var(--tx3);line-height:1.2;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .vc .d{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.03em;padding-top:3px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .vc .ty{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;color:var(--tx2);padding-top:3px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .vc .dt{font-family:var(--ui);font-size:10px;line-height:1.3;color:var(--tx);padding-top:2px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 
   .fcap{flex:0 0 auto;padding:6px 11px 5px;border-bottom:1px solid var(--line);
     font-family:var(--mono);font-size:8.5px;line-height:1.5;color:var(--tx3);letter-spacing:.04em;
@@ -200,7 +215,7 @@
     text-transform:uppercase;color:var(--tx2);text-align:right;padding:4px 8px;
     border-bottom:1px solid var(--line2);background:var(--bg3);height:28px;line-height:1.2;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .fintab th span{display:block;font-size:6.5px;color:var(--tx3);letter-spacing:.1em;}
+  .fintab th span{display:block;font-size:7.5px;color:var(--tx3);letter-spacing:.1em;}
   .fintab th:first-child{text-align:left;width:36%;}
   .fintab td{font-family:var(--mono);font-size:10px;font-variant-numeric:tabular-nums;color:var(--tx);
     text-align:right;padding:0 8px;height:var(--frow,17px);border-bottom:1px solid var(--line);
@@ -225,7 +240,7 @@
   .inf .v{font-family:var(--ui);font-size:11px;color:var(--tx);padding:4px 0;
     border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .inftxt{flex:0 0 auto;padding:8px 12px;font-family:var(--ui);font-size:11px;line-height:1.55;
-    color:var(--tx2);overflow:hidden;}
+    color:var(--tx2);overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;}
 
   .vempty{padding:12px;font-family:var(--mono);font-size:9.5px;line-height:1.7;color:var(--tx3);
     letter-spacing:.03em;}
@@ -284,6 +299,11 @@
     .vw .c-lvl{display:none;}
     .vs{grid-template-columns:62px minmax(0,1fr) 92px 88px 62px;}
     .vt{grid-template-columns:62px 62px 84px 84px 96px;}
+    .vc{grid-template-columns:58px 106px 68px minmax(0,1fr);height:32px;gap:7px;padding:0 8px;}
+    .vc .d,.vc .ty{font-size:7.5px;}
+    .vc .dt{font-size:9px;}
+    .vc .sec b{font-size:9px;}
+    .vc .sec span{font-size:7.5px;}
     .vrow{gap:7px;padding:0 8px;height:22px;}
     .vrow.hd{height:19px;}
     .vrow.hd span{font-size:7.5px;letter-spacing:.06em;}
@@ -295,8 +315,8 @@
     .fintab td:first-child{font-size:9px;}
     .fcap{font-size:7.5px;padding:4px 8px;}
     .inf{grid-template-columns:104px minmax(0,1fr);gap:0 9px;padding:6px 8px 2px;}
-    .inf .k{font-size:7.5px;} .inf .v{font-size:10px;}
-    .inftxt{font-size:10px;padding:6px 8px;}
+    .inf .k{font-size:7.5px;} .inf .v{font-size:10px;padding:3px 0;}
+    .inftxt{font-size:9.5px;padding:6px 8px;-webkit-line-clamp:3;}
   }
 </style>
 </head>
@@ -837,11 +857,11 @@
   // reports cursor:pointer: nothing here can be typed into, clicked, tabbed to
   // or dragged. Figures come straight out of the published files; anything
   // missing prints the house empty marker and never a zero or an estimate.
-  var VIEWS = ["watchlist", "chart", "financials", "screener", "info", "news", "trade"];
+  var VIEWS = ["watchlist", "chart", "financials", "screener", "info", "news", "corpactions", "trade"];
   var VIEW = String(Q.get("view") || "").toLowerCase();
   if (VIEWS.indexOf(VIEW) < 0) VIEW = "";
 
-  var CACHE = { fin: null, news: null, ci: null };
+  var CACHE = { fin: null, news: null, ci: null, ca: null };
 
   function curOf(r){ return String((r && r.currency) || CFG.cur).toUpperCase(); }
 
@@ -885,6 +905,7 @@
     if (VIEW === "screener") return viewScreener();
     if (VIEW === "info") return viewInfo();
     if (VIEW === "news") return viewNews();
+    if (VIEW === "corpactions") return viewCorpActions();
     if (VIEW === "trade") return viewTrade();
     return viewWatchlist();
   }
@@ -1008,11 +1029,23 @@
     out.sort(function(a, b){ return a.rank - b.rank; });   // stable within a rank
     return out;
   }
+  // a statement figure, in the house compact form, negative sign kept
+  function fmtFin(v){
+    var n = Number(v);
+    if (!isFinite(n)) return "-";
+    var s = n < 0 ? "-" : "", a = Math.abs(n), o;
+    if (a >= 1e12) o = (a / 1e12).toFixed(1) + "T";
+    else if (a >= 1e9) o = (a / 1e9).toFixed(1) + "B";
+    else if (a >= 1e6) o = (a / 1e6).toFixed(1) + "M";
+    else if (a >= 1e3) o = (a / 1e3).toFixed(1) + "K";
+    else o = a.toFixed(2);
+    return s + o;
+  }
   function finCell(v){
     if (v === null || v === undefined || v === "") return '<td class="abs">-</td>';
     var n = Number(v);
     if (!isFinite(n)) return '<td class="abs">-</td>';
-    return '<td>' + esc(compact(n)) + '</td>';
+    return '<td>' + esc(fmtFin(n)) + '</td>';
   }
   function loadStatement(rows){
     var order = rows.slice(0, 12), i = 0;
@@ -1227,6 +1260,108 @@
     });
   }
 
+  // ---- corporate actions: a dated table, one row per action ----------------
+  // Each exchange publishes a different shape, so a row is read field by field:
+  // the date as printed, the security, the action type the file states, and the
+  // detail in the issuer's own words. A file that carries announcements without
+  // an action type prints Announcement; nothing is classified by guesswork, no
+  // amount, ratio or date is derived, and an undated row says undated.
+  var CA_FILES = {
+    NSE: "nse_corporate_actions.json",
+    NGX: "ngx_corporate_actions.json",
+    JSE: "jse_announcements.json",
+    EGX: "egx_announcements.json"
+  };
+  var CA_KEEP = /corporate action|directors dealing|general meeting|board meeting|disclosure|court order|completion board|announcement|dividend|book closure|bonus|rights|split|capital/i;
+  var CA_DROP = /financial statement|statemets|earnings|results/i;
+
+  function caDate(s){
+    var raw = String(s == null ? "" : s).trim();
+    if (!raw) return { iso: "", ms: null, raw: "" };
+    var a = asDate(raw);
+    if (a) return { iso: a.iso, ms: a.ms, raw: raw };
+    var ms = Date.parse(raw);
+    if (!isNaN(ms)){
+      var d = new Date(ms);
+      var y = d.getFullYear(), m = d.getMonth() + 1, dd = d.getDate();
+      return { iso: y + "-" + (m < 10 ? "0" : "") + m + "-" + (dd < 10 ? "0" : "") + dd, ms: ms, raw: raw };
+    }
+    return { iso: "", ms: null, raw: raw };
+  }
+  function caRows(list){
+    var out = [];
+    for (var i = 0; i < list.length; i++){
+      var it = list[i];
+      if (!it || typeof it !== "object") continue;
+      var kind = String(it.kind == null ? "" : it.kind).trim();
+      if (kind && (!CA_KEEP.test(kind) || CA_DROP.test(kind))) continue;
+      var dt = caDate(it.date);
+      out.push({
+        date: dt.iso || dt.raw,
+        ms: dt.ms,
+        tick: String(it.ticker == null ? "" : it.ticker).trim(),
+        name: String(it.name || it.company || "").trim(),
+        type: kind || "Announcement",
+        detail: String(it.text || it.title || "").trim()
+      });
+    }
+    out.sort(function(a, b){
+      if (a.ms === null && b.ms === null) return 0;
+      if (a.ms === null) return 1;
+      if (b.ms === null) return -1;
+      return b.ms - a.ms;
+    });
+    return out;
+  }
+  function paintCorpActions(list, file){
+    var host = $("vbody"), rowH = 34;
+    var rows = caRows(list);
+    if (!rows.length){
+      viewError("No corporate actions", "The file for " + EX + " carries no corporate-action row.");
+      setFoot("static_data/" + file, "0 corporate-action rows in the file");
+      return;
+    }
+    var n = Math.min(fitRows(host, rowH, 26), rows.length);
+    var out = ['<div class="vrow vc hd"><span>Date</span><span>Security</span>' +
+               '<span>Action type</span><span>Detail</span></div>'];
+    for (var i = 0; i < n; i++){
+      var r = rows[i];
+      out.push('<div class="vrow vc">' +
+        '<span class="d">' + esc(r.date || "undated") + '</span>' +
+        '<span class="sec"><b>' + esc(r.tick || "-") + '</b><span>' + esc(r.name || "") + '</span></span>' +
+        '<span class="ty">' + esc(r.type) + '</span>' +
+        '<span class="dt">' + (r.detail ? esc(r.detail) : '<span style="color:#6a6a6a">-</span>') + '</span>' +
+      '</div>');
+    }
+    host.innerHTML = out.join("");
+    var a = rows[0].date || "undated", b2 = rows[n - 1].date || "undated";
+    setView("Corporate actions", EX + " " + CFG.full);
+    $("vMeta").textContent = n + " actions · " + a + " to " + b2;
+    setFoot("static_data/" + file, n + " of " + rows.length + " corporate-action rows, newest first");
+  }
+  function viewCorpActions(){
+    setView("Corporate actions", EX + " " + CFG.full);
+    var file = CA_FILES[EX];
+    if (!file){
+      viewError("No corporate-actions file", "No corporate-actions file is published for " + EX + ".");
+      setFoot("static_data/", "no corporate-actions file for " + EX);
+      return Promise.resolve();
+    }
+    if (CACHE.ca){ paintCorpActions(CACHE.ca.list, file); return Promise.resolve(); }
+    return get("../static_data/" + file).then(function(list){
+      if (!list || !list.length){
+        viewError("No corporate actions", "The file for " + EX + " holds no rows.");
+        setFoot("static_data/" + file, "no rows on file");
+        return;
+      }
+      CACHE.ca = { list: list };
+      paintCorpActions(list, file);
+    }).catch(function(){
+      viewError("No corporate actions", "static_data/" + file + " could not be read.");
+      setFoot("static_data/" + file, "no rows on file");
+    });
+  }
+
   // ---- trade: a static paper blotter --------------------------------------
   // The paper account lives in the visitor's own browser (the trade panel's
   // mx_paper_v1 key). This page only reads it. If it holds no position for this
@@ -1329,8 +1464,8 @@
       renderTable();
       return loadHistory();
     }).then(function(){
-      renderChrome();
       if (VIEW){ return; }
+      renderChrome();
       renderChart();
       // the side column is content-sized on a narrow screen, so the table is
       // measured only once that content is in place; one more pass after the
