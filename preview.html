@@ -608,6 +608,7 @@
 #mkMetaMark{display:none !important;}
 #mcBody > span,.win [id="mcBody"] > span{display:none !important;}
 .tile-cap{display:none !important;}
+#topAsOf{display:none !important;}
 </style>
 </head>
 <body>
@@ -1027,7 +1028,34 @@
         '</b>This window could not be drawn from the published file.</div>';
     }
   }
+
+  // No dates anywhere on this page. The owner has asked for this four times.
+  // A sweeper runs after every render and on every DOM change, so no panel can
+  // reintroduce one by writing a fresh node. Chart axes are canvas, untouched.
+  function stripDatesFromText(){
+    try {
+      var walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+      var n, iso = /\d{4}-\d{2}-\d{2}/g, dmy = /\d{2}\/\d{2}\/\d{4}/g;
+      var changed = 0;
+      while ((n = walk.nextNode())){
+        var t = n.nodeValue;
+        if (!t) continue;
+        if (t.indexOf("-20") < 0 && t.indexOf("/20") < 0) continue;
+        var c = t.replace(iso, "").replace(dmy, "");
+        c = c.replace(/\s{2,}/g, " ").replace(/[\s,\-]+$/, "").replace(/^[\s,\-]+/, "");
+        if (c !== t){ n.nodeValue = c; changed++; }
+      }
+      return changed;
+    } catch(e){ return 0; }
+  }
+  function sweepSoon(){ setTimeout(stripDatesFromText, 60); setTimeout(stripDatesFromText, 400); setTimeout(stripDatesFromText, 1500); }
+
+  try {
+    var dateObserver = new MutationObserver(function(){ stripDatesFromText(); });
+    dateObserver.observe(document.body, {childList:true, subtree:true, characterData:true});
+  } catch(e){}
   function renderDesk(){
+    sweepSoon();
     tryDraw(renderChrome);
     tryDraw(renderTape);
     guardDraw("wlBody", "Watchlist", renderWatch);
