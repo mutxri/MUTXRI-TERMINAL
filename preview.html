@@ -474,6 +474,15 @@
 
 <script>
 (function () {
+  // Panel headers carry counts and names, not date stamps.
+  function noDates(x) {
+    return String(x == null ? "" : x)
+      .replace(/\s*\d{4}-\d{2}-\d{2}/g, "")
+      .replace(/\s*\d{2}\/\d{2}\/\d{4}/g, "")
+      .replace(/\s{2,}/g, " ")
+      .replace(/[\s]*(?:to|from|-|,)+\s*$/gi, "")
+      .replace(/[\s,-]+$/, "");
+  }
   "use strict";
 
   var EXS = {
@@ -1184,13 +1193,13 @@
   }
   function setView(title, meta){
     $("vTitle").textContent = title || "";
-    $("vMeta").textContent = meta || "";
+    $("vMeta").textContent = noDates(meta || "");
   }
   // the footer strip is gone: each view names the file it read in its own
   // caption, so nothing is written under the page any more
   function setFoot(){}
   function viewError(title, msg){
-    $("vMeta").textContent = EX;
+    $("vMeta").textContent = noDates(EX);
     $("vbody").innerHTML = '<div class="vempty"><b>' + esc(title) + '</b>' + esc(msg) + '</div>';
   }
   function renderView(){
@@ -1482,7 +1491,7 @@
       var html = '<div class="inf">' + f.join("") + '</div>';
       if (info && info.description) html += '<div class="inftxt">' + esc(info.description) + '</div>';
       $("vbody").innerHTML = html;
-      $("vMeta").textContent = name + (pick.ticker ? " - " + pick.ticker : "") + " - " + EX;
+      $("vMeta").textContent = noDates(name + (pick.ticker ? " - " + pick.ticker : "") + " - " + EX);
       setFoot("terminal/static_data/company_info.json" + (info ? "" : " (no entry)"),
         info ? "descriptive fields only; anything not on file is left out" : "no company profile entry on file for this security");
     }
@@ -1533,7 +1542,7 @@
     host.innerHTML = out.join("") ||
       '<div class="vempty"><b>No wire items</b>No item is published in the file for ' + esc(EX) + '.</div>';
     setView("News", EX + " " + CFG.full);
-    $("vMeta").textContent = n + " items - " + firstD + " to " + lastD;
+    $("vMeta").textContent = noDates(n + " items - " + firstD + " to " + lastD);
     setFoot("terminal/static_data/" + EX.toLowerCase() + "_news.json",
       n + " of " + items.length + " wire items, newest first, dated from the item timestamp");
   }
@@ -1630,7 +1639,7 @@
     host.innerHTML = out.join("");
     var a = rows[0].date || "undated", b2 = rows[n - 1].date || "undated";
     setView("Corporate actions", EX + " " + CFG.full);
-    $("vMeta").textContent = n + " actions - " + a + " to " + b2;
+    $("vMeta").textContent = noDates(n + " actions - " + a + " to " + b2);
     setFoot("terminal/static_data/" + file, n + " of " + rows.length + " corporate-action rows, newest first");
   }
   function viewCorpActions(){
