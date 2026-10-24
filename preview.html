@@ -2,28 +2,31 @@
 <!--
   MUTXRI TERMINAL - PREVIEW: a display-only view of the terminal.
 
-  This page is a picture made of HTML. There is no search field, no button, no
-  link, no tab, no select and no collapsible section anywhere on it, and nothing
-  on it responds to a mouse or a keyboard. It exists so the landing page can show
-  what the terminal looks like without handing the visitor a working application.
+  This page is a picture made of HTML with one deliberate exception: the CHART
+  window carries a search field, so a visitor can type a ticker or a company
+  name and see that security's candles. Nothing else on the page responds to a
+  mouse or a keyboard: no other field, no button, no link, no tab, no select and
+  no collapsible section. It exists so the landing page can show what the
+  terminal looks like without handing the visitor a working application.
 
   TWO PARAMETERS, nothing else:
     ?ex=NSE|JSE|NGX|EGX   picks the board
     ?view=NAME            picks which static panel is drawn under the header
 
-  With no ?view= the page draws THE DESK: eight windows tiled in one grid the
+  With no ?view= the page draws THE DESK: seven windows tiled in one grid the
   way a desk terminal tiles its wall, so the visitor sees a whole workspace
-  rather than one panel. Every window is close to square instead of the long
-  horizontal strips the desk used to carry. MARKET is the large window at the
-  left (breadth, the session's most traded names in full detail, then the top
-  gainers, top losers and most active lists); COMPARE and MACRO are the two
-  beside and below it (four securities on one chart, one coloured line each,
-  every line rebased to 100 at the start of the window the four share, with the
-  total return per series in the legend and a metric table under it; and the
-  policy rate, inflation, GDP, the exchange rate, the
-  fiscal balance and the debt ratios); FOCUS is the tall window at the top
-  right. WATCHLIST, HEATMAP, CHART and CHAT are the read-out windows round
-  them. Each window wears the shell's chrome: 1px borders, a mono caps
+  rather than one panel. MARKET is the large window at the left (breadth, the
+  session's most traded names in full detail, then the top gainers, top losers
+  and most active lists); CHART is the candle window beside it, the largest of
+  the read-out windows, carrying a search field, a wick and a body per session,
+  a price axis on the right and dates along the foot; COMPARE and MACRO are the
+  two tall windows below it (four securities on one chart, one coloured line
+  each, every line rebased to 100 at the start of the window the four share,
+  with the total return per series in the legend and a metric table under it;
+  and the policy rate, inflation, GDP, the exchange rate, the fiscal balance
+  and the debt ratios); FOCUS is the quote window at the top right. WATCHLIST
+  and HEATMAP are the read-out windows under MARKET. Each window wears the
+  shell's chrome: 1px borders, a mono caps
   title bar with the mint underline, tabular numerals and the same up and down
   colours. Each ?view= draws ONE panel instead, still a picture and still inert:
     watchlist   the board ordered by volume: ticker, name, price, change, volume
@@ -80,11 +83,18 @@
       muted grey. Nothing is estimated and nothing is filled in from a neighbour
     - candles use open, high, low and close. A history file that carries only
       closes says so on one line and no candle is drawn from a repeated close
+    - if the chart library does not load, the CHART window says so and draws no
+      candle, rather than leaving an empty frame that looks like a flat series
     - a nameless or dateless row in a table prints undated or "-", never a guess
 
-  Vanilla JS, Godel tokens (mint #33e29a on black, Oxygen Mono, uppercase labels,
-  tabular numerals), no libraries, no build step. Every affordance that would
-  suggest the page is usable has been left out on purpose.
+  Vanilla JS around ONE library, and it is the product's own: the CHART window is
+  drawn by the same TradingView Lightweight Charts 5.0.4 build
+  features/panels/mx_chart.html loads, from the same CDN, configured the same
+  way, so the candles, the grid, the axes and the last price marker are the
+  terminal's drawing rather than a second implementation of it. Godel tokens
+  (mint #33e29a on black, Oxygen Mono, uppercase labels, tabular numerals), no
+  build step. Every affordance that would suggest the page is usable has been
+  left out on purpose, apart from the CHART search field the owner asked for.
 -->
 <html lang="en">
 <head>
@@ -140,41 +150,40 @@
   .tape-i .ch{font-family:var(--mono);font-size:10px;font-variant-numeric:tabular-nums;}
 
   /* ---------- layout: the desk ---------- */
-  /* Eight tiles in ONE grid, tiled edge to edge with no gap: every tile is
-     close to square (w/h between 1.0 and 1.33) instead of the long horizontal
-     strips the desk used to be. The tracks are sized in fr so the same
-     proportions hold at any frame size, and the areas are laid out so the
-     three windows that carry the valuable information (MARKET, COMPARE,
-     MACRO) are the largest, FOCUS keeps the exact footprint the owner asked
-     for, and the four read-out windows sit round them:
+  /* Seven tiles in ONE grid, tiled edge to edge with no gap. The tracks are
+     sized in fr so the same proportions hold at any frame size. MARKET keeps
+     the large window at the left, FOCUS the quote window at the top right,
+     COMPARE and MACRO the two tall windows under CHART, and WATCHLIST and
+     HEATMAP the two read-out windows under MARKET. CHART is the largest of the
+     read-out windows, wide enough to carry legible candles: a wick and a
+     body per session, round values on a price axis at the right, dates along
+     the foot, and the one control on this page, a search field in its header.
 
-        +----------------+---------+--------+
-        |                | COMPARE | FOCUS  |
-        |     MARKET     |         +--------+
-        |                +---------+ CHART  |
-        +--------+-------+         |        |
-        |WATCHLIST|HEATMAP|  MACRO  |        |
-        |        |       |         +--------+
-        |        |       |         |  CHAT  |
-        +--------+-------+---------+--------+
+        +---------------+---------+--------+
+        |               |         | FOCUS  |
+        |     MARKET    |  CHART  |        |
+        |               |         +--------+
+        |               +---------+        |
+        |               | COMPARE |  MACRO |
+        +-------+-------+         |        |
+        |WATCH  |HEATMAP|         |        |
+        +-------+-------+---------+--------+
 
-     at 1600x870 that resolves to the pixel boxes: MARKET 770x580,
-     COMPARE 552x445, MACRO 552x425, FOCUS 278x404, WATCHLIST 385x290,
-     HEATMAP 385x290, CHART 278x233, CHAT 278x233. No uncovered pixel, no
-     overlap: the tiles abut and each carries its own 1px border as the seam. */
+     at 1600x870 that resolves to the pixel boxes: MARKET 740x580,
+     COMPARE 460x540, MACRO 400x540, CHART 460x330, FOCUS 400x330,
+     WATCHLIST 370x290, HEATMAP 370x290. No uncovered pixel, no overlap: the
+     tiles abut and each carries its own 1px border as the seam. */
   .grid{flex:1 1 auto;min-height:0;display:grid;padding:0;min-width:0;}
   .grid.desk{display:grid;gap:0;padding:0;
-    grid-template-columns:385fr 385fr 552fr 278fr;
-    grid-template-rows:404fr 41fr 135fr 57fr 233fr;
+    grid-template-columns:370fr 370fr 460fr 400fr;
+    grid-template-rows:330fr 250fr 290fr;
     grid-template-areas:
-      "mkt mkt cmp focus"
-      "mkt mkt cmp chart"
-      "mkt mkt macro chart"
-      "watch hmap macro chart"
-      "watch hmap macro chat";}
+      "mkt mkt chart focus"
+      "mkt mkt cmp macro"
+      "watch hmap cmp macro";}
   .w-watch{grid-area:watch;} .w-mkt{grid-area:mkt;} .w-focus{grid-area:focus;}
   .w-cmp{grid-area:cmp;} .w-hm{grid-area:hmap;} .w-mc{grid-area:macro;}
-  .w-chart{grid-area:chart;} .w-chat{grid-area:chat;}
+  .w-chart{grid-area:chart;}
   .win{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--bg);
     border:1px solid var(--line2);border-radius:0;overflow:hidden;}
 
@@ -272,34 +281,6 @@
   .fx-range{font-family:var(--mono);font-size:7.5px;color:var(--tx3);letter-spacing:.03em;
     padding:1px 10px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
-  /* ---------- CHAT window ---------- */
-  /* The shell's room window, drawn as a picture: a channel header, a room tag
-     and message rows carrying author, time and text. There is no composer, no
-     send control and no field, so nothing here can be typed into. */
-  .ch-top{display:flex;align-items:baseline;gap:6px;padding:6px 9px 5px;
-    border-bottom:1px solid var(--line);}
-  .ch-chan{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;
-    color:var(--acc);white-space:nowrap;}
-  .ch-room{font-family:var(--mono);font-size:7.5px;letter-spacing:.14em;color:var(--tx3);
-    border:1px solid var(--line2);border-radius:2px;padding:1px 4px;white-space:nowrap;}
-  .ch-sub{margin-left:auto;font-family:var(--mono);font-size:8px;letter-spacing:.04em;
-    color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .ch-log{display:flex;flex-direction:column;gap:6px;padding:6px 9px;}
-  .ch-msg{display:flex;flex-direction:column;gap:2px;min-width:0;}
-  .ch-h{display:flex;align-items:baseline;gap:6px;font-family:var(--mono);font-size:8px;
-    letter-spacing:.06em;color:var(--tx3);white-space:nowrap;overflow:hidden;}
-  .ch-h .n{color:var(--acc);overflow:hidden;text-overflow:ellipsis;}
-  .ch-h .t{margin-left:auto;font-variant-numeric:tabular-nums;}
-  .ch-t{background:var(--bg3);border:1px solid var(--line);border-radius:3px;padding:4px 7px;
-    font-family:var(--mono);font-size:9.5px;line-height:1.45;color:var(--tx2);
-    word-wrap:break-word;overflow-wrap:anywhere;}
-  .ch-empty{display:none !important;padding:7px 9px;font-family:var(--mono);font-size:9px;line-height:1.65;
-    color:var(--tx3);letter-spacing:.02em;}
-  .ch-kv{display:grid;grid-template-columns:62px minmax(0,1fr);gap:0 6px;padding:2px 9px;
-    font-family:var(--mono);font-size:8px;letter-spacing:.03em;align-items:baseline;}
-  .ch-kv span{color:#4a4a4a;letter-spacing:.08em;}
-  .ch-kv b{font-weight:400;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-
   /* ---------- COMPARE: four securities on one rebased chart ---------- */
   /* The four are drawn the way the terminal's own COMPARE draws them: one
      header line naming them in their series colours, ONE plot carrying one
@@ -386,10 +367,50 @@
     letter-spacing:.03em;color:var(--tx3);white-space:nowrap;overflow:hidden;}
   .tile-cap b{color:var(--tx2);font-weight:400;}
 
-  /* ---------- CHART tile: candles only, no axis labels at this size ------ */
-  #chBodyChart{display:flex;flex-direction:column;}
-  .chart-tile{flex:1 1 auto;min-height:0;padding:3px 5px 0;pointer-events:none;}
-  .chart-tile svg{display:block;width:100%;height:100%;pointer-events:none;}
+  /* ---------- CHART window: the terminal's chart panel, compact ----------- */
+  /* The band is the product's own chart bar at desk scale (title with the
+     exchange, the search field, the symbol and the quote strip) and the body is
+     its chart box, drawn by the same Lightweight Charts build the terminal
+     ships, configured the same way. */
+  #chBodyChart{display:flex;flex-direction:column;min-height:0;}
+  .cht-t{display:flex;align-items:center;gap:5px;font-family:var(--ui);font-size:9.5px;letter-spacing:.08em;
+    color:var(--tx2);text-transform:uppercase;white-space:nowrap;padding:0 5px 0 3px;}
+  .cht-t b{color:var(--acc);font-weight:700;}
+  .cht-t .cht-dot{color:var(--tx3);}
+  .cht-sw{display:flex;align-items:center;flex:1 1 104px;min-width:80px;padding:0 5px;}
+  .cht-q{width:100%;height:17px;background:#000;border:1px solid var(--line2);color:var(--tx);
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;padding:0 6px;border-radius:3px;
+    outline:none;caret-color:var(--acc);appearance:none;-webkit-appearance:none;box-shadow:none;
+    user-select:text;-webkit-user-select:text;}
+  .cht-q:focus{border-color:var(--acc);}
+  .cht-q::placeholder{color:var(--tx3);font-size:7.5px;letter-spacing:.08em;}
+  .cht-sym{display:flex;align-items:baseline;gap:6px;min-width:0;flex:0 1 auto;align-self:center;
+    padding:0 4px;}
+  .cht-sym .tk{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--tx);
+    letter-spacing:.02em;white-space:nowrap;}
+  .cht-sym .nm{font-family:var(--ui);font-size:9.5px;color:var(--tx3);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;max-width:190px;}
+  .cht-qbar{flex:0 0 auto;display:flex;align-items:center;height:19px;padding:0 8px;
+    border-bottom:1px solid var(--line);background:#000;}
+  .cht-quote{display:flex;align-items:baseline;gap:12px;margin-left:auto;
+    font-family:var(--mono);}
+  .cht-quote .q{display:flex;align-items:baseline;gap:4px;}
+  .cht-quote .k{font-size:7px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase;}
+  .cht-quote .v{font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--tx);
+    white-space:nowrap;}
+  .cht-quote .v.big{font-size:13px;}
+  .cht-box{flex:1 1 auto;min-height:0;position:relative;background:#000;overflow:hidden;}
+  .cht-legend{flex:0 0 auto;display:flex;align-items:center;gap:8px;height:17px;padding:0 8px;
+    border-top:1px solid var(--line);font-family:var(--mono);font-size:8.5px;letter-spacing:.02em;
+    color:var(--tx3);white-space:nowrap;overflow:hidden;}
+  .cht-legend b{color:var(--tx2);font-weight:400;}
+  .cht-legend .cht-msg{margin-left:auto;color:var(--warn);font-size:8px;overflow:hidden;
+    text-overflow:ellipsis;max-width:56%;}
+  .cht-legend .cht-msg:empty{display:none;}
+  .cht-none{padding:18px 14px;font-family:var(--mono);font-size:9.5px;line-height:1.8;color:var(--tx3);
+    letter-spacing:.02em;}
+  .cht-none .np{font-size:11px;letter-spacing:.06em;color:var(--warn);padding-bottom:5px;
+    text-transform:uppercase;}
 
   /* ---------- chart, shared by ?view=chart ---------- */
   .chart-wrap{flex:1 1 auto;min-height:0;padding:0 8px;pointer-events:none;cursor:default;}
@@ -504,7 +525,7 @@
     .top-ex i{display:none;}
     .top-asof{font-size:9px;}
     .tape{height:30px;}
-    /* four windows only on a narrow frame: MARKET across the top, then
+    /* five windows only on a narrow frame: MARKET across the top, then
        COMPARE and MACRO, then WATCHLIST and CHART beside HEATMAP */
     .grid.desk{grid-template-columns:minmax(0,1fr) minmax(0,1fr);
       grid-template-rows:1.5fr 1fr 1fr;
@@ -512,10 +533,12 @@
         "mkt mkt"
         "cmp macro"
         "watch chart";}
-    .w-focus,.w-chat,.w-hm{display:none;}
+    .w-focus,.w-hm{display:none;}
     .whead{height:23px;}
     .wtab{font-size:8px;letter-spacing:.1em;padding:0 4px;}
     .wmeta{font-size:7px;}
+    .cht-q{width:96px;height:15px;font-size:8.5px;}
+    .cht-nm{display:none;}
     .dg{display:none;}
     .wr{grid-template-columns:40px minmax(0,1fr) 52px 46px 48px;gap:0 4px;padding:0 6px;height:16px;}
     .wl-h{padding:0 6px;}
@@ -552,7 +575,7 @@
   @media (max-height:660px){
     .fx-line{display:none;}
     .fx-kv span,.fx-kv b{padding:1px 0;font-size:8px;}
-    .ch-t{font-size:9px;}
+    .cht-nm{display:none;}
   }
   @media (max-width:900px){
     .vw{grid-template-columns:62px minmax(0,1fr) 92px 64px 78px;}
@@ -579,7 +602,7 @@
     .inftxt{font-size:9.5px;padding:6px 8px;-webkit-line-clamp:3;}
   }
 /* captions off: a panel shows data, it does not explain itself */
-[id$="Cap"],[id="mcMeta"],[id="chCap"],[id="hmCap"],.win .cap,.win .wcap,.win .wfoot,.win .note,.win .vempty-note{display:none !important;}
+[id$="Cap"],[id="mcMeta"],[id="hmCap"],.win .cap,.win .wcap,.win .wfoot,.win .note,.win .vempty-note{display:none !important;}
 .win .wbody > span:last-child{display:none !important;}
 .wmeta{display:none !important;}
 #mkMetaMark{display:none !important;}
@@ -599,13 +622,14 @@
 
   <div class="tape"><div class="tape-in" id="tapeIn"></div></div>
 
-  <!-- THE DESK: eight tiles in one grid, drawn as a picture. MARKET is the
-       large centre window, COMPARE and MACRO the two beside and below it,
-       FOCUS the tall window at the top right at the size the owner asked for,
-       and WATCHLIST, HEATMAP, CHART and CHAT the read-out windows round them.
-       Each tile carries the shell's chrome (drag glyph, mono caps title with
-       the mint underline, close glyph) and nothing in any of them can be
-       typed into, clicked, focused or hovered. -->
+  <!-- THE DESK: seven tiles in one grid. MARKET is the large centre window,
+       CHART the candle window at the top right of the middle columns with the
+       only field on the page in its header, FOCUS the quote window at the top
+       right, COMPARE and MACRO the two tall windows below CHART, and WATCHLIST
+       and HEATMAP the read-out windows under MARKET. Each tile carries the
+       shell's chrome (drag glyph, mono caps title with the mint underline,
+       close glyph) and nothing in any of them can be typed into except the
+       CHART search field, and nothing else can be clicked, focused or hovered. -->
   <div class="grid desk" id="gridHero">
 
       <section class="win w-mkt">
@@ -639,18 +663,18 @@
       </section>
 
       <section class="win w-chart">
-        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">CHART</span><span class="wmeta" id="chartMeta"></span><span class="wx">X</span></div>
-        <div class="wbody" id="chBodyChart">
-          <div class="chart-tile" id="chChartWrap">
-            <svg id="chChart" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
-          </div>
-          <div class="tile-cap" id="chCap">loading the published bars</div>
+        <div class="whead">
+          <span class="dg">&#10287;</span>
+          <span class="cht-t"><b>CHART</b><span class="cht-dot">&middot;</span><span id="chtEx">-</span></span>
+          <span class="cht-sw"><input class="cht-q" id="chtQ" type="text" autocomplete="off" spellcheck="false" placeholder="SEARCH A SECURITY" aria-label="Search a security to chart" /></span>
+          <span class="cht-sym"><span class="tk" id="chtSym">no security</span><span class="nm" id="chtNm"></span></span>
+          <span class="wx">X</span>
         </div>
-      </section>
-
-      <section class="win w-chat">
-        <div class="whead"><span class="dg">&#10287;</span><span class="wtab on">CHAT</span><span class="wmeta" id="chMeta"></span><span class="wx">X</span></div>
-        <div class="wbody" id="chBody"></div>
+        <div class="wbody" id="chBodyChart">
+          <div class="cht-qbar"><span class="cht-quote" id="chtQuote"></span></div>
+          <div class="cht-box" id="chtChart"></div>
+          <div class="cht-legend"><span id="chtLegend">-</span><span class="cht-msg" id="chtMsg"></span></div>
+        </div>
       </section>
 
   </div>
@@ -669,6 +693,7 @@
 
 </div>
 
+<script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 (function () {
   // Panel headers carry counts and names, not date stamps.
@@ -982,11 +1007,12 @@
   }
 
   // ---- the desk ----------------------------------------------------------
-  // Eight windows in one grid: MARKET the large window, COMPARE and MACRO the
-  // two beside and below it, FOCUS the tall window at the top right, and
-  // WATCHLIST, HEATMAP, CHART and CHAT the read-out windows round them. Every
-  // block below is painted from the published files and nothing on the desk
-  // responds to a pointer or a key.
+  // Seven windows in one grid: MARKET the large window, CHART the candle
+  // window with the page's one control in its header, COMPARE and MACRO the
+  // two beside and below it, FOCUS the quote window at the top right, and
+  // WATCHLIST and HEATMAP the read-out windows under MARKET. Every block below
+  // is painted from the published files and nothing on the desk responds to a
+  // pointer or a key except the CHART search field.
 
   // Each window is drawn inside its own guard. One window that cannot be drawn
   // says so in its own frame; it never leaves the seven beside it blank, which
@@ -1010,8 +1036,8 @@
     guardDraw("cmpBody", "Compare", renderCompare);
     guardDraw("hmBody", "Heatmap", renderHeatmap);
     guardDraw("mcBody", "Macro", renderMacro);
-    guardDraw("chBody", "Chat", renderChat);
-    guardDraw("chBodyChart", "Chart", drawDeskChart);
+    tryDraw(chtBoot);
+    guardDraw("chBodyChart", "Chart", chtPaint);
     tryDraw(loadDeskHistory);
     tryDraw(function(){ if (MB && MB.stocks) loadCompareHistory(); });
   }
@@ -1315,39 +1341,13 @@
   }
   function loadDeskHistory(){
     var r = focusRow();
-    if (!r){ tryDraw(drawFocusLine); tryDraw(drawDeskChart); return Promise.resolve(null); }
+    if (!r){ tryDraw(drawFocusLine); return Promise.resolve(null); }
     if (HDONE === r){
-      tryDraw(drawFocusLine); tryDraw(drawDeskChart);
+      tryDraw(drawFocusLine);
       return Promise.resolve(HIST);
     }
-    function done(){ HDONE = r; tryDraw(drawFocusLine); tryDraw(drawDeskChart); }
+    function done(){ HDONE = r; tryDraw(drawFocusLine); }
     return loadHistoryFor(r).then(done).catch(done);
-  }
-
-  // ---- CHAT window: the terminal's room, drawn as a picture ----------------
-  // The shell's chat window is served live by the application, and no message
-  // file is published beside the snapshots (static_data carries no chat, room or
-  // message file for any exchange). So this window draws the room's own frame -
-  // channel, room tag and the exchange it belongs to - and one honest line
-  // saying there is nothing published to read. No message, author or time is
-  // invented to fill it, and there is no composer, send control or field: the
-  // window is a picture, exactly like the rest of the desk.
-  function chatHead(){
-    return '<div class="ch-top">' +
-      '<span class="ch-chan"># ' + esc(EX) + '</span>' +
-      '<span class="ch-room">ROOM</span>' +
-      '<span class="ch-sub">' + esc(CFG.full) + '</span>' +
-    '</div>';
-  }
-  function renderChat(){
-    var host = $("chBody");
-    host.innerHTML = chatHead() +
-      '<div class="ch-kv"><span>CHANNEL</span><b># ' + esc(EX) + '</b></div>' +
-      '<div class="ch-kv"><span>MESSAGES</span><b>none published</b></div>' +
-      '<div class="ch-kv"><span>ROOM FILE</span><b>chat_' + esc(EX) + '.json absent</b></div>' +
-      '<div class="ch-empty">The room is served live by the terminal, so this window draws its ' +
-        'frame only. No message, author or time is invented to fill it.</div>';
-    $("chMeta").textContent = "0 messages";
   }
 
   // ---- COMPARE window: four securities on one rebased chart ---------------
@@ -2060,42 +2060,274 @@
     $("hmMeta").textContent = noDates(take.length + " of " + HM.stocks.length + " names");
   }
 
-  // ---- CHART window: the same candles, drawn small ------------------------
-  // The candles only: no axis labels, no date labels, no grid at this size. The
-  // series is the same security FOCUS quotes and the same history file, and the
-  // caption states how many of its sessions are drawn.
-  function drawDeskChart(){
-    var wrap = $("chChartWrap"), svg = $("chChart"), cap = $("chCap");
-    if (!wrap || !svg || !wrap.clientWidth) return;
-    var sym = HROW ? String(HROW.ticker || HROW.sym || "") : String(CFG.sym);
-    var bars = (HIST && HIST.bars) ? HIST.bars : [];
-    if (!bars.length){
-      svg.innerHTML = "";
-      if (cap) cap.innerHTML = 'no daily history file answered for <b>' + esc(sym) + '</b> on ' + esc(EX);
-      $("chartMeta").textContent = noDates(sym);
+  // ---- CHART window: one security, searched, drawn by the product's renderer -
+  // The one control on this page lives in this window's band: a search field
+  // that takes a ticker or part of a company name. What is typed is resolved
+  // against the same board the MARKET window reads, ticker first and then the
+  // company name, case insensitively, and the first match is drawn. Typing
+  // alone is enough to change the chart; Enter confirms what is already there.
+  // A query that matches nothing leaves the security already drawn in place and
+  // says so on one line at the foot of the window, so the chart never carries
+  // one security's candles under another security's name.
+  //
+  // The renderer is the terminal's own: TradingView Lightweight Charts 5.0.4
+  // from the same CDN build features/panels/mx_chart.html loads, configured with
+  // that panel's own options (transparent pane, #9a9a9a 10px mono labels,
+  // rgba(38,38,38,.5) grid, #262626 axis borders, barSpacing 9, right offset 1,
+  // magnet crosshair, mint and red candles, a dashed mint line and badge at the
+  // last price, a volume pane below the price). The candles, the grid, the price
+  // scale on the right, the time scale along the foot and the last price marker
+  // are therefore the product's own drawing, not a second implementation of it.
+  //
+  // The band mirrors the panel's own bar (title with the exchange, the search
+  // field, the symbol and the quote strip); the toolbar, the tool rail and the
+  // range row are buttons, and this page carries no button but the search field,
+  // so they are the one part of that panel the landing page does not show. The
+  // range is the same table the panel uses, set to 3M so a 460px window carries
+  // the candle density the terminal's own 6M window carries at full width; the
+  // foot line is the panel's legend line with the last bar's OHLC on it.
+  var CHT = { row: null, key: "", bars: null, cur: "", q: "", miss: "", seq: 0,
+              pending: false, chart: null, series: null, vol: null };
+  var CHT_CACHE = {};   // ticker -> { key, bars, cur } or null
+  var CHT_REQ = {};     // ticker -> promise, so a fast typist asks once
+  var RANGE_BARS = {"1D":5, "5D":5, "1W":5, "1M":21, "3M":63, "6M":126, "1Y":252, "5Y":1260, "10Y":2600};
+  var CHT_RANGE = "3M";
+
+  function chtTick(row){
+    return String((row && (row.ticker || row.sym)) || "").toUpperCase();
+  }
+  function chtName(row){ return String((row && row.name) || ""); }
+
+  // first match wins, in this order: the whole ticker, a ticker starting with
+  // the query, a ticker carrying it, a name starting with it, a name carrying it
+  function chtFind(q){
+    var s = String(q || "").trim().toLowerCase();
+    if (!s) return null;
+    var rows = allRows(), i, t, n;
+    for (i = 0; i < rows.length; i++) if (chtTick(rows[i]).toLowerCase() === s) return rows[i];
+    for (i = 0; i < rows.length; i++){ t = chtTick(rows[i]).toLowerCase(); if (t && t.indexOf(s) === 0) return rows[i]; }
+    for (i = 0; i < rows.length; i++){ t = chtTick(rows[i]).toLowerCase(); if (t && t.indexOf(s) > 0) return rows[i]; }
+    for (i = 0; i < rows.length; i++){ n = chtName(rows[i]).toLowerCase(); if (n && n.indexOf(s) === 0) return rows[i]; }
+    for (i = 0; i < rows.length; i++){ n = chtName(rows[i]).toLowerCase(); if (n && n.indexOf(s) > 0) return rows[i]; }
+    return null;
+  }
+
+  // the same key order the panel uses: EX_<ticker> on the NSE and NGX, <sym> on
+  // the JSE, <ticker>.CA on the EGX, first file to answer wins
+  function chtHistory(row){
+    var tick = chtTick(row);
+    if (!tick) return Promise.resolve(null);
+    if (Object.prototype.hasOwnProperty.call(CHT_CACHE, tick)) return Promise.resolve(CHT_CACHE[tick]);
+    if (CHT_REQ[tick]) return CHT_REQ[tick];
+    var keys = histKeys(row), chain = Promise.resolve(null);
+    keys.forEach(function(k){
+      chain = chain.then(function(hit){
+        if (hit) return hit;
+        return get("terminal/static_data/history/" + encodeURIComponent(k) + ".json")
+          .then(function(d){
+            if (!d || !d.bars || !d.bars.length) return null;
+            return { key: k, bars: d.bars, cur: d.currency || "" };
+          })
+          .catch(function(){ return null; });
+      });
+    });
+    CHT_REQ[tick] = chain.then(function(hit){
+      CHT_CACHE[tick] = hit;
+      delete CHT_REQ[tick];
+      return hit;
+    });
+    return CHT_REQ[tick];
+  }
+
+  function chtSetBars(hit){
+    CHT.bars = hit ? hit.bars : null;
+    CHT.key = hit ? hit.key : "";
+    CHT.cur = hit ? String(hit.cur || "") : "";
+  }
+  function chtSelect(row){
+    if (!row) return;
+    var tick = chtTick(row);
+    var known = Object.prototype.hasOwnProperty.call(CHT_CACHE, tick);
+    CHT.row = row;
+    CHT.seq++;
+    var seq = CHT.seq;
+    if (known) chtSetBars(CHT_CACHE[tick]);
+    else { CHT.bars = null; CHT.key = ""; CHT.cur = ""; }
+    CHT.pending = !known;
+    chtPaint();
+    if (known) return;
+    chtHistory(row).then(function(hit){
+      if (seq !== CHT.seq) return;    // a later query owns the window now
+      CHT.pending = false;
+      chtSetBars(hit);
+      tryDraw(chtPaint);
+    });
+  }
+
+  // one field, no button: every keystroke is resolved, and Enter re-runs it
+  function chtQuery(v){
+    var q = String(v == null ? "" : v).trim();
+    CHT.q = q;
+    if (!q){ CHT.miss = ""; chtPaint(); return; }
+    var row = chtFind(q);
+    if (!row){
+      var shown = chtTick(CHT.row) || "-";
+      CHT.miss = 'no match "' + (q.length > 16 ? q.slice(0, 16) : q) + '" - still ' + shown;
+      chtPaint();
       return;
     }
-    var W = wrap.clientWidth;
-    var winN = W >= 900 ? 70 : (W >= 500 ? 54 : (W >= 320 ? 40 : 32));
-    drawCandles({ wrap: wrap, svg: svg, head: null, note: null, lite: true,
-      winN: winN, bodyCap: 14, bodyFrac: 0.62 });
-    var drawn = Math.min(bars.length, winN);
-    // the last bar in the window, printed under the candles so the window
-    // carries the session's open, high, low and close as well as the shape
-    var lastBar = null;
-    for (var b = bars.length - 1; b >= 0 && !lastBar; b--){
-      var bb = bars[b] || {};
-      if (num(bb.c) !== null && num(bb.o) !== null && num(bb.h) !== null && num(bb.l) !== null) lastBar = bb;
+    CHT.miss = "";
+    if (row === CHT.row){ chtPaint(); return; }
+    chtSelect(row);
+  }
+
+  function chtBind(){
+    var el = $("chtQ");
+    if (!el || el.getAttribute("data-bound") === "1") return;
+    el.setAttribute("data-bound", "1");
+    el.addEventListener("input", function(){ chtQuery(el.value); });
+    el.addEventListener("keydown", function(e){
+      if (e.key === "Enter"){ e.preventDefault(); chtQuery(el.value); }
+    });
+  }
+
+  function chtBoot(){
+    chtBind();
+    if (CHT.row) return;
+    var r = focusRow();
+    if (r) chtSelect(r);
+    else chtPaint();
+  }
+
+  // ---- the chart box: the product's renderer, its own options --------------
+  function chtDestroy(){
+    if (CHT.chart){ try{ CHT.chart.remove(); }catch(e){} }
+    CHT.chart = null; CHT.series = null; CHT.vol = null;
+    var box = $("chtChart");
+    if (box) box.innerHTML = "";
+  }
+
+  function chtQuote(row){
+    var el = $("chtQuote");
+    if (!el) return;
+    if (!row){ el.innerHTML = ""; return; }
+    var px = num(row.price), pct = num(row.chgPct);
+    var dir = pct == null ? "flat" : (pct > 0 ? "up" : (pct < 0 ? "down" : "flat"));
+    el.innerHTML =
+      '<span class="q"><span class="k">last</span><span class="v big ' + dir + '">' +
+        (px === null ? "no quote" : fmtPx(px)) + '</span></span>' +
+      '<span class="q"><span class="k">chg %</span><span class="v ' + dir + '">' +
+        (pct === null ? "-" : fmtPct(pct)) + '</span></span>';
+  }
+
+  function chtPaint(){
+    var symEl = $("chtSym"), nmEl = $("chtNm"), legEl = $("chtLegend"), msgEl = $("chtMsg");
+    var box = $("chtChart");
+    if (!box) return;
+
+    var row = CHT.row;
+    if ($("chtEx")) $("chtEx").textContent = EX;
+    if (symEl) symEl.textContent = row ? chtTick(row) : "no security";
+    if (nmEl) nmEl.textContent = row ? chtName(row) : "";
+    if (msgEl) msgEl.textContent = CHT.miss || "";
+    chtQuote(row);
+
+    // only a bar carrying all four prices can be drawn as a candle
+    var bars = (CHT.bars || []), full = [], closesOnly = 0, i, b, o, h, l, c;
+    for (i = 0; i < bars.length; i++){
+      b = bars[i] || {};
+      o = num(b.o); h = num(b.h); l = num(b.l); c = num(b.c);
+      if (c === null) continue;
+      if (o === null || h === null || l === null){ closesOnly++; continue; }
+      full.push({ t: String(b.t || "").slice(0, 10), o: o, h: h, l: l, c: c, v: num(b.v) });
     }
-    if (cap){
-      var right = lastBar
-        ? 'O ' + fmtPx(num(lastBar.o)) + ' H ' + fmtPx(num(lastBar.h)) +
-          ' L ' + fmtPx(num(lastBar.l)) + ' C ' + fmtPx(num(lastBar.c))
-        : 'close only';
-      cap.innerHTML = '<span><b>' + esc(sym) + '</b> &middot; ' + drawn + ' of ' + bars.length +
-        ' sessions</span><span>' + esc(right) + '</span>';
+
+    var n = Math.min(full.length, RANGE_BARS[CHT_RANGE] || 126);
+    var last = full.length ? full[full.length - 1] : null;
+    if (legEl){
+      if (!last){ legEl.textContent = "-"; }
+      else {
+        var prev = full.length > 1 ? full[full.length - 2] : null;
+        var chg = (prev && prev.c) ? (last.c - prev.c) / prev.c * 100 : null;
+        legEl.innerHTML = 'bars <b>' + n + '</b>/<b>' + full.length + '</b> &middot; O <b>' +
+          fmtPx(last.o) + '</b> H <b>' + fmtPx(last.h) + '</b> L <b>' + fmtPx(last.l) +
+          '</b> C <b>' + fmtPx(last.c) + '</b> ' +
+          (chg === null ? '<span class="flat">-</span>'
+                        : '<span class="' + cls(chg) + '">' + fmtPct(chg) + '</span>');
+      }
     }
-    $("chartMeta").textContent = noDates(sym + " - " + drawn + " sessions");
+
+    if (!row){
+      chtDestroy();
+      box.innerHTML = '<div class="cht-none"><div class="np">No security selected</div></div>';
+      return;
+    }
+    if (!full.length){
+      chtDestroy();
+      box.innerHTML = '<div class="cht-none"><div class="np">' +
+        (CHT.pending ? "Reading the published bars" : (closesOnly ? "No candles" : "No price history")) +
+        '</div><div>' + esc(CHT.pending
+          ? "The bars for " + chtTick(row) + " are being read."
+          : (closesOnly
+              ? "The history file carries only a close for this window, so no candle is drawn."
+              : "No daily history file answered for " + chtTick(row) + " on " + EX + ".")) +
+        '</div></div>';
+      return;
+    }
+
+    var W = Math.round(box.clientWidth), H = Math.round(box.clientHeight);
+    if (!W || !H) return;
+    chtRender(box, full, W, H);
+  }
+
+  function chtRender(box, full, W, H){
+    chtDestroy();
+    if (typeof LightweightCharts === "undefined"){
+      box.innerHTML = '<div class="cht-none"><div class="np">Chart engine unavailable</div>' +
+        '<div>The chart library did not load, so no candles are drawn.</div></div>';
+      return;
+    }
+    var MINT = "#33e29a", RED = "#f87171";
+    var win = full.slice(-(RANGE_BARS[CHT_RANGE] || 126));
+    if (!win.length) return;
+    try{
+      CHT.chart = LightweightCharts.createChart(box, {
+        layout:{background:{color:"transparent"},textColor:"#9a9a9a",fontFamily:"Oxygen Mono, monospace",fontSize:10,attributionLogo:false},
+        grid:{vertLines:{color:"rgba(38,38,38,.5)"},horzLines:{color:"rgba(38,38,38,.5)"}},
+        rightPriceScale:{borderColor:"#262626"},
+        timeScale:{borderColor:"#262626",timeVisible:false,rightOffset:1,barSpacing:9,minBarSpacing:0.001},
+        crosshair:{mode:1},
+        handleScroll:false,
+        handleScale:false,
+        localization:{priceFormatter:function(p){ return p >= 1000 ? p.toLocaleString(undefined,{maximumFractionDigits:0}) : p.toFixed(2); }},
+        width:W, height:H
+      });
+    }catch(e){
+      box.innerHTML = '<div class="cht-none"><div class="np">Chart engine unavailable</div></div>';
+      return;
+    }
+    try{
+      CHT.series = CHT.chart.addSeries(LightweightCharts.CandlestickSeries, {
+        upColor:MINT, downColor:RED, borderUpColor:MINT, borderDownColor:RED,
+        wickUpColor:MINT, wickDownColor:RED,
+        priceLineVisible:true, priceLineColor:MINT, priceLineWidth:1, priceLineStyle:2
+      });
+      CHT.series.setData(win.map(function(b){
+        return { time:b.t, open:b.o, high:b.h, low:b.l, close:b.c };
+      }));
+
+      // the volume pane the terminal shows by default, from the bars' own v
+      var hasVol = false;
+      for (var i = 0; i < win.length; i++){ if (win[i].v !== null && win[i].v > 0){ hasVol = true; break; } }
+      if (hasVol){
+        CHT.vol = CHT.chart.addSeries(LightweightCharts.HistogramSeries, { priceFormat:{type:"volume"} }, 1);
+        CHT.vol.setData(win.map(function(b){
+          return { time:b.t, value:b.v,
+                   color:(b.c >= b.o ? "rgba(51,226,154,.45)" : "rgba(248,113,113,.45)") };
+        }).filter(function(p){ return p.value !== null && isFinite(p.value) && p.value > 0; }));
+      }
+      CHT.chart.timeScale().fitContent();
+    }catch(e){}
   }
 
   // ---- header ------------------------------------------------------------
@@ -2108,7 +2340,7 @@
     $("topAsOf").textContent = asOf;
     $("wlMeta").textContent = EX + (MB && MB.stocks ? " - " + MB.stocks.length : "");
     $("mkMetaMark").textContent = "";
-    $("chMeta").textContent = "";
+    if ($("chtEx")) $("chtEx").textContent = EX;
   }
 
   // ---- history -----------------------------------------------------------
@@ -2773,7 +3005,6 @@
     $("exFull").textContent = " " + CFG.full;
     $("topAsOf").textContent = "loading the published snapshot";
     $("mkMetaMark").textContent = "";
-    $("chMeta").textContent = "";
 
     // ?view= swaps the desk for one panel; the header and the tape stay
     var hero = !VIEW;
@@ -2808,8 +3039,7 @@
         tryDraw(renderCompare);
         tryDraw(renderHeatmap);
         tryDraw(renderMacro);
-        tryDraw(renderChat);
-        tryDraw(drawDeskChart);
+        tryDraw(chtPaint);
         return null;
       }
       if (!hero) { renderChrome(); renderTape(); return renderView(); }
@@ -2832,7 +3062,7 @@
       $("mkBody").innerHTML = '<div class="vempty"><b>No snapshot</b>' + esc(msg) + '</div>';
       $("fxBody").innerHTML = '<div class="vempty"><b>Focus</b>No security is published for ' +
         esc(EX) + ', so there is no quote to draw.</div>';
-      tryDraw(renderChat);
+      tryDraw(chtPaint);
     });
   }
 
