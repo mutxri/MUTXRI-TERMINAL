@@ -1017,7 +1017,7 @@
   // Each window is drawn inside its own guard. One window that cannot be drawn
   // says so in its own frame; it never leaves the seven beside it blank, which
   // is what one uncaught exception in the centre window used to do.
-  function tryDraw(fn){ try { fn(); return true; } catch(e){ return false; } }
+  function tryDraw(fn){ try { fn(); return true; } catch(e){ try{console.error("TRYDRAW", e && (e.stack||e.message||e));}catch(_){} return false; } }
   function guardDraw(id, label, fn){
     var ok = tryDraw(fn);
     if (ok) return;
