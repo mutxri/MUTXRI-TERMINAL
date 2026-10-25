@@ -1,0 +1,1276 @@
+<!--
+  mx_perplexity.html - PERPLEXITY: the research dossier for one security.
+
+  Nothing here is fetched from a new source. The panel reads what the terminal
+  already ships for the selected security and lays it out in one scroll:
+
+    HEADER        static_data/market_<EX>.json  (+ company_info.json when the
+                  market row is missing a field)
+    RELATIONSHIPS static_data/relationships_<EX>.json
+    NEWS          static_data/<ex>_news.json and <ex>_announcements.json
+    FINANCIALS    static_data/financials/<KEY>__income.json and
+                  static_data/analytics/<KEY>.json
+    OWNERSHIP     static_data/shareholders_<EX>.json
+    GOV EXPOSURE  static_data/gov_exposure_KE.json / gov_exposure_SA.json
+    LAWS          static_data/gov_laws_KE.json
+
+  Rules this file keeps:
+    * a figure is printed only when the file carries it; absence prints as "-"
+      or as a named absence, never as zero and never as a peer's number;
+    * a withheld ratio keeps the reason stored beside it;
+    * a security with no relationship record is told apart from a relationship
+      file that could not be read, and the first case offers same-sector peers
+      that do have one;
+    * every section draws inside guardDraw(), so one broken read blanks one
+      section and prints why, and nothing else;
+    * one input, no buttons, rebuilt by typing.
+  Vanilla JS, single file, no build step. Mint on black, Oxygen Mono.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perplexity</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+  :root{
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;--up:#33e29a;--acc:#33e29a;--down:#f87171;--acc2:#1ecfb0;
+    --warn:#e0a341;--mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --ui:Inter,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  /* The shell gives every panel a window, so this panel draws no frame of its
+     own: no border, no radius, no max-width, no padding, no margin. */
+  body{margin:0;background:transparent;color:var(--tx);font-family:var(--mono);font-size:12px;padding:0;font-variant-numeric:tabular-nums}
+  .wrap{border:0;background:transparent;max-width:none;margin:0;border-radius:0}
+
+  .head{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line2);background:var(--bg2);flex-wrap:wrap}
+  .head .code{color:var(--acc);font-weight:700;letter-spacing:.04em}
+  .head .tkr{font-weight:700;letter-spacing:.04em}
+  .head .name{color:var(--tx2);font-family:var(--ui);font-size:11.5px}
+  .head .tag{font-size:9px;letter-spacing:.08em;color:var(--acc);border:1px solid #1f4f3c;padding:1px 5px;border-radius:2px}
+  .head .tag.dim{color:var(--tx3);border-color:var(--line2)}
+  .spacer{margin-left:auto}
+  .q{display:flex;align-items:baseline;gap:9px;white-space:nowrap}
+  .q .k{font-size:9px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase}
+  .q .v{font-size:17px;font-weight:700}
+  .q .v.sm{font-size:10.5px;font-weight:400;color:var(--tx3)}
+  .q .v.up{color:var(--up)} .q .v.down{color:var(--down)} .q .v.flat{color:var(--tx2)}
+
+  .controls{position:relative;display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  input.qin{background:var(--bg3);color:var(--tx);border:1px solid var(--line2);border-radius:2px;
+            padding:6px 9px;font-family:var(--mono);font-size:11.5px;width:300px;text-transform:uppercase}
+  input.qin:focus{outline:0;border-color:var(--acc)}
+  .hint{color:var(--tx3);font-size:9.5px}
+  .sug{position:absolute;left:14px;top:100%;width:430px;max-height:288px;overflow:auto;
+       background:var(--bg3);border:1px solid var(--line2);border-top:0;z-index:60;display:none}
+  .sug.on{display:block}
+  .sg{display:flex;align-items:baseline;gap:9px;padding:5px 9px;cursor:pointer;border-top:1px solid var(--line)}
+  .sg:first-child{border-top:0}
+  .sg.sel{background:var(--bg4)}
+  .sg .tk{color:var(--acc);font-weight:700;min-width:66px}
+  .sg .nm{color:var(--tx2);font-family:var(--ui);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sg .ex{color:var(--tx3);font-size:9px;letter-spacing:.06em}
+  .sg.none{color:var(--tx3);font-size:10.5px;cursor:default}
+
+  .sec{border-bottom:1px solid var(--line2)}
+  .sh{display:flex;align-items:center;gap:9px;padding:6px 14px;background:var(--bg2);border-bottom:1px solid var(--line)}
+  .sl{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--tx3);font-weight:600}
+  .sm{margin-left:auto;font-size:9.5px;color:var(--tx3);text-align:right;line-height:1.4}
+  .sb{padding:0}
+
+  .gl{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);
+      padding:5px 14px 4px;background:#050505;border-top:1px solid var(--line2)}
+  .gl:first-child{border-top:0}
+  .gl .n{color:var(--tx3);margin-left:6px}
+  .gl .n:before{content:"";}
+
+  .rw{display:grid;grid-template-columns:minmax(120px,190px) 1fr auto;gap:10px;
+      padding:5px 14px;border-top:1px solid var(--line);align-items:baseline}
+  .rw:first-child{border-top:0}
+  .rn{color:var(--tx);font-family:var(--ui);font-size:11.5px;line-height:1.4}
+  .rr{color:var(--tx2);font-family:var(--ui);font-size:10.5px;line-height:1.45}
+  .rs{color:var(--tx3);font-size:9px;text-align:right;white-space:nowrap}
+  .rs a{color:var(--tx3);text-decoration:none;border-bottom:1px dotted var(--line2)}
+  .rs a:hover{color:var(--acc);border-bottom-color:var(--acc)}
+
+  .nw{display:grid;grid-template-columns:58px 1fr auto;gap:9px;padding:5px 14px;
+      border-top:1px solid var(--line);align-items:baseline}
+  .nw:first-child{border-top:0}
+  .nw .dt{color:var(--tx3);font-size:9.5px;white-space:nowrap}
+  .nw .tt{color:var(--tx);font-family:var(--ui);font-size:11px;line-height:1.4;text-decoration:none}
+  .nw .tt:hover{color:var(--acc)}
+  .nw .sc{color:var(--tx3);font-size:9px;white-space:nowrap;text-align:right}
+
+  table.fin{width:100%;border-collapse:collapse}
+  table.fin th,table.fin td{padding:4px 14px;text-align:right;white-space:nowrap;font-size:11px}
+  table.fin th:first-child,table.fin td:first-child{text-align:left}
+  table.fin thead th{color:var(--tx3);font-size:9px;letter-spacing:.05em;text-transform:uppercase;
+                     border-bottom:1px solid var(--line2);font-weight:400;padding-top:6px}
+  table.fin tbody td{border-top:1px solid var(--line)}
+  table.fin tbody tr:hover td{background:var(--bg2)}
+  table.fin td.it{color:var(--tx2);font-family:var(--ui);font-size:11px;white-space:normal}
+  table.fin tr.tot td{color:var(--tx);font-weight:700;border-top:1px solid var(--line2)}
+  table.fin tr.tot td.it{color:var(--tx)}
+  table.fin td.neg,table.fin td.dn{color:var(--down)}
+  table.fin td.up{color:var(--up)}
+
+  .vg{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:0 18px;padding:6px 14px 8px}
+  .vr{display:flex;justify-content:space-between;gap:8px;padding:2px 0;font-size:11px;border-bottom:1px solid #0f0f0f}
+  .vr .k{color:var(--tx3)}
+  .vr .k .p{color:#4d4d4d;font-size:9px;margin-left:5px}
+  .vr .v{color:var(--tx);font-weight:600}
+  .vr .v.wh{color:var(--warn);font-weight:400;font-size:10px}
+  .sub{padding:6px 14px 8px;border-top:1px solid var(--line)}
+  .sub .ttl{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3);margin-bottom:4px}
+  .whn{padding:0 14px 8px;font-family:var(--ui);font-size:10.5px;line-height:1.5;color:var(--tx2)}
+  .whn b{color:var(--warn);font-family:var(--mono);font-size:9px;letter-spacing:.05em;font-weight:600}
+  .cc{padding:6px 14px 8px;font-family:var(--ui);font-size:10.5px;line-height:1.5;color:var(--warn);border-top:1px solid var(--line)}
+  .cc b{font-family:var(--mono);font-size:9px;letter-spacing:.05em}
+
+  .co{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:5px 14px;border-top:1px solid var(--line)}
+  .co:first-of-type{border-top:0}
+  .co .tg{font-size:8.5px;letter-spacing:.06em;color:var(--acc);border:1px solid #1f4f3c;
+          background:#0a1c15;padding:1px 4px;text-align:center;height:15px}
+  .co .tg.ind{color:var(--warn);border-color:#4a3810;border-style:dashed;background:#1a1205}
+  .co .bd{font-family:var(--ui);font-size:11px;line-height:1.5;color:var(--tx2)}
+  .lw{padding:6px 14px;border-top:1px solid var(--line)}
+  .lw:first-child{border-top:0}
+  .lw .h1{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .lw .nm{color:var(--tx);font-family:var(--ui);font-size:11.5px}
+  .lw .st{font-size:8.5px;letter-spacing:.06em;border:1px solid var(--line2);color:var(--tx2);padding:0 4px}
+  .lw .st.enacted{color:var(--acc);border-color:#1f4f3c}
+  .lw .st.repealed,.lw .st.withdrawn{color:var(--down);border-color:#5c2222}
+  .lw .st.bill,.lw .st.in_court{color:var(--warn);border-color:#4a3810}
+  .lw .mech{color:var(--tx2);font-family:var(--ui);font-size:10.5px;line-height:1.5;margin-top:3px}
+  .lw .all{font-size:8.5px;color:var(--tx3);border:1px solid var(--line2);padding:0 4px}
+
+  .emp{padding:9px 14px;color:var(--tx3);font-family:var(--ui);font-size:11px;line-height:1.55}
+  .emp b{color:var(--tx2);font-family:var(--mono);font-weight:600}
+  .emp a{color:var(--acc);text-decoration:none;border-bottom:1px dotted #1f4f3c;margin-right:8px}
+  .emp a:hover{border-bottom-color:var(--acc)}
+  .fail{padding:9px 14px;color:var(--down);font-family:var(--ui);font-size:10.5px;line-height:1.5}
+  .fail b{font-family:var(--mono);font-size:9px;letter-spacing:.06em}
+  .foot{display:flex;align-items:center;gap:10px;padding:7px 14px;background:var(--bg2);
+        border-top:1px solid var(--line2);color:var(--tx3);font-size:9.5px;flex-wrap:wrap}
+  .foot .sp{margin-left:auto}
+</style>
+</head>
+<body>
+<div class="wrap" id="panel">
+  <div class="head" id="head">
+    <span class="code">PX</span>
+    <span class="tkr" id="tkr">-</span>
+    <span class="name" id="coName"></span>
+    <span class="tag" id="exTag" style="display:none"></span>
+    <span class="tag dim" id="secTag" style="display:none"></span>
+    <span class="spacer"></span>
+    <span class="q" id="quote"></span>
+  </div>
+
+  <div class="controls">
+    <input class="qin" id="q" type="text" autocomplete="off" spellcheck="false"
+           placeholder="ticker or company name" aria-label="ticker or company name">
+    <span class="hint" id="hint">ticker or name, enter opens</span>
+    <div class="sug" id="sug"></div>
+  </div>
+
+  <div id="dossier"></div>
+
+  <div class="foot">
+    <span id="footTk">-</span>
+    <span class="sp" id="footNote"></span>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var Q = new URLSearchParams(location.search);
+  var EXS = ['NSE','JSE','NGX','EGX'];
+  var SEC_ORDER = ['rel','news','fin','own','gov','laws'];
+  var SEC_TITLE = {rel:'RELATIONSHIPS', news:'NEWS', fin:'FINANCIALS',
+                   own:'OWNERSHIP AND LINKS', gov:'GOVERNMENT EXPOSURE', laws:'LAWS'};
+  var DASH = '-';
+
+  /* ---------- text, numbers, units ---------------------------------- */
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  /* the product prints no em dash and no en dash, including when the dash
+     arrives inside a recorded sentence or a headline */
+  function nd(s){ return String(s == null ? '' : s).replace(/[\u2013\u2014]/g, '-'); }
+  function t(s){ return esc(nd(s)); }
+
+  function isNum(v){ return v !== null && v !== undefined && v !== '' && !isNaN(Number(v)); }
+  function numv(v){ return isNum(v) ? Number(v) : null; }
+
+  function isCents(c){ return String(c || '').toUpperCase() === 'ZAC'; }
+  function ccyLabel(c){ return isCents(c) ? 'ZAc' : String(c || ''); }
+  function majUnit(c){ return isCents(c) ? 100 : 1; }
+
+  function fx(v){
+    if(!isNum(v)) return DASH;
+    var n = Number(v);
+    return (Math.abs(n) >= 100 ? n.toFixed(1) : n.toFixed(2)) + 'x';
+  }
+  function fpc(v){
+    if(!isNum(v)) return DASH;
+    var n = Number(v);
+    return (Math.abs(n) >= 100 ? n.toFixed(1) : n.toFixed(2)) + '%';
+  }
+  function fnum(v, dp){
+    if(!isNum(v)) return DASH;
+    var n = Number(v);
+    if(dp != null) return n.toLocaleString('en-US', {minimumFractionDigits:dp, maximumFractionDigits:dp});
+    if(Math.abs(n) >= 1000) return n.toLocaleString('en-US', {maximumFractionDigits:0});
+    return n.toFixed(2);
+  }
+  function fmoney(v){
+    if(!isNum(v)) return DASH;
+    var f = Number(v), s = f < 0 ? '-' : '', a = Math.abs(f), o;
+    if(a >= 1e12) o = (a/1e12).toFixed(2) + 'T';
+    else if(a >= 1e9) o = (a/1e9).toFixed(2) + 'B';
+    else if(a >= 1e6) o = (a/1e6).toFixed(2) + 'M';
+    else if(a >= 1e3) o = (a/1e3).toFixed(2) + 'K';
+    else o = a.toFixed(2);
+    return s + o;
+  }
+  function ipx(v){
+    if(!isNum(v)) return DASH;
+    return Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function escRe(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  /* ---------- file reads, with the read state kept ----------------
+     A section has to tell three things apart: the file carries no record, the
+     file was read and the answer is genuinely absent, and the file could not
+     be read at all. The state of every read is kept so the words on screen can
+     be the right ones. */
+  var FILES = {};
+  function getJSON(path){
+    if(FILES[path]) return FILES[path].p;
+    var rec = {ok:false, data:null, err:''};
+    rec.p = fetch(path, {cache:'no-store'}).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(d){ rec.ok = true; rec.data = d; return d; })
+      .catch(function(e){ rec.err = nd(String((e && e.message) || e)); return null; });
+    FILES[path] = rec;
+    return rec.p;
+  }
+  function readState(path){
+    var r = FILES[path];
+    if(!r) return 'unread';
+    return r.ok ? 'ok' : 'failed';
+  }
+  function sd(p){ return '../../static_data/' + p; }
+
+  /* ---------- market index: every exchange, one list ---------------- */
+  var MKT = {}, IDX = [], IDX_P = null;
+  function loadIndex(){
+    if(IDX_P) return IDX_P;
+    IDX_P = Promise.all(EXS.map(function(ex){
+      return getJSON(sd('market_' + ex + '.json')).then(function(d){
+        var rows = (d && d.stocks) || [];
+        rows.forEach(function(r){ r.ex = ex; });
+        MKT[ex] = rows;
+        return rows;
+      });
+    })).then(function(){
+      IDX = [];
+      EXS.forEach(function(ex){ (MKT[ex] || []).forEach(function(r){ IDX.push(r); }); });
+      return IDX;
+    });
+    return IDX_P;
+  }
+  function findRow(tk, exHint){
+    var q = String(tk == null ? '' : tk).trim().toUpperCase();
+    if(!q) return null;
+    var e = exHint ? String(exHint).toUpperCase() : '';
+    var pool = IDX.slice();
+    if(e) pool.sort(function(a, b){ return (a.ex === e ? 0 : 1) - (b.ex === e ? 0 : 1); });
+    var i;
+    for(i = 0; i < pool.length; i++){
+      if(String(pool[i].ticker || '').toUpperCase() === q) return pool[i];
+    }
+    for(i = 0; i < pool.length; i++){
+      if(String(pool[i].sym || '').toUpperCase() === q) return pool[i];
+    }
+    for(i = 0; i < pool.length; i++){
+      if(String(pool[i].name || '').toUpperCase() === q) return pool[i];
+    }
+    for(i = 0; i < pool.length; i++){
+      if(String(pool[i].name || '').toUpperCase().indexOf(q) >= 0) return pool[i];
+    }
+    return null;
+  }
+  function rowTicker(r){ return String((r && (r.ticker || r.sym)) || '').toUpperCase(); }
+
+  /* ---------- the search bar: one input, ticker first then name ------ */
+  var SUG = {rows:[], i:0, on:false};
+  function rank(q){
+    var s = String(q || '').trim().toUpperCase();
+    if(!s) return [];
+    function pass(needle, exactOnly){
+      var out = [];
+      for(var i = 0; i < IDX.length; i++){
+        var r = IDX[i];
+        var tk = String(r.ticker || '').toUpperCase();
+        var sy = String(r.sym || '').toUpperCase();
+        var nm = String(r.name || '').toUpperCase();
+        var sc = -1;
+        if(tk === needle || sy === needle) sc = 0;
+        else if(tk.indexOf(needle) === 0) sc = 1;
+        else if(sy.indexOf(needle) === 0) sc = 2;
+        else if(nm.indexOf(needle) === 0) sc = 3;
+        else if(tk.indexOf(needle) > 0) sc = 4;
+        else if(nm.indexOf(needle) > 0) sc = 5;
+        if(sc >= 0 && !(exactOnly && sc > 0)) out.push({r:r, sc:sc, len:tk.length});
+      }
+      out.sort(function(a, b){
+        if(a.sc !== b.sc) return a.sc - b.sc;
+        if(a.len !== b.len) return a.len - b.len;
+        return String(a.r.ticker).localeCompare(String(b.r.ticker));
+      });
+      return out;
+    }
+    var hits = pass(s);
+    /* A full name is not always in the name field: the NGX row for Dangote
+       Cement is named "Dangote", so "dangote cement" matches nothing whole.
+       Fall back to the first word of the query rather than answering nothing
+       to the name a reader is most likely to type. */
+    if(!hits.length && s.indexOf(' ') > 0){
+      hits = pass(s.split(/\s+/)[0]);
+    }
+    return hits.slice(0, 12).map(function(x){ return x.r; });
+  }
+  function drawSug(q){
+    var box = document.getElementById('sug');
+    if(!box) return;
+    SUG.rows = rank(q);
+    SUG.i = 0;
+    if(!String(q || '').trim()){ box.className = 'sug'; box.innerHTML = ''; SUG.on = false; return; }
+    var h = '';
+    if(!SUG.rows.length){
+      h = '<div class="sg none">NO SECURITY MATCHES "' + t(q) + '"</div>';
+      SUG.on = false;
+    } else {
+      h = SUG.rows.map(function(r, i){
+        return '<div class="sg' + (i === 0 ? ' sel' : '') + '" data-i="' + i + '">' +
+               '<span class="tk">' + t(rowTicker(r)) + '</span>' +
+               '<span class="nm">' + t(r.name || '') + '</span>' +
+               '<span class="ex">' + t(r.ex || '') + '</span></div>';
+      }).join('');
+      SUG.on = true;
+    }
+    box.innerHTML = h;
+    box.className = 'sug on';
+    Array.prototype.forEach.call(box.querySelectorAll('.sg[data-i]'), function(el){
+      el.addEventListener('mousedown', function(ev){
+        ev.preventDefault();
+        var k = Number(el.getAttribute('data-i'));
+        if(SUG.rows[k]) pick(SUG.rows[k]);
+      });
+    });
+  }
+  function closeSug(){
+    var box = document.getElementById('sug');
+    if(box){ box.className = 'sug'; box.innerHTML = ''; }
+    SUG.on = false;
+  }
+
+  /* ---------- header ------------------------------------------------- */
+  function quoteHTML(row){
+    var px = numv(row.price) != null ? numv(row.price) : numv(row.ltp);
+    var ccy = row.currency || '';
+    var pct = numv(row.chgPct);
+    var prev = numv(row.prevClose);
+    if(px == null){
+      return '<span class="k">last</span><span class="v sm">no quote</span>';
+    }
+    var dir = pct == null ? 'flat' : (pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat'));
+    var h = '<span class="k">last</span><span class="v ' + dir + '">' + ipx(px) + '</span>' +
+            (ccy ? '<span class="v sm">' + t(ccyLabel(ccy)) + (isCents(ccy) ? ' cents' : '') + '</span>' : '');
+    if(pct == null){
+      h += '<span class="v sm">change not stated</span>';
+    } else {
+      h += '<span class="v ' + dir + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%</span>';
+      /* the level change is printed only when the row's own percent agrees with
+         price - prevClose, the rule the FOCUS card and FINANCIALS both apply */
+      if(prev != null && prev !== 0 && Math.abs(((px - prev) / prev * 100) - pct) <= 0.02){
+        var lv = px - prev;
+        h += '<span class="k">chg</span><span class="v ' + dir + '">' +
+             (lv >= 0 ? '+' : '') + ipx(lv) + '</span>';
+      }
+    }
+    return h;
+  }
+  function paintHead(row, info){
+    var tk = rowTicker(row);
+    var nm = row.name || (info && info.name) || '';
+    var sec = row.sector || (info && info.sector) || '';
+    document.getElementById('tkr').textContent = tk;
+    document.getElementById('coName').textContent = nd(nm);
+    var exT = document.getElementById('exTag');
+    exT.textContent = row.ex || '';
+    exT.style.display = row.ex ? '' : 'none';
+    var scT = document.getElementById('secTag');
+    scT.textContent = nd(sec);
+    scT.style.display = sec ? '' : 'none';
+    document.getElementById('quote').innerHTML = quoteHTML(row);
+    document.getElementById('footTk').textContent = tk + (row.ex ? '  ' + row.ex : '');
+  }
+
+  /* ---------- the section shell and its guard ------------------------ */
+  function shells(){
+    return SEC_ORDER.map(function(k){
+      return '<div class="sec" id="sec_' + k + '">' +
+             '<div class="sh"><span class="sl">' + SEC_TITLE[k] + '</span>' +
+             '<span class="sm" id="m_' + k + '"></span></div>' +
+             '<div class="sb" id="b_' + k + '"><div class="emp">reading</div></div></div>';
+    }).join('');
+  }
+  /* One guard per section. A section that throws prints the failure where its
+     content belongs, in the failure style, rather than leaving a placeholder
+     that reads like a panel still loading. */
+  function guardDraw(key, fn){
+    var box = document.getElementById('b_' + key);
+    if(!box) return;
+    try{
+      fn(box);
+    }catch(e){
+      box.innerHTML = '<div class="fail"><b>' + SEC_TITLE[key] + ' FAILED</b> ' +
+        t(String((e && e.message) || e)) + '</div>';
+      var m = document.getElementById('m_' + key);
+      if(m) m.textContent = '';
+    }
+  }
+  function meta(key, s){
+    var m = document.getElementById('m_' + key);
+    if(m) m.textContent = nd(s || '');
+  }
+  function empText(s){ return '<div class="emp">' + s + '</div>'; }
+
+  /* ---------- 2. RELATIONSHIPS --------------------------------------- */
+  function relTypes(){ return ['customers','suppliers','competitors','partners']; }
+  function relLabel(k){
+    return {customers:'CUSTOMERS', suppliers:'SUPPLIERS', competitors:'COMPETITORS', partners:'PARTNERS'}[k] || k;
+  }
+  function srcTag(src){
+    if(!src) return '';
+    var site = src.site || src.file || '';
+    var extra = src.page ? ' p' + src.page : '';
+    if(src.url){
+      return '<a href="' + t(src.url) + '" target="_blank" rel="noopener">' + t(site) + t(extra) + '</a>';
+    }
+    return t(site) + t(extra);
+  }
+  function drawRel(box, row, file, rec){
+    var path = sd('relationships_' + row.ex + '.json');
+    var st = readState(path);
+    if(st === 'failed' || !file){
+      box.innerHTML = empText('<b>relationships_' + t(row.ex) + '.json was not read</b>, so this ' +
+        'security cannot be placed in its relationship set. That is a failed read, not a finding ' +
+        'that the company has no named customers, suppliers, competitors or partners.');
+      meta('rel', 'file not read');
+      return;
+    }
+    var cov = (file && file.coverage) || {};
+    var withOne = isNum(cov.securitiesWithSourcedEntity) ? Number(cov.securitiesWithSourcedEntity)
+                                                         : Object.keys((file && file.securities) || {}).length;
+    var listed = isNum(cov.securitiesListed) ? Number(cov.securitiesListed) : null;
+    var coverTxt = withOne + (listed != null ? ' of ' + listed : '') + ' ' + row.ex + ' securities';
+    if(!rec){
+      /* genuinely absent: say how many do have one, and offer the nearest
+         populated peers by sector rather than a blank */
+      var peers = [], seen = {};
+      (MKT[row.ex] || []).forEach(function(p){
+        if(rowTicker(p) === rowTicker(row)) return;
+        if(!row.sector || p.sector !== row.sector) return;
+        var pr = (file.securities || {})[p.ticker] || (file.securities || {})[p.sym];
+        if(!pr) return;
+        var n = 0;
+        relTypes().forEach(function(k){ n += (pr[k] || []).length; });
+        if(!n || seen[rowTicker(p)]) return;
+        seen[rowTicker(p)] = 1;
+        peers.push(p);
+      });
+      peers = peers.slice(0, 6);
+      var h = empText('<b>No relationship record</b> for ' + t(rowTicker(row)) +
+        ' in relationships_' + t(row.ex) + '.json. ' + t(coverTxt) + ' carry one, and this one is not ' +
+        'among them. Nothing is inferred from its sector.');
+      if(peers.length){
+        h += '<div class="gl" style="border-top:1px solid var(--line2)">NEAREST PEERS WITH A RECORD' +
+             (row.sector ? ' <span class="n">' + t(row.sector) + '</span>' : '') + '</div>';
+        h += peers.map(function(p){
+          return '<div class="rw"><span class="rn">' + t(rowTicker(p)) + '</span>' +
+                 '<span class="rr">' + t(p.name || '') + '</span>' +
+                 '<span class="rs">' + t(p.sector || '') + '</span></div>';
+        }).join('');
+      } else {
+        h += '<div class="emp" style="padding-top:0">No other ' + t(row.sector || 'same sector') +
+             ' security on ' + t(row.ex) + ' has a relationship record either.</div>';
+      }
+      box.innerHTML = h;
+      meta('rel', 'no record, ' + coverTxt);
+      return;
+    }
+    var total = 0;
+    var out = '';
+    relTypes().forEach(function(k){
+      var arr = (rec[k] || []);
+      if(!arr.length) return;
+      total += arr.length;
+      out += '<div class="gl">' + relLabel(k) + '<span class="n">' + arr.length + '</span></div>';
+      out += arr.map(function(c){
+        var reason = c.role || '';
+        if(c.note && String(c.note).toLowerCase().indexOf(String(reason).toLowerCase().slice(0, 18)) < 0){
+          reason = reason ? (reason + '. ' + c.note) : c.note;
+        }
+        return '<div class="rw"><span class="rn">' + t(c.name || 'unnamed') + '</span>' +
+               '<span class="rr">' + t(reason) + '</span>' +
+               '<span class="rs">' + srcTag(c.source) + '</span></div>';
+      }).join('');
+    });
+    if(!total){
+      box.innerHTML = empText('<b>Record present, nothing named</b>: relationships_' + t(row.ex) +
+        '.json carries ' + t(rowTicker(row)) + ' but the recorded customer, supplier, competitor ' +
+        'and partner lists are all empty. ' + t(coverTxt) + ' carry a record.');
+      meta('rel', '0 named');
+      return;
+    }
+    box.innerHTML = out;
+    meta('rel', total + ' named, ' + coverTxt);
+  }
+
+  /* ---------- 3. NEWS ------------------------------------------------ */
+  var SUFFIX = {plc:1, ltd:1, limited:1, group:1, holdings:1, holding:1, company:1, co:1,
+                inc:1, corp:1, corporation:1, sa:1, nv:1, ag:1, the:1, public:1, 'and':1};
+  function normChars(s){
+    return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+  }
+  function coreName(s){
+    return normChars(s).split(' ').filter(function(w){ return w && !SUFFIX[w]; }).join(' ');
+  }
+  function keysFor(row){
+    var keys = [], seen = {};
+    function add(k, tag){
+      k = normChars(k);
+      if(!k || k.length < 3 || seen[k]) return;
+      seen[k] = 1;
+      keys.push({k:k, tag:tag, single:(k.indexOf(' ') < 0)});
+    }
+    add(String(row.ticker || ''), 'ticker');
+    var sy = String(row.sym || '');
+    if(sy && sy.toUpperCase() !== String(row.ticker || '').toUpperCase()){
+      add(sy.replace(/\.(JO|CA)$/i, ''), 'sym');
+    }
+    add(row.name, 'name');
+    add(coreName(row.name), 'core');
+    return keys;
+  }
+  function rivalsFor(row){
+    var core = coreName(row.name);
+    if(!core || core.indexOf(' ') >= 0) return [];
+    var out = [];
+    (MKT[row.ex] || []).forEach(function(p){
+      if(rowTicker(p) === rowTicker(row)) return;
+      var c = coreName(p.name);
+      if(c && c !== core && c.indexOf(core + ' ') === 0) out.push(c);
+    });
+    return out;
+  }
+  function namedIn(text, keys, rivals){
+    var hay = normChars(text);
+    for(var i = 0; i < keys.length; i++){
+      var re = new RegExp('(^| )' + escRe(keys[i].k) + '( |$)');
+      if(!re.test(hay)) continue;
+      if(keys[i].single && rivals.length){
+        var blocked = false;
+        for(var j = 0; j < rivals.length; j++){
+          if(hay.indexOf(rivals[j]) >= 0){ blocked = true; break; }
+        }
+        if(blocked) continue;
+      }
+      return true;
+    }
+    return false;
+  }
+  function tsOf(it){
+    if(isNum(it.ts)) return Number(it.ts) * 1000;
+    if(it.date){
+      var d = Date.parse(it.date);
+      if(!isNaN(d)) return d;
+    }
+    if(isNum(it.year)) return Date.UTC(Number(it.year), 0, 1);
+    return 0;
+  }
+  function dateLabel(it){
+    if(it.date) return nd(it.date);
+    if(isNum(it.year)) return String(it.year);
+    return 'year not stated';
+  }
+  function drawNews(box, row){
+    var nPath = sd(row.ex.toLowerCase() + '_news.json');
+    var aPath = sd(row.ex.toLowerCase() + '_announcements.json');
+    var newsFile = FILES[nPath] && FILES[nPath].ok ? FILES[nPath].data : null;
+    var annFile = FILES[aPath] && FILES[aPath].ok ? FILES[aPath].data : null;
+    var newsSt = readState(nPath), annSt = readState(aPath);
+
+    var keys = keysFor(row), rivals = rivalsFor(row);
+    var news = [], ann = [];
+    if(newsFile){
+      (newsFile.items || newsFile || []).forEach(function(it){
+        if(!it) return;
+        if(namedIn(String(it.title || '') + ' ' + String(it.summary || ''), keys, rivals)) news.push(it);
+      });
+    }
+    if(annFile){
+      (annFile.items || annFile || []).forEach(function(it){
+        if(!it) return;
+        if(namedIn(String(it.title || '') + ' ' + String(it.company || '') + ' ' +
+                   String(it.ticker || ''), keys, rivals)) ann.push(it);
+      });
+    }
+    news.sort(function(a, b){ return tsOf(b) - tsOf(a); });
+    ann.sort(function(a, b){ return tsOf(b) - tsOf(a); });
+
+    var nShown = news.slice(0, 6), aShown = ann.slice(0, 8);
+    if(!nShown.length && !aShown.length && !newsFile && !annFile){
+      box.innerHTML = empText('No headline file for ' + t(row.ex) + ' was read: ' +
+        (newsSt === 'failed' ? 'the news file did not load' : 'no news file is shipped') + ' and ' +
+        (annSt === 'failed' ? 'the announcement file did not load' : 'no announcement file is shipped') +
+        '. That is a read failure, not a quiet news day.');
+      meta('news', 'files not read');
+      return;
+    }
+    function rowOf(it, kind){
+      var title = nd(it.title || '');
+      var src = it.publisher || it.source || (kind === 'ANN' ? 'announcement' : '');
+      var url = it.url || '';
+      var body = url
+        ? '<a class="tt" href="' + t(url) + '" target="_blank" rel="noopener">' + t(title) + '</a>'
+        : '<span class="tt">' + t(title) + '</span>';
+      return '<div class="nw"><span class="dt">' + t(dateLabel(it)) + '</span>' +
+             body + '<span class="sc">' + t(src) + (kind === 'ANN' ? '  ANN' : '') + '</span></div>';
+    }
+    var h = '';
+    if(nShown.length){
+      h += '<div class="gl">HEADLINES<span class="n">' + news.length + '</span></div>';
+      h += nShown.map(function(it){ return rowOf(it, 'NEWS'); }).join('');
+    }
+    if(aShown.length){
+      h += '<div class="gl">ANNOUNCEMENTS<span class="n">' + ann.length + '</span></div>';
+      h += aShown.map(function(it){ return rowOf(it, 'ANN'); }).join('');
+    }
+    if(!h){
+      var bits = [];
+      if(newsFile) bits.push(news.length + ' of the ' + ((newsFile.items || newsFile || []).length) +
+        ' headlines in ' + row.ex.toLowerCase() + '_news.json');
+      if(annFile) bits.push(ann.length + ' of the ' + ((annFile.items || annFile || []).length) +
+        ' announcements in ' + row.ex.toLowerCase() + '_announcements.json');
+      h = empText('<b>No item names ' + t(rowTicker(row)) + ' or ' + t(coreName(row.name) || row.name) +
+        '</b>. Read: ' + t(bits.join('; ')) + '.');
+    }
+    var more = [];
+    if(news.length > nShown.length) more.push((news.length - nShown.length) + ' older headline(s)');
+    if(ann.length > aShown.length) more.push((ann.length - aShown.length) + ' older announcement(s)');
+    if(more.length) h += '<div class="emp" style="border-top:1px solid var(--line)">Not shown: ' +
+      t(more.join(', ')) + '.</div>';
+    box.innerHTML = h;
+    var mt = [];
+    if(newsFile) mt.push(news.length + ' headline' + (news.length === 1 ? '' : 's'));
+    if(annFile) mt.push(ann.length + ' announcement' + (ann.length === 1 ? '' : 's'));
+    if(!annFile) mt.push('no announcement file for ' + row.ex);
+    meta('news', mt.join(', '));
+  }
+
+  /* ---------- 4. FINANCIALS ------------------------------------------ */
+  function rowUnit(label){
+    var l = String(label || '');
+    if(/%/.test(l)) return 'pct';
+    if(/earnings per share|^eps$|\beps\b/i.test(l)) return 'eps';
+    if(/debt to equity|interest cover|asset turnover|current ratio|debt\/equity/i.test(l)) return 'x';
+    return 'money';
+  }
+  /* The files carry the same lines in three different orders and SCOM groups
+     them out of statement order. One canonical reading order, applied by label,
+     makes the three companies comparable without hiding a line: nothing is
+     dropped, only placed. */
+  var LINE_ORDER = [
+    [/^revenue/i, 0],
+    [/cost of sales|cost of revenue|direct cost/i, 1],
+    [/gross profit/i, 2],
+    [/amorti|depreciation|operating expense|other operating/i, 3],
+    [/operating profit|^ebit|operating income/i, 4],
+    [/finance cost|finance income|net finance|interest expense|interest income/i, 5],
+    [/profit before tax|^pbt/i, 6],
+    [/income tax|^tax\b/i, 7],
+    [/net profit|profit for the|total profit|group total/i, 8],
+    [/^eps|earnings per share/i, 9],
+    [/ro[ea]|margin|debt to equity|asset turnover|interest cover/i, 10]
+  ];
+  function lineRank(label){
+    var l = String(label || '');
+    for(var i = 0; i < LINE_ORDER.length; i++){
+      if(LINE_ORDER[i][0].test(l)) return LINE_ORDER[i][1];
+    }
+    return 11;
+  }
+  function cell(v, unit){
+    if(!isNum(v)) return '<td class="dim">' + DASH + '</td>';
+    var n = Number(v);
+    var s, cls = n < 0 ? ' class="neg"' : '';
+    if(unit === 'pct') s = fpc(n);
+    else if(unit === 'eps') s = fnum(n, 2);
+    else if(unit === 'x') s = fx(n);
+    else s = fmoney(n);
+    return '<td' + cls + '>' + s + '</td>';
+  }
+  function drawFin(box, row, fin, an, finKey){
+    var ccy = (fin && fin.currency) || row.currency || '';
+    var parts = [], bits = [];
+    if(fin && fin.available === false){
+      parts.push(empText('<b>No statement on file.</b> ' + t(fin.source_note || fin.note ||
+        'The statement file says the issuer publishes none.')));
+      bits.push('statement absent');
+    } else if(fin && (fin.rows || []).length){
+      var periods = (fin.periods || []).slice(0, 3);
+      var rows = (fin.rows || []).filter(function(r){ return !r.isGroupHeader; });
+      /* SCOM's file carries the same expense twice, once as "Direct Costs"
+         negative and once as "Cost of Sales" positive: one figure, two signs.
+         Printing both reads as two lines of that size, so an exact sign mirror
+         of a row already taken is dropped and the first spelling is kept. */
+      var magSeen = {};
+      rows = rows.filter(function(r){
+        var vals = r.values || [];
+        var any = false, sig = [], neg = [];
+        for(var i = 0; i < vals.length; i++){
+          if(isNum(vals[i])){ any = true; sig.push(Number(vals[i]).toFixed(2)); neg.push((-Number(vals[i])).toFixed(2)); }
+          else { sig.push('x'); neg.push('x'); }
+        }
+        if(!any) return true;
+        var s = sig.join('|'), n = neg.join('|');
+        if(magSeen[s] !== undefined || magSeen[n] !== undefined) return false;
+        magSeen[s] = r.label;
+        return true;
+      });
+      rows = rows.map(function(r, i){ return {r:r, i:i, k:lineRank(r.label)}; })
+                 .sort(function(a, b){ return (a.k - b.k) || (a.i - b.i); })
+                 .map(function(x){ return x.r; });
+      var h = '<table class="fin"><thead><tr><th>' + t(ccyLabel(ccy)) + '</th>';
+      periods.forEach(function(p){ h += '<th>' + t(p) + '</th>'; });
+      h += '</tr></thead><tbody>';
+      rows.forEach(function(r){
+        var u = rowUnit(r.label);
+        var tot = r.isGroupTotal ? ' class="tot"' : '';
+        h += '<tr' + tot + '><td class="it">' + t(r.label) + '</td>';
+        periods.forEach(function(p, i){ h += cell((r.values || [])[i], u); });
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+      parts.push(h);
+      var pm = (fin.periods || []).length;
+      bits.push(t(ccyLabel(ccy)) + (isCents(ccy) ? ' cents' : ''));
+      if(row.currency && String(row.currency).toUpperCase() !== String(ccy).toUpperCase()){
+        bits.push(t(ccyLabel(row.currency)) + ' quote');
+      }
+      bits.push(periods.length + ' of ' + pm + ' period' + (pm === 1 ? '' : 's'));
+    } else {
+      parts.push(empText('<b>No income statement file</b> for ' + t(finKey || rowTicker(row)) +
+        ' on ' + t(row.ex) + '.'));
+      bits.push('no statement file');
+    }
+
+    /* valuation block: pe, pb, ps, earnings yield, each with its period, its
+       inputs and the cross check the analytics file records */
+    var v = (an && an.valuation) || null;
+    if(v){
+      var pTag = v.pePeriod || v.asOfPeriod || an.period || '';
+      var items = [
+        {k:'P/E', n:'pe', w:v.pe_withheld, r:v.pe_withheld_reason},
+        {k:'P/B', n:'pb', w:v.pb_withheld, r:v.pb_withheld_reason},
+        {k:'P/S', n:'ps', w:v.ps_withheld, r:v.ps_withheld_reason},
+        {k:'Earnings yield', n:'earnings_yield', w:v.earnings_yield_withheld, r:v.earnings_yield_withheld_reason}
+      ];
+      var vh = '<div class="gl" style="border-top:1px solid var(--line2)">VALUATION<span class="n">' +
+               t(pTag) + '</span></div><div class="vg">';
+      var reasons = [];
+      items.forEach(function(it){
+        var raw = v[it.n];
+        var isW = raw === null || raw === undefined || it.w === true;
+        if(isW && it.r) reasons.push({k:it.k, r:it.r});
+        vh += '<div class="vr"><span class="k">' + it.k +
+              (pTag ? '<span class="p">' + t(pTag) + '</span>' : '') + '</span>' +
+              '<span class="v' + (isW ? ' wh' : '') + '">' +
+              (isW ? 'withheld' : (it.n === 'earnings_yield' ? fpc(raw) : fx(raw))) + '</span></div>';
+      });
+      if(isNum(v.ev_ebit) || v.ev_ebit_withheld){
+        var ew = v.ev_ebit === null || v.ev_ebit === undefined || v.ev_ebit_withheld === true;
+        if(ew && v.ev_ebit_withheld_reason) reasons.push({k:'EV/EBIT', r:v.ev_ebit_withheld_reason});
+        vh += '<div class="vr"><span class="k">EV/EBIT</span><span class="v' + (ew ? ' wh' : '') + '">' +
+              (ew ? 'withheld' : fx(v.ev_ebit)) + '</span></div>';
+      }
+      vh += '</div>';
+      parts.push(vh);
+      /* one reason covers every ratio it withholds (NPN withholds all four for
+         the same USD against ZAR cause), so the reason is printed once with the
+         ratios it covers rather than four times over */
+      var byReason = [];
+      reasons.forEach(function(x){
+        var key = String(x.r);
+        var at = -1;
+        for(var i = 0; i < byReason.length; i++){ if(byReason[i].r === key){ at = i; break; } }
+        if(at < 0){ byReason.push({r:key, ks:[x.k]}); }
+        else byReason[at].ks.push(x.k);
+      });
+      byReason.forEach(function(g){
+        parts.push('<div class="whn"><b>' + t(g.ks.join(', ')) + ' WITHHELD</b> ' + t(g.r) + '</div>');
+      });
+      var pi = v.peInputs || null;
+      if(pi){
+        var ih = '<div class="sub"><div class="ttl">inputs</div><div class="vg" style="padding:0">';
+        if(isNum(pi.price)) ih += '<div class="vr"><span class="k">price</span><span class="v">' +
+          ipx(pi.price) + ' ' + t(ccyLabel(ccy)) + '</span></div>';
+        if(isNum(pi.eps)) ih += '<div class="vr"><span class="k">eps</span><span class="v">' +
+          fnum(pi.eps, 2) + '</span></div>';
+        if(isNum(pi.marketCap)) ih += '<div class="vr"><span class="k">market cap</span><span class="v">' +
+          fmoney(pi.marketCap) + '</span></div>';
+        if(isNum(pi.netProfit)) ih += '<div class="vr"><span class="k">net profit</span><span class="v">' +
+          fmoney(pi.netProfit) + '</span></div>';
+        ih += '</div></div>';
+        parts.push(ih);
+      }
+      if(v.peCrossCheck) parts.push('<div class="cc"><b>CROSS CHECK</b> ' + t(v.peCrossCheck) + '</div>');
+      if(!isNum(v.pe)) bits.push('multiples withheld');
+    } else {
+      parts.push(empText('<b>No analytics file</b> for ' + t(rowTicker(row)) +
+        ', so no multiple is printed here.'));
+      bits.push('no analytics file');
+    }
+    box.innerHTML = parts.join('');
+    meta('fin', bits.join(', '));
+  }
+
+  /* ---------- 5. OWNERSHIP ------------------------------------------- */
+  function drawOwn(box, row, file){
+    var path = sd('shareholders_' + row.ex + '.json');
+    var st = readState(path);
+    if(st === 'failed' || !file){
+      box.innerHTML = empText('<b>The holder file for ' + t(row.ex) + ' was not read.</b> ' +
+        'No holder is printed and none is inferred.');
+      meta('own', 'file not read');
+      return;
+    }
+    var map = file.securities || {};
+    var rec = map[row.ticker] || map[row.sym] || map[rowTicker(row)] || null;
+    if(!rec){
+      box.innerHTML = empText('<b>No holder record</b> for ' + t(rowTicker(row)) + ' in ' +
+        'shareholders_' + t(row.ex) + '.json, which carries ' + Object.keys(map).length +
+        ' of the exchange\'s securities.');
+      meta('own', 'no record');
+      return;
+    }
+    var groups = [
+      {k:'substantial', t:'HOLDERS'},
+      {k:'promoters', t:'PROMOTERS'},
+      {k:'directors', t:'DIRECTORS'},
+      {k:'other', t:'OTHER HOLDERS'}
+    ];
+    var rows = [], used = [];
+    groups.forEach(function(g){
+      var arr = rec[g.k] || [];
+      var clean = arr.filter(function(x){ return x && (x.name || x.holder); });
+      if(!clean.length) return;
+      used.push({t:g.t, arr:clean});
+      rows = rows.concat(clean);
+    });
+    var h = '<div class="rw" style="grid-template-columns:1fr auto auto">' +
+            '<span class="rn">issued shares</span>' +
+            '<span class="rr">' + (rec.asOf ? 'as at ' + t(rec.asOf) : '') + '</span>' +
+            '<span class="rs" style="color:var(--tx)">' + (isNum(rec.issued) ? fnum(rec.issued, 0) : DASH) + '</span></div>';
+    if(isNum(rec.freeFloat)){
+      h += '<div class="rw" style="grid-template-columns:1fr auto auto">' +
+           '<span class="rn">free float</span><span class="rr"></span>' +
+           '<span class="rs" style="color:var(--tx)">' + fnum(rec.freeFloat, 2) + '%</span></div>';
+    }
+    used.forEach(function(g){
+      h += '<div class="gl" style="border-top:1px solid var(--line2)">' + t(g.t) +
+           '<span class="n">' + g.arr.length + '</span></div>';
+      h += g.arr.map(function(x){
+        var nm = x.name || x.holder || '';
+        var hold = isNum(x.holding) ? x.holding : (isNum(x.shares) ? x.shares : null);
+        return '<div class="rw"><span class="rn">' + t(nm) + '</span>' +
+               '<span class="rr"></span>' +
+               '<span class="rs" style="color:var(--tx)">' +
+               (hold == null ? DASH : fnum(hold, 0)) + '  ' +
+               (isNum(x.pct) ? fnum(x.pct, 2) + '%' : DASH) + '</span></div>';
+      }).join('');
+    });
+    if(rows.length && !rows.some(function(x){ return isNum(x.pct); })){
+      h += '<div class="emp" style="padding-top:5px">The source table prints share counts only, ' +
+           'so no holding percentage is shown and none is computed from the share count.</div>';
+    }
+    if(!rows.length){
+      /* the record exists but carries nothing: that is not the same fact as a
+         company with no record, and the notes the file keeps explain why */
+      var notes = (rec.notes || []).filter(function(x){ return x; });
+      h += '<div class="emp"><b>The holder record exists but carries no holders</b>' +
+           (rec.asOf ? ' (as at ' + t(rec.asOf) + ')' : '') +
+           (isNum(rec.issued) ? '' : ', and no issued share count') + '. ' +
+           'shareholders_' + t(row.ex) + '.json holds ' + Object.keys(map).length + ' records' +
+           (notes.length ? '; this one records: ' + t(notes.join(' ')) : '') + '</div>';
+    }
+    if(rec.source && (rec.source.url || rec.source.file)){
+      h += '<div class="emp" style="padding-top:4px">' +
+        (rec.source.url
+          ? '<a href="' + t(rec.source.url) + '" target="_blank" rel="noopener">source' +
+            (rec.source.page ? ' p' + rec.source.page : '') + '</a>'
+          : '') +
+        (rec.source.via ? t(rec.source.via) : '') + '</div>';
+    }
+    box.innerHTML = h;
+    meta('own', rows.length ? (rows.length + ' holder' + (rows.length === 1 ? '' : 's') +
+      (rec.asOf ? ', as at ' + rec.asOf : '')) : 'record carries no holders');
+  }
+
+  /* ---------- 6. GOVERNMENT EXPOSURE --------------------------------- */
+  function exposureHits(file, tkr){
+    var hits = [];
+    var map = (file && (file.sector_exposure || file.sectors)) || {};
+    Object.keys(map).forEach(function(secName){
+      var rec = map[secName] || {};
+      ['direct','indirect'].forEach(function(kind){
+        (rec[kind] || []).forEach(function(r){
+          var tk = Array.isArray(r) ? r[0] : r.ticker;
+          if(String(tk || '').toUpperCase() !== tkr) return;
+          hits.push({sector:secName, code:rec.sector_code || '', kind:kind,
+                     reason:(Array.isArray(r) ? r[1] : r.reason) || ''});
+        });
+      });
+    });
+    return hits;
+  }
+  function drawGov(box, row, files){
+    var wanted = row.ex === 'NSE' ? ['KE'] : (row.ex === 'JSE' ? ['SA'] : []);
+    if(!wanted.length){
+      box.innerHTML = empText('<b>No government budget file covers ' + t(row.ex) + '.</b> ' +
+        'The fiscal link is recorded for NSE (gov_exposure_KE.json) and JSE (gov_exposure_SA.json) only.');
+      meta('gov', 'no file for ' + row.ex);
+      return;
+    }
+    var jur = wanted[0];
+    var file = files[jur];
+    var path = sd('gov_exposure_' + jur + '.json');
+    if(readState(path) === 'failed' || !file){
+      box.innerHTML = empText('<b>gov_exposure_' + t(jur) + '.json was not read.</b> ' +
+        'This security\'s fiscal link is unknown here, not absent.');
+      meta('gov', 'file not read');
+      return;
+    }
+    var hits = exposureHits(file, rowTicker(row));
+    if(!hits.length){
+      var n = 0, seen = {};
+      var map = file.sector_exposure || {};
+      Object.keys(map).forEach(function(s){
+        ['direct','indirect'].forEach(function(k){
+          (map[s][k] || []).forEach(function(r){
+            var tk = Array.isArray(r) ? r[0] : r.ticker;
+            if(tk && !seen[tk]){ seen[tk] = 1; n++; }
+          });
+        });
+      });
+      box.innerHTML = empText('<b>No budget sector record</b> for ' + t(rowTicker(row)) + ' in ' +
+        'gov_exposure_' + t(jur) + '.json, which records ' + n + ' securities. Nothing is implied ' +
+        'about its revenue from the absence.');
+      meta('gov', 'no record, ' + n + ' recorded');
+      return;
+    }
+    var h = '';
+    hits.forEach(function(x){
+      h += '<div class="gl" style="border-top:1px solid var(--line2)">' + t(x.sector) +
+           (x.code ? '<span class="n">code ' + t(x.code) + '</span>' : '') + '</div>' +
+           '<div class="co"><span class="tg' + (x.kind === 'indirect' ? ' ind' : '') + '">' +
+           x.kind.toUpperCase() + '</span><span class="bd">' + t(x.reason) + '</span></div>';
+    });
+    box.innerHTML = h;
+    meta('gov', hits.length + ' link' + (hits.length === 1 ? '' : 's') + ', gov_exposure_' + jur);
+  }
+
+  /* ---------- 7. LAWS ------------------------------------------------- */
+  function drawLaws(box, row, file){
+    if(row.ex !== 'NSE'){
+      box.innerHTML = empText('<b>No law file covers ' + t(row.ex) + '.</b> ' +
+        'gov_laws_KE.json records Kenyan Acts against NSE issuers only.');
+      meta('laws', 'no file for ' + row.ex);
+      return;
+    }
+    var path = sd('gov_laws_KE.json');
+    if(readState(path) === 'failed' || !file){
+      box.innerHTML = empText('<b>gov_laws_KE.json was not read.</b> ' +
+        'No Act is printed and none is inferred.');
+      meta('laws', 'file not read');
+      return;
+    }
+    var tk = rowTicker(row);
+    var laws = (file.laws || []).filter(function(l){
+      var list = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); });
+      return list.indexOf(tk) >= 0 || list.indexOf('ALL') >= 0;
+    });
+    if(!laws.length){
+      box.innerHTML = empText('<b>No Act in gov_laws_KE.json names ' + t(tk) + '.</b> ' +
+        'The file carries ' + ((file.laws || []).length) + ' Acts.');
+      meta('laws', '0 of ' + ((file.laws || []).length));
+      return;
+    }
+    /* the Acts that name this issuer first, the every-issuer ones after */
+    laws.sort(function(a, b){
+      var A = (a.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0 ? 0 : 1;
+      var B = (b.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0 ? 0 : 1;
+      if(A !== B) return A - B;
+      return String(b.year || '').localeCompare(String(a.year || ''));
+    });
+    var mine = laws.filter(function(l){
+      return (l.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0;
+    }).length;
+    box.innerHTML = laws.map(function(l){
+      var all = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) < 0;
+      var st = String(l.status || '').toLowerCase();
+      return '<div class="lw"><div class="h1">' +
+        (l.year ? '<span class="st">' + t(l.year) + '</span>' : '') +
+        '<span class="nm">' + t(l.name || l.id || '') + '</span>' +
+        '<span class="st ' + t(st) + '">' + t(st || 'status not stated') + '</span>' +
+        (all ? '<span class="all">ALL ISSUERS</span>' : '') +
+        '</div>' + (l.mechanism ? '<div class="mech">' + t(l.mechanism) + '</div>' : '') +
+        (l.status_note ? '<div class="mech" style="color:var(--tx3)">' + t(l.status_note) + '</div>' : '') +
+        '</div>';
+    }).join('');
+    meta('laws', mine + ' naming ' + rowTicker(row) + ', ' + (laws.length - mine) + ' every issuer');
+  }
+
+  /* ---------- the build ---------------------------------------------- */
+  var GEN = 0, CUR = null;
+
+  function finPath(row, key, kind){
+    var base = '../../static_data/' + (kind === 'analytics' ? 'analytics/' : 'financials/');
+    var name = encodeURIComponent(String(key).replace(/\//g, '_'));
+    return base + name + (kind === 'analytics' ? '.json' : '__income.json');
+  }
+  function tryKeys(row, kind){
+    var keys = [String(row.ticker || '')];
+    if(row.sym && String(row.sym).toUpperCase() !== String(row.ticker).toUpperCase()) keys.push(String(row.sym));
+    if(row.ex === 'JSE' && String(row.ticker).indexOf('.') < 0) keys.push(String(row.ticker) + '.JO');
+    var seen = {}, out = [];
+    keys.forEach(function(k){ if(k && !seen[k]){ seen[k] = 1; out.push(k); } });
+    return out;
+  }
+  function readFirst(row, kind){
+    var keys = tryKeys(row, kind);
+    return (function step(i){
+      if(i >= keys.length) return Promise.resolve(null);
+      return getJSON(finPath(row, keys[i], kind)).then(function(d){
+        if(d) return {d:d, key:keys[i]};
+        return step(i + 1);
+      });
+    })(0);
+  }
+
+  function build(row){
+    var gen = ++GEN;
+    CUR = row;
+    paintHead(row, null);
+    document.getElementById('dossier').innerHTML = shells();
+    document.getElementById('footNote').textContent = '';
+
+    var ex = row.ex;
+    var jobs = [];
+    jobs.push(getJSON(sd('company_info.json')));
+    jobs.push(getJSON(sd('relationships_' + ex + '.json')));
+    jobs.push(getJSON(sd(ex.toLowerCase() + '_news.json')));
+    jobs.push(getJSON(sd(ex.toLowerCase() + '_announcements.json')));
+    jobs.push(getJSON(sd('shareholders_' + ex + '.json')));
+    jobs.push(readFirst(row, 'income'));
+    jobs.push(readFirst(row, 'analytics'));
+    if(ex === 'NSE'){
+      jobs.push(getJSON(sd('gov_exposure_KE.json')));
+      jobs.push(getJSON(sd('gov_laws_KE.json')));
+    } else if(ex === 'JSE'){
+      jobs.push(getJSON(sd('gov_exposure_SA.json')));
+    }
+
+    Promise.all(jobs).then(function(R){
+      if(gen !== GEN) return;
+      var info = R[0], relFile = R[1], newsFile = R[2], annFile = R[3], shFile = R[4];
+      var fin = R[5], an = R[6];
+      paintHead(row, info && (info[row.ticker] || info[ex + ':' + row.sym] || info[row.sym] || info[rowTicker(row)]));
+      var govFiles = {};
+      if(ex === 'NSE'){ govFiles.KE = R[7]; }
+      if(ex === 'JSE'){ govFiles.SA = R[7]; }
+      var lawsFile = ex === 'NSE' ? R[8] : null;
+
+      var relRec = null;
+      if(relFile && relFile.securities){
+        var s = relFile.securities;
+        relRec = s[row.ticker] || s[row.sym] || s[rowTicker(row)] || null;
+      }
+      guardDraw('rel', function(box){ drawRel(box, row, relFile, relRec); });
+      guardDraw('news', function(box){ drawNews(box, row); });
+      guardDraw('fin', function(box){
+        drawFin(box, row, fin && fin.d, an && an.d, (fin && fin.key) || rowTicker(row));
+      });
+      guardDraw('own', function(box){ drawOwn(box, row, shFile); });
+      guardDraw('gov', function(box){ drawGov(box, row, govFiles); });
+      guardDraw('laws', function(box){ drawLaws(box, row, lawsFile); });
+
+      var bits = [];
+      if(relFile && relFile.generated) bits.push('relationships ' + relFile.generated);
+      document.getElementById('footNote').textContent = nd(bits.join('  '));
+    }).catch(function(e){
+      if(gen !== GEN) return;
+      document.getElementById('dossier').innerHTML =
+        '<div class="fail"><b>DOSSIER FAILED</b> ' + t(String((e && e.message) || e)) + '</div>';
+    });
+  }
+
+  function pick(row){
+    if(!row) return;
+    closeSug();
+    var inp = document.getElementById('q');
+    if(inp){ inp.value = rowTicker(row); }
+    build(row);
+  }
+
+  /* ---------- wiring -------------------------------------------------- */
+  var inp = document.getElementById('q');
+  if(inp){
+    inp.addEventListener('input', function(){ drawSug(inp.value); });
+    inp.addEventListener('keydown', function(ev){
+      var k = ev.key;
+      if(k === 'Enter'){
+        ev.preventDefault();
+        var tok = String(inp.value || '').trim();
+        if(!tok) return;
+        if(SUG.on && SUG.rows.length){ pick(SUG.rows[SUG.i || 0]); return; }
+        var exact = findRow(tok, null);
+        if(exact){ pick(exact); return; }
+        var first = rank(tok)[0];
+        if(first){ pick(first); return; }
+        var box = document.getElementById('sug');
+        if(box){
+          box.innerHTML = '<div class="sg none">NO SECURITY MATCHES "' + t(tok) + '"</div>';
+          box.className = 'sug on';
+        }
+      } else if(k === 'ArrowDown' || k === 'ArrowUp'){
+        if(!SUG.on || !SUG.rows.length) return;
+        ev.preventDefault();
+        var n = SUG.rows.length;
+        SUG.i = (SUG.i + (k === 'ArrowDown' ? 1 : n - 1)) % n;
+        Array.prototype.forEach.call(document.querySelectorAll('#sug .sg[data-i]'), function(el){
+          el.className = 'sg' + (Number(el.getAttribute('data-i')) === SUG.i ? ' sel' : '');
+        });
+      } else if(k === 'Escape'){
+        closeSug();
+        inp.blur();
+      }
+    });
+    inp.addEventListener('blur', function(){ setTimeout(closeSug, 120); });
+  }
+  document.addEventListener('mousedown', function(ev){
+    var box = document.getElementById('sug');
+    if(box && ev.target !== inp && !box.contains(ev.target) && box.className.indexOf('on') >= 0){
+      closeSug();
+    }
+  });
+
+  /* the shell hands the selection over; adopting it means a panel opened from
+     a watchlist click lands on that security, not on a default */
+  window.__mtApplySelection = function(sel){
+    if(!sel || !(sel.sym || sel.ticker)) return false;
+    loadIndex().then(function(){
+      var row = findRow(sel.sym || sel.ticker, sel.ex);
+      if(row) pick(row);
+    });
+    return true;
+  };
+  window.addEventListener('message', function(ev){
+    if(!ev || ev.origin !== location.origin) return;
+    var d = ev.data;
+    if(d && d.__mt === 'selection') window.__mtApplySelection(d);
+  });
+  function announceReady(){
+    try{
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage({__mt: 'sel-ready'}, location.origin);
+      }
+    }catch(e){}
+  }
+
+  /* the proof surface: what this panel believes, readable from the DOM */
+  window.__mtPerpState = function(){
+    var out = {ticker: CUR ? rowTicker(CUR) : '', ex: CUR ? CUR.ex : '',
+               name: CUR ? nd(CUR.name || '') : '', sections:{},
+               inputs: document.querySelectorAll('input').length,
+               buttons: document.querySelectorAll('button').length};
+    SEC_ORDER.forEach(function(k){
+      var b = document.getElementById('b_' + k);
+      var m = document.getElementById('m_' + k);
+      var first = b ? b.querySelector('.rw .rn, .nw .tt, .lw .nm, .co .bd, table.fin tbody td.it, .emp b') : null;
+      out.sections[k] = {
+        meta: m ? nd(m.textContent || '').trim() : '',
+        failed: !!(b && b.querySelector('.fail')),
+        rows: b ? b.querySelectorAll('.rw, .nw, .lw, .co, table.fin tbody tr').length : 0,
+        first: first ? nd(first.textContent || '').trim().slice(0, 160) : '',
+        text: b ? nd(b.textContent || '').trim().slice(0, 240) : ''
+      };
+    });
+    return out;
+  };
+
+  /* boot */
+  loadIndex().then(function(){
+    var tk = Q.get('sym') || Q.get('ticker') || '';
+    var ex = (Q.get('ex') || '').toUpperCase();
+    var row = tk ? findRow(tk, ex) : null;
+    function firstOf(exCode){
+      for(var i = 0; i < IDX.length; i++){
+        if(!exCode || IDX[i].ex === exCode) return IDX[i];
+      }
+      return null;
+    }
+    if(row){ pick(row); announceReady(); return; }
+    if(!tk && ex){
+      /* No security was named. Open on a security of the exchange the shell is
+         showing that actually carries a relationship record, so the first
+         screen is a dossier and not an empty frame. */
+      getJSON(sd('relationships_' + ex + '.json')).then(function(rel){
+        var secs = (rel && rel.securities) || {};
+        var sel = null;
+        for(var i = 0; i < IDX.length; i++){
+          var r = IDX[i];
+          if(r.ex !== ex) continue;
+          if(secs[r.ticker] || secs[r.sym]){ sel = r; break; }
+        }
+        sel = sel || firstOf(ex) || findRow('SCOM', 'NSE') || IDX[0];
+        if(sel) pick(sel);
+        announceReady();
+      });
+      return;
+    }
+    var def = findRow('SCOM', 'NSE') || IDX[0];
+    if(def) pick(def);
+    announceReady();
+  });
+})();
+</script>
+</body>
+</html>
