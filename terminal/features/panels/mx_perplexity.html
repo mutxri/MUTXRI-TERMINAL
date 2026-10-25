@@ -9,7 +9,7 @@
   shape a good research answer takes: what is DIRECT, what reaches a company
   through a MECHANISM, what is NOT THERE, and WHERE IT WAS READ.
 
-  Layout: eight figure tiles across the top, the interlink graph as the
+  Layout: eight figure tiles across the top, the relationship map as the
   centrepiece, the selected link in a short side list, the thesis block, the
   price history on the same lightweight-charts engine the CHART window uses,
   laws as status coloured chips and a strip of headline cards. Revenue bars and
@@ -40,7 +40,10 @@
     * an empty record is told apart from a failed read, and a failed read prints
       the failure where its content belongs;
     * every block draws inside a guard, so one broken read blanks one block;
-    * one search input, one hop toggle, one set of type filters, no more.
+    * one search input, one hop toggle, one set of type filters, no more;
+    * the map is drawn the way a relationship map is read: one focal node, the
+      counterparties on rings by hop, links curved with an arrow at the target,
+      a boxed legend with counts, and pan, zoom and reset on the map itself.
   Vanilla JS, single file, no build step. Mint on black, Oxygen Mono.
 -->
 <!DOCTYPE html>
@@ -154,19 +157,48 @@
       overflow:hidden;text-overflow:ellipsis}
   .cb{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
 
-  /* interlink graph: company to company, two hops, four exchange files */
-  .gwrap{position:absolute;inset:0}
-  .gwrap svg{width:100%;height:100%;display:block}
+  /* relationship map: one focal node, counterparties on hop rings, curved
+     arrowed links, a boxed legend and a tight toolbar. Dark and quiet. */
+  .gwrap{position:absolute;inset:0;overflow:hidden;user-select:none}
+  .gwrap svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+  .gwrap svg.drag{cursor:grabbing}
   .gsub{position:absolute;left:0;right:0;bottom:0;padding:2px 9px 4px;font-size:7.5px;
         letter-spacing:.07em;color:#8a8a8a;text-transform:uppercase;background:rgba(0,0,0,.72);
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gsub b{color:var(--warn);font-weight:700}
   .gsub i{font-style:normal;color:var(--acc)}
+  .rg{fill:none;stroke:#1b1b1b;stroke-width:1;stroke-dasharray:2 7}
+  .rl{font-size:6.8px;letter-spacing:.13em;fill:#585858}
+  .ge{fill:none;stroke-linecap:round;stroke-opacity:.55;transition:stroke-opacity .09s linear}
+  .ge.dim{stroke-opacity:.10}
+  .ge.hi{stroke-opacity:.95}
   .nd{pointer-events:all;cursor:pointer}
   .nd text{font-family:var(--mono);letter-spacing:.02em}
-  .nd circle{transition:stroke-width .08s linear}
-  .nd:hover circle{stroke-width:2.6}
-  .nd.on circle{stroke-width:2.8}
+  .nd .nl{transition:stroke-width .08s linear}
+  .nd.dim{opacity:.3}
+  .nd:hover .nl,.nd.hv .nl,.nd.on .nl{stroke-width:2.2}
+  /* the legend, boxed at the corner of the map on its own rail, so no node or
+     label is ever drawn under it */
+  .gleg{position:absolute;right:0;top:0;bottom:0;width:138px;border-left:1px solid var(--line2);
+        background:rgba(3,3,3,.94);padding:5px 7px 4px;z-index:5}
+  .gleg .lgh{font-size:6.5px;letter-spacing:.16em;color:var(--tx3);border-bottom:1px solid var(--line);
+             padding-bottom:2px;margin-bottom:3px}
+  .gleg .lgr{display:flex;align-items:center;gap:5px;font-size:7.5px;letter-spacing:.05em;
+             color:var(--tx2);line-height:1.5;white-space:nowrap}
+  .gleg .lgr i{width:6px;height:6px;flex:0 0 6px;display:block}
+  .gleg .lgr span{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
+  .gleg .lgr b{color:var(--tx);font-weight:700}
+  .gleg .lgr.off{opacity:.42}
+  .gleg .lgf{display:flex;justify-content:space-between;font-size:6.5px;letter-spacing:.14em;
+             color:var(--tx3);border-top:1px solid var(--line);margin-top:3px;padding-top:2px}
+  .gleg .lgf b{color:var(--acc);font-weight:700;letter-spacing:.04em}
+  .gleg .lgrg{display:flex;justify-content:space-between;font-size:7.5px;letter-spacing:.05em;
+              color:var(--tx3);line-height:1.5}
+  .gleg .lgrg b{color:var(--tx);font-weight:700}
+  /* the toolbar in the map header: depth, type filters, view */
+  .ch .cgrp .cl2{font-size:6.5px}
+  button.kn.z{width:18px;padding:2px 0;text-align:center}
+  .zk{font-size:7px;color:var(--tx3);letter-spacing:.04em;min-width:27px;text-align:right}
 
   /* the selected link, six short rows, no paragraphs */
   #b_sel{padding:5px 8px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
@@ -177,8 +209,8 @@
   .sv.tk{color:var(--acc);font-weight:700;letter-spacing:.04em}
   .sv.dm{color:var(--tx2)}
   .sv.wr{color:var(--warn)}
-  .sv.clip{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
-           overflow:hidden;font-family:var(--ui);font-size:9.5px;color:var(--tx2);line-height:1.25}
+  .sv.clip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--ui);
+           font-size:9.5px;color:var(--tx2);line-height:1.25}
   .sk.sk2{flex:0 0 auto;color:var(--tx3)}
   .tag2{flex:0 0 auto;font-size:6.5px;letter-spacing:.08em;color:var(--warn);border:1px solid #4a3810;
         padding:0 2px;border-radius:1px;line-height:1.3}
@@ -285,18 +317,6 @@
     <input class="qin" id="q" type="text" autocomplete="off" spellcheck="false"
            placeholder="ticker or company name" aria-label="ticker or company name">
     <span class="hint">TICKER OR NAME</span>
-    <div class="cgrp" id="c_hop">
-      <span class="cl2">DEPTH</span>
-      <button class="kn hp" type="button" data-hop="1" aria-pressed="true">1 HOP</button>
-      <button class="kn hp" type="button" data-hop="2" aria-pressed="false">2 HOPS</button>
-    </div>
-    <div class="cgrp" id="c_type">
-      <span class="cl2">LINKS</span>
-      <button class="kn ft" type="button" data-t="customers" aria-pressed="true">CUST</button>
-      <button class="kn ft" type="button" data-t="suppliers" aria-pressed="true">SUPP</button>
-      <button class="kn ft" type="button" data-t="competitors" aria-pressed="true">COMP</button>
-      <button class="kn ft" type="button" data-t="partners" aria-pressed="true">PART</button>
-    </div>
     <div class="sug" id="sug"></div>
   </div>
 
@@ -304,7 +324,29 @@
 
   <div class="grid">
     <div class="card" id="c_rel">
-      <div class="ch"><span class="cl">INTERLINK GRAPH</span><span class="cm" id="m_rel"></span></div>
+      <div class="ch">
+        <span class="cl">RELATIONSHIP MAP</span>
+        <div class="cgrp" id="c_hop">
+          <span class="cl2">DEPTH</span>
+          <button class="kn hp" type="button" data-hop="1" aria-pressed="true">1 HOP</button>
+          <button class="kn hp" type="button" data-hop="2" aria-pressed="false">2 HOPS</button>
+        </div>
+        <div class="cgrp" id="c_type">
+          <span class="cl2">LINKS</span>
+          <button class="kn ft" type="button" data-t="customers" aria-pressed="true">CUST</button>
+          <button class="kn ft" type="button" data-t="suppliers" aria-pressed="true">SUPP</button>
+          <button class="kn ft" type="button" data-t="competitors" aria-pressed="true">COMP</button>
+          <button class="kn ft" type="button" data-t="partners" aria-pressed="true">PART</button>
+        </div>
+        <div class="cgrp" id="c_view">
+          <span class="cl2">VIEW</span>
+          <button class="kn z" type="button" id="zout" title="zoom out" aria-label="zoom out">-</button>
+          <span class="zk" id="zk">1.0x</span>
+          <button class="kn z" type="button" id="zin" title="zoom in" aria-label="zoom in">+</button>
+          <button class="kn" type="button" id="zrst" title="reset pan and zoom">RESET</button>
+        </div>
+        <span class="cm" id="m_rel"></span>
+      </div>
       <div class="cb" id="b_rel"></div>
     </div>
     <div class="card" id="c_px">
@@ -861,127 +903,234 @@
     }
     return {nodes:nodes, edges:edges, centre:centre, trunc:trunc};
   }
-  function layoutGraph(g, w, h){
-    var cx = w / 2, cy = h / 2 - 3;
-    var padX = 40, padT = 22, padB = 22;
+  /* The map is read the way the Bloomberg relationship map is read: one focal
+     node, counterparties on concentric rings by hop, curved links with an
+     arrowhead at the target end, coloured by relationship type. Radii, arrow
+     direction and the hop of every node come from the graph build above, so a
+     link is still drawn only where a record names it. */
+  var R_CTR = 24, R_L1 = 4.8, R_L2 = 3.8;
+  var MAP = {k:1, x:0, y:0, drag:false, moved:false, sx:0, sy:0, ox:0, oy:0, svg:null};
+
+  /* the legend keeps a rail of its own, so no node is ever drawn under it */
+  function mapGeo(w, h){
+    var legW = w >= 460 ? 138 : 0;
+    var mapW = Math.max(180, w - legW);
+    var padT = 14, padB = 30;
+    return {cx: mapW / 2, cy: padT + Math.max(48, h - padT - padB) / 2, legW: legW, mapW: mapW,
+            maxRx: Math.max(56, Math.min(mapW / 2 - 22, w / 2 - 22)),
+            maxRy: Math.max(38, (h - padT - padB) / 2)};
+  }
+  function layoutRings(g, w, h){
+    var geo = mapGeo(w, h), cx = geo.cx, cy = geo.cy;
     g.centre.tx = cx;
     g.centre.ty = cy;
     g.centre.ang = -Math.PI / 2;
     var hop1 = g.nodes.filter(function(n){ return n.depth === 1; });
     var hop2 = g.nodes.filter(function(n){ return n.depth === 2; });
-    var availH = Math.max(60, h - padT - padB);
-    var rx1 = Math.min(w * 0.27, 300), ry1 = Math.min(availH * 0.33, 120);
-    var rx2 = Math.min(w * 0.45, 520), ry2 = Math.min(availH * 0.47, 180);
-    hop1.sort(function(a, b){ return typeOrder(a.types[0]) - typeOrder(b.types[0]); });
-    hop1.forEach(function(n, i){
-      var ang = (-90 + (i / Math.max(1, hop1.length)) * 360) * Math.PI / 180;
-      n.tx = cx + Math.cos(ang) * rx1;
-      n.ty = cy + Math.sin(ang) * ry1;
-      n.ang = ang;
+    hop1.sort(function(a, b){
+      var d = typeOrder(a.types[0]) - typeOrder(b.types[0]);
+      return d || String(a.code || '').localeCompare(String(b.code || ''));
     });
-    var byParent = {};
-    hop2.forEach(function(n){
-      var k = n.parent ? n.parent.key : '';
-      if(!byParent[k]) byParent[k] = [];
-      byParent[k].push(n);
-    });
-    Object.keys(byParent).forEach(function(k){
-      var arr = byParent[k], p = null, i;
-      for(i = 0; i < hop1.length; i++){ if(hop1[i].key === k) p = hop1[i]; }
-      var base = (p && p.ang != null) ? p.ang : -Math.PI / 2;
-      var spread = Math.min(0.95, 0.32 * Math.max(1, arr.length - 1));
-      arr.forEach(function(n, j){
-        var off = arr.length > 1 ? (-spread + (2 * spread) * (j / (arr.length - 1))) : 0;
-        var ang = base + off;
+    var ryCap = geo.maxRy * 0.95;
+    var rx1, ry1, rx2 = 0, ry2 = 0, aspect = 0.55;
+    if(hop2.length){
+      /* two rings: the outer one holds the height, the inner sits well inside it */
+      rx2 = Math.min(geo.maxRx, Math.max(200, hop2.length * 15, hop1.length * 20));
+      ry2 = Math.max(50, Math.min(ryCap, rx2 * 0.55));
+      aspect = ry2 / rx2;
+      rx1 = Math.min(rx2 * 0.58, Math.max(150, hop1.length * 18));
+      ry1 = Math.max(64, Math.min(ry2 * 0.74, rx1 * aspect));
+    } else {
+      rx1 = Math.min(geo.maxRx, Math.max(150, hop1.length * 14, geo.maxRx * 0.74));
+      ry1 = Math.max(52, Math.min(ryCap, rx1 * 0.55));
+    }
+    /* angles run from the left apex, which is kept clear so RING n can be
+       printed on it, and each node sits in the middle of its own slot */
+    var GAP = 40 * Math.PI / 180;
+    function placeRing(arr, rx, ry){
+      var start = Math.PI + GAP / 2;
+      var step = (Math.PI * 2 - GAP) / Math.max(1, arr.length);
+      arr.forEach(function(n, i){
+        var ang = start + step * (i + 0.5);
+        n.tx = cx + Math.cos(ang) * rx;
+        n.ty = cy + Math.sin(ang) * ry;
+        n.ang = ang;
+      });
+    }
+    placeRing(hop1, rx1, ry1);
+    var rings = [{i:1, rx:rx1, ry:ry1, n:hop1.length}];
+    if(hop2.length){
+      var pa = {};
+      hop1.forEach(function(n){ pa[n.key] = n.ang; });
+      /* second hop ordered by the angle of its parent, so children sit near it */
+      hop2.sort(function(a, b){
+        var x = (a.parent && pa[a.parent.key] != null) ? pa[a.parent.key] : 0;
+        var y = (b.parent && pa[b.parent.key] != null) ? pa[b.parent.key] : 0;
+        if(Math.abs(x - y) > 1e-9) return x - y;
+        return typeOrder(a.types[0]) - typeOrder(b.types[0]);
+      });
+      var step = (Math.PI * 2 - GAP) / hop2.length;
+      var start2 = Math.PI + GAP / 2;
+      hop2.forEach(function(n, i){
+        var ang = start2 + step * (i + 0.5);
         n.tx = cx + Math.cos(ang) * rx2;
         n.ty = cy + Math.sin(ang) * ry2;
         n.ang = ang;
       });
-    });
-    /* a light relaxation only: nodes are pushed apart so labels keep their own
-       space, the centre never moves, and nothing leaves the frame */
-    var all = hop1.concat(hop2), minD = 30;
-    for(var it = 0; it < 90; it++){
-      var moved = false, i, j;
-      for(i = 0; i < all.length; i++){
-        for(j = i + 1; j < all.length; j++){
-          var a = all[i], b = all[j];
-          var dx = b.tx - a.tx, dy = b.ty - a.ty;
-          var d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-          if(d >= minD) continue;
-          var push = (minD - d) / 2 + 0.4;
-          var ux = dx / d, uy = dy / d;
-          a.tx -= ux * push; a.ty -= uy * push;
-          b.tx += ux * push; b.ty += uy * push;
-          moved = true;
-        }
-      }
-      all.forEach(function(n){
-        var dx = n.tx - cx, dy = n.ty - cy, d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-        if(d < 52){
-          n.tx = cx + (dx / d) * 52;
-          n.ty = cy + (dy / d) * 52;
-        }
-        n.tx = Math.max(padX, Math.min(w - padX, n.tx));
-        n.ty = Math.max(padT, Math.min(h - padB - 10, n.ty));
-      });
-      if(!moved && it > 6) break;
+      rings.push({i:2, rx:rx2, ry:ry2, n:hop2.length});
     }
+    /* a label sits outside its ring, horizontally readable, on the side of the
+       node it belongs to */
+    g.nodes.forEach(function(n){
+      if(n.depth === 0) return;
+      var c = Math.cos(n.ang || 0), s = Math.sin(n.ang || 0);
+      var r = n.depth === 1 ? R_L1 : R_L2;
+      n.la = 'middle';
+      n.lx = n.tx;
+      n.ly = n.ty - r - 5;
+      if(c > 0.32){ n.la = 'start'; n.lx = n.tx + r + 4; n.ly = n.ty + 2.6; }
+      else if(c < -0.32){ n.la = 'end'; n.lx = n.tx - r - 4; n.ly = n.ty + 2.6; }
+      else if(s > 0){ n.ly = n.ty + r + 8.5; }
+    });
+    /* no two labels on the same side may stack: the label moves, the node does not */
+    ['start', 'end'].forEach(function(side){
+      var arr = g.nodes.filter(function(n){ return n.depth > 0 && n.la === side; });
+      arr.sort(function(a, b){ return a.ly - b.ly; });
+      var i;
+      for(i = 1; i < arr.length; i++){
+        if(arr[i].ly - arr[i - 1].ly < 8.4) arr[i].ly = arr[i - 1].ly + 8.4;
+      }
+      var over = arr.length ? arr[arr.length - 1].ly - (h - 15) : 0;
+      if(over > 0){ for(i = 0; i < arr.length; i++) arr[i].ly -= over; }
+      var under = arr.length ? (11 - arr[0].ly) : 0;
+      if(under > 0){ for(i = 0; i < arr.length; i++) arr[i].ly += under; }
+    });
+    g.geo = {cx:cx, cy:cy, rings:rings, rCtr:R_CTR, r1:R_L1, r2:R_L2};
   }
-  function graphSVG(g, w, h, row){
-    layoutGraph(g, w, h);
+  function radiusOf(n){
+    return n.depth === 0 ? R_CTR : (n.depth === 1 ? R_L1 : R_L2);
+  }
+  function markersHTML(){
+    var h = '<defs>';
+    relTypes().forEach(function(tp){
+      h += '<marker id="ar_' + tp.k + '" viewBox="0 0 8 8" refX="7.2" refY="4" markerWidth="7" ' +
+        'markerHeight="7" orient="auto"><path d="M0 0.7 L7.2 4 L0 7.3 Z" fill="' + tp.c +
+        '"/></marker>';
+    });
+    return h + '</defs>';
+  }
+  /* a curved bezier per link, bowed so parallel links never sit on each other,
+     trimmed to the rims so the arrowhead lands on the disc */
+  function edgesHTML(g){
     var pos = {}, i;
     g.nodes.forEach(function(n){ pos[n.key] = n; });
-    var cx = w / 2, cy = h / 2 - 3;
-    var out = '<ellipse cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" rx="' +
-      Math.min(w * 0.27, 300).toFixed(1) + '" ry="' + Math.min(Math.max(60, h - 44) * 0.33, 120).toFixed(1) +
-      '" fill="none" stroke="#161616" stroke-width="1" stroke-dasharray="2 6"/>';
+    var pairCount = {}, pairIdx = {}, out = '';
+    g.edges.forEach(function(e){
+      var k = e.a < e.b ? e.a + '|' + e.b : e.b + '|' + e.a;
+      e.pk = k;
+      pairCount[k] = (pairCount[k] || 0) + 1;
+    });
     g.edges.forEach(function(e){
       var a = pos[e.a], b = pos[e.b];
       if(!a || !b || a.tx == null || b.tx == null) return;
-      var col = typeOf(e.type).c;
-      var op = e.depth === 1 ? .34 : .24;
-      out += '<line x1="' + a.tx.toFixed(1) + '" y1="' + a.ty.toFixed(1) + '" x2="' + b.tx.toFixed(1) +
-        '" y2="' + b.ty.toFixed(1) + '" stroke="' + col + '" stroke-opacity="' + op +
-        '" stroke-width="' + (e.depth === 1 ? 1 : 0.8) + '"' +
-        (e.depth === 2 ? ' stroke-dasharray="2 3"' : '') + ' vector-effect="non-scaling-stroke"/>';
-    });
-    g.nodes.forEach(function(n){
-      var col = n.depth === 0 ? '#33e29a' : typeOf(n.types[0]).c;
-      var lbl = String(n.depth === 0 ? (n.tk || '') : (n.code || n.tk || ''));
-      var r = n.depth === 0 ? (lbl.length >= 8 ? 28 : 24) : (n.depth === 1 ? 5.6 : 3.8);
-      var fill = n.depth === 0 ? '#0a1c15' : '#050505';
-      var title = n.name + (n.ex ? ' ' + n.ex : '') + (n.tk ? ' ' + n.tk : '') +
-        (n.reason ? ' | ' + n.reason : '') + (n.src ? ' | ' + n.src : '');
-      out += '<g class="nd' + (n.depth === 0 ? ' ct' : '') + '" data-k="' + t(n.key) + '">' +
-        '<title>' + t(title) + '</title>' +
-        '<circle cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' + (r + 7).toFixed(1) +
-        '" fill="transparent" stroke="none"/>' +
-        '<circle cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' + r +
-        '" fill="' + fill + '" stroke="' + col + '" stroke-width="' + (n.depth === 0 ? 1.5 : 1.3) + '"/>';
-      if(n.depth === 0){
-        out += '<text x="' + n.tx.toFixed(1) + '" y="' + (n.ty + 3.5).toFixed(1) +
-          '" text-anchor="middle" font-size="' + (lbl.length >= 8 ? 9 : 11) +
-          '" font-weight="700" fill="#33e29a">' + t(lbl) + '</text>';
-      } else {
-        out += '<text x="' + n.tx.toFixed(1) + '" y="' + (n.ty + r + 10).toFixed(1) +
-          '" text-anchor="middle" font-size="' + (n.depth === 1 ? 8.5 : 8) + '" fill="' +
-          (n.depth === 1 ? '#b0b0b0' : '#808080') + '">' + t(lbl) + '</text>';
-      }
-      out += '</g>';
-    });
-    var counts = {customers:0, suppliers:0, competitors:0, partners:0};
-    g.nodes.forEach(function(n){
-      if(n.depth === 0) return;
-      counts[n.types[0]] = (counts[n.types[0]] || 0) + 1;
-    });
-    relTypes().forEach(function(tp, k){
-      var x = 9, y = 12 + k * 11;
-      out += '<rect x="' + x + '" y="' + (y - 6) + '" width="6" height="6" fill="' + tp.c + '"/>' +
-        '<text x="' + (x + 11) + '" y="' + y + '" font-size="7.5" fill="#6a6a6a" letter-spacing=".06em">' +
-        tp.n + ' ' + (counts[tp.k] || 0) + '</text>';
+      var ra = radiusOf(a), rb = radiusOf(b);
+      var dx = b.tx - a.tx, dy = b.ty - a.ty;
+      var L = Math.sqrt(dx * dx + dy * dy) || 1;
+      var nx = -dy / L, ny = dx / L;
+      var idx = pairIdx[e.pk] = (pairIdx[e.pk] == null ? 0 : pairIdx[e.pk] + 1);
+      var sign = idx % 2 ? -1 : 1;
+      var bend = Math.min(96, Math.max(14, L * 0.24)) * sign * (1 + Math.floor(idx / 2) * 0.55);
+      var mx = (a.tx + b.tx) / 2 + nx * bend;
+      var my = (a.ty + b.ty) / 2 + ny * bend;
+      var d1 = Math.sqrt((mx - a.tx) * (mx - a.tx) + (my - a.ty) * (my - a.ty)) || 1;
+      var x1 = a.tx + (mx - a.tx) / d1 * (ra + 2);
+      var y1 = a.ty + (my - a.ty) / d1 * (ra + 2);
+      var d2 = Math.sqrt((mx - b.tx) * (mx - b.tx) + (my - b.ty) * (my - b.ty)) || 1;
+      var x2 = b.tx + (mx - b.tx) / d2 * (rb + 4.5);
+      var y2 = b.ty + (my - b.ty) / d2 * (rb + 4.5);
+      var cnt = pairCount[e.pk];
+      var wd = Math.min(2.3, 0.9 + 0.3 * (cnt - 1));
+      out += '<path class="ge" data-a="' + t(e.a) + '" data-b="' + t(e.b) + '" d="M' +
+        x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' +
+        x2.toFixed(1) + ' ' + y2.toFixed(1) + '" fill="none" stroke="' + typeOf(e.type).c +
+        '" stroke-width="' + wd.toFixed(2) + '" marker-end="url(#ar_' + t(e.type) + ')"/>';
     });
     return out;
+  }
+  function nodesHTML(g){
+    var out = '';
+    g.nodes.forEach(function(n){
+      if(n.depth === 0) return;
+      var col = typeOf(n.types[0]).c;
+      var lbl = String(n.code || n.tk || '');
+      var r = n.depth === 1 ? R_L1 : R_L2;
+      var title = n.name + (n.ex ? ' ' + n.ex : '') + (n.tk ? ' ' + n.tk : '') +
+        (n.reason ? ' | ' + n.reason : '') + (n.src ? ' | ' + n.src : '');
+      out += '<g class="nd" data-k="' + t(n.key) + '" data-d="' + n.depth + '">' +
+        '<title>' + t(title) + '</title>' +
+        '<circle cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' +
+        (r + 5).toFixed(1) + '" fill="transparent" stroke="none"/>' +
+        '<circle class="nl" cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' + r +
+        '" fill="#050505" stroke="' + col + '" stroke-width="1"/>' +
+        '<text x="' + n.lx.toFixed(1) + '" y="' + n.ly.toFixed(1) + '" text-anchor="' + n.la +
+        '" font-size="' + (n.depth === 1 ? 7.6 : 7) + '" fill="' +
+        (n.depth === 1 ? '#a8a8a8' : '#7a7a7a') + '">' + t(lbl) + '</text></g>';
+    });
+    /* the focal node: a filled disc with a coloured ring, big enough to carry
+       the ticker inside and the company name under it */
+    var c = g.centre;
+    var lbl = String(c.tk || '');
+    var fs = lbl.length <= 5 ? 10.5 : (lbl.length <= 8 ? 8.6 : 7.2);
+    var nm = String(c.name || '');
+    var nmS = nm.length > 30 ? nm.slice(0, 29) + '.' : nm;
+    out += '<g class="nd ct" data-k="' + t(c.key) + '" data-d="0">' +
+      '<title>' + t(nm + ' ' + c.ex + ' ' + lbl) + '</title>' +
+      '<circle cx="' + c.tx.toFixed(1) + '" cy="' + c.ty.toFixed(1) + '" r="' + (R_CTR + 6) +
+      '" fill="none" stroke="#1f4f3c" stroke-width="1" stroke-dasharray="2 3"/>' +
+      '<circle class="nl" cx="' + c.tx.toFixed(1) + '" cy="' + c.ty.toFixed(1) + '" r="' + R_CTR +
+      '" fill="#071710" stroke="#33e29a" stroke-width="1.6"/>' +
+      '<text x="' + c.tx.toFixed(1) + '" y="' + (c.ty + 3.6).toFixed(1) +
+      '" text-anchor="middle" font-size="' + fs + '" font-weight="700" fill="#33e29a">' +
+      t(lbl) + '</text>' +
+      '<text x="' + c.tx.toFixed(1) + '" y="' + (c.ty + R_CTR + 13).toFixed(1) +
+      '" text-anchor="middle" font-size="7.4" fill="#8a8a8a">' + t(nmS) + '</text></g>';
+    return out;
+  }
+  function legendHTML(g){
+    var counts = {};
+    g.nodes.forEach(function(n){
+      if(n.depth === 0) return;
+      var k = n.types[0] || '';
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    var h = '<div class="lgh">LEGEND</div>';
+    relTypes().forEach(function(tp){
+      h += '<div class="lgr' + (G.types[tp.k] ? '' : ' off') + '"><i style="background:' + tp.c +
+        '"></i><span>' + tp.n + '</span><b>' + (counts[tp.k] || 0) + '</b></div>';
+    });
+    h += '<div class="lgf"><span>NODES</span><b>' + g.nodes.length + '</b></div>' +
+      '<div class="lgf"><span>EDGES</span><b>' + g.edges.length + '</b></div>';
+    if(g.geo && g.geo.rings && g.geo.rings.length){
+      h += '<div class="lgh" style="margin-top:6px">RINGS</div>';
+      g.geo.rings.forEach(function(r){
+        h += '<div class="lgrg"><span>RING ' + r.i + '</span><b>' + r.n + '</b></div>';
+      });
+    }
+    return h;
+  }
+  function graphSVG(g, w, h){
+    layoutRings(g, w, h);
+    var geo = g.geo;
+    var out = markersHTML() + '<g class="gv">';
+    geo.rings.forEach(function(r){
+      out += '<ellipse class="rg" cx="' + geo.cx.toFixed(1) + '" cy="' + geo.cy.toFixed(1) +
+        '" rx="' + r.rx.toFixed(1) + '" ry="' + r.ry.toFixed(1) + '"/>' +
+        '<text class="rl" x="' + (geo.cx - r.rx - 4).toFixed(1) + '" y="' +
+        (geo.cy + 2.5).toFixed(1) + '" text-anchor="end">RING ' + r.i + '</text>';
+    });
+    out += edgesHTML(g);
+    out += nodesHTML(g);
+    return out + '</g>';
   }
   function codeFor(g){
     var used = {};
@@ -1024,16 +1173,122 @@
       else el.classList.remove('on');
     });
   }
+  function linkedSet(g, key){
+    var out = {};
+    if(!g) return out;
+    g.edges.forEach(function(e){
+      if(e.a === key) out[e.b] = 1;
+      if(e.b === key) out[e.a] = 1;
+    });
+    return out;
+  }
+  /* hover marks the edges a node actually carries and dulls the rest */
+  function hoverNode(svg, key){
+    var near = linkedSet(G.last, key);
+    Array.prototype.forEach.call(svg.querySelectorAll('path.ge'), function(el){
+      var on = el.getAttribute('data-a') === key || el.getAttribute('data-b') === key;
+      el.classList.toggle('hi', on);
+      el.classList.toggle('dim', !on);
+    });
+    Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
+      var k = el.getAttribute('data-k');
+      var on = k === key || !!near[k];
+      el.classList.toggle('dim', !on);
+      el.classList.toggle('hv', k === key);
+    });
+  }
+  function clearHover(svg){
+    Array.prototype.forEach.call(svg.querySelectorAll('path.ge'), function(el){
+      el.classList.remove('hi');
+      el.classList.remove('dim');
+    });
+    Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
+      el.classList.remove('dim');
+      el.classList.remove('hv');
+    });
+  }
   function wireNodes(svg){
     Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
-      function take(){
-        G.selKey = el.getAttribute('data-k') || '';
+      var key = el.getAttribute('data-k') || '';
+      el.addEventListener('mouseenter', function(){ hoverNode(svg, key); });
+      el.addEventListener('mouseleave', function(){ clearHover(svg); });
+      /* a click pins the node into the side list; a drag does not count as one */
+      el.addEventListener('click', function(ev){
+        if(MAP.moved) return;
+        ev.stopPropagation();
+        G.selKey = key;
         markNode(svg);
         paintSel();
-      }
-      el.addEventListener('mouseenter', take);
-      el.addEventListener('click', take);
+      });
     });
+  }
+  function applyView(svg){
+    if(!svg) return;
+    var gv = svg.querySelector('.gv');
+    if(gv){
+      gv.setAttribute('transform', 'translate(' + MAP.x.toFixed(2) + ',' + MAP.y.toFixed(2) +
+        ') scale(' + MAP.k.toFixed(3) + ')');
+    }
+    var zk = document.getElementById('zk');
+    if(zk) zk.textContent = MAP.k.toFixed(1) + 'x';
+  }
+  function zoomAt(svg, mx, my, f){
+    var k2 = Math.max(0.5, Math.min(4.5, MAP.k * f));
+    if(Math.abs(k2 - MAP.k) < 0.0005) return;
+    MAP.x = mx - (mx - MAP.x) * (k2 / MAP.k);
+    MAP.y = my - (my - MAP.y) * (k2 / MAP.k);
+    MAP.k = k2;
+    applyView(svg);
+  }
+  function zoomBy(f){
+    if(!MAP.svg) return;
+    var r = MAP.svg.getBoundingClientRect();
+    zoomAt(MAP.svg, (r.width || 0) / 2, (r.height || 0) / 2, f);
+  }
+  function resetView(){
+    MAP.k = 1;
+    MAP.x = 0;
+    MAP.y = 0;
+    applyView(MAP.svg);
+  }
+  var PAN_WIRED = false;
+  function wirePan(svg){
+    if(!PAN_WIRED){
+      PAN_WIRED = true;
+      document.addEventListener('mousemove', function(ev){
+        if(!MAP.drag || !MAP.svg) return;
+        var dx = ev.clientX - MAP.sx, dy = ev.clientY - MAP.sy;
+        if(Math.abs(dx) > 3 || Math.abs(dy) > 3) MAP.moved = true;
+        if(!MAP.moved) return;
+        MAP.x = MAP.ox + dx;
+        MAP.y = MAP.oy + dy;
+        applyView(MAP.svg);
+      });
+      document.addEventListener('mouseup', function(){
+        if(!MAP.drag) return;
+        MAP.drag = false;
+        if(MAP.svg) MAP.svg.classList.remove('drag');
+        /* MAP.moved is cleared by the next mousedown, so the click that ends a
+           drag cannot pin a node */
+      });
+    }
+    if(!svg) return;
+    svg.addEventListener('mousedown', function(ev){
+      if(ev.button !== 0) return;
+      MAP.drag = true;
+      MAP.moved = false;
+      MAP.sx = ev.clientX;
+      MAP.sy = ev.clientY;
+      MAP.ox = MAP.x;
+      MAP.oy = MAP.y;
+      MAP.svg = svg;
+      svg.classList.add('drag');
+    });
+    svg.addEventListener('wheel', function(ev){
+      ev.preventDefault();
+      var r = svg.getBoundingClientRect();
+      zoomAt(svg, ev.clientX - r.left, ev.clientY - r.top, ev.deltaY < 0 ? 1.12 : 1 / 1.12);
+    }, {passive:false});
   }
   function paintSel(){
     var box = document.getElementById('b_sel');
@@ -1043,7 +1298,7 @@
       for(i = 0; i < g.nodes.length; i++){ if(g.nodes[i].key === G.selKey){ n = g.nodes[i]; break; } }
     }
     if(!n){
-      box.innerHTML = '<div class="emp"><b>NO NODE PICKED</b> hover or click a node</div>';
+      box.innerHTML = '<div class="emp"><b>NO NODE PINNED</b> click a node on the map</div>';
       meta('sel', DASH);
       return;
     }
@@ -1077,15 +1332,25 @@
   function renderGraph(box, row){
     var g = buildGraph(row, G.rec);
     codeFor(g);
-    box.innerHTML = '<div class="gwrap"><svg class="gsvg"></svg></div>' +
+    box.innerHTML = '<div class="gwrap"></div>' +
       '<div class="gsub" id="gsub">' + graphSub(g) + '</div>';
-    var svg = box.querySelector('.gsvg');
+    var wrap = box.querySelector('.gwrap');
     var run = function(){
-      var r = svg.getBoundingClientRect();
+      var r = wrap.getBoundingClientRect();
       var w = Math.round(r.width || box.clientWidth || 600);
       var hh = Math.round(r.height || box.clientHeight || 260);
-      svg.setAttribute('viewBox', '0 0 ' + w + ' ' + hh);
-      svg.innerHTML = graphSVG(g, w, hh, row);
+      if(w < 60 || hh < 60) return;
+      wrap.innerHTML = '<svg class="gsvg" viewBox="0 0 ' + w + ' ' + hh + '" width="' + w +
+        '" height="' + hh + '">' + graphSVG(g, w, hh) + '</svg>';
+      var svg = wrap.querySelector('.gsvg');
+      var leg = document.createElement('div');
+      leg.className = 'gleg';
+      leg.id = 'gleg';
+      leg.innerHTML = legendHTML(g);
+      wrap.appendChild(leg);
+      MAP.svg = svg;
+      applyView(svg);
+      wirePan(svg);
       wireNodes(svg);
       markNode(svg);
       G.last = g;
@@ -1105,6 +1370,10 @@
     G.rec = rec;
     G.selKey = '';
     G.last = null;
+    /* a new security opens at the whole map, not at the last zoom */
+    MAP.k = 1;
+    MAP.x = 0;
+    MAP.y = 0;
     var path = sd('relationships_' + row.ex + '.json');
     if(readState(path) === 'failed' || !relFile){
       box.innerHTML = failBox('RELATIONSHIPS', 'relationships_' + row.ex + '.json not loaded');
@@ -1157,7 +1426,7 @@
     }
     renderGraph(box, row);
   }
-  /* the two controls, and nothing else, change the graph */
+  /* the controls in the map header, and nothing else, change the graph */
   function wireGraphControls(){
     var ctl = document.querySelectorAll('#c_hop .hp');
     Array.prototype.forEach.call(ctl, function(b){
@@ -1181,6 +1450,13 @@
         redrawGraph();
       });
     });
+    /* view controls: zoom in, zoom out, back to the whole map */
+    var zo = document.getElementById('zout');
+    if(zo) zo.addEventListener('click', function(){ zoomBy(1 / 1.3); });
+    var zi = document.getElementById('zin');
+    if(zi) zi.addEventListener('click', function(){ zoomBy(1.3); });
+    var zr = document.getElementById('zrst');
+    if(zr) zr.addEventListener('click', function(){ resetView(); });
   }
   function redrawGraph(){
     if(!G.row) return;
@@ -1873,7 +2149,26 @@
         hop1: hop1, hop2: hop2, edgesHop1: e1, edgesHop2: e2,
         crossExchange: cross, crossList: crossEx,
         domNodes: document.querySelectorAll('#b_rel .nd').length,
-        domLines: document.querySelectorAll('#b_rel svg line').length,
+        /* the map draws bezier paths with an arrowhead, not straight lines */
+        domEdges: document.querySelectorAll('#b_rel path.ge').length,
+        domPaths: document.querySelectorAll('#b_rel svg path').length,
+        bezierEdges: Array.prototype.filter.call(document.querySelectorAll('#b_rel path.ge'),
+          function(p){ return String(p.getAttribute('d') || '').indexOf(' Q') > 0; }).length,
+        arrowedEdges: Array.prototype.filter.call(document.querySelectorAll('#b_rel path.ge'),
+          function(p){ return !!p.getAttribute('marker-end'); }).length,
+        arrowheads: document.querySelectorAll('#b_rel svg marker').length,
+        rings: g && g.geo ? g.geo.rings : [],
+        centreRadius: g && g.geo ? g.geo.rCtr : 0,
+        leafRadius: g && g.geo ? g.geo.r1 : 0,
+        zoom: {k: Math.round(MAP.k * 1000) / 1000, x: Math.round(MAP.x), y: Math.round(MAP.y)},
+        hoverDim: document.querySelectorAll('#b_rel path.ge.dim').length,
+        hoverHi: document.querySelectorAll('#b_rel path.ge.hi').length,
+        pinned: G.selKey,
+        legendRows: Array.prototype.map.call(document.querySelectorAll('#b_rel .gleg .lgr'),
+          function(el){ return el.textContent.replace(/\s+/g, ' ').trim(); }),
+        legendTotals: Array.prototype.map.call(document.querySelectorAll('#b_rel .gleg .lgf'),
+          function(el){ return el.textContent.replace(/\s+/g, ' ').trim(); }),
+        mapControls: document.querySelectorAll('#c_rel .kn').length,
         files: EXS.map(function(ex){ return {ex: ex, state: REL_ST[ex] || 'unread'}; }),
         sub: sub ? sub.textContent : '',
         types: relTypes().filter(function(tp){ return G.types[tp.k]; })
