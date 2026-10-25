@@ -1,47 +1,56 @@
 <!--
-  mx_perplexity.html - PERPLEXITY: policy transmission on one relationship map.
+  mx_perplexity.html - PERPLEXITY: one security at the centre of its constellation.
 
-  One job. The map answers one question: when a government Act changes the
-  terms an industry works under, which listed companies does it reach, and how
-  far does that reach travel through links the records actually state.
+  The layout is the relationship map the owner asked for, in the manner of a
+  terminal relationship screen:
 
-  Everything else that used to live here is gone on the owner's correction:
-  the eight figure tiles and their sparklines, the price and candlestick card,
-  the news strip, the law chip list and the thesis block. The panel is the map.
+    CENTRE         one box: ticker and board on a coloured strip, the company
+                   name, the last price, the percent change, and a sparkline
+                   read from static_data/history/<KEY>.json.
+    CONSTELLATION  separate small clusters on a rough ring around that box, each
+                   with its own title and a count in brackets, each joined to the
+                   centre by one thin line. Each radial cluster has a tiny hub
+                   and coloured labelled boxes around it, joined to that hub by
+                   short lines. Box colour carries meaning, never decoration.
 
-  What the map reads, and nothing else:
+  What each cluster reads, and nothing else:
 
-    LINKS     static_data/relationships_NSE.json, _JSE.json, _NGX.json,
-              _EGX.json (all four, so a link can cross an exchange)
-    ACTS      static_data/gov_laws_KE.json: name, year, status, mechanism,
-              sectors and tickers for each Act
-    LISTING   static_data/market_<EX>.json for the ticker, name and sector of
-              each security
-    INFO      static_data/company_info.json for a name the market file lacks
+    INDICES     static_data/ex_<EX>_indices.json
+    PEERS       competitors in static_data/relationships_<EX>.json (all four
+                exchange files are read, so a link can cross a board)
+    CUSTOMERS   the same files, customers
+    SUPPLIERS   the same files, suppliers
+    PARTNERS    the same files, partners
+    2 LINKS     one recorded link past a first link, only when depth 2 is on
+    HOLDERS     static_data/shareholders_<EX>.json where a record exists
+    EXCHANGES   the four boards, the one this security is listed on marked
+    EXECUTIVES  static_data/ceos.json where it names a chief executive
+    BALANCE     static_data/financials/<KEY>__balance.json, three real lines
+    LAWS        static_data/gov_laws_KE.json: the Acts whose own ticker list or
+                own sector list names this security, coloured by status
+    EVENTS      static_data/<ex>_corporate_actions.json, or the announcements
+                file for a board that has no corporate action file
+    NEWS        static_data/<ex>_news.json, the four newest headlines naming it
 
-  How a chosen Act is drawn:
-    * DIRECT: a security the Act's ticker list names, or a security on the
-      Act's own exchange whose sector the Act names. Solid amber ring, full
-      opacity. The record's own sector list decides, never a guess.
-    * HOP 1: a company one recorded link away from a direct company, because a
-      cost change at one party reaches the party it buys from or sells to.
-      Dashed amber ring, reduced opacity.
-    * HOP 2: one recorded link past that. Dotted amber ring, dimmer again, and
-      the panel says so rather than cutting it silently.
-    * UNAFFECTED: low opacity and a desaturated ring, so the reach stands out.
-    * EDGES on the reach turn amber and thicken; the rest dim.
+  A cluster with no record still appears, with a count and the word NONE, so the
+  absence is visible. A cluster whose file could not be read prints the failure
+  instead, so empty and failed are never confused.
+
+  Policy behaviour kept from the previous build: choose an Act and it marks the
+  companies it names directly, the companies one recorded link away, and the
+  companies two links away, and dims the rest. In this layout the marking is the
+  amber ring around a node box inside a cluster, and the Act line above the map
+  counts what it reached.
 
   Rules this file keeps:
-    * a link is drawn only when a recorded relationship names it: no peer set,
-      no sector inference on the map, no chain invented to fill the frame;
-    * an Act that names no security on the map is said plainly, not drawn as an
-      unmarked map;
-    * a company with no link record cannot propagate, and the panel says so;
-    * the 25 node cap and the four exchange files read are printed on the map;
-    * an empty record is told apart from a failed read, and a failed read
-      prints the failure where its content belongs;
+    * no peer set is generated and nothing is inferred from a sector label on
+      the map: a link is drawn only where a relationship record names it;
+    * all four exchange relationship files are read and their read state is
+      printed;
+    * the node cap is stated on the map and truncation is reported, not hidden;
     * every block draws inside a guard, so one broken read blanks one block;
-    * one line states what the map shows and what it does not claim.
+    * pan, zoom, reset, node detail and hover highlighting stay;
+    * one line states what this shows and what it does not claim.
 
   Vanilla JS, single file, no build step. Mint on black, Oxygen Mono.
 -->
@@ -64,8 +73,7 @@
     --ui:Inter,system-ui,sans-serif;
   }
   *{box-sizing:border-box}
-  /* The shell gives every panel a window, so this panel draws no frame of its
-     own: no border, no radius, no max-width, no padding, no margin. */
+  /* the shell gives every panel a window, so this panel draws no frame */
   html,body{height:100%}
   body{margin:0;background:transparent;color:var(--tx);font-family:var(--mono);font-size:12px;
        padding:0;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;
@@ -73,7 +81,7 @@
   .wrap{display:flex;flex-direction:column;height:100%;min-height:0;border:0;background:transparent;
         max-width:none;margin:0;border-radius:0}
 
-  /* ---------- search and the Act selector, both above the map ---------- */
+  /* ---------- search and the Act selector ---------- */
   .controls{position:relative;display:flex;align-items:center;gap:8px;padding:5px 12px;
             border-bottom:1px solid var(--line2);flex:0 0 auto;flex-wrap:wrap;min-width:0}
   .controls .cl2{font-size:7px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase;
@@ -100,9 +108,9 @@
   .sg .ex{color:var(--tx3);font-size:8px;letter-spacing:.06em}
   .sg.none{color:var(--tx3);font-size:10px;cursor:default}
 
-  /* ---------- the map, and the detail of the node the reader pinned ---------- */
+  /* ---------- the map and the detail of the node the reader pinned -------- */
   .grid{flex:1 1 auto;min-height:0;display:grid;gap:1px;background:var(--line2);padding:1px;
-        grid-template-columns:minmax(0,1fr) 282px}
+        grid-template-columns:minmax(0,1fr) 274px}
   .card{background:var(--bg);display:flex;flex-direction:column;min-height:0;min-width:0;
         position:relative}
   .ch{display:flex;align-items:center;gap:8px;padding:3px 8px;border-bottom:1px solid var(--line);
@@ -144,54 +152,60 @@
   .abtr .no{color:var(--warn);font-weight:700;letter-spacing:.06em}
   .abtr .q{color:var(--tx2)}
 
-  /* relationship map: one focal node, counterparties on hop rings, curved
-     arrowed links, a boxed legend and a tight toolbar. Dark and quiet. */
+  /* the constellation */
   .gwrap{position:absolute;inset:0;overflow:hidden;user-select:none}
   .gwrap svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   .gwrap svg.drag{cursor:grabbing}
-  .gsub{position:absolute;left:0;right:0;bottom:0;padding:2px 9px 4px;font-size:7.5px;
-        letter-spacing:.07em;color:#8a8a8a;text-transform:uppercase;background:rgba(0,0,0,.72);
+  .gsub{position:absolute;left:0;right:0;bottom:0;padding:2px 9px 4px;font-size:7px;
+        letter-spacing:.06em;color:#7a7a7a;text-transform:uppercase;background:rgba(0,0,0,.82);
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .gsub b{color:var(--warn);font-weight:700}
-  .gsub i{font-style:normal;color:var(--acc)}
-  .rg{fill:none;stroke:#1b1b1b;stroke-width:1;stroke-dasharray:2 7}
-  .rl{font-size:6.8px;letter-spacing:.13em;fill:#585858}
-  .ge{fill:none;stroke-linecap:round;stroke-opacity:.55;transition:stroke-opacity .09s linear}
-  .ge.off{stroke-opacity:.10}
-  .ge.am{stroke-opacity:.95}
-  .ge.dim{stroke-opacity:.10}
-  .ge.hi{stroke-opacity:.95}
-  .nd{pointer-events:all;cursor:pointer}
-  .nd text{font-family:var(--mono);letter-spacing:.02em}
-  .nd .nl{transition:stroke-width .08s linear}
-  .nd.dim{opacity:.3}
-  .nd:hover .nl,.nd.hv .nl,.nd.on .nl{stroke-width:2.2}
-  /* the legend, boxed in a rail of its own, so no node or label is drawn under it */
-  .gleg{position:absolute;right:0;top:0;bottom:0;width:138px;border-left:1px solid var(--line2);
-        background:rgba(3,3,3,.94);padding:5px 7px 4px;z-index:5}
-  .gleg .lgh{font-size:6.5px;letter-spacing:.16em;color:var(--tx3);border-bottom:1px solid var(--line);
-             padding-bottom:2px;margin-bottom:3px}
-  .gleg .lgr{display:flex;align-items:center;gap:5px;font-size:7.5px;letter-spacing:.05em;
-             color:var(--tx2);line-height:1.5;white-space:nowrap}
-  .gleg .lgr i{width:6px;height:6px;flex:0 0 6px;display:block}
-  .gleg .lgr i.sw{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:transparent;
-                  border:1.5px solid var(--warn)}
-  .gleg .lgr i.sw.d{border-style:dashed;border-width:1.4px}
-  .gleg .lgr i.sw.p{border-style:dotted;border-width:1.2px;opacity:.62}
-  .gleg .lgr i.sw.g{border-color:#2c2c2c;border-width:1px}
-  .gleg .lgr span{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
-  .gleg .lgr b{color:var(--tx);font-weight:700}
-  .gleg .lgr.off{opacity:.42}
-  .gleg .lgr b.a{color:var(--warn)}
-  .gleg .lgf{display:flex;justify-content:space-between;font-size:6.5px;letter-spacing:.14em;
-             color:var(--tx3);border-top:1px solid var(--line);margin-top:3px;padding-top:2px}
-  .gleg .lgf b{color:var(--acc);font-weight:700;letter-spacing:.04em}
-  .gleg .lgf.w b{color:var(--warn)}
-  .gleg .lgrg{display:flex;justify-content:space-between;font-size:7.5px;letter-spacing:.05em;
-              color:var(--tx3);line-height:1.5}
-  .gleg .lgrg b{color:var(--tx);font-weight:700}
+  .gsub b{color:var(--down);font-weight:700}
+  path.cn{fill:none;stroke:#1d1d1d;stroke-width:1}
+  path.cn.hi{stroke:#4a4a4a}
+  rect.cb2{fill:#030303;stroke:#1a1a1a;stroke-width:1}
+  rect.cb2.promo{stroke:#4a3810}
+  rect.cb2.hi{stroke:#3d3d3d}
+  text.ct{font-family:var(--mono);font-size:7.6px;letter-spacing:.13em;font-weight:700;fill:#33e29a}
+  text.ct.promo{fill:#e0a341}
+  text.cc{font-family:var(--mono);font-size:7.2px;letter-spacing:.06em;fill:#6a6a6a}
+  line.crule{stroke:#171717;stroke-width:1}
+  rect.pbar{fill:#e0a341}
+  circle.hub{fill:#1b1b1b;stroke:#3a3a3a;stroke-width:.8}
+  line.sp{stroke:#242424;stroke-width:.7}
+  g.nd{pointer-events:all;cursor:pointer}
+  rect.nb{fill:#080808;stroke:#3a3a3a;stroke-width:1}
+  text.nt{font-family:var(--mono);font-size:6.8px;letter-spacing:.03em}
+  g.nd.dim{opacity:.24}
+  g.nd.hv rect.nb{stroke-width:1.8}
+  g.nd.on rect.nb{stroke-width:1.8}
+  rect.ar{fill:none;stroke:#f2c14e}
+  rect.ar.d{stroke-width:1.7}
+  rect.ar.h1{stroke-width:1.2;stroke-dasharray:3 2.2}
+  rect.ar.h2{stroke-width:1;stroke-dasharray:1.4 2.2;stroke-opacity:.7}
+  /* the centre box */
+  rect.cbox{fill:#070707;stroke:#2a2a2a;stroke-width:1}
+  rect.chd{fill:#33e29a}
+  rect.chd.dn{fill:#f87171}
+  text.ctk{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.06em}
+  text.cex{font-family:var(--mono);font-size:7px;letter-spacing:.14em;text-anchor:end}
+  text.cnm{font-family:var(--mono);font-size:9px;fill:#e8e8e8}
+  text.cpx{font-family:var(--mono);font-size:15px;font-weight:700;fill:#f2f2f2}
+  text.ccy{font-family:var(--mono);font-size:6.6px;letter-spacing:.12em;fill:#6a6a6a}
+  text.cch{font-family:var(--mono);font-size:8.4px;font-weight:700}
+  text.cas{font-family:var(--mono);font-size:6.4px;letter-spacing:.08em;fill:#5c5c5c}
+  text.cnh{font-family:var(--mono);font-size:6.4px;letter-spacing:.08em;fill:#5c5c5c}
+  polyline.spl{fill:none;stroke-width:1.2}
+  /* text clusters */
+  text.tl{font-family:var(--mono);font-size:6.9px;fill:#a8a8a8}
+  circle.td{stroke:none}
+  text.none{font-family:var(--mono);font-size:7px;letter-spacing:.14em;fill:#4a4a4a}
+  text.notread{font-family:var(--mono);font-size:6.6px;letter-spacing:.04em;fill:#f87171}
+  /* bar cluster */
+  rect.br{stroke:none}
+  text.bl{font-family:var(--mono);font-size:6.2px;letter-spacing:.05em;fill:#7a7a7a}
+  text.bv{font-family:var(--mono);font-size:6.2px;fill:#c8c8c8}
 
-  /* the selected node, seven short rows, no paragraphs */
+  /* the selected node, short rows, no paragraphs */
   #b_sel{padding:5px 8px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
   .srow{display:flex;gap:6px;align-items:baseline;min-width:0;line-height:1.25}
   .sk{flex:0 0 52px;font-size:7px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase}
@@ -218,7 +232,7 @@
   .claim{flex:0 0 auto;padding:3px 9px 4px;border-top:1px solid var(--line);font-size:8px;
          letter-spacing:.02em;color:var(--tx3);line-height:1.35}
 
-  /* honest web research bar: a disabled field, styled to match, that says the truth */
+  /* honest web research bar: a disabled field that says the truth */
   .sbar{display:flex;align-items:center;gap:9px;padding:4px 12px;background:#050505;
         border-top:1px solid var(--line2);flex:0 0 auto;min-width:0}
   .sbar .sl{font-size:7px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;
@@ -275,11 +289,11 @@
       </div>
       <div class="actbar" id="actbar"></div>
       <div class="cb" id="b_rel"></div>
-      <div class="claim" id="claim">This map shows which companies an Act reaches and how far that reach travels
-        through recorded links; it is not a price prediction.</div>
+      <div class="claim" id="claim">This map shows which companies an Act reaches and how far that
+        reach travels through recorded links; it is not a price prediction.</div>
     </div>
     <div class="card" id="c_sel">
-      <div class="ch"><span class="cl">LINK DETAIL</span><span class="cm" id="m_sel"></span></div>
+      <div class="ch"><span class="cl">NODE DETAIL</span><span class="cm" id="m_sel"></span></div>
       <div class="cb" id="b_sel"></div>
     </div>
   </div>
@@ -288,8 +302,7 @@
        and uses it for auth and quotes only: there is no search or research endpoint
        in financials_api.py, indices_api.py or auth_api.py, and no key is shipped to
        the browser. So this field is a statement, not a control: it is disabled, it
-       takes no keystrokes and it calls nothing. The panel answers from the files
-       named in this file's header. -->
+       takes no keystrokes and it calls nothing. -->
   <div class="sbar" id="sbar">
     <span class="sl">WEB RESEARCH</span>
     <input class="wq" id="webq" type="text" disabled aria-disabled="true"
@@ -310,9 +323,10 @@
 
   var Q = new URLSearchParams(location.search);
   var EXS = ['NSE','JSE','NGX','EGX'];
-  var SEC_TITLE = {rel:'RELATIONSHIP MAP', sel:'LINK DETAIL'};
   var DASH = '-';
+  var UP = '#33e29a', DN = '#f87171', BLUE = '#6ea8fe', GREY = '#8a8a8a', ORANGE = '#e08a3c';
   var AMB = '#e0a341';
+  var SEC_TITLE = {rel:'RELATIONSHIP MAP', sel:'NODE DETAIL'};
 
   /* ---------- text, numbers ------------------------------------------ */
   function esc(s){
@@ -326,6 +340,38 @@
   function t(s){ return esc(nd(s)); }
   function isNum(v){ return v !== null && v !== undefined && v !== '' && !isNaN(Number(v)); }
   function numv(v){ return isNum(v) ? Number(v) : null; }
+  function cut(s, n){
+    var x = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+    return x.length > n ? x.slice(0, n - 2).replace(/[,\s]+$/, '') + '..' : x;
+  }
+  function fmtP(v){
+    var n = numv(v);
+    if(n == null) return DASH;
+    if(Math.abs(n) >= 1000){
+      return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+    return n.toFixed(2);
+  }
+  function fmtBig(v){
+    var n = numv(v);
+    if(n == null) return DASH;
+    var s = n < 0 ? '-' : '';
+    n = Math.abs(n);
+    if(n >= 1e9) return s + (n / 1e9).toFixed(1) + 'B';
+    if(n >= 1e6) return s + (n / 1e6).toFixed(1) + 'M';
+    if(n >= 1e3) return s + (n / 1e3).toFixed(1) + 'K';
+    return s + n.toFixed(0);
+  }
+  function fmtPct(p){
+    var n = numv(p);
+    if(n == null) return DASH;
+    return (n > 0 ? '+' : '') + n.toFixed(2) + '%';
+  }
+  function uniq(a){
+    var o = {}, out = [];
+    a.forEach(function(x){ if(!o[x]){ o[x] = 1; out.push(x); } });
+    return out;
+  }
 
   /* ---------- file reads, with the read state kept -------------------- */
   var FILES = {};
@@ -344,6 +390,23 @@
     var r = FILES[path];
     if(!r) return 'unread';
     return r.ok ? 'ok' : 'failed';
+  }
+  function readErr(path){
+    var r = FILES[path];
+    return (r && r.err) ? r.err : 'not loaded';
+  }
+  /* a quiet probe: one series can sit under more than one key, and a miss is
+     not a failure of the panel, so nothing is recorded about it */
+  function probeJSON(paths){
+    function step(i){
+      if(i >= paths.length) return Promise.resolve(null);
+      return fetch(paths[i], {cache:'no-store'}).then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function(d){ return {path:paths[i], data:d}; })
+        .catch(function(){ return step(i + 1); });
+    }
+    return step(0);
   }
   function sd(p){ return '../../static_data/' + p; }
 
@@ -382,7 +445,7 @@
   }
   function rowTicker(r){ return String((r && (r.ticker || r.sym)) || '').toUpperCase(); }
 
-  /* ---------- name normalising: one security per normalised name ------ */
+  /* ---------- name normalising --------------------------------------- */
   var SUFFIX = {plc:1, ltd:1, limited:1, group:1, holdings:1, holding:1, company:1, co:1,
                 inc:1, corp:1, corporation:1, sa:1, nv:1, ag:1, the:1, public:1, 'and':1};
   function normChars(s){
@@ -479,11 +542,7 @@
   function failBox(what, why){
     return '<div class="fail"><b>' + t(what) + ' NOT READ</b> ' + t(why) + '</div>';
   }
-  function empBox(what, why){
-    return '<div class="emp"><b>' + t(what) + '</b> ' + t(why) + '</div>';
-  }
 
-  /* re-draw registered by key, so a resize re-measures instead of stretching */
   var PAINT = {};
   var RT = null;
   window.addEventListener('resize', function(){
@@ -495,9 +554,7 @@
     }, 120);
   });
 
-  /* ---------- 1. THE ACTS: the policy side of the panel ---------------- */
-  /* The file is the only source for which companies an Act names: its own
-     ticker list and its own sector list. Nothing is added to it here. */
+  /* ---------- 1. THE ACTS -------------------------------------------- */
   var LAW = {list:[], byId:{}, st:'unread', err:'', ex:'NSE'};
 
   function lawLabel(l){
@@ -514,7 +571,6 @@
     return getJSON(p).then(function(d){
       var sel = document.getElementById('pol');
       LAW.st = readState(p);
-      /* the exchange is stated once for the file, not on every Act record */
       LAW.ex = String((d && d.exchange) || 'NSE').toUpperCase();
       LAW.list = (d && d.laws) || [];
       LAW.byId = {};
@@ -527,7 +583,7 @@
       sel.appendChild(o0);
       if(LAW.st === 'failed'){
         sel.disabled = true;
-        LAW.err = (FILES[p] && FILES[p].err) || 'gov_laws_KE.json not loaded';
+        LAW.err = readErr(p);
         return;
       }
       var sorted = LAW.list.slice().sort(function(a, b){
@@ -544,7 +600,6 @@
       sel.disabled = false;
     });
   }
-  /* the scope the Act itself states: its exchange, its tickers, its sectors */
   function lawScope(){
     var law = G.law;
     if(!law) return null;
@@ -553,75 +608,6 @@
       .filter(function(s){ return s && s !== 'ALL SECTORS'; });
     return {ex:String(law.exchange || LAW.ex || 'NSE').toUpperCase(), named:named,
             all:named.indexOf('ALL') >= 0, secs:secs};
-  }
-  /* The transmission walk. Direct comes from the Act record alone: a named
-     ticker on the Act's exchange, every issuer on that exchange when the
-     record says ALL, or a security whose recorded sector the Act names. Hop 1
-     and hop 2 come only from edges the relationship files actually carry, so a
-     company with no record cannot pass anything on. */
-  function trans(g){
-    g.tm = null;
-    var sc = lawScope();
-    if(!sc) return;
-    var rank = {};
-    g.nodes.forEach(function(n){
-      n.st = 'off'; n.why = '';
-      var ex = String(n.ex || '').toUpperCase();
-      var tk = String(n.tk || '').toUpperCase();
-      var se = String(n.sector || '').toUpperCase();
-      if(!n.listed || !tk || ex !== sc.ex) return;
-      if(sc.named.indexOf(tk) >= 0){ n.st = 'direct'; n.why = 'named'; rank[n.key] = 1; return; }
-      if(sc.all){ n.st = 'direct'; n.why = 'all'; rank[n.key] = 1; return; }
-      if(se && sc.secs.indexOf(se) >= 0){ n.st = 'direct'; n.why = 'sector'; rank[n.key] = 1; }
-    });
-    var H1 = {}, H2 = {};
-    g.edges.forEach(function(e){
-      if(rank[e.a] === 1 && rank[e.b] == null) H1[e.b] = 1;
-      if(rank[e.b] === 1 && rank[e.a] == null) H1[e.a] = 1;
-    });
-    Object.keys(H1).forEach(function(k){ rank[k] = 2; });
-    g.edges.forEach(function(e){
-      if(rank[e.a] === 2 && rank[e.b] == null) H2[e.b] = 1;
-      if(rank[e.b] === 2 && rank[e.a] == null) H2[e.a] = 1;
-    });
-    Object.keys(H2).forEach(function(k){ rank[k] = 3; });
-    var direct = [], h1 = [], h2 = [], off = [], noRec = 0;
-    g.nodes.forEach(function(n){
-      var r = rank[n.key];
-      n.st = r === 1 ? 'direct' : (r === 2 ? 'hop1' : (r === 3 ? 'hop2' : 'off'));
-      if(n.st === 'direct'){ direct.push(n); if(!n.rec) noRec++; }
-      else if(n.st === 'hop1') h1.push(n);
-      else if(n.st === 'hop2') h2.push(n);
-      else off.push(n);
-    });
-    g.edges.forEach(function(e){
-      var A = rank[e.a] || 9, B = rank[e.b] || 9;
-      e.am = (A <= 3 && B <= 3 && Math.abs(A - B) <= 1);
-    });
-    var namedTk = sc.named.filter(function(x){ return x !== 'ALL'; });
-    g.tm = {ex:sc.ex, all:sc.all, named:namedTk, sectors:sc.secs,
-            direct:direct.length, hop1:h1.length, hop2:h2.length, off:off.length,
-            directList:direct.map(function(n){ return n.tk || n.name; }),
-            hop1List:h1.map(function(n){ return n.tk || n.name; }),
-            hop2List:h2.map(function(n){ return n.tk || n.name; }),
-            offList:off.map(function(n){ return n.tk || n.name; }),
-            noRec:noRec, edgesAmber:g.edges.filter(function(e){ return e.am; }).length};
-    g.tm.msg = transMsg(g.tm);
-  }
-  function transMsg(tm){
-    if(tm.direct) return '';
-    var s = 'THIS ACT NAMES NO SECURITY ON THIS MAP';
-    if(!tm.named.length && !tm.all){
-      return s + ': ITS RECORD NAMES NO TICKER, ONLY SECTORS ' +
-        (tm.sectors.length ? tm.sectors.join(' ') : 'NONE');
-    }
-    if(tm.all && !tm.named.length){
-      return s + ': IT NAMES EVERY ' + tm.ex + ' ISSUER AND NO ' + tm.ex +
-        ' ISSUER IS DRAWN HERE';
-    }
-    var tk = tm.named.slice(0, 4).join(' ') + (tm.named.length > 4 ? ' +' + (tm.named.length - 4) : '');
-    var se = tm.sectors.length ? tm.sectors.join(' ') : 'NONE';
-    return s + ': ITS TICKERS ' + tk + ' AND ITS SECTORS ' + se + ' ARE NOT DRAWN HERE';
   }
   function paintAct(){
     var bar = document.getElementById('actbar');
@@ -637,10 +623,10 @@
     var mech = nd(String(law.mechanism || ''));
     var full = mech;
     if(mech.length > 150){
-      var cut = mech.slice(0, 150);
-      var sp = cut.lastIndexOf(' ');
-      if(sp > 90) cut = cut.slice(0, sp);
-      mech = cut.replace(/[,\s]+$/, '') + '...';
+      var cutS = mech.slice(0, 150);
+      var sp = cutS.lastIndexOf(' ');
+      if(sp > 90) cutS = cutS.slice(0, sp);
+      mech = cutS.replace(/[,\s]+$/, '') + '...';
     }
     var tm = G.tm;
     var tr = '';
@@ -666,37 +652,32 @@
       '<div class="abrow abtr">' + tr + '</div>';
   }
 
-  /* ---------- 2. THE MAP --------------------------------------------- */
-  /* A link is drawn only where a relationship file records one. All four
-     exchange files are read, so a chain can cross boards. The walk is the
-     selected security, then the companies its record names (hop 1), then at two
-     hops the links those companies carry themselves (hop 2). No peer set is
-     generated and nothing is read off a sector label. */
+  /* ---------- 2. source state ---------------------------------------- */
   var REL = {}, RELF = {}, REL_ST = {}, RECBY = null, CORE2ROW = null;
+  var DATA = {idx:[], idxSt:'unread', idxErr:'', sh:{}, shSt:{}, shErr:{},
+              ca:[], caSt:'unread', caErr:'', caFile:'',
+              news:[], newsSt:'unread', newsErr:'',
+              ceos:{}, ceosSt:'unread', ceosErr:'', ceosSrc:{},
+              bal:null, balSt:'unread', spark:null, sparkSt:'unread'};
   var G = {hops:1, types:{customers:true, suppliers:true, competitors:true, partners:true},
-           cap:25, selKey:'', last:null, row:null, rec:null, law:null, tm:null};
+           cap:60, selKey:'', model:null, row:null, rec:null, law:null, tm:null, geo:null};
 
   function relTypes(){
     return [
-      {k:'customers', c:'#33e29a', n:'CUSTOMERS'},
-      {k:'suppliers', c:'#6ea8fe', n:'SUPPLIERS'},
-      {k:'competitors', c:'#f87171', n:'COMPETITORS'},
-      {k:'partners', c:'#c08cff', n:'PARTNERS'}
+      {k:'competitors', c:DN, n:'PEERS', full:'COMPETITORS'},
+      {k:'customers', c:UP, n:'CUSTOMERS', full:'CUSTOMERS'},
+      {k:'suppliers', c:BLUE, n:'SUPPLIERS', full:'SUPPLIERS'},
+      {k:'partners', c:'#c08cff', n:'PARTNERS', full:'PARTNERS'}
     ];
   }
   function typeOf(k){
     var a = relTypes();
     for(var i = 0; i < a.length; i++){ if(a[i].k === k) return a[i]; }
-    return {k:k, c:'#6a6a6a', n:String(k || '').toUpperCase()};
+    return {k:k, c:GREY, n:String(k || '').toUpperCase(), full:String(k || '').toUpperCase()};
   }
   function typeLabel(k){
-    var n = typeOf(k).n;
+    var n = typeOf(k).full;
     return n.charAt(0) + n.slice(1).toLowerCase();
-  }
-  function typeOrder(k){
-    var a = relTypes();
-    for(var i = 0; i < a.length; i++){ if(a[i].k === k) return i; }
-    return 9;
   }
   function activeTypes(){
     return relTypes().filter(function(tp){ return G.types[tp.k]; });
@@ -759,429 +740,821 @@
     });
     return out;
   }
-  function buildGraph(row, rec){
-    var nodes = [], byKey = {}, edges = [], trunc = 0;
-    var centre = {key:'C:' + row.ex + ':' + rowTicker(row), depth:0, name:row.name || rowTicker(row),
-                  ex:row.ex, tk:rowTicker(row), listed:true, rec:rec, types:[],
-                  sector:row.sector || '', reason:'selected security', src:''};
-    nodes.push(centre);
-    byKey[centre.key] = centre;
-
-    function add(name, depth, type, parent){
-      var id = identOf(name);
-      if(!id) return null;
-      if(id.ex && id.ex === centre.ex && String(id.tk) === String(centre.tk)) return null;
-      var have = byKey[id.key];
-      if(have){
-        if(type && have.types.indexOf(type) < 0) have.types.push(type);
-        return have;
-      }
-      if(nodes.length - 1 >= G.cap){ trunc++; return null; }
-      var n = {key:id.key, depth:depth, name:id.name, ex:id.ex, tk:id.tk, listed:id.listed,
-               rec:id.rec, types:(type ? [type] : []), parent:parent || null,
-               sector:id.sector || '', reason:'', src:''};
-      nodes.push(n);
-      byKey[n.key] = n;
-      return n;
+  function recCount(rec){
+    if(!rec) return 0;
+    return relTypes().reduce(function(a, tp){ return a + (rec[tp.k] || []).length; }, 0);
+  }
+  function pctOf(r){
+    if(!r) return null;
+    if(isNum(r.chgPct)) return Number(r.chgPct);
+    if(isNum(r.changePct)) return Number(r.changePct);
+    var ch = r.change;
+    if(typeof ch === 'string'){
+      var m = ch.match(/\(([-+]?[0-9.]+)%\)/);
+      if(m) return Number(m[1]);
+      if(isNum(ch)) return Number(ch);
+    } else if(isNum(ch)){
+      return Number(ch);
     }
+    return null;
+  }
+  function rowPrice(r){
+    if(!r) return null;
+    var v = numv(r.price);
+    if(v == null) v = numv(r.ltp);
+    if(v == null) v = numv(r.todayClose);
+    return v;
+  }
+  function colourOfRow(r){
+    if(!r) return ORANGE;
+    if(rowPrice(r) == null) return BLUE;
+    var pc = pctOf(r);
+    if(pc == null) return GREY;
+    if(pc > 0.00001) return UP;
+    if(pc < -0.00001) return DN;
+    return GREY;
+  }
 
-    if(rec){
-      linkList(rec).forEach(function(link){
-        var n = add(link.e && link.e.name, 1, link.type, centre);
-        if(!n || n.depth !== 1) return;
-        if(!n.reason){
-          n.reason = String((link.e && (link.e.role || link.e.note)) || '');
-          n.src = srcLabel(link.e);
-        }
-        edges.push({a:centre.key, b:n.key, type:link.type, depth:1});
+  /* ---------- 3. the clusters ---------------------------------------- */
+  var CL_SEED = {indices:270, exchanges:300, competitors:330, peers:330, customers:0,
+                 suppliers:30, hop2:75, partners:60, holders:90, balance:120, execs:150,
+                 laws:180, events:210, news:240};
+
+  function codeOf(label, name){
+    var s = String(label || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if(s) return s.length > 7 ? s.slice(0, 7) : s;
+    var w = String(name || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ')
+      .split(' ').filter(function(x){ return x && x.length > 1; });
+    if(!w.length) return '?';
+    if(w.length === 1) return w[0].slice(0, 6);
+    return w.map(function(x){ return x.charAt(0); }).join('').slice(0, 5);
+  }
+  function nameCode(name){
+    var w = String(name || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ')
+      .split(' ').filter(function(x){ return x && x.length > 1; });
+    if(!w.length) return '?';
+    if(w[0].length <= 2 && w[1]) return (w[0] + w[1]).slice(0, 6);
+    return w[0].slice(0, 6);
+  }
+  function lawCode(id, year){
+    var s = String(id || '').toUpperCase().replace(/^KE-/, '');
+    var parts = s.split('-').filter(Boolean);
+    var words = parts.filter(function(p){ return !/^\d{4}$/.test(p); });
+    var yr = String(year || parts[parts.length - 1] || '').slice(-4);
+    var ini;
+    if(words.length === 1) ini = words[0].slice(0, 2);
+    else ini = words.map(function(w){ return w.charAt(0); }).join('').slice(0, 3);
+    if(!ini) ini = s.slice(0, 3);
+    return (ini + yr).slice(0, 7);
+  }
+  function newCluster(key, title, kind, opt){
+    return {key:key, title:title, kind:kind, items:[], total:0, shown:0, state:'ok', err:'',
+            seed:CL_SEED[key] != null ? CL_SEED[key] : 0, tip:'',
+            promo:!!(opt && opt.promo), file:(opt && opt.file) || '',
+            hub:(opt && opt.hub) || ''};
+  }
+
+  function newsHit(title, tk, name){
+    var tl = ' ' + String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+    var t = String(tk || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if(t.length >= 2 && tl.indexOf(' ' + t + ' ') >= 0) return true;
+    var w0 = String(name || '').toLowerCase().split(/\s+/)[0] || '';
+    w0 = w0.replace(/[^a-z0-9-]/g, '');
+    if(w0.length < 4) return false;
+    var alts = [w0, w0.replace(/-/g, ' '), w0.replace(/-/g, '')];
+    for(var i = 0; i < alts.length; i++){
+      if(!alts[i]) continue;
+      if(tl.indexOf(' ' + alts[i] + ' ') >= 0) return true;
+      if(alts[i].length >= 6 && tl.indexOf(alts[i]) >= 0) return true;
+    }
+    return false;
+  }
+  function buildClusters(row){
+    var ex = row.ex, tk = rowTicker(row), out = [], map = {};
+    var core = coreName(row.name);
+    var sym = String(row.sym || tk || '');
+
+    function add(c){ out.push(c); map[c.key] = c; }
+
+    /* LAWS first: it is the cluster the owner asked for and it must never be
+       the one the node cap eats */
+    var laws = newCluster('laws', 'LAWS', 'radial', {promo:true, file:'gov_laws_KE.json'});
+    if(LAW.st === 'failed'){
+      laws.state = 'fail';
+      laws.err = LAW.err || 'gov_laws_KE.json not loaded';
+    } else {
+      var sec = String(row.sector || '').toUpperCase();
+      var hits = LAW.list.filter(function(l){
+        var lt = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); });
+        var ls = (l.sectors || []).map(function(x){ return String(x).toUpperCase(); });
+        var lex = String(l.exchange || LAW.ex || 'NSE').toUpperCase();
+        if(lt.indexOf(tk) >= 0) return true;
+        if(sec && ls.indexOf(sec) >= 0) return true;
+        if(lt.indexOf('ALL') >= 0 && lex === String(ex).toUpperCase()) return true;
+        return false;
       });
-    }
-    var hop1 = nodes.filter(function(n){ return n.depth === 1; });
-    if(G.hops > 1){
-      hop1.forEach(function(p){
-        if(!p.rec) return;
-        linkList(p.rec).forEach(function(link){
-          var n = add(link.e && link.e.name, 2, link.type, p);
-          if(!n || n.depth !== 2) return;
-          if(!n.reason){
-            n.reason = String((link.e && (link.e.role || link.e.note)) || '');
-            n.src = srcLabel(link.e);
-          }
-          edges.push({a:p.key, b:n.key, type:link.type, depth:2});
+      laws.total = LAW.list.length;
+      laws.tip = hits.length + ' of ' + LAW.list.length +
+        ' Acts name this security or its sector, in ' + 'gov_laws_KE.json';
+      hits.sort(function(a, b){ return (Number(b.year) || 0) - (Number(a.year) || 0); });
+      hits.forEach(function(l){
+        var st = String(l.status || '').toLowerCase();
+        var col = st === 'enacted' ? UP : (st === 'repealed' ? DN : AMB);
+        laws.items.push({
+          key:'law:' + (l.id || laws.items.length), cluster:'laws',
+          label:lawCode(l.id, l.year), name:nd(l.name || l.id || ''),
+          code:String(l.id || ''), link:'Act',
+          reason:cut(l.mechanism || '', 240),
+          src:(l.source && l.source.name) ? nd(String(l.source.name)) +
+              (l.source.retrieved ? ' ' + l.source.retrieved : '') : '',
+          colour:col, co:false
         });
       });
     }
-    return {nodes:nodes, edges:edges, centre:centre, trunc:trunc, tm:null};
-  }
-  /* The map is read the way the Bloomberg relationship map is read: one focal
-     node, counterparties on concentric rings by hop, curved links with an
-     arrowhead at the target end. Radii, arrow direction and the hop of every
-     node come from the graph build above, so a link is still drawn only where a
-     record names it. */
-  var R_CTR = 24, R_L1 = 4.8, R_L2 = 3.8;
-  var MAP = {k:1, x:0, y:0, drag:false, moved:false, sx:0, sy:0, ox:0, oy:0, svg:null};
+    add(laws);
 
-  function mapGeo(w, h){
-    var legW = w >= 460 ? 138 : 0;
-    var mapW = Math.max(180, w - legW);
-    var padT = 14, padB = 30;
-    return {cx: mapW / 2, cy: padT + Math.max(48, h - padT - padB) / 2, legW: legW, mapW: mapW,
-            maxRx: Math.max(56, Math.min(mapW / 2 - 22, w / 2 - 22)),
-            maxRy: Math.max(38, (h - padT - padB) / 2)};
-  }
-  function layoutRings(g, w, h){
-    var geo = mapGeo(w, h), cx = geo.cx, cy = geo.cy;
-    g.centre.tx = cx;
-    g.centre.ty = cy;
-    g.centre.ang = -Math.PI / 2;
-    var hop1 = g.nodes.filter(function(n){ return n.depth === 1; });
-    var hop2 = g.nodes.filter(function(n){ return n.depth === 2; });
-    hop1.sort(function(a, b){
-      var d = typeOrder(a.types[0]) - typeOrder(b.types[0]);
-      return d || String(a.code || '').localeCompare(String(b.code || ''));
-    });
-    var ryCap = geo.maxRy * 0.95;
-    var rx1, ry1, rx2 = 0, ry2 = 0, aspect = 0.55;
-    if(hop2.length){
-      rx2 = Math.min(geo.maxRx, Math.max(200, hop2.length * 15, hop1.length * 20));
-      ry2 = Math.max(50, Math.min(ryCap, rx2 * 0.55));
-      aspect = ry2 / rx2;
-      rx1 = Math.min(rx2 * 0.58, Math.max(150, hop1.length * 18));
-      ry1 = Math.max(64, Math.min(ry2 * 0.74, rx1 * aspect));
-    } else {
-      rx1 = Math.min(geo.maxRx, Math.max(150, hop1.length * 14, geo.maxRx * 0.74));
-      ry1 = Math.max(52, Math.min(ryCap, rx1 * 0.55));
-    }
-    /* angles run from the left apex, which is kept clear so RING n can be
-       printed on it, and each node sits in the middle of its own slot */
-    var GAP = 40 * Math.PI / 180;
-    function placeRing(arr, rx, ry){
-      var start = Math.PI + GAP / 2;
-      var step = (Math.PI * 2 - GAP) / Math.max(1, arr.length);
-      arr.forEach(function(n, i){
-        var ang = start + step * (i + 0.5);
-        n.tx = cx + Math.cos(ang) * rx;
-        n.ty = cy + Math.sin(ang) * ry;
-        n.ang = ang;
-      });
-    }
-    placeRing(hop1, rx1, ry1);
-    var rings = [{i:1, rx:rx1, ry:ry1, n:hop1.length}];
-    if(hop2.length){
-      var pa = {};
-      hop1.forEach(function(n){ pa[n.key] = n.ang; });
-      hop2.sort(function(a, b){
-        var x = (a.parent && pa[a.parent.key] != null) ? pa[a.parent.key] : 0;
-        var y = (b.parent && pa[b.parent.key] != null) ? pa[b.parent.key] : 0;
-        if(Math.abs(x - y) > 1e-9) return x - y;
-        return typeOrder(a.types[0]) - typeOrder(b.types[0]);
-      });
-      var step = (Math.PI * 2 - GAP) / hop2.length;
-      var start2 = Math.PI + GAP / 2;
-      hop2.forEach(function(n, i){
-        var ang = start2 + step * (i + 0.5);
-        n.tx = cx + Math.cos(ang) * rx2;
-        n.ty = cy + Math.sin(ang) * ry2;
-        n.ang = ang;
-      });
-      rings.push({i:2, rx:rx2, ry:ry2, n:hop2.length});
-    }
-    /* a label sits outside its ring, horizontally readable, on the side of the
-       node it belongs to */
-    g.nodes.forEach(function(n){
-      if(n.depth === 0) return;
-      var c = Math.cos(n.ang || 0), s = Math.sin(n.ang || 0);
-      var r = n.depth === 1 ? R_L1 : R_L2;
-      n.la = 'middle';
-      n.lx = n.tx;
-      n.ly = n.ty - r - 5;
-      if(c > 0.32){ n.la = 'start'; n.lx = n.tx + r + 4; n.ly = n.ty + 2.6; }
-      else if(c < -0.32){ n.la = 'end'; n.lx = n.tx - r - 4; n.ly = n.ty + 2.6; }
-      else if(s > 0){ n.ly = n.ty + r + 8.5; }
-    });
-    /* no two labels on the same side may stack: the label moves, the node does not */
-    ['start', 'end'].forEach(function(side){
-      var arr = g.nodes.filter(function(n){ return n.depth > 0 && n.la === side; });
-      arr.sort(function(a, b){ return a.ly - b.ly; });
-      var i;
-      for(i = 1; i < arr.length; i++){
-        if(arr[i].ly - arr[i - 1].ly < 8.4) arr[i].ly = arr[i - 1].ly + 8.4;
-      }
-      var over = arr.length ? arr[arr.length - 1].ly - (h - 15) : 0;
-      if(over > 0){ for(i = 0; i < arr.length; i++) arr[i].ly -= over; }
-      var under = arr.length ? (11 - arr[0].ly) : 0;
-      if(under > 0){ for(i = 0; i < arr.length; i++) arr[i].ly += under; }
-    });
-    g.geo = {cx:cx, cy:cy, rings:rings, rCtr:R_CTR, r1:R_L1, r2:R_L2};
-  }
-  function radiusOf(n){
-    return n.depth === 0 ? R_CTR : (n.depth === 1 ? R_L1 : R_L2);
-  }
-  /* the state of one node under the chosen Act: the ring it wears and how far
-     the page lets it recede */
-  function nodePaint(n){
-    if(!G.law) return null;
-    if(n.st === 'direct') return {stroke:AMB, w:2.1, dash:'', op:1, tx:'#f2f2f2'};
-    if(n.st === 'hop1') return {stroke:AMB, w:1.5, dash:'3 2.4', op:.66, tx:'#c2c2c2'};
-    if(n.st === 'hop2') return {stroke:'#c08a3a', w:1.1, dash:'1.4 2.4', op:.34, tx:'#888888'};
-    return {stroke:'#2c2c2c', w:.9, dash:'', op:.34, tx:'#5a5a5a'};
-  }
-  function markersHTML(){
-    var h = '<defs>';
+    /* the four relationship clusters, then the second link ring */
     relTypes().forEach(function(tp){
-      h += '<marker id="ar_' + tp.k + '" viewBox="0 0 8 8" refX="7.2" refY="4" markerWidth="7" ' +
-        'markerHeight="7" orient="auto"><path d="M0 0.7 L7.2 4 L0 7.3 Z" fill="' + tp.c +
-        '"/></marker>';
+      var c = newCluster(tp.k, tp.n, 'radial', {hub:tk});
+      c.relType = tp.k;
+      c.file = 'relationships_' + ex + '.json';
+      if(REL_ST[ex] === 'failed'){
+        c.state = 'fail';
+        c.err = readErr(sd(c.file));
+      } else {
+        var list = (G.rec && G.rec[tp.k]) || [];
+        c.total = list.length;
+        list.forEach(function(e){
+          var id = identOf(e && e.name);
+          if(!id) return;
+          if(id.ex && id.ex === ex && String(id.tk) === String(tk)) return;
+          c.items.push({
+            key:'rel:' + tp.k + ':' + id.key, cluster:tp.k,
+            label:codeOf(id.tk, id.name), name:nd(id.name || (e && e.name) || ''),
+            code:String(id.tk || ''), link:typeLabel(tp.k),
+            reason:nd(String((e && (e.role || e.note)) || '')), src:srcLabel(e),
+            colour:colourOfRow(id.row), co:true, ex:id.ex, tk:id.tk, listed:id.listed,
+            sector:id.sector || '', rec:id.rec, hop:1
+          });
+        });
+      }
+      add(c);
     });
-    if(G.law){
-      h += '<marker id="ar_amber" viewBox="0 0 8 8" refX="7.2" refY="4" markerWidth="7" ' +
-        'markerHeight="7" orient="auto"><path d="M0 0.7 L7.2 4 L0 7.3 Z" fill="' + AMB +
-        '"/></marker>';
+
+    var hop2 = newCluster('hop2', '2 LINKS', 'radial', {hub:tk});
+    hop2.relType = 'hop2';
+    hop2.file = 'relationships_<EX>.json';
+    if(G.hops > 1 && G.rec){
+      var parents = [], seen = {};
+      relTypes().forEach(function(tp){
+        (map[tp.k] ? map[tp.k].items : []).forEach(function(it){ if(it.rec) parents.push(it); });
+      });
+      parents.forEach(function(p){
+        linkList(p.rec).forEach(function(link){
+          var id = identOf(link.e && link.e.name);
+          if(!id) return;
+          if(id.ex && id.ex === ex && String(id.tk) === String(tk)) return;
+          if(seen[id.key]) return;
+          seen[id.key] = 1;
+          hop2.items.push({
+            key:'h2:' + id.key, cluster:'hop2', label:codeOf(id.tk, id.name),
+            name:nd(id.name || ''), code:String(id.tk || ''),
+            link:typeLabel(link.type), reason:'one recorded link from ' + nd(p.name),
+            src:srcLabel(link.e), colour:colourOfRow(id.row), co:true, ex:id.ex, tk:id.tk,
+            listed:id.listed, sector:id.sector || '', rec:id.rec, hop:2, parent:p.key
+          });
+        });
+      });
+      hop2.total = hop2.items.length;
     }
-    return h + '</defs>';
-  }
-  /* a curved bezier per link, bowed so parallel links never sit on each other,
-     trimmed to the rims so the arrowhead lands on the disc */
-  function edgesHTML(g){
-    var pos = {};
-    g.nodes.forEach(function(n){ pos[n.key] = n; });
-    var pairCount = {}, pairIdx = {}, out = '';
-    g.edges.forEach(function(e){
-      var k = e.a < e.b ? e.a + '|' + e.b : e.b + '|' + e.a;
-      e.pk = k;
-      pairCount[k] = (pairCount[k] || 0) + 1;
+    if(hop2.items.length) add(hop2);
+
+    /* INDICES */
+    var ins = newCluster('indices', 'INDICES', 'radial', {file:'ex_' + ex + '_indices.json'});
+    if(DATA.idxSt === 'failed'){
+      ins.state = 'fail'; ins.err = DATA.idxErr;
+    } else {
+      var arr = DATA.idx || [];
+      ins.total = arr.length;
+      arr.forEach(function(r){
+        var pc = pctOf(r), lvl = numv(r.price);
+        var chg = (typeof r.change === 'string') ? r.change : (isNum(r.change) ? String(r.change) : '');
+        ins.items.push({
+          key:'idx:' + String(r.ticker || ''), cluster:'indices',
+          label:codeOf(String(r.ticker || '').replace('^', ''), r.name),
+          name:nd(r.name || r.ticker || ''), code:String(r.ticker || ''), link:'Index',
+          reason:(lvl == null ? 'no level on file' : 'level ' + fmtP(lvl)) +
+                 (chg ? ' | ' + nd(chg) : ''),
+          src:nd(String(r.asOf || '')),
+          colour:(lvl == null ? BLUE : (pc == null ? GREY : (pc > 0 ? UP : (pc < 0 ? DN : GREY)))),
+          co:false
+        });
+      });
+    }
+    add(ins);
+
+    /* EXCHANGES: the four boards, the one this security sits on marked */
+    var exc = newCluster('exchanges', 'EXCHANGES', 'radial', {file:'market_<EX>.json'});
+    exc.total = EXS.length;
+    EXS.forEach(function(e2){
+      var on = e2 === ex, rows = MKT[e2] || [];
+      exc.items.push({
+        key:'ex:' + e2, cluster:'exchanges', label:e2, name:e2 + ' board', code:e2,
+        link:'Board',
+        reason:on ? 'this security is listed here' : 'another board the terminal reads',
+        src:rows.length + ' securities on file',
+        colour:on ? UP : (rows.length ? GREY : ORANGE), co:false
+      });
     });
-    g.edges.forEach(function(e){
-      var a = pos[e.a], b = pos[e.b];
-      if(!a || !b || a.tx == null || b.tx == null) return;
-      var ra = radiusOf(a), rb = radiusOf(b);
-      var dx = b.tx - a.tx, dy = b.ty - a.ty;
-      var L = Math.sqrt(dx * dx + dy * dy) || 1;
-      var nx = -dy / L, ny = dx / L;
-      var idx = pairIdx[e.pk] = (pairIdx[e.pk] == null ? 0 : pairIdx[e.pk] + 1);
-      var sign = idx % 2 ? -1 : 1;
-      var bend = Math.min(96, Math.max(14, L * 0.24)) * sign * (1 + Math.floor(idx / 2) * 0.55);
-      var mx = (a.tx + b.tx) / 2 + nx * bend;
-      var my = (a.ty + b.ty) / 2 + ny * bend;
-      var d1 = Math.sqrt((mx - a.tx) * (mx - a.tx) + (my - a.ty) * (my - a.ty)) || 1;
-      var x1 = a.tx + (mx - a.tx) / d1 * (ra + 2);
-      var y1 = a.ty + (my - a.ty) / d1 * (ra + 2);
-      var d2 = Math.sqrt((mx - b.tx) * (mx - b.tx) + (my - b.ty) * (my - b.ty)) || 1;
-      var x2 = b.tx + (mx - b.tx) / d2 * (rb + 4.5);
-      var y2 = b.ty + (my - b.ty) / d2 * (rb + 4.5);
-      var cnt = pairCount[e.pk];
-      var wd = Math.min(2.3, 0.9 + 0.3 * (cnt - 1));
-      var stroke = typeOf(e.type).c, mk = 'url(#ar_' + t(e.type) + ')';
-      var cls = 'ge';
-      if(G.law){
-        if(e.am){
-          stroke = AMB;
-          wd = Math.max(1.6, wd * 1.55);
-          mk = 'url(#ar_amber)';
-          cls += ' am';
+    add(exc);
+
+    /* HOLDERS */
+    var hol = newCluster('holders', 'HOLDERS', 'radial', {file:'shareholders_' + ex + '.json'});
+    if(DATA.shSt[ex] === 'failed'){
+      hol.state = 'fail'; hol.err = DATA.shErr[ex];
+    } else {
+      var sh = DATA.sh[ex] || {};
+      var srec = sh[tk] || sh[sym] || null;
+      if(!srec){
+        EXS.forEach(function(e2){
+          if(srec || e2 === ex) return;
+          var alt = DATA.sh[e2] || {};
+          srec = alt[tk] || null;
+        });
+      }
+      var holders = (srec && srec.substantial) || [];
+      hol.total = holders.length;
+      holders.forEach(function(h){
+        var id = identOf(h.name);
+        hol.items.push({
+          key:'sh:' + coreName(h.name) + ':' + (h.name || ''), cluster:'holders',
+          label:nameCode(h.name), name:nd(h.name || ''), code:'', link:'Holder',
+          reason:(h.holding != null ? fmtBig(h.holding) + ' shares'
+                  : (h.pct != null ? Number(h.pct).toFixed(2) + '% held' : 'holding on file')),
+          src:(srec && srec.asOf ? 'as at ' + nd(srec.asOf) : ''),
+          colour:id && id.listed ? colourOfRow(id.row) : ORANGE, co:false
+        });
+      });
+    }
+    add(hol);
+
+    /* BALANCE SHEET: three real lines, drawn as bars */
+    var bal = newCluster('balance', 'BALANCE SHEET', 'bars',
+                         {file:'financials/<KEY>__balance.json'});
+    if(!DATA.bal){
+      bal.state = 'empty';
+      bal.err = 'financials/' + sym + '__balance.json not on file';
+    } else {
+      var b = DATA.bal, per = (b.periods && b.periods[0]) || '';
+      function line(want){
+        var ws = want.map(function(x){ return x.toLowerCase(); });
+        for(var i = 0; i < (b.rows || []).length; i++){
+          if(ws.indexOf(String(b.rows[i].label || '').toLowerCase()) >= 0) return b.rows[i];
+        }
+        return null;
+      }
+      var a1 = line(['Total assets']);
+      var l1 = line(['Total liabilities']);
+      var e1 = line(['Total equity', 'Total shareholders equity', 'Shareholders equity']);
+      [[a1, 'ASSETS', UP], [l1, 'LIAB', DN], [e1, 'EQUITY', BLUE]].forEach(function(x){
+        if(!x[0]) return;
+        bal.items.push({
+          key:'bal:' + x[1], cluster:'balance', label:x[1],
+          name:x[1] + ' ' + (x[0].label || ''), code:'', link:'Balance sheet',
+          reason:fmtBig(x[0].values[0]) + ' ' + nd(String(b.currency || '')) +
+                 ' at ' + nd(String(per)),
+          src:nd(String(b.source || '')), colour:x[2], value:numv(x[0].values[0]), co:false
+        });
+      });
+      bal.total = bal.items.length;
+    }
+    add(bal);
+
+    /* EXECUTIVES: only what ceos.json names */
+    var exe = newCluster('execs', 'EXECUTIVES', 'radial', {file:'ceos.json'});
+    if(DATA.ceosSt === 'failed'){
+      exe.state = 'fail'; exe.err = DATA.ceosErr || 'ceos.json not loaded';
+    } else {
+      var nm = (DATA.ceos || {})[tk] || (DATA.ceos || {})[sym] || '';
+      exe.total = nm ? 1 : 0;
+      if(nm){
+        var sr = (DATA.ceosSrc || {})[tk] || (DATA.ceosSrc || {})[sym] || null;
+        exe.items.push({
+          key:'ex1:' + nm, cluster:'execs', label:codeOf('', nm), name:nd(String(nm)),
+          code:'', link:'Executive',
+          reason:nd(String((sr && sr.title) || 'chief executive') + ' named on file'),
+          src:sr ? nd(String(sr.source || '')) : 'ceos.json', colour:GREY, co:false
+        });
+      }
+    }
+    add(exe);
+
+    /* EVENTS */
+    var ev = newCluster('events', 'EVENTS', 'text', {file:DATA.caFile || 'corporate actions'});
+    if(DATA.caSt === 'failed'){
+      ev.state = 'fail'; ev.err = DATA.caErr;
+    } else {
+      var rows2 = DATA.ca || [];
+      ev.total = rows2.length;
+      rows2.forEach(function(r){
+        var lbl = String(r.text || r.kind || '');
+        var when = String(r.date || '');
+        var kind = String(r.kind || '').toUpperCase();
+        ev.items.push({
+          key:'ev:' + when + ':' + lbl.slice(0, 24), cluster:'events',
+          label:cut(lbl, 44), name:nd(lbl), code:'', link:'Corporate action',
+          reason:nd(kind + ' | ' + when), src:nd(String(r.src || '')),
+          colour:(kind.indexOf('DIVIDEND') >= 0 ? UP : (kind.indexOf('AGM') >= 0 ? BLUE : GREY)),
+          meta:cut(when, 12), co:false
+        });
+      });
+    }
+    add(ev);
+
+    /* NEWS */
+    var nw = newCluster('news', 'NEWS', 'text', {file:ex.toLowerCase() + '_news.json'});
+    if(DATA.newsSt === 'failed'){
+      nw.state = 'fail'; nw.err = DATA.newsErr;
+    } else {
+      var toks = core.split(' ').filter(function(w){ return w.length >= 4; });
+      var news = (DATA.news || []).filter(function(n){
+        return newsHit(n.title, tk, row.name);
+      });
+      news.sort(function(a, b){ return (Number(b.ts) || 0) - (Number(a.ts) || 0); });
+      nw.total = news.length;
+      news.forEach(function(n){
+        nw.items.push({
+          key:'nw:' + String(n.id || n.title || '').slice(0, 30), cluster:'news',
+          label:cut(n.title, 46), name:nd(n.title || ''), code:'', link:'Headline',
+          reason:nd(String(n.publisher || '') + ' | ' + String(n.date || '')),
+          src:nd(String(n.url || '')), colour:GREY, meta:cut(String(n.date || ''), 10), co:false
+        });
+      });
+    }
+    add(nw);
+
+    /* two nominees can share a six letter code: number the repeats inside a
+       cluster so no two boxes carry the same label */
+    out.forEach(function(c){
+      var seen = {};
+      c.items.forEach(function(it){
+        var lb = String(it.label || '?');
+        if(seen[lb]){
+          seen[lb] += 1;
+          it.label = (lb + seen[lb]).slice(0, 9);
         } else {
-          cls += ' off';
+          seen[lb] = 1;
+        }
+      });
+    });
+
+    /* caps: per cluster, then the total, and the total is stated on the map */
+    var CAPS = {indices:8, exchanges:4, peers:8, customers:8, suppliers:8, partners:8,
+                hop2:8, holders:8, balance:3, execs:2, laws:8, events:4, news:4};
+    var used = 0, dropped = 0;
+    out.forEach(function(c){
+      var lim = CAPS[c.key] != null ? CAPS[c.key] : 6;
+      if(c.items.length > lim){
+        dropped += c.items.length - lim;
+        c.items = c.items.slice(0, lim);
+      }
+      c.shown = c.items.length;
+    });
+    out.slice().sort(function(a, b){ return (b.promo ? 1 : 0) - (a.promo ? 1 : 0); })
+      .forEach(function(c){
+        var room = Math.max(0, G.cap - used);
+        if(c.shown > room){
+          dropped += c.shown - room;
+          c.items = c.items.slice(0, room);
+          c.shown = c.items.length;
+        }
+        used += c.shown;
+      });
+    out.sort(function(a, b){ return a.seed - b.seed; });
+
+    var centre = {key:'C:' + ex + ':' + tk, name:nd(row.name || tk), tk:tk, ex:ex,
+                  price:rowPrice(row), pct:pctOf(row), sector:row.sector || '',
+                  asOf:String(row.asOf || ''), currency:String(row.currency || ''),
+                  prev:numv(row.prevClose), co:true, listed:true, rec:G.rec};
+    return {row:row, ex:ex, tk:tk, centre:centre, clusters:out, dropped:dropped,
+            spark:DATA.spark, nodes:[], edges:[], tm:null};
+  }
+
+  /* ---------- 4. reach: direct, one link, two links ------------------- */
+  function modelNodes(m){
+    var n = [m.centre];
+    m.clusters.forEach(function(c){ c.items.forEach(function(it){ n.push(it); }); });
+    return n;
+  }
+  function modelEdges(m){
+    var e = [];
+    m.clusters.forEach(function(c){
+      c.items.forEach(function(it){
+        if(!it.co) return;
+        if(it.hop === 2 && it.parent) e.push({a:it.parent, b:it.key, type:it.link});
+        else e.push({a:m.centre.key, b:it.key, type:it.link});
+      });
+    });
+    return e;
+  }
+  function transMsg(tm){
+    if(tm.direct) return '';
+    var s = 'THIS ACT NAMES NO SECURITY ON THIS MAP';
+    if(!tm.named.length && !tm.all){
+      return s + ': ITS RECORD NAMES NO TICKER, ONLY SECTORS ' +
+        (tm.sectors.length ? tm.sectors.join(' ') : 'NONE');
+    }
+    if(tm.all && !tm.named.length){
+      return s + ': IT NAMES EVERY ' + tm.ex + ' ISSUER AND NO ' + tm.ex +
+        ' ISSUER IS DRAWN HERE';
+    }
+    var tk = tm.named.slice(0, 4).join(' ') + (tm.named.length > 4 ? ' +' + (tm.named.length - 4) : '');
+    var se = tm.sectors.length ? tm.sectors.join(' ') : 'NONE';
+    return s + ': ITS TICKERS ' + tk + ' AND ITS SECTORS ' + se + ' ARE NOT DRAWN HERE';
+  }
+  function trans(m){
+    m.tm = null;
+    var sc = lawScope();
+    var nodes = modelNodes(m), edges = modelEdges(m);
+    m.nodes = nodes; m.edges = edges;
+    if(!sc){
+      nodes.forEach(function(n){ n.st = ''; n.why = ''; });
+      return;
+    }
+    var rank = {};
+    nodes.forEach(function(n){
+      n.st = ''; n.why = '';
+      if(!n.co) return;
+      var ex = String(n.ex || '').toUpperCase();
+      var tk = String(n.tk || '').toUpperCase();
+      var se = String(n.sector || '').toUpperCase();
+      if(!n.listed || !tk || ex !== sc.ex) return;
+      if(sc.named.indexOf(tk) >= 0){ n.st = 'direct'; n.why = 'named'; rank[n.key] = 1; return; }
+      if(sc.all){ n.st = 'direct'; n.why = 'all'; rank[n.key] = 1; return; }
+      if(se && sc.secs.indexOf(se) >= 0){ n.st = 'direct'; n.why = 'sector'; rank[n.key] = 1; }
+    });
+    var H1 = {}, H2 = {};
+    edges.forEach(function(e){
+      if(rank[e.a] === 1 && rank[e.b] == null) H1[e.b] = 1;
+      if(rank[e.b] === 1 && rank[e.a] == null) H1[e.a] = 1;
+    });
+    Object.keys(H1).forEach(function(k){ rank[k] = 2; });
+    edges.forEach(function(e){
+      if(rank[e.a] === 2 && rank[e.b] == null) H2[e.b] = 1;
+      if(rank[e.b] === 2 && rank[e.a] == null) H2[e.a] = 1;
+    });
+    Object.keys(H2).forEach(function(k){ rank[k] = 3; });
+    var direct = [], h1 = [], h2 = [], off = [], noRec = 0;
+    nodes.forEach(function(n){
+      if(!n.co) return;
+      var r = rank[n.key];
+      n.st = r === 1 ? 'direct' : (r === 2 ? 'hop1' : (r === 3 ? 'hop2' : 'off'));
+      if(n.st === 'direct'){ direct.push(n); if(!n.rec) noRec++; }
+      else if(n.st === 'hop1') h1.push(n);
+      else if(n.st === 'hop2') h2.push(n);
+      else off.push(n);
+    });
+    var namedTk = sc.named.filter(function(x){ return x !== 'ALL'; });
+    m.tm = {ex:sc.ex, all:sc.all, named:namedTk, sectors:sc.secs,
+            direct:direct.length, hop1:h1.length, hop2:h2.length, off:off.length,
+            directList:direct.map(function(n){ return n.tk || n.name; }),
+            hop1List:h1.map(function(n){ return n.tk || n.name; }),
+            hop2List:h2.map(function(n){ return n.tk || n.name; }),
+            offList:off.map(function(n){ return n.tk || n.name; }),
+            noRec:noRec, edgesAmber:0};
+    m.tm.msg = transMsg(m.tm);
+    G.tm = m.tm;
+  }
+
+  /* ---------- 5. geometry ------------------------------------------- */
+  /* Sizes shrink with the viewport so twelve clusters and one centre box fit at
+     1280 as well as at 1600. Placement is a rough ring of seeds plus a
+     separation pass; if any two boxes still touch, the whole set is scaled down
+     and placed again, so an overlap is never shipped. */
+  function sizeOf(c, s){
+    if(c.kind === 'text'){
+      var nt = Math.max(1, c.items.length);
+      return {w:Math.round(152 * s), h:Math.round((20 + nt * 12) * s + 6)};
+    }
+    if(c.kind === 'bars'){
+      return {w:Math.round(140 * s), h:Math.round(92 * s)};
+    }
+    var cnt = Math.max(1, c.items.length);
+    var rx = 26 * s + Math.min(8, cnt) * 4.6 * s;
+    if(c.promo) rx = Math.max(rx, 40 * s);
+    var ry = rx * 0.70;
+    var maxLen = 0;
+    c.items.forEach(function(it){ maxLen = Math.max(maxLen, String(it.label || '').length); });
+    var padX = Math.max(26 * s, maxLen * 6.8 * s * 0.62 + 11 * s);
+    var w = Math.round(2 * rx + padX), h = Math.round(2 * ry + 30 * s);
+    if(c.promo){ w = Math.max(w, Math.round(172 * s)); h = Math.max(h, Math.round(120 * s)); }
+    return {w:w, h:h, rx:rx, ry:ry};
+  }
+  function aabbHit(a, b, gap){
+    return !(a.x + a.w + gap <= b.x || b.x + b.w + gap <= a.x ||
+             a.y + a.h + gap <= b.y || b.y + b.h + gap <= a.y);
+  }
+  function relax(boxes, cbox, W, areaH, topPad, gap){
+    var i, j, it, a, b, ox, oy, minY = topPad + 2, maxY = topPad + areaH - 6;
+    for(it = 0; it < 320; it++){
+      var moved = false;
+      for(i = 0; i < boxes.length; i++){
+        for(j = i + 1; j < boxes.length; j++){
+          a = boxes[i]; b = boxes[j];
+          ox = (a.w + b.w) / 2 + gap - Math.abs((a.x + a.w / 2) - (b.x + b.w / 2));
+          oy = (a.h + b.h) / 2 + gap - Math.abs((a.y + a.h / 2) - (b.y + b.h / 2));
+          if(ox > 0 && oy > 0){
+            if(ox < oy){
+              var sx = (a.x + a.w / 2) < (b.x + b.w / 2) ? -1 : 1;
+              a.x += sx * Math.ceil(ox / 2); b.x -= sx * Math.ceil(ox / 2);
+            } else {
+              var sy = (a.y + a.h / 2) < (b.y + b.h / 2) ? -1 : 1;
+              a.y += sy * Math.ceil(oy / 2); b.y -= sy * Math.ceil(oy / 2);
+            }
+            moved = true;
+          }
         }
       }
-      out += '<path class="' + cls + '" data-a="' + t(e.a) + '" data-b="' + t(e.b) + '" d="M' +
-        x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' +
-        x2.toFixed(1) + ' ' + y2.toFixed(1) + '" fill="none" stroke="' + stroke +
-        '" stroke-width="' + wd.toFixed(2) + '" marker-end="' + mk + '"/>';
-    });
-    return out;
+      boxes.forEach(function(p){
+        ox = (p.w + cbox.w) / 2 + gap - Math.abs((p.x + p.w / 2) - (cbox.x + cbox.w / 2));
+        oy = (p.h + cbox.h) / 2 + gap - Math.abs((p.y + p.h / 2) - (cbox.y + cbox.h / 2));
+        if(ox > 0 && oy > 0){
+          if(ox < oy){
+            p.x += ((p.x + p.w / 2) < (cbox.x + cbox.w / 2) ? -1 : 1) * Math.ceil(ox);
+          } else {
+            p.y += ((p.y + p.h / 2) < (cbox.y + cbox.h / 2) ? -1 : 1) * Math.ceil(oy);
+          }
+          moved = true;
+        }
+        p.x = Math.max(3, Math.min(W - p.w - 3, p.x));
+        p.y = Math.max(minY, Math.min(maxY - p.h, p.y));
+      });
+      if(!moved) break;
+    }
   }
-  function nodesHTML(g){
-    var out = '';
-    g.nodes.forEach(function(n){
-      if(n.depth === 0) return;
-      var p = nodePaint(n);
-      var st = (G.law && n.st) ? n.st : 'free';
-      var col = p ? p.stroke : typeOf(n.types[0]).c;
-      var sw = p ? p.w : 1;
-      var dash = (p && p.dash) ? ' stroke-dasharray="' + p.dash + '"' : '';
-      var tcol = p ? p.tx : (n.depth === 1 ? '#a8a8a8' : '#7a7a7a');
-      var lbl = String(n.code || n.tk || '');
-      var r = n.depth === 1 ? R_L1 : R_L2;
-      var title = n.name + (n.ex ? ' ' + n.ex : '') + (n.tk ? ' ' + n.tk : '') +
-        (n.reason ? ' | ' + n.reason : '') + (n.src ? ' | ' + n.src : '');
-      out += '<g class="nd st-' + st + '" data-k="' + t(n.key) + '" data-d="' + n.depth +
-        '" data-st="' + st + '"' + (p ? ' opacity="' + p.op + '"' : '') + '>' +
-        '<title>' + t(title) + '</title>' +
-        '<circle cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' +
-        (r + 5).toFixed(1) + '" fill="transparent" stroke="none"/>' +
-        '<circle class="nl" cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' + r +
-        '" fill="#050505" stroke="' + col + '" stroke-width="' + sw + '"' + dash + '/>' +
-        '<text x="' + n.lx.toFixed(1) + '" y="' + n.ly.toFixed(1) + '" text-anchor="' + n.la +
-        '" font-size="' + (n.depth === 1 ? 7.6 : 7) + '" fill="' + tcol + '">' + t(lbl) +
-        '</text></g>';
-    });
-    /* the focal node: a filled disc with a coloured ring, big enough to carry
-       the ticker inside and the company name under it */
-    var c = g.centre;
-    var cp = nodePaint(c);
-    var cst = (G.law && c.st) ? c.st : 'free';
-    var cCol = cp ? cp.stroke : '#33e29a';
-    var cW = cp ? (cp.w + 0.2) : 1.6;
-    var cDash = (cp && cp.dash) ? ' stroke-dasharray="' + cp.dash + '"' : '';
-    var cTxt = cp ? cp.tx : '#33e29a';
-    var cFill = (cp && c.st === 'off') ? '#0a0a0a' : '#071710';
-    var lbl = String(c.tk || '');
-    var fs = lbl.length <= 5 ? 10.5 : (lbl.length <= 8 ? 8.6 : 7.2);
-    var nm = String(c.name || '');
-    var nmS = nm.length > 30 ? nm.slice(0, 29) + '.' : nm;
-    out += '<g class="nd ct st-' + cst + '" data-k="' + t(c.key) + '" data-d="0" data-st="' +
-      cst + '"' + (cp ? ' opacity="' + cp.op + '"' : '') + '>' +
-      '<title>' + t(nm + ' ' + c.ex + ' ' + lbl) + '</title>' +
-      '<circle cx="' + c.tx.toFixed(1) + '" cy="' + c.ty.toFixed(1) + '" r="' + (R_CTR + 6) +
-      '" fill="none" stroke="' + ((cp && c.st === 'off') ? '#222' : '#1f4f3c') +
-      '" stroke-width="1" stroke-dasharray="2 3"/>' +
-      '<circle class="nl" cx="' + c.tx.toFixed(1) + '" cy="' + c.ty.toFixed(1) + '" r="' + R_CTR +
-      '" fill="' + cFill + '" stroke="' + cCol + '" stroke-width="' + cW + '"' + cDash + '/>' +
-      '<text x="' + c.tx.toFixed(1) + '" y="' + (c.ty + 3.6).toFixed(1) +
-      '" text-anchor="middle" font-size="' + fs + '" font-weight="700" fill="' + cTxt + '">' +
-      t(lbl) + '</text>' +
-      '<text x="' + c.tx.toFixed(1) + '" y="' + (c.ty + R_CTR + 13).toFixed(1) +
-      '" text-anchor="middle" font-size="7.4" fill="' + (cp && c.st === 'off' ? '#5a5a5a' : '#8a8a8a') +
-      '">' + t(nmS) + '</text></g>';
-    return out;
-  }
-  function legendHTML(g){
-    var counts = {};
-    g.nodes.forEach(function(n){
-      if(n.depth === 0) return;
-      var k = n.types[0] || '';
-      counts[k] = (counts[k] || 0) + 1;
-    });
-    var h = '<div class="lgh">LEGEND</div>';
-    relTypes().forEach(function(tp){
-      h += '<div class="lgr' + (G.types[tp.k] ? '' : ' off') + '"><i style="background:' + tp.c +
-        '"></i><span>' + tp.n + '</span><b>' + (counts[tp.k] || 0) + '</b></div>';
-    });
-    h += '<div class="lgf"><span>NODES</span><b>' + g.nodes.length + '</b></div>' +
-      '<div class="lgf"><span>EDGES</span><b>' + g.edges.length + '</b></div>';
-    if(G.law && g.tm){
-      h += '<div class="lgh" style="margin-top:5px">TRANSMISSION</div>' +
-        '<div class="lgr"><i class="sw"></i><span>DIRECT</span><b class="a">' + g.tm.direct + '</b></div>' +
-        '<div class="lgr"><i class="sw d"></i><span>1 LINK</span><b class="a">' + g.tm.hop1 + '</b></div>' +
-        '<div class="lgr"><i class="sw p"></i><span>2 LINKS</span><b class="a">' + g.tm.hop2 + '</b></div>' +
-        '<div class="lgr"><i class="sw g"></i><span>UNAFFECTED</span><b>' + g.tm.off + '</b></div>' +
-        '<div class="lgf w"><span>SCOPE</span><b>' + t(g.tm.ex) + '</b></div>';
-      if(g.tm.noRec){
-        h += '<div class="lgf w"><span>NO RECORD</span><b>' + g.tm.noRec + ' DIRECT</b></div>';
+  function overlaps(boxes, cbox){
+    var out = [], i, j;
+    for(i = 0; i < boxes.length; i++){
+      if(aabbHit(boxes[i], cbox, 0)) out.push(boxes[i].key + '|CENTRE');
+      for(j = i + 1; j < boxes.length; j++){
+        if(aabbHit(boxes[i], boxes[j], 0)) out.push(boxes[i].key + '|' + boxes[j].key);
       }
     }
-    if(g.geo && g.geo.rings && g.geo.rings.length){
-      h += '<div class="lgh" style="margin-top:6px">RINGS</div>';
-      g.geo.rings.forEach(function(r){
-        h += '<div class="lgrg"><span>RING ' + r.i + '</span><b>' + r.n + '</b></div>';
-      });
-    }
-    return h;
+    return out;
   }
-  function graphSVG(g, w, h){
-    layoutRings(g, w, h);
-    var geo = g.geo;
-    var out = markersHTML() + '<g class="gv">';
-    geo.rings.forEach(function(r){
-      out += '<ellipse class="rg" cx="' + geo.cx.toFixed(1) + '" cy="' + geo.cy.toFixed(1) +
-        '" rx="' + r.rx.toFixed(1) + '" ry="' + r.ry.toFixed(1) + '"/>' +
-        '<text class="rl" x="' + (geo.cx - r.rx - 4).toFixed(1) + '" y="' +
-        (geo.cy + 2.5).toFixed(1) + '" text-anchor="end">RING ' + r.i + '</text>';
+  function gapOf(a, b){
+    var gx = Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w));
+    var gy = Math.max(b.y - (a.y + a.h), a.y - (b.y + b.h));
+    return Math.max(gx, gy);
+  }
+  function minGap(boxes, cbox){
+    var mg = 1e9, i, j;
+    for(i = 0; i < boxes.length; i++){
+      mg = Math.min(mg, gapOf(boxes[i], cbox));
+      for(j = i + 1; j < boxes.length; j++) mg = Math.min(mg, gapOf(boxes[i], boxes[j]));
+    }
+    return (mg === 1e9 ? 0 : Math.round(mg));
+  }
+  function layoutMap(m, W, H){
+    var s0 = Math.min(W / 1090, (H - 30) / 530);
+    s0 = Math.max(0.62, Math.min(1.25, s0));
+    var topPad = 8, subH = 20;
+    var areaH = Math.max(150, H - subH - topPad);
+    var cx = W / 2, cy = topPad + areaH / 2;
+    var CW = Math.round(208 * s0), CH = Math.round(106 * s0);
+    var cbox = {x:Math.round(cx - CW / 2), y:Math.round(cy - CH / 2), w:CW, h:CH};
+    var s = s0, boxes = null, tries = 0;
+    for(tries = 0; tries < 14; tries++){
+      s = s0 * Math.pow(0.945, tries);
+      boxes = m.clusters.map(function(c){
+        var z = sizeOf(c, s);
+        return {key:c.key, c:c, w:z.w, h:z.h, rx:z.rx, ry:z.ry, s:s};
+      });
+      var arx = W * 0.335, ary = areaH * 0.325;
+      boxes.forEach(function(b){
+        var a = (b.c.seed || 0) * Math.PI / 180;
+        b.x = Math.round(cx + Math.cos(a) * arx - b.w / 2);
+        b.y = Math.round(cy + Math.sin(a) * ary - b.h / 2);
+      });
+      relax(boxes, cbox, W, areaH, topPad, Math.max(4, 9 * s));
+      if(!overlaps(boxes, cbox).length) break;
+    }
+    m.geo = {w:W, h:H, s:s, cbox:cbox, boxes:boxes, overlaps:overlaps(boxes, cbox),
+             areaH:areaH, topPad:topPad, subH:subH, tries:tries + 1};
+    m.geo.minGap = minGap(boxes, cbox);
+    return m.geo;
+  }
+
+  /* ---------- 6. drawing ------------------------------------------- */
+  function connPath(a, b){
+    var ax = a.x + a.w / 2, ay = a.y + a.h / 2;
+    var bx = b.x + b.w / 2, by = b.y + b.h / 2;
+    var dx = bx - ax, dy = by - ay;
+    var t1 = 0, t2 = 1;
+    if(dx !== 0 || dy !== 0){
+      var tx = dx === 0 ? 1e9 : (a.w / 2) / Math.abs(dx);
+      var ty = dy === 0 ? 1e9 : (a.h / 2) / Math.abs(dy);
+      t1 = Math.min(tx, ty);
+      var ux = dx === 0 ? 1e9 : (b.w / 2) / Math.abs(dx);
+      var uy = dy === 0 ? 1e9 : (b.h / 2) / Math.abs(dy);
+      t2 = 1 - Math.min(ux, uy);
+    }
+    return [ax + dx * t1, ay + dy * t1, ax + dx * t2, ay + dy * t2];
+  }
+  function nodeHTML(it, x, y, w, h, fs){
+    var cls = 'nd' + (it.st ? ' st-' + it.st : '');
+    var op = (it.st === 'off') ? .3 : ((it.st === 'hop2') ? .62 : 1);
+    var lbl = String(it.label || '?');
+    var bw = Math.max(w, Math.round(lbl.length * fs * 0.62 + 7));
+    var hh = Math.round(h);
+    var out = '<g class="' + cls + '" data-k="' + t(it.key) + '" data-cl="' + t(it.cluster || '') +
+      '" data-st="' + t(it.st || '') + '" data-co="' + (it.co ? 1 : 0) + '"' +
+      (it.st === 'off' || it.st === 'hop2' ? ' opacity="' + op + '"' : '') + '>' +
+      '<title>' + t(it.name + (it.code ? ' ' + it.code : '') +
+        (it.reason ? ' | ' + it.reason : '')) + '</title>' +
+      '<rect class="nb" x="' + (x - bw / 2).toFixed(1) + '" y="' + (y - hh / 2).toFixed(1) +
+      '" width="' + bw + '" height="' + hh + '" rx="1.5" stroke="' + it.colour + '"/>';
+    if(it.st === 'direct' || it.st === 'hop1' || it.st === 'hop2'){
+      out += '<rect class="ar ' + (it.st === 'direct' ? 'd' : (it.st === 'hop1' ? 'h1' : 'h2')) +
+        '" x="' + (x - bw / 2 - 2).toFixed(1) + '" y="' + (y - hh / 2 - 2).toFixed(1) +
+        '" width="' + (bw + 4) + '" height="' + (hh + 4) + '" rx="2"/>';
+    }
+    out += '<text class="nt" x="' + x.toFixed(1) + '" y="' + (y + fs * 0.36).toFixed(1) +
+      '" text-anchor="middle" fill="' + it.colour + '">' + t(lbl) + '</text></g>';
+    return out;
+  }
+  function clusterSVG(m, b, s){
+    var c = b.c;
+    var fs = 6.8 * s;
+    var out = '<g class="clgrp" data-cl="' + t(c.key) + '"><title>' +
+      t(c.tip || (c.title + ' ' + c.shown + ' of ' + (c.total || 0) + ' drawn from ' + (c.file || 'the record'))) +
+      '</title>';
+    out += '<rect class="cb2' + (c.promo ? ' promo' : '') + '" x="' + b.x + '" y="' + b.y +
+      '" width="' + b.w + '" height="' + b.h + '" rx="2"/>';
+    if(c.promo){
+      out += '<rect class="pbar" x="' + b.x + '" y="' + b.y + '" width="2" height="' + b.h + '"/>';
+    }
+    out += '<text class="ct' + (c.promo ? ' promo' : '') + '" x="' + (b.x + 7) + '" y="' +
+      (b.y + 12 * s).toFixed(1) + '">' + t(c.title) +
+      '<tspan class="cc" dx="3">(' + c.shown + '/' + (c.total || 0) + ')</tspan></text>';
+    out += '<line class="crule" x1="' + (b.x + 5) + '" y1="' + (b.y + 16 * s).toFixed(1) +
+      '" x2="' + (b.x + b.w - 5) + '" y2="' + (b.y + 16 * s).toFixed(1) + '"/>';
+
+    var top = b.y + 17 * s, bot = b.y + b.h - 5;
+    if(c.state === 'fail'){
+      out += '<text class="notread" x="' + (b.x + 8) + '" y="' + (top + 14).toFixed(1) +
+        '">FILE NOT READ</text>';
+      out += '<text class="notread" x="' + (b.x + 8) + '" y="' + (top + 26).toFixed(1) + '">' +
+        t(cut(c.err || 'no detail', 30)) + '</text>';
+      return out + '</g>';
+    }
+    if(!c.shown){
+      out += '<text class="none" x="' + (b.x + b.w / 2) + '" y="' + ((top + bot) / 2 + 3) +
+        '" text-anchor="middle">NONE</text>';
+      return out + '</g>';
+    }
+
+    if(c.kind === 'text'){
+      var y = top + 9 * s;
+      var lim = Math.max(10, Math.floor((b.w - 20) / (6.9 * s * 0.60)));
+      c.items.forEach(function(it){
+        out += '<g class="nd" data-k="' + t(it.key) + '" data-cl="' + t(c.key) + '" data-st="' +
+          t(it.st || '') + '" data-co="0"><title>' + t(it.name + ' | ' + it.reason) + '</title>' +
+          '<rect x="' + (b.x + 4) + '" y="' + (y - 7 * s).toFixed(1) + '" width="' + (b.w - 8) +
+          '" height="' + (11 * s).toFixed(1) + '" fill="transparent"/>' +
+          '<circle class="td" cx="' + (b.x + 8) + '" cy="' + (y - 2 * s).toFixed(1) +
+          '" r="1.8" fill="' + it.colour + '"/>' +
+          '<text class="tl" x="' + (b.x + 13) + '" y="' + y.toFixed(1) + '">' +
+          t(cut(it.label, lim)) + '</text></g>';
+        y += 12 * s;
+      });
+      return out + '</g>';
+    }
+    if(c.kind === 'bars'){
+      var bx = b.x + 10, bwid = b.w - 20, nbar = c.items.length;
+      var slot = bwid / Math.max(1, nbar);
+      var barW = Math.min(22 * s, slot - 8);
+      var maxV = 0;
+      c.items.forEach(function(it){ maxV = Math.max(maxV, Math.abs(it.value || 0)); });
+      var base = bot - 12 * s, hMax = Math.max(16, base - (top + 12));
+      c.items.forEach(function(it, i){
+        var hgt = maxV > 0 ? Math.max(2, Math.round(Math.abs(it.value || 0) / maxV * hMax)) : 2;
+        var x = bx + slot * i + (slot - barW) / 2;
+        out += '<g class="nd" data-k="' + t(it.key) + '" data-cl="' + t(c.key) + '" data-co="0">' +
+          '<title>' + t(it.name + ' | ' + it.reason) + '</title>' +
+          '<rect class="br" x="' + x.toFixed(1) + '" y="' + (base - hgt) + '" width="' +
+          barW.toFixed(1) + '" height="' + hgt + '" fill="' + it.colour + '" opacity=".8"/>' +
+          '<text class="bv" x="' + (x + barW / 2).toFixed(1) + '" y="' + (base - hgt - 3) +
+          '" text-anchor="middle">' + t(fmtBig(it.value)) + '</text>' +
+          '<text class="bl" x="' + (x + barW / 2).toFixed(1) + '" y="' + (base + 8 * s).toFixed(1) +
+          '" text-anchor="middle">' + t(it.label) + '</text></g>';
+      });
+      return out + '</g>';
+    }
+    /* radial: a hub and coloured labelled boxes on a ring around it */
+    var hx = b.x + b.w / 2, hy = (top + bot) / 2;
+    var nn = c.items.length, placed = [];
+    c.items.forEach(function(it, i){
+      var ang = nn === 1 ? 0 : (-Math.PI / 2 + (Math.PI * 2 / Math.max(1, nn)) * i);
+      placed.push({it:it, x:hx + Math.cos(ang) * b.rx, y:hy + Math.sin(ang) * b.ry});
     });
-    out += edgesHTML(g);
-    out += nodesHTML(g);
+    placed.forEach(function(p){
+      out += '<line class="sp" x1="' + hx.toFixed(1) + '" y1="' + hy.toFixed(1) + '" x2="' +
+        p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) + '"/>';
+    });
+    out += '<circle class="hub" cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="3"/>';
+    placed.forEach(function(p){
+      out += nodeHTML(p.it, p.x, p.y, 30 * s, 12 * s, fs);
+    });
     return out + '</g>';
   }
-  function codeFor(g){
-    var used = {};
-    g.nodes.forEach(function(n){
-      if(n.depth === 0){ n.code = n.tk; return; }
-      var c = n.tk;
-      if(!c){
-        var words = String(n.name || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').split(' ')
-          .filter(function(w){ return w && w.length > 1; });
-        if(!words.length) c = '?';
-        else if(words.length === 1) c = words[0].slice(0, 6);
-        else {
-          var ini = words.map(function(w){ return w.charAt(0); }).join('');
-          c = ini.length >= 2 ? ini.slice(0, 5) : words[0].slice(0, 6);
-        }
-      }
-      if(used[c]){ used[c]++; c = c + used[c]; }
-      else used[c] = 1;
-      n.code = c;
-    });
+  function sparkSVG(m, x, y, w, h){
+    var d = m.spark;
+    var bars = (d && d.bars) || null;
+    if(!bars || !bars.length){
+      return '<text class="cnh" x="' + x + '" y="' + (y + h / 2 + 3) +
+        '">NO PRICE HISTORY ON FILE</text>';
+    }
+    var closes = bars.slice(-30).map(function(b){
+      return numv(b.c != null ? b.c : b.close);
+    }).filter(function(v){ return v != null; });
+    if(closes.length < 2) return '';
+    var lo = Math.min.apply(null, closes), hi = Math.max.apply(null, closes);
+    var rng = (hi - lo) || 1;
+    var pts = closes.map(function(v, i){
+      var px = x + (w * i / (closes.length - 1));
+      var py = y + h - ((v - lo) / rng) * h;
+      return px.toFixed(1) + ',' + py.toFixed(1);
+    }).join(' ');
+    var up = closes[closes.length - 1] >= closes[0];
+    return '<polyline class="spl" points="' + pts + '" stroke="' + (up ? UP : DN) + '"/>';
   }
+  function centreSVG(m, s){
+    var c = m.centre, g = m.geo.cbox, pc = c.pct;
+    var strip = (pc == null || pc >= 0) ? '' : ' dn';
+    var hdr = (pc == null || pc >= 0) ? '#04120c' : '#2a0808';
+    var out = '<g class="ctr" data-k="' + t(c.key) + '">';
+    out += '<rect class="cbox" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="' +
+      g.h + '" rx="2"/>';
+    out += '<rect class="chd' + strip + '" x="' + g.x + '" y="' + g.y + '" width="' + g.w +
+      '" height="' + Math.round(15 * s) + '" rx="2"/>';
+    out += '<text class="ctk" x="' + (g.x + 7) + '" y="' + (g.y + 11.2 * s).toFixed(1) +
+      '" fill="' + hdr + '">' + t(c.tk) + '</text>';
+    out += '<text class="cex" x="' + (g.x + g.w - 7) + '" y="' + (g.y + 10.8 * s).toFixed(1) +
+      '" fill="' + hdr + '">' + t(c.ex) + '</text>';
+    out += '<text class="cnm" x="' + (g.x + 7) + '" y="' + (g.y + 27 * s).toFixed(1) + '">' +
+      t(cut(c.name, 36)) + '</text>';
+    var py = g.y + 44 * s;
+    out += '<text class="cpx" x="' + (g.x + 7) + '" y="' + py.toFixed(1) + '">' +
+      t(fmtP(c.price)) + '</text>';
+    out += '<text class="ccy" x="' + (g.x + 9 + String(fmtP(c.price)).length * 8.4 * s).toFixed(1) +
+      '" y="' + py.toFixed(1) + '">' + t(c.currency || '') + '</text>';
+    out += '<text class="cch" x="' + (g.x + g.w - 7) + '" y="' + (py - 1).toFixed(1) +
+      '" text-anchor="end" fill="' +
+      (pc == null ? GREY : (pc > 0 ? UP : (pc < 0 ? DN : GREY))) + '">' + t(fmtPct(pc)) +
+      '</text>';
+    out += sparkSVG(m, g.x + 7, g.y + 50 * s, g.w - 14, 20 * s);
+    out += '<text class="cas" x="' + (g.x + 7) + '" y="' + (g.y + g.h - 6) + '">' +
+      t((c.prev != null ? 'PREV ' + fmtP(c.prev) + '  ' : '') +
+        (c.asOf ? 'AS OF ' + c.asOf : '')) + '</text>';
+    out += '</g>';
+    return out;
+  }
+  function svgAll(m, W, H){
+    var s = m.geo.s, out = '<g class="gv">';
+    m.geo.boxes.forEach(function(b){
+      var p = connPath(m.geo.cbox, b);
+      out += '<path class="cn" data-cl="' + t(b.key) + '" d="M' + p[0].toFixed(1) + ' ' +
+        p[1].toFixed(1) + ' L' + p[2].toFixed(1) + ' ' + p[3].toFixed(1) + '"/>';
+    });
+    m.geo.boxes.forEach(function(b){ out += clusterSVG(m, b, s); });
+    out += centreSVG(m, s);
+    return out + '</g>';
+  }
+
+  /* ---------- 7. header and footer lines --------------------------- */
   function filesLine(){
     var ok = [], bad = [];
     EXS.forEach(function(ex){ (REL_ST[ex] === 'ok' ? ok : bad).push(ex); });
     return 'FILES ' + (ok.length ? ok.join(' ') : 'NONE') +
       (bad.length ? ' | <b>' + bad.join(' ') + ' NOT READ</b>' : '');
   }
-  function graphSub(g){
-    var n1 = 0, n2 = 0;
-    g.nodes.forEach(function(n){ if(n.depth === 1) n1++; else if(n.depth === 2) n2++; });
-    var s = 'HOP ' + G.hops + ' | ' + n1 + ' FIRST' + (G.hops > 1 ? ' + ' + n2 + ' SECOND' : '') +
-      ' | CAP ' + G.cap + ' NODES';
-    if(g.trunc) s += ' | <b>' + g.trunc + ' DROPPED AT CAP</b>';
-    return s + ' | ' + filesLine();
+  function nodeCount(m){
+    var n = 0;
+    m.clusters.forEach(function(c){ n += c.items.length; });
+    return n;
   }
-  function markNode(svg){
-    if(!svg) return;
-    Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
-      if(el.getAttribute('data-k') === G.selKey) el.classList.add('on');
-      else el.classList.remove('on');
-    });
+  function headerMeta(m){
+    return m.clusters.length + ' CLUSTERS | ' + nodeCount(m) + ' NODES | CAP ' + G.cap +
+      (m.dropped ? ' | ' + m.dropped + ' DROPPED' : '');
   }
-  function linkedSet(g, key){
-    var out = {};
-    if(!g) return out;
-    g.edges.forEach(function(e){
-      if(e.a === key) out[e.b] = 1;
-      if(e.b === key) out[e.a] = 1;
-    });
-    return out;
+  function subHTML(m){
+    return 'BOX COLOUR GREEN UP, RED DOWN, BLUE LISTED NO PRICE, GREY FLAT, ORANGE RECORD ONLY | ' +
+      'CAP ' + G.cap + ' NODES | ' + filesLine();
   }
-  /* hover marks the edges a node actually carries and dulls the rest; the Act
-     colouring is a separate class, so a hover never rewrites it */
-  function hoverNode(svg, key){
-    var near = linkedSet(G.last, key);
-    Array.prototype.forEach.call(svg.querySelectorAll('path.ge'), function(el){
-      var on = el.getAttribute('data-a') === key || el.getAttribute('data-b') === key;
-      el.classList.toggle('hi', on);
-      el.classList.toggle('dim', !on);
-    });
-    Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
-      var k = el.getAttribute('data-k');
-      var on = k === key || !!near[k];
-      el.classList.toggle('dim', !on);
-      el.classList.toggle('hv', k === key);
-    });
-  }
-  function clearHover(svg){
-    Array.prototype.forEach.call(svg.querySelectorAll('path.ge'), function(el){
-      el.classList.remove('hi');
-      el.classList.remove('dim');
-    });
-    Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
-      el.classList.remove('dim');
-      el.classList.remove('hv');
-    });
-  }
-  function wireNodes(svg){
-    Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
-      var key = el.getAttribute('data-k') || '';
-      el.addEventListener('mouseenter', function(){ hoverNode(svg, key); });
-      el.addEventListener('mouseleave', function(){ clearHover(svg); });
-      el.addEventListener('click', function(ev){
-        if(MAP.moved) return;
-        ev.stopPropagation();
-        G.selKey = key;
-        markNode(svg);
-        paintSel();
-      });
-    });
-  }
+
+  /* ---------- 8. pan, zoom, hover, detail -------------------------- */
+  var MAP = {k:1, x:0, y:0, drag:false, moved:false, sx:0, sy:0, ox:0, oy:0, svg:null};
   function applyView(svg){
     if(!svg) return;
     var gv = svg.querySelector('.gv');
@@ -1206,9 +1579,7 @@
     zoomAt(MAP.svg, (r.width || 0) / 2, (r.height || 0) / 2, f);
   }
   function resetView(){
-    MAP.k = 1;
-    MAP.x = 0;
-    MAP.y = 0;
+    MAP.k = 1; MAP.x = 0; MAP.y = 0;
     applyView(MAP.svg);
   }
   var PAN_WIRED = false;
@@ -1248,10 +1619,68 @@
       zoomAt(svg, ev.clientX - r.left, ev.clientY - r.top, ev.deltaY < 0 ? 1.12 : 1 / 1.12);
     }, {passive:false});
   }
-
-  /* ---------- 3. THE NODE THE READER PINNED -------------------------- */
+  function markNode(svg){
+    if(!svg) return;
+    Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
+      if(el.getAttribute('data-k') === G.selKey) el.classList.add('on');
+      else el.classList.remove('on');
+    });
+  }
+  /* hover lifts the cluster the node belongs to and lets the rest recede */
+  function hoverNode(svg, key, cl){
+    Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
+      var same = el.getAttribute('data-k') === key;
+      var sib = cl && el.getAttribute('data-cl') === cl;
+      el.classList.toggle('hv', same);
+      el.classList.toggle('dim', !same && !sib);
+    });
+    Array.prototype.forEach.call(svg.querySelectorAll('path.cn'), function(el){
+      el.classList.toggle('hi', !!cl && el.getAttribute('data-cl') === cl);
+    });
+    Array.prototype.forEach.call(svg.querySelectorAll('rect.cb2'), function(el){
+      var grp = el.parentNode;
+      el.classList.toggle('hi', !!cl && grp && grp.getAttribute('data-cl') === cl);
+    });
+  }
+  function clearHover(svg){
+    Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
+      el.classList.remove('dim');
+      el.classList.remove('hv');
+    });
+    Array.prototype.forEach.call(svg.querySelectorAll('path.cn'), function(el){
+      el.classList.remove('hi');
+    });
+    Array.prototype.forEach.call(svg.querySelectorAll('rect.cb2'), function(el){
+      el.classList.remove('hi');
+    });
+  }
+  function wireNodes(svg){
+    Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
+      var key = el.getAttribute('data-k') || '';
+      var cl = el.getAttribute('data-cl') || '';
+      el.addEventListener('mouseenter', function(){ hoverNode(svg, key, cl); });
+      el.addEventListener('mouseleave', function(){ clearHover(svg); });
+      el.addEventListener('click', function(ev){
+        if(MAP.moved) return;
+        ev.stopPropagation();
+        G.selKey = key;
+        markNode(svg);
+        paintSel();
+      });
+    });
+  }
+  function findNode(key){
+    var m = G.model;
+    if(!m || !key) return null;
+    if(m.centre.key === key) return m.centre;
+    for(var i = 0; i < m.clusters.length; i++){
+      var c = m.clusters[i];
+      for(var j = 0; j < c.items.length; j++) if(c.items[j].key === key) return c.items[j];
+    }
+    return null;
+  }
   function actBasis(n){
-    if(!G.law || !n || !n.st) return '';
+    if(!G.law || !n || !n.co) return '';
     if(n.st === 'direct'){
       if(n.why === 'named') return 'DIRECT, NAMED BY ACT';
       if(n.why === 'all') return 'DIRECT, ACT NAMES ALL ' + ((G.tm && G.tm.ex) || '') + ' ISSUERS';
@@ -1264,86 +1693,81 @@
   function paintSel(){
     var box = document.getElementById('b_sel');
     if(!box) return;
-    var g = G.last, n = null, i;
-    if(g && G.selKey){
-      for(i = 0; i < g.nodes.length; i++){ if(g.nodes[i].key === G.selKey){ n = g.nodes[i]; break; } }
-    }
+    var n = findNode(G.selKey);
     if(!n){
-      box.innerHTML = '<div class="emp"><b>NO NODE PINNED</b> click a node on the map</div>';
+      box.innerHTML = '<div class="emp"><b>NO NODE PINNED</b> click a node or a line on the map</div>';
       meta('sel', DASH);
       return;
     }
-    var tk = n.tk || 'UNLISTED';
-    var ex = n.ex || 'NOT IN TERMINAL';
-    var link = n.depth === 0 ? 'SELECTED SECURITY'
-      : (typeLabel(n.types[0]) + (n.types.length > 1 ? ' +' + (n.types.length - 1) : ''));
+    var isC = String(n.key || '').indexOf('C:') === 0;
     var h = '';
     h += '<div class="srow"><span class="sk">NAME</span><span class="sv clip" title="' +
       t(n.name) + '">' + t(n.name) + '</span></div>';
-    h += '<div class="srow"><span class="sk">TICKER</span><span class="sv tk">' + t(tk) + '</span>' +
-      '<span class="sk sk2">' + t(ex) + '</span></div>';
-    h += '<div class="srow"><span class="sk">LINK</span><span class="sv ' +
-      (n.depth === 0 ? 'dm' : 'wr') + '">' + t(link) + '</span>' +
-      '<span class="sk sk2">HOP ' + n.depth + '</span></div>';
-    if(G.law){
-      h += '<div class="srow"><span class="sk">ACT</span><span class="sv ' +
-        (n.st === 'direct' ? 'wr' : 'dm') + '" title="' + t(actBasis(n)) + '">' +
-        t(actBasis(n)) + '</span></div>';
+    h += '<div class="srow"><span class="sk">CODE</span><span class="sv tk">' +
+      t(n.code || n.tk || DASH) + '</span><span class="sk sk2">' + t(n.ex || '') + '</span></div>';
+    if(isC){
+      h += '<div class="srow"><span class="sk">PRICE</span><span class="sv">' + t(fmtP(n.price)) +
+        ' ' + t(n.currency || '') + '</span><span class="sk sk2">' + t(fmtPct(n.pct)) + '</span></div>';
+      h += '<div class="srow"><span class="sk">SECTOR</span><span class="sv dm">' +
+        t(n.sector || DASH) + '</span></div>';
+      h += '<div class="srow"><span class="sk">RECORD</span><span class="sv dm">' +
+        recCount(n.rec) + ' LINKS ON FILE</span></div>';
+      box.innerHTML = h;
+      meta('sel', 'CENTRE | ' + (n.ex || ''));
+      return;
     }
-    h += '<div class="srow"><span class="sk">REASON</span><span class="sv clip" title="' +
+    h += '<div class="srow"><span class="sk">CLUSTER</span><span class="sv wr">' +
+      t(String(n.cluster || '').toUpperCase()) + '</span><span class="sk sk2">' +
+      t(n.link || '') + '</span></div>';
+    if(n.co){
+      h += '<div class="srow"><span class="sk">HOP</span><span class="sv dm">' +
+        (n.hop || 1) + '</span></div>';
+      if(G.law){
+        h += '<div class="srow"><span class="sk">ACT</span><span class="sv ' +
+          (n.st === 'direct' ? 'wr' : 'dm') + '" title="' + t(actBasis(n)) + '">' +
+          t(actBasis(n)) + '</span></div>';
+      }
+    }
+    h += '<div class="srow"><span class="sk">NOTE</span><span class="sv clip" title="' +
       t(n.reason || '') + '">' + t(n.reason || 'none recorded') + '</span></div>';
     h += '<div class="srow"><span class="sk">SOURCE</span><span class="sv dm" title="' +
       t(n.src || '') + '">' + t(n.src || DASH) + '</span></div>';
-    if(n.rec){
-      var cnt = 0;
-      ['customers', 'suppliers', 'competitors', 'partners'].forEach(function(k){
-        cnt += (n.rec[k] || []).length;
-      });
-      h += '<div class="srow"><span class="sk">RECORD</span><span class="sv dm">' + cnt +
-        ' LINKS ON FILE</span></div>';
-    } else if(G.law && (n.st === 'direct' || n.st === 'hop1' || n.st === 'hop2')){
-      h += '<div class="srow"><span class="sk">RECORD</span><span class="sv wr">' +
-        'NONE ON FILE, SO NOTHING PROPAGATES FROM IT</span></div>';
-    }
     box.innerHTML = h;
-    meta('sel', 'HOP ' + n.depth + ' | ' + (n.ex || 'UNLISTED'));
+    meta('sel', String(n.cluster || '').toUpperCase() + (n.co ? ' | HOP ' + (n.hop || 1) : ''));
   }
 
-  /* ---------- 4. DRAW ------------------------------------------------ */
-  function renderGraph(box, row){
-    var g = buildGraph(row, G.rec);
-    codeFor(g);
-    trans(g);
-    G.tm = g.tm;
-    box.innerHTML = '<div class="gwrap"></div>' +
-      '<div class="gsub" id="gsub">' + graphSub(g) + '</div>';
+  /* ---------- 9. draw ------------------------------------------- */
+  function renderMap(box){
+    var m = buildClusters(G.row);
+    G.model = m;
+    trans(m);
+    G.tm = m.tm;
+    box.innerHTML = '<div class="gwrap"></div><div class="gsub" id="gsub">' + subHTML(m) +
+      '</div>';
     var wrap = box.querySelector('.gwrap');
-    var run = function(){
+    function run(){
       var r = wrap.getBoundingClientRect();
       var w = Math.round(r.width || box.clientWidth || 600);
-      var hh = Math.round(r.height || box.clientHeight || 260);
-      if(w < 60 || hh < 60) return;
-      layoutRings(g, w, hh);
+      var hh = Math.round(r.height || box.clientHeight || 300);
+      if(w < 80 || hh < 80) return;
+      layoutMap(m, w, hh);
       wrap.innerHTML = '<svg class="gsvg" viewBox="0 0 ' + w + ' ' + hh + '" width="' + w +
-        '" height="' + hh + '">' + graphSVG(g, w, hh) + '</svg>';
+        '" height="' + hh + '">' + svgAll(m, w, hh) + '</svg>';
       var svg = wrap.querySelector('.gsvg');
-      var leg = document.createElement('div');
-      leg.className = 'gleg';
-      leg.id = 'gleg';
-      leg.innerHTML = legendHTML(g);
-      wrap.appendChild(leg);
       MAP.svg = svg;
       applyView(svg);
       wirePan(svg);
       wireNodes(svg);
       markNode(svg);
-      G.last = g;
-    };
+      var cm = document.getElementById('m_rel');
+      if(cm) cm.textContent = nd(headerMeta(m));
+      var gs = document.getElementById('gsub');
+      if(gs) gs.innerHTML = subHTML(m);
+      G.geo = m.geo;
+    }
     run();
     PAINT.rel = run;
-    G.last = g;
-    meta('rel', g.nodes.length + ' NODES | ' + g.edges.length + ' LINKS' +
-      (G.law && g.tm ? ' | ' + g.tm.direct + ' DIRECT' : ''));
+    meta('rel', headerMeta(m));
     paintSel();
     paintAct();
   }
@@ -1351,87 +1775,33 @@
     G.row = row;
     G.rec = rec;
     G.selKey = '';
-    G.last = null;
+    G.model = null;
     G.tm = null;
-    /* a new security opens at the whole map, not at the last zoom */
-    MAP.k = 1;
-    MAP.x = 0;
-    MAP.y = 0;
-    var path = sd('relationships_' + row.ex + '.json');
-    if(readState(path) === 'failed' || !relFile){
-      box.innerHTML = failBox('RELATIONSHIPS', 'relationships_' + row.ex + '.json not loaded');
+    MAP.k = 1; MAP.x = 0; MAP.y = 0;
+    if(REL_ST[row.ex] === 'failed'){
+      box.innerHTML = failBox('RELATIONSHIPS', 'relationships_' + row.ex +
+        '.json not loaded: ' + readErr(sd('relationships_' + row.ex + '.json')));
       meta('rel', 'FILE NOT READ');
       paintSel();
       paintAct();
       return;
     }
-    buildRelIndex();
-    if(!rec){
-      var cov = relFile.coverage || {};
-      var secs = relFile.securities || {};
-      var withOne = isNum(cov.securitiesWithSourcedEntity) ? Number(cov.securitiesWithSourcedEntity)
-                                                          : Object.keys(secs).length;
-      var listed = isNum(cov.securitiesListed) ? Number(cov.securitiesListed) : null;
-      box.innerHTML = '<div class="gwrap"><svg class="gsvg"></svg></div>' +
-        '<div class="gsub" id="gsub"><b>NO RECORD</b> | ' + withOne + (listed != null ? ' OF ' + listed : '') +
-        ' ' + t(row.ex) + ' SECURITIES CARRY A SOURCED RECORD | ' + filesLine() + '</div>';
-      var svg0 = box.querySelector('.gsvg');
-      var run0 = function(){
-        var r = svg0.getBoundingClientRect();
-        var w = Math.round(r.width || box.clientWidth || 600);
-        var hh = Math.round(r.height || (box.clientHeight - 18) || 220);
-        svg0.setAttribute('viewBox', '0 0 ' + w + ' ' + hh);
-        svg0.innerHTML = '<circle cx="' + (w / 2) + '" cy="' + (hh / 2) + '" r="24" fill="#0a1c15" ' +
-          'stroke="#33e29a" stroke-width="1.5"/><text x="' + (w / 2) + '" y="' + (hh / 2 + 4) +
-          '" text-anchor="middle" font-size="11" font-weight="700" fill="#33e29a">' +
-          t(rowTicker(row)) + '</text>';
-      };
-      run0();
-      PAINT.rel = run0;
-      meta('rel', '0 NODES | 0 LINKS');
-      paintSel();
-      paintAct();
-      return;
-    }
-    var count = activeTypes().reduce(function(a, tp){ return a + (rec[tp.k] || []).length; }, 0);
-    var total = relTypes().reduce(function(a, tp){ return a + (rec[tp.k] || []).length; }, 0);
-    if(!total){
-      box.innerHTML = empBox('EMPTY RECORD', 'the file carries ' + rowTicker(row) +
-        ' but names nothing') + '<div class="gsub" id="gsub">' + filesLine() + '</div>';
-      meta('rel', '0 NODES | 0 LINKS');
-      paintSel();
-      paintAct();
-      return;
-    }
-    if(!count){
-      box.innerHTML = empBox('FILTER HIDES EVERY LINK', 'the record carries ' + total +
-        ' links, none of an active type') + '<div class="gsub" id="gsub">' + filesLine() + '</div>';
-      meta('rel', '0 NODES | 0 LINKS');
-      paintSel();
-      paintAct();
-      return;
-    }
-    renderGraph(box, row);
+    renderMap(box);
   }
-  /* the controls in the map header, and the Act selector above it, are the only
-     things that change the graph */
   function setHop(n){
     G.hops = n === 2 ? 2 : 1;
-    var ctl = document.querySelectorAll('#c_hop .hp');
-    Array.prototype.forEach.call(ctl, function(x){
+    Array.prototype.forEach.call(document.querySelectorAll('#c_hop .hp'), function(x){
       x.setAttribute('aria-pressed', Number(x.getAttribute('data-hop')) === G.hops ? 'true' : 'false');
     });
   }
   function wireGraphControls(){
-    var ctl = document.querySelectorAll('#c_hop .hp');
-    Array.prototype.forEach.call(ctl, function(b){
+    Array.prototype.forEach.call(document.querySelectorAll('#c_hop .hp'), function(b){
       b.addEventListener('click', function(){
         setHop(Number(b.getAttribute('data-hop')));
         redrawGraph();
       });
     });
-    var flt = document.querySelectorAll('#c_type .ft');
-    Array.prototype.forEach.call(flt, function(b){
+    Array.prototype.forEach.call(document.querySelectorAll('#c_type .ft'), function(b){
       b.addEventListener('click', function(){
         var k = b.getAttribute('data-t');
         var on = G.types[k];
@@ -1469,16 +1839,75 @@
     });
   }
 
-  /* ---------- the build ---------------------------------------------- */
+  /* ---------- 10. the build ------------------------------------ */
   var GEN = 0, CUR = null;
-
+  function caFileFor(ex){
+    if(ex === 'NSE') return 'nse_corporate_actions.json';
+    if(ex === 'NGX') return 'ngx_corporate_actions.json';
+    if(ex === 'JSE') return 'jse_announcements.json';
+    if(ex === 'EGX') return 'egx_announcements.json';
+    return ex.toLowerCase() + '_corporate_actions.json';
+  }
+  function histPaths(row){
+    var tk = rowTicker(row), sym = String(row.sym || ''), ex = row.ex, out = [];
+    if(ex === 'NSE' || ex === 'NGX') out.push(ex + '_' + tk + '.json');
+    if(sym && sym !== tk) out.push(sym + '.json');
+    out.push(tk + '.json');
+    if(sym) out.push(sym.replace(/\./g, '_') + '.json');
+    return uniq(out).map(function(f){ return sd('history/' + f); });
+  }
+  function balPaths(row){
+    var tk = rowTicker(row), sym = String(row.sym || '');
+    return uniq([tk, sym].filter(Boolean)).map(function(k){
+      return sd('financials/' + k + '__balance.json');
+    });
+  }
+  function setSourceStates(row){
+    var ex = row.ex;
+    DATA.idxSt = readState(sd('ex_' + ex + '_indices.json'));
+    DATA.idxErr = readErr(sd('ex_' + ex + '_indices.json'));
+    DATA.newsSt = readState(sd(ex.toLowerCase() + '_news.json'));
+    DATA.newsErr = readErr(sd(ex.toLowerCase() + '_news.json'));
+    DATA.caFile = caFileFor(ex);
+    DATA.caSt = readState(sd(DATA.caFile));
+    DATA.caErr = readErr(sd(DATA.caFile));
+    EXS.forEach(function(e2){
+      DATA.shSt[e2] = readState(sd('shareholders_' + e2 + '.json'));
+      DATA.shErr[e2] = readErr(sd('shareholders_' + e2 + '.json'));
+    });
+    DATA.ceosSt = readState(sd('ceos.json'));
+    DATA.ceosErr = readErr(sd('ceos.json'));
+  }
+  function normEvents(ex, raw, row){
+    var tk = rowTicker(row), core = coreName(row.name);
+    var div = String(row.sym || '').split('.')[0];
+    var out = [];
+    (raw || []).forEach(function(r){
+      if(!r) return;
+      var rt = String(r.ticker || '').toUpperCase();
+      var nm = String(r.company || r.name || '').toLowerCase();
+      var tt = String(r.title || '').toLowerCase();
+      var ok;
+      if(ex === 'NSE' || ex === 'NGX'){
+        ok = rt === tk;
+      } else {
+        ok = (rt === tk) || (!!div && rt.split('.')[0] === div) ||
+             (!!core && nm.indexOf(core) >= 0) || (!!core && tt.indexOf(core) >= 0);
+      }
+      if(!ok) return;
+      out.push({date:String(r.date || r.year || ''),
+                kind:String(r.kind || ((ex === 'NSE' || ex === 'NGX') ? 'EVENT' : 'ANNOUNCEMENT')),
+                text:String(r.text || r.title || ''), src:String(r.src || r.url || '')});
+    });
+    return out;
+  }
   function build(row){
     var gen = ++GEN;
     CUR = row;
     G.row = row;
     G.rec = null;
     G.selKey = '';
-    G.last = null;
+    G.model = null;
     G.tm = null;
     RECBY = null;
     PAINT = {};
@@ -1489,18 +1918,20 @@
 
     var ex = row.ex;
     var J = {};
-    J.info = getJSON(sd('company_info.json'));
     J.rel = getJSON(sd('relationships_' + ex + '.json'));
-    /* all four boards are read, so a chain can cross an exchange board */
-    J.rell = EXS.map(function(e2){ return getJSON(sd('relationships_' + e2 + '.json')); });
+    J.rell = Promise.all(EXS.map(function(e2){ return getJSON(sd('relationships_' + e2 + '.json')); }));
+    J.sh = Promise.all(EXS.map(function(e2){ return getJSON(sd('shareholders_' + e2 + '.json')); }));
+    J.idx = getJSON(sd('ex_' + ex + '_indices.json'));
+    J.news = getJSON(sd(ex.toLowerCase() + '_news.json'));
+    J.ca = getJSON(sd(caFileFor(ex)));
+    J.ceos = getJSON(sd('ceos.json'));
+    J.ceosSrc = probeJSON([sd('ceos_sources.json')]);
+    J.bal = probeJSON(balPaths(row));
+    J.spark = probeJSON(histPaths(row));
 
-    Promise.all([J.info, J.rel, Promise.all(J.rell)])
+    Promise.all([J.rel, J.rell, J.sh, J.idx, J.news, J.ca, J.ceos, J.ceosSrc, J.bal, J.spark])
     .then(function(R){
       if(gen !== GEN) return;
-      var relFile = R[1];
-
-      /* what each of the four link files actually returned, kept for the panel
-         to print rather than assumed */
       EXS.forEach(function(e2){
         var p = sd('relationships_' + e2 + '.json');
         REL_ST[e2] = readState(p);
@@ -1508,12 +1939,29 @@
         REL[e2] = (RELF[e2] && RELF[e2].securities) || {};
       });
       RECBY = null;
+      buildRelIndex();
 
+      var relFile = R[0];
       var relRec = null;
       if(relFile && relFile.securities){
         var s = relFile.securities;
         relRec = s[row.ticker] || s[row.sym] || s[rowTicker(row)] || null;
       }
+
+      setSourceStates(row);
+      DATA.idx = (Array.isArray(R[3]) ? R[3] : []).filter(function(x){ return x && x.ticker; });
+      DATA.news = (Array.isArray(R[4]) ? R[4] : []);
+      DATA.ca = normEvents(ex, R[5], row);
+      DATA.ceos = (R[6] && typeof R[6] === 'object' && !Array.isArray(R[6])) ? R[6] : {};
+      DATA.ceosSrc = (R[7] && R[7].data) || {};
+      DATA.bal = (R[8] && R[8].data) || null;
+      DATA.balSt = DATA.bal ? 'ok' : 'empty';
+      DATA.spark = (R[9] && R[9].data) || null;
+      DATA.sparkSt = DATA.spark ? 'ok' : 'empty';
+      EXS.forEach(function(e2, i){
+        var d = R[2] && R[2][i];
+        DATA.sh[e2] = (d && d.securities) || {};
+      });
 
       guardDraw('rel', function(box){ drawRel(box, row, relFile, relRec); });
 
@@ -1536,7 +1984,7 @@
     build(row);
   }
 
-  /* ---------- wiring -------------------------------------------------- */
+  /* ---------- 11. wiring --------------------------------------- */
   wireGraphControls();
   var inp = document.getElementById('q');
   if(inp){
@@ -1579,8 +2027,6 @@
     }
   });
 
-  /* the shell hands the selection over; adopting it means a panel opened from
-     a watchlist click lands on that security, not on a default */
   window.__mtApplySelection = function(sel){
     if(!sel || !(sel.sym || sel.ticker)) return false;
     loadIndex().then(function(){
@@ -1602,45 +2048,59 @@
     }catch(e){}
   }
 
-  /* the proof surface: what this panel believes, readable from the DOM */
+  /* ---------- 12. the proof surface ---------------------------- */
   function textWords(){
     var txt = (document.body.innerText || '').replace(/\s+/g, ' ').trim();
     return txt ? txt.split(' ').length : 0;
   }
+  function clusterDump(m){
+    if(!m) return [];
+    return m.clusters.map(function(c){
+      return {key:c.key, title:c.title, kind:c.kind, state:c.state,
+              shown:c.shown, total:(c.total || 0),
+              nodes:c.items.map(function(it){
+                return {label:it.label, code:it.code || '', name:it.name,
+                        colour:it.colour, st:it.st || '', hop:it.hop || 0, co:!!it.co};
+              })};
+    });
+  }
   function selInfo(){
-    var g = G.last, n = null, i;
-    if(g && G.selKey){
-      for(i = 0; i < g.nodes.length; i++){ if(g.nodes[i].key === G.selKey) n = g.nodes[i]; }
-    }
+    var n = findNode(G.selKey);
     if(!n) return null;
-    return {name:n.name, ticker:n.tk || 'UNLISTED', exchange:n.ex || 'NOT IN TERMINAL',
-            hop:n.depth, link:(n.depth === 0 ? 'selected security' : typeLabel(n.types[0])),
-            reason:n.reason || '', source:n.src || '', carriedRecord:!!n.rec,
-            actState:n.st || '', actBasis:actBasis(n)};
+    return {name:n.name, code:n.code || n.tk || '', exchange:n.ex || '',
+            cluster:n.cluster || 'centre', hop:n.hop || 0, colour:n.colour || '',
+            link:n.link || 'selected security', reason:n.reason || '', source:n.src || '',
+            carriedRecord:!!n.rec, actState:n.st || '', actBasis:actBasis(n)};
   }
   window.__mtPerpState = function(){
-    var g = G.last, hop1 = 0, hop2 = 0, e1 = 0, e2 = 0, cross = 0, crossEx = [];
-    if(g){
-      g.nodes.forEach(function(n){
-        if(n.depth === 1) hop1++;
-        if(n.depth === 2) hop2++;
-        if(n.depth > 0 && n.ex && CUR && n.ex !== CUR.ex){
-          cross++;
-          crossEx.push(n.ex + ':' + (n.tk || '?'));
-        }
-      });
-      g.edges.forEach(function(e){ if(e.depth === 1) e1++; else e2++; });
-    }
-    var sub = document.getElementById('gsub'), wq = document.getElementById('webq');
-    var pol = document.getElementById('pol');
+    var m = G.model, pol = document.getElementById('pol');
     var opts = pol ? Array.prototype.map.call(pol.options, function(o){
       return {value:o.value, label:o.textContent};
     }) : [];
-    var law = G.law, tm = g ? g.tm : null;
-    var claim = document.getElementById('claim');
-    var ab = document.getElementById('actbar');
+    var law = G.law, tm = m ? m.tm : null;
+    var sub = document.getElementById('gsub'), wq = document.getElementById('webq');
+    var claim = document.getElementById('claim'), ab = document.getElementById('actbar');
+    var geo = (m && m.geo) ? {
+      w:m.geo.w, h:m.geo.h, scale:Math.round(m.geo.s * 1000) / 1000, tries:m.geo.tries,
+      overlaps:m.geo.overlaps, minGap:m.geo.minGap, centre:m.geo.cbox,
+      boxes:m.geo.boxes.map(function(b){
+        return {key:b.key, title:b.c.title, x:b.x, y:b.y, w:b.w, h:b.h};
+      })
+    } : null;
     return {
-      ticker: CUR ? rowTicker(CUR) : '', ex: CUR ? CUR.ex : '', name: CUR ? nd(CUR.name || '') : '',
+      ticker: CUR ? rowTicker(CUR) : '', ex: CUR ? CUR.ex : '',
+      name: CUR ? nd(CUR.name || '') : '',
+      centre: m ? {
+        ticker:m.centre.tk, exchange:m.centre.ex, name:m.centre.name,
+        price:m.centre.price, priceText:fmtP(m.centre.price), currency:m.centre.currency,
+        pct:m.centre.pct, pctText:fmtPct(m.centre.pct), prev:m.centre.prev,
+        asOf:m.centre.asOf, sector:m.centre.sector,
+        sparkBars:(m.spark && (m.spark.bars || []).length) || 0,
+        sparkValues:(m.spark && (m.spark.bars || []).slice(-30).map(function(b){
+          return b.c != null ? b.c : b.close;
+        })) || []
+      } : null,
+      clusters: clusterDump(m),
       policy: {
         id: law ? law.id : '', name: law ? nd(law.name || '') : '',
         year: law ? law.year : '', status: law ? law.status : '',
@@ -1648,60 +2108,36 @@
         sectors: law ? (law.sectors || []) : [], tickers: law ? (law.tickers || []) : [],
         exchange: law ? String(law.exchange || LAW.ex || '') : '',
         optionCount: opts.length, options: opts,
-        selected: pol ? pol.value : '',
-        fileState: LAW.st
+        selected: pol ? pol.value : '', fileState: LAW.st
       },
       transmission: tm ? {
-        ex: tm.ex, all: tm.all, named: tm.named, sectors: tm.sectors,
-        direct: tm.direct, hop1: tm.hop1, hop2: tm.hop2, off: tm.off,
-        directList: tm.directList, hop1List: tm.hop1List, hop2List: tm.hop2List,
-        offList: tm.offList, noRec: tm.noRec, amberEdges: tm.edgesAmber, message: tm.msg,
+        ex:tm.ex, all:tm.all, named:tm.named, sectors:tm.sectors,
+        direct:tm.direct, hop1:tm.hop1, hop2:tm.hop2, off:tm.off,
+        directList:tm.directList, hop1List:tm.hop1List, hop2List:tm.hop2List,
+        offList:tm.offList, noRec:tm.noRec, message:tm.msg,
         domDirect: document.querySelectorAll('#b_rel g.nd.st-direct').length,
         domHop1: document.querySelectorAll('#b_rel g.nd.st-hop1').length,
         domHop2: document.querySelectorAll('#b_rel g.nd.st-hop2').length,
-        domOff: document.querySelectorAll('#b_rel g.nd.st-off').length,
-        domAmberEdges: document.querySelectorAll('#b_rel path.ge.am').length,
-        domOffEdges: document.querySelectorAll('#b_rel path.ge.off').length
+        domOff: document.querySelectorAll('#b_rel g.nd[data-st="off"]').length,
+        domRings: document.querySelectorAll('#b_rel rect.ar').length
       } : null,
       graph: {
-        hopMode: G.hops, cap: G.cap, truncated: g ? g.trunc : 0,
-        nodes: g ? g.nodes.length : 0, edges: g ? g.edges.length : 0,
-        hop1: hop1, hop2: hop2, edgesHop1: e1, edgesHop2: e2,
-        crossExchange: cross, crossList: crossEx,
-        domNodes: document.querySelectorAll('#b_rel .nd').length,
-        domEdges: document.querySelectorAll('#b_rel path.ge').length,
-        bezierEdges: Array.prototype.filter.call(document.querySelectorAll('#b_rel path.ge'),
-          function(p){ return String(p.getAttribute('d') || '').indexOf(' Q') > 0; }).length,
-        arrowedEdges: Array.prototype.filter.call(document.querySelectorAll('#b_rel path.ge'),
-          function(p){ return !!p.getAttribute('marker-end'); }).length,
-        arrowheads: document.querySelectorAll('#b_rel svg marker').length,
-        rings: g && g.geo ? g.geo.rings : [],
-        centreRadius: g && g.geo ? g.geo.rCtr : 0,
-        leafRadius: g && g.geo ? g.geo.r1 : 0,
-        zoom: {k: Math.round(MAP.k * 1000) / 1000, x: Math.round(MAP.x), y: Math.round(MAP.y)},
-        pinned: G.selKey,
-        legendRows: Array.prototype.map.call(document.querySelectorAll('#b_rel .gleg .lgr'),
-          function(el){ return el.textContent.replace(/\s+/g, ' ').trim(); }),
-        legendTotals: Array.prototype.map.call(document.querySelectorAll('#b_rel .gleg .lgf'),
-          function(el){ return el.textContent.replace(/\s+/g, ' ').trim(); }),
-        mapControls: document.querySelectorAll('#c_rel .kn').length,
-        files: EXS.map(function(ex){ return {ex: ex, state: REL_ST[ex] || 'unread'}; }),
+        hopMode:G.hops, cap:G.cap, truncated:m ? m.dropped : 0,
+        clusters:m ? m.clusters.length : 0, nodes:m ? nodeCount(m) : 0,
+        edges:m ? m.edges.length : 0,
+        domNodes: document.querySelectorAll('#b_rel g.nd').length,
+        domClusters: document.querySelectorAll('#b_rel .clgrp').length,
+        domConnectors: document.querySelectorAll('#b_rel path.cn').length,
+        domHubs: document.querySelectorAll('#b_rel circle.hub').length,
+        zoom:{k:Math.round(MAP.k * 1000) / 1000, x:Math.round(MAP.x), y:Math.round(MAP.y)},
+        pinned:G.selKey,
+        files:EXS.map(function(ex){ return {ex:ex, state:REL_ST[ex] || 'unread'}; }),
         sub: sub ? sub.textContent : '',
-        types: relTypes().filter(function(tp){ return G.types[tp.k]; }).map(function(tp){ return tp.k; })
+        types: relTypes().filter(function(tp){ return G.types[tp.k]; })
+          .map(function(tp){ return tp.k; })
       },
+      geo: geo,
       sel: selInfo(),
-      removed: {
-        head: !document.getElementById('head'),
-        tiles: !document.getElementById('b_strip') && document.querySelectorAll('.tile').length === 0,
-        price: !document.getElementById('c_px') && !document.getElementById('b_px'),
-        charts: document.querySelectorAll('.pxchart,.pxfb').length === 0 &&
-                document.querySelectorAll('script[src*="unpkg"]').length === 0,
-        news: !document.getElementById('c_news') && document.querySelectorAll('.ncard').length === 0,
-        lawChips: !document.getElementById('c_law') && !document.getElementById('b_law') &&
-                  document.querySelectorAll('.chip').length === 0,
-        thesis: !document.getElementById('c_thes') && !document.getElementById('b_thes'),
-        financial: !document.getElementById('c_fin') && !document.getElementById('b_fin')
-      },
       actbar: ab ? ab.textContent.replace(/\s+/g, ' ').trim() : '',
       claim: claim ? claim.textContent.replace(/\s+/g, ' ').trim() : '',
       inputs: document.querySelectorAll('input').length,
@@ -1709,7 +2145,7 @@
       enabledInputs: document.querySelectorAll('input:not([disabled])').length,
       buttons: document.querySelectorAll('button').length,
       webq: wq ? {disabled: !!wq.disabled, placeholder: wq.placeholder} : null,
-      words: textWords()
+      words:textWords()
     };
   };
 
@@ -1727,8 +2163,6 @@
     }
     if(row){ pick(row); announceReady(); return; }
     if(!tk && ex){
-      /* open on a security of the exchange the shell shows that carries a
-         relationship record, so the first screen is a map with links */
       getJSON(sd('relationships_' + ex + '.json')).then(function(rel){
         var secs = (rel && rel.securities) || {};
         var sel = null;
@@ -1743,7 +2177,7 @@
       });
       return;
     }
-    var def = findRow('KCB', 'NSE') || findRow('SCOM', 'NSE') || IDX[0];
+    var def = findRow('SCOM', 'NSE') || IDX[0];
     if(def) pick(def);
     announceReady();
   });
