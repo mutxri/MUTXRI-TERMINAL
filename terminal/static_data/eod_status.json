@@ -1,5 +1,5 @@
 {
- "checkedAt": "2026-10-25T12:04:12+00:00",
+ "checkedAt": "2026-10-25T15:45:30+00:00",
  "exchanges": {
   "NSE": {
    "exchange": "NSE",
@@ -21,7 +21,7 @@
    "future": [],
    "integrity": {},
    "integrityExamples": [],
-   "snapshotAsOf": "NSE 23/10/2026 17:03 GMT+3 (closed)",
+   "snapshotAsOf": "2026-10-23",
    "snapshotAgrees": true,
    "note": null
   },
@@ -152,10 +152,10 @@
   },
   "EGX": {
    "exchange": "EGX",
-   "expectedSession": "2026-10-22",
+   "expectedSession": "2026-10-25",
    "observedSession": "2026-10-22",
-   "status": "current",
-   "sessionsBehind": 0,
+   "status": "behind",
+   "sessionsBehind": 1,
    "securities": 372,
    "counts": {
     "current": 244,
@@ -174,8 +174,123 @@
    "integrityExamples": [],
    "snapshotAsOf": "2026-10-22",
    "snapshotAgrees": true,
-   "note": null
+   "note": "no security has the 2026-10-25 session yet - either it has not been fetched or it was a market holiday (holidays are not modelled)"
   }
  },
- "allCurrent": true
+ "allCurrent": false,
+ "run": {
+  "startedAt": "2026-10-25T15:30:02+00:00",
+  "seconds": 935.1,
+  "exchanges": [
+   "NSE",
+   "NGX",
+   "JSE",
+   "EGX"
+  ],
+  "collected": [
+   "NSE",
+   "NGX",
+   "JSE",
+   "EGX"
+  ],
+  "steps": [
+   {
+    "step": "NSE IR feed backfill (merges)",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 530.5,
+    "tail": [
+     "  NSE: 0 bars",
+     "  KQ: 0 bars",
+     "DONE: 0/22 symbols"
+    ]
+   },
+   {
+    "step": "NSE official board",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 2.4,
+    "tail": [
+     "dropped delisted codes the feed still echoes: ['FAHR', 'NBK']",
+     "DONE: 71 stocks -> market_NSE.json (official NSE feed)",
+     "     32 rows had a stale today_open outside their own range and were clamped to a real print; 0 rows written with open outside [low, high]"
+    ]
+   },
+   {
+    "step": "NSE board bar -> archive",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 5.3,
+    "tail": [
+     "NSE 2026-10-23: 0 bars appended, 69 refreshed, 2 securities with no traded price skipped, 68 priced from TradingView"
+    ]
+   },
+   {
+    "step": "NGX official price lists",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 2.6,
+    "tail": [
+     "10 sessions requested, 10 already on disk, 0 to fetch",
+     "",
+     "DONE: 0 days fetched, 0 symbols with >=2 bars saved"
+    ]
+   },
+   {
+    "step": "JSE/EGX Yahoo top-up",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 299.8,
+    "tail": [
+     "  650 topped up | daily 627 kept 4",
+     "  700 topped up | daily 641 kept 4",
+     "DONE: daily 641 written, max 0 written, 56 no-data, 4 kept (fetch was worse)"
+    ]
+   },
+   {
+    "step": "label history basis",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 13.4,
+    "tail": []
+   },
+   {
+    "step": "rebuild market snapshots",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 11.7,
+    "tail": [
+     "NSE: 65/65 covered | sessions 2026-10-23 .. 2026-10-23 (1 distinct) -> market_NSE.json",
+     "TOTAL: 856/912",
+     "marketcap_sources.json regenerated: 936 decided (set 575, withhold 361) stamp 2026-10-25T18:39:19.577844"
+    ]
+   },
+   {
+    "step": "retry 291 lagging JSE/EGX securities",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 334.8,
+    "tail": [
+     "daily 291 written, 0 kept, 0 no-data"
+    ],
+    "outcome": {
+     "retried": 291,
+     "recovered": 242,
+     "stillLagging": 49
+    }
+   },
+   {
+    "step": "rebuild market snapshots",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 14.8,
+    "tail": [
+     "NSE: 65/65 covered | sessions 2026-10-23 .. 2026-10-23 (1 distinct) -> market_NSE.json",
+     "TOTAL: 856/912",
+     "marketcap_sources.json regenerated: 936 decided (set 575, withhold 361) stamp 2026-10-25T18:45:15.765031"
+    ]
+   }
+  ],
+  "failedSteps": []
+ }
 }
