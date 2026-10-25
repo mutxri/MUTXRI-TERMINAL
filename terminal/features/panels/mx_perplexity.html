@@ -1,29 +1,34 @@
 <!--
-  mx_perplexity.html - PERPLEXITY: the research dossier for one security.
+  mx_perplexity.html - PERPLEXITY: the visual dossier for one security.
+
+  A dashboard, not a document. Eight figure tiles across the top, a relationship
+  network as the centrepiece, revenue and net profit as grouped bars, the price
+  history on the same lightweight-charts engine the CHART window uses, a strip of
+  headline cards, laws as status coloured chips and ownership as one stacked bar.
+  Labels are short and figures are large: a reader should read the company in
+  about three seconds.
 
   Nothing here is fetched from a new source. The panel reads what the terminal
-  already ships for the selected security and lays it out in one scroll:
+  already ships for the selected security:
 
-    HEADER        static_data/market_<EX>.json  (+ company_info.json when the
-                  market row is missing a field)
+    TILES         static_data/market_<EX>.json, static_data/analytics/<KEY>.json,
+                  static_data/history/<KEY>.json
     RELATIONSHIPS static_data/relationships_<EX>.json
+    PRICE         static_data/history/NSE_<TK>.json or NGX_<TK>.json
+    FINANCIALS    static_data/financials/<KEY>__income.json
     NEWS          static_data/<ex>_news.json and <ex>_announcements.json
-    FINANCIALS    static_data/financials/<KEY>__income.json and
-                  static_data/analytics/<KEY>.json
     OWNERSHIP     static_data/shareholders_<EX>.json
-    GOV EXPOSURE  static_data/gov_exposure_KE.json / gov_exposure_SA.json
     LAWS          static_data/gov_laws_KE.json
+    EXPOSURE      static_data/gov_exposure_KE.json / gov_exposure_SA.json
 
   Rules this file keeps:
-    * a figure is printed only when the file carries it; absence prints as "-"
-      or as a named absence, never as zero and never as a peer's number;
-    * a withheld ratio keeps the reason stored beside it;
-    * a security with no relationship record is told apart from a relationship
-      file that could not be read, and the first case offers same-sector peers
-      that do have one;
-    * every section draws inside guardDraw(), so one broken read blanks one
-      section and prints why, and nothing else;
-    * one input, no buttons, rebuilt by typing.
+    * a figure is printed only when the file carries it;
+    * a withheld multiple prints WITHHELD in amber and keeps its stored reason
+      on the tile's hover title, never as a paragraph;
+    * an empty record is told apart from a failed read, and a failed read prints
+      the failure where its content belongs;
+    * every block draws inside a guard, so one broken read blanks one block;
+    * one input, no buttons.
   Vanilla JS, single file, no build step. Mint on black, Oxygen Mono.
 -->
 <!DOCTYPE html>
@@ -39,125 +44,179 @@
   ::-webkit-scrollbar{width:0;height:0;}
   :root{
     --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
-    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;--up:#33e29a;--acc:#33e29a;--down:#f87171;--acc2:#1ecfb0;
-    --warn:#e0a341;--mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;--up:#33e29a;--acc:#33e29a;--down:#f87171;
+    --acc2:#1ecfb0;--warn:#e0a341;--blue:#6ea8fe;--violet:#c08cff;
+    --mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
     --ui:Inter,system-ui,sans-serif;
   }
   *{box-sizing:border-box}
   /* The shell gives every panel a window, so this panel draws no frame of its
      own: no border, no radius, no max-width, no padding, no margin. */
-  body{margin:0;background:transparent;color:var(--tx);font-family:var(--mono);font-size:12px;padding:0;font-variant-numeric:tabular-nums}
-  .wrap{border:0;background:transparent;max-width:none;margin:0;border-radius:0}
+  html,body{height:100%}
+  body{margin:0;background:transparent;color:var(--tx);font-family:var(--mono);font-size:12px;
+       padding:0;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;
+       height:100vh;overflow:hidden}
+  .wrap{display:flex;flex-direction:column;height:100%;min-height:0;border:0;background:transparent;
+        max-width:none;margin:0;border-radius:0}
 
-  .head{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line2);background:var(--bg2);flex-wrap:wrap}
-  .head .code{color:var(--acc);font-weight:700;letter-spacing:.04em}
-  .head .tkr{font-weight:700;letter-spacing:.04em}
-  .head .name{color:var(--tx2);font-family:var(--ui);font-size:11.5px}
-  .head .tag{font-size:9px;letter-spacing:.08em;color:var(--acc);border:1px solid #1f4f3c;padding:1px 5px;border-radius:2px}
+  /* ---------- head ---------- */
+  .head{display:flex;align-items:center;gap:9px;padding:6px 12px;border-bottom:1px solid var(--line2);
+        background:var(--bg2);flex:0 0 auto;min-width:0}
+  .head .code{color:var(--acc);font-weight:700;letter-spacing:.06em;font-size:10px}
+  .head .tkr{font-weight:700;letter-spacing:.04em;font-size:14px}
+  .head .name{color:var(--tx2);font-family:var(--ui);font-size:11px;white-space:nowrap;overflow:hidden;
+              text-overflow:ellipsis;max-width:34vw}
+  .head .tag{font-size:8px;letter-spacing:.08em;color:var(--acc);border:1px solid #1f4f3c;
+             padding:1px 4px;border-radius:2px;white-space:nowrap}
   .head .tag.dim{color:var(--tx3);border-color:var(--line2)}
   .spacer{margin-left:auto}
-  .q{display:flex;align-items:baseline;gap:9px;white-space:nowrap}
-  .q .k{font-size:9px;letter-spacing:.1em;color:var(--tx3);text-transform:uppercase}
-  .q .v{font-size:17px;font-weight:700}
-  .q .v.sm{font-size:10.5px;font-weight:400;color:var(--tx3)}
-  .q .v.up{color:var(--up)} .q .v.down{color:var(--down)} .q .v.flat{color:var(--tx2)}
+  .head .asof{font-size:8px;color:var(--tx3);letter-spacing:.06em;white-space:nowrap}
 
-  .controls{position:relative;display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  /* ---------- search: one input, no buttons ---------- */
+  .controls{position:relative;display:flex;align-items:center;gap:9px;padding:5px 12px;
+            border-bottom:1px solid var(--line);flex:0 0 auto}
   input.qin{background:var(--bg3);color:var(--tx);border:1px solid var(--line2);border-radius:2px;
-            padding:6px 9px;font-family:var(--mono);font-size:11.5px;width:300px;text-transform:uppercase}
+            padding:4px 8px;font-family:var(--mono);font-size:11px;width:260px;text-transform:uppercase}
   input.qin:focus{outline:0;border-color:var(--acc)}
-  .hint{color:var(--tx3);font-size:9.5px}
-  .sug{position:absolute;left:14px;top:100%;width:430px;max-height:288px;overflow:auto;
+  .hint{color:var(--tx3);font-size:8px;letter-spacing:.1em}
+  .sug{position:absolute;left:12px;top:100%;width:400px;max-height:250px;overflow:auto;
        background:var(--bg3);border:1px solid var(--line2);border-top:0;z-index:60;display:none}
   .sug.on{display:block}
-  .sg{display:flex;align-items:baseline;gap:9px;padding:5px 9px;cursor:pointer;border-top:1px solid var(--line)}
+  .sg{display:flex;align-items:baseline;gap:8px;padding:4px 8px;cursor:pointer;border-top:1px solid var(--line)}
   .sg:first-child{border-top:0}
   .sg.sel{background:var(--bg4)}
-  .sg .tk{color:var(--acc);font-weight:700;min-width:66px}
-  .sg .nm{color:var(--tx2);font-family:var(--ui);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .sg .ex{color:var(--tx3);font-size:9px;letter-spacing:.06em}
-  .sg.none{color:var(--tx3);font-size:10.5px;cursor:default}
+  .sg .tk{color:var(--acc);font-weight:700;min-width:62px}
+  .sg .nm{color:var(--tx2);font-family:var(--ui);font-size:10.5px;flex:1;overflow:hidden;
+          text-overflow:ellipsis;white-space:nowrap}
+  .sg .ex{color:var(--tx3);font-size:8px;letter-spacing:.06em}
+  .sg.none{color:var(--tx3);font-size:10px;cursor:default}
 
-  .sec{border-bottom:1px solid var(--line2)}
-  .sh{display:flex;align-items:center;gap:9px;padding:6px 14px;background:var(--bg2);border-bottom:1px solid var(--line)}
-  .sl{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--tx3);font-weight:600}
-  .sm{margin-left:auto;font-size:9.5px;color:var(--tx3);text-align:right;line-height:1.4}
-  .sb{padding:0}
+  /* ---------- top strip of tiles ---------- */
+  .strip{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:1px;background:var(--line2);
+         border-bottom:1px solid var(--line2);flex:0 0 auto}
+  .tile{background:#050505;padding:6px 8px 5px;display:flex;flex-direction:column;gap:1px;
+        min-width:0;overflow:hidden}
+  .tile .tl{font-size:7.5px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;white-space:nowrap}
+  .tile .tv{font-size:20px;font-weight:700;line-height:1.06;white-space:nowrap;overflow:hidden;
+            text-overflow:ellipsis;color:var(--tx)}
+  .tile .tv.up{color:var(--up)} .tile .tv.down{color:var(--down)} .tile .tv.flat{color:var(--tx2)}
+  .tile .tv.sm{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--warn)}
+  .tile .tv.xs{font-size:9.5px;font-weight:500;letter-spacing:.06em;color:var(--tx3)}
+  .tile .tm{height:22px;margin-top:1px;display:flex;align-items:flex-end}
+  .tile .tm svg{width:100%;height:22px;display:block}
+  .tile .ts{font-size:7.5px;color:var(--tx3);letter-spacing:.04em;white-space:nowrap;overflow:hidden;
+            text-overflow:ellipsis}
 
-  .gl{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);
-      padding:5px 14px 4px;background:#050505;border-top:1px solid var(--line2)}
-  .gl:first-child{border-top:0}
-  .gl .n{color:var(--tx3);margin-left:6px}
-  .gl .n:before{content:"";}
+  /* ---------- dashboard grid ---------- */
+  .grid{flex:1 1 auto;min-height:0;display:grid;gap:1px;background:var(--line2);padding:1px;
+        grid-template-columns:repeat(12,minmax(0,1fr));
+        grid-template-rows:minmax(0,1.52fr) minmax(0,1.02fr) minmax(0,.62fr)}
+  .card{background:var(--bg);display:flex;flex-direction:column;min-height:0;min-width:0;position:relative}
+  #c_rel{grid-column:1/8;grid-row:1}
+  #c_px{grid-column:8/13;grid-row:1}
+  #c_fin{grid-column:1/7;grid-row:2}
+  #c_own{grid-column:7/10;grid-row:2}
+  #c_law{grid-column:10/13;grid-row:2}
+  #c_news{grid-column:1/13;grid-row:3}
+  .ch{display:flex;align-items:center;gap:8px;padding:3px 8px;border-bottom:1px solid var(--line);
+      flex:0 0 auto;min-width:0}
+  .cl{font-size:7.5px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;font-weight:600;
+      white-space:nowrap}
+  .cm{margin-left:auto;font-size:7.5px;color:var(--tx3);letter-spacing:.05em;white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis}
+  .cb{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
 
-  .rw{display:grid;grid-template-columns:minmax(120px,190px) 1fr auto;gap:10px;
-      padding:5px 14px;border-top:1px solid var(--line);align-items:baseline}
-  .rw:first-child{border-top:0}
-  .rn{color:var(--tx);font-family:var(--ui);font-size:11.5px;line-height:1.4}
-  .rr{color:var(--tx2);font-family:var(--ui);font-size:10.5px;line-height:1.45}
-  .rs{color:var(--tx3);font-size:9px;text-align:right;white-space:nowrap}
-  .rs a{color:var(--tx3);text-decoration:none;border-bottom:1px dotted var(--line2)}
-  .rs a:hover{color:var(--acc);border-bottom-color:var(--acc)}
+  /* relationship graph */
+  .gwrap{position:absolute;inset:0}
+  .gwrap svg{width:100%;height:100%;display:block}
+  .gsub{position:absolute;left:0;right:0;bottom:0;padding:3px 9px 5px;font-size:8.5px;letter-spacing:.07em;
+        color:#9a9a9a;text-transform:uppercase;background:rgba(0,0,0,.55)}
+  .gsub b{color:var(--warn);font-weight:700}
+  .nd{pointer-events:all}
+  .nd text{font-family:var(--mono);letter-spacing:.02em}
 
-  .nw{display:grid;grid-template-columns:58px 1fr auto;gap:9px;padding:5px 14px;
-      border-top:1px solid var(--line);align-items:baseline}
-  .nw:first-child{border-top:0}
-  .nw .dt{color:var(--tx3);font-size:9.5px;white-space:nowrap}
-  .nw .tt{color:var(--tx);font-family:var(--ui);font-size:11px;line-height:1.4;text-decoration:none}
-  .nw .tt:hover{color:var(--acc)}
-  .nw .sc{color:var(--tx3);font-size:9px;white-space:nowrap;text-align:right}
+  /* price chart */
+  .pxbox{position:absolute;inset:0}
+  .pxchart{position:absolute;inset:0}
+  .pxfb{position:absolute;inset:0;display:none}
+  .pxfb svg{width:100%;height:100%;display:block}
 
+  /* financial bars + statement rows kept available */
+  .finbox{position:absolute;inset:0;display:flex;flex-direction:column}
+  .finchart{flex:1 1 auto;min-height:0;position:relative}
+  .finchart svg{width:100%;height:100%;display:block}
+  details.stmt{flex:0 0 auto;border-top:1px solid var(--line);background:#050505}
+  details.stmt summary{list-style:none;cursor:pointer;font-size:7.5px;letter-spacing:.14em;
+    color:var(--tx3);text-transform:uppercase;padding:3px 8px;outline:0}
+  details.stmt summary::-webkit-details-marker{display:none}
+  details.stmt summary:hover{color:var(--acc)}
+  details.stmt[open] summary{color:var(--acc);border-bottom:1px solid var(--line)}
+  .stwrap{max-height:190px;overflow:auto}
   table.fin{width:100%;border-collapse:collapse}
-  table.fin th,table.fin td{padding:4px 14px;text-align:right;white-space:nowrap;font-size:11px}
+  table.fin th,table.fin td{padding:2px 8px;text-align:right;white-space:nowrap;font-size:9.5px}
   table.fin th:first-child,table.fin td:first-child{text-align:left}
-  table.fin thead th{color:var(--tx3);font-size:9px;letter-spacing:.05em;text-transform:uppercase;
-                     border-bottom:1px solid var(--line2);font-weight:400;padding-top:6px}
-  table.fin tbody td{border-top:1px solid var(--line)}
-  table.fin tbody tr:hover td{background:var(--bg2)}
-  table.fin td.it{color:var(--tx2);font-family:var(--ui);font-size:11px;white-space:normal}
-  table.fin tr.tot td{color:var(--tx);font-weight:700;border-top:1px solid var(--line2)}
-  table.fin tr.tot td.it{color:var(--tx)}
-  table.fin td.neg,table.fin td.dn{color:var(--down)}
-  table.fin td.up{color:var(--up)}
+  table.fin thead th{color:var(--tx3);font-size:7.5px;letter-spacing:.05em;text-transform:uppercase;
+    border-bottom:1px solid var(--line2);font-weight:400;position:sticky;top:0;background:#050505}
+  table.fin tbody td{border-top:1px solid #0f0f0f}
+  table.fin td.it{color:var(--tx2);font-family:var(--ui);font-size:10px;white-space:normal}
+  table.fin tr.tot td{color:var(--tx);font-weight:700}
+  table.fin td.neg{color:var(--down)}
 
-  .vg{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:0 18px;padding:6px 14px 8px}
-  .vr{display:flex;justify-content:space-between;gap:8px;padding:2px 0;font-size:11px;border-bottom:1px solid #0f0f0f}
-  .vr .k{color:var(--tx3)}
-  .vr .k .p{color:#4d4d4d;font-size:9px;margin-left:5px}
-  .vr .v{color:var(--tx);font-weight:600}
-  .vr .v.wh{color:var(--warn);font-weight:400;font-size:10px}
-  .sub{padding:6px 14px 8px;border-top:1px solid var(--line)}
-  .sub .ttl{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3);margin-bottom:4px}
-  .whn{padding:0 14px 8px;font-family:var(--ui);font-size:10.5px;line-height:1.5;color:var(--tx2)}
-  .whn b{color:var(--warn);font-family:var(--mono);font-size:9px;letter-spacing:.05em;font-weight:600}
-  .cc{padding:6px 14px 8px;font-family:var(--ui);font-size:10.5px;line-height:1.5;color:var(--warn);border-top:1px solid var(--line)}
-  .cc b{font-family:var(--mono);font-size:9px;letter-spacing:.05em}
+  /* ownership */
+  #b_own{padding:6px 8px;display:flex;flex-direction:column;gap:6px}
+  .ofig{display:flex;align-items:baseline;gap:6px;min-width:0}
+  .ofv{font-size:16px;font-weight:700;letter-spacing:-.01em}
+  .ofl{font-size:7.5px;letter-spacing:.12em;color:var(--tx3);white-space:nowrap}
+  .obar{display:flex;height:13px;width:100%;border:1px solid var(--line2);overflow:hidden;background:#0a0a0a}
+  .seg{height:100%;min-width:1px}
+  .oleg{display:flex;flex-direction:column;gap:3px;min-height:0}
+  .olr{display:flex;align-items:center;gap:5px;font-size:8.5px;color:var(--tx2);white-space:nowrap;
+       overflow:hidden;min-width:0}
+  .old{width:6px;height:6px;flex:0 0 auto;border-radius:1px}
+  .oln{overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0}
+  .olp{color:var(--tx);font-weight:700;flex:0 0 auto}
 
-  .co{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:5px 14px;border-top:1px solid var(--line)}
-  .co:first-of-type{border-top:0}
-  .co .tg{font-size:8.5px;letter-spacing:.06em;color:var(--acc);border:1px solid #1f4f3c;
-          background:#0a1c15;padding:1px 4px;text-align:center;height:15px}
-  .co .tg.ind{color:var(--warn);border-color:#4a3810;border-style:dashed;background:#1a1205}
-  .co .bd{font-family:var(--ui);font-size:11px;line-height:1.5;color:var(--tx2)}
-  .lw{padding:6px 14px;border-top:1px solid var(--line)}
-  .lw:first-child{border-top:0}
-  .lw .h1{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
-  .lw .nm{color:var(--tx);font-family:var(--ui);font-size:11.5px}
-  .lw .st{font-size:8.5px;letter-spacing:.06em;border:1px solid var(--line2);color:var(--tx2);padding:0 4px}
-  .lw .st.enacted{color:var(--acc);border-color:#1f4f3c}
-  .lw .st.repealed,.lw .st.withdrawn{color:var(--down);border-color:#5c2222}
-  .lw .st.bill,.lw .st.in_court{color:var(--warn);border-color:#4a3810}
-  .lw .mech{color:var(--tx2);font-family:var(--ui);font-size:10.5px;line-height:1.5;margin-top:3px}
-  .lw .all{font-size:8.5px;color:var(--tx3);border:1px solid var(--line2);padding:0 4px}
+  /* law and exposure chips */
+  #b_law{padding:5px 8px;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;overflow:hidden}
+  .chip{display:inline-flex;align-items:center;gap:4px;font-size:8.5px;letter-spacing:.04em;
+        padding:2px 5px;border:1px solid var(--line2);color:var(--tx2);background:#0a0a0a;
+        max-width:100%;overflow:hidden;white-space:nowrap}
+  .chip i{font-style:normal;font-size:7.5px;color:var(--tx3);letter-spacing:.06em}
+  .chip.enacted{color:var(--acc);border-color:#1f4f3c;background:#07130e}
+  .chip.enacted i{color:#1f8f66}
+  .chip.repealed{color:var(--down);border-color:#5c2222;background:#140909}
+  .chip.repealed i{color:#a25555}
+  .chip.withdrawn{color:var(--warn);border-color:#4a3810;background:#120d05}
+  .chip.withdrawn i{color:#8a6a2c}
+  .chip.gov{color:var(--tx2);border-style:dashed}
+  .chip.gov b{font-weight:700;color:var(--acc)}
+  .chip.gov.ind b{color:var(--warn)}
+  .chip.none{color:var(--tx3);border-style:dashed}
+  .chip.other{color:var(--tx3)}
 
-  .emp{padding:9px 14px;color:var(--tx3);font-family:var(--ui);font-size:11px;line-height:1.55}
-  .emp b{color:var(--tx2);font-family:var(--mono);font-weight:600}
-  .emp a{color:var(--acc);text-decoration:none;border-bottom:1px dotted #1f4f3c;margin-right:8px}
-  .emp a:hover{border-bottom-color:var(--acc)}
-  .fail{padding:9px 14px;color:var(--down);font-family:var(--ui);font-size:10.5px;line-height:1.5}
-  .fail b{font-family:var(--mono);font-size:9px;letter-spacing:.06em}
-  .foot{display:flex;align-items:center;gap:10px;padding:7px 14px;background:var(--bg2);
-        border-top:1px solid var(--line2);color:var(--tx3);font-size:9.5px;flex-wrap:wrap}
+  /* news strip */
+  #b_news{display:flex;gap:1px;background:var(--line2)}
+  .ncard{flex:1 1 0;min-width:0;background:#050505;padding:5px 7px;display:flex;flex-direction:column;
+         gap:4px;overflow:hidden}
+  .nd{display:flex;gap:5px;align-items:baseline;font-size:7.5px;letter-spacing:.05em;color:var(--tx3);
+      min-width:0}
+  .ndd{color:var(--acc);font-weight:700;flex:0 0 auto}
+  .nds{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase}
+  .nt{font-size:10px;line-height:1.3;color:var(--tx2);font-family:var(--ui);white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis}
+  .nt a{color:inherit;text-decoration:none}
+  .ncard:hover .nt{color:var(--tx)}
+
+  /* states */
+  .fail{margin:5px 8px;padding:4px 6px;border-left:2px solid var(--down);color:var(--down);
+        font-size:8.5px;line-height:1.4;letter-spacing:.03em;text-transform:uppercase}
+  .fail b{font-weight:700}
+  .emp{margin:5px 8px;padding:4px 6px;border-left:2px solid var(--line2);color:var(--tx3);
+       font-size:8.5px;line-height:1.4;letter-spacing:.03em;text-transform:uppercase}
+  .emp b{color:var(--tx2);font-weight:600}
+  .foot{display:flex;align-items:center;gap:10px;padding:2px 12px;background:var(--bg2);
+        border-top:1px solid var(--line2);color:var(--tx3);font-size:7.5px;letter-spacing:.08em;
+        flex:0 0 auto}
   .foot .sp{margin-left:auto}
 </style>
 </head>
@@ -170,17 +229,44 @@
     <span class="tag" id="exTag" style="display:none"></span>
     <span class="tag dim" id="secTag" style="display:none"></span>
     <span class="spacer"></span>
-    <span class="q" id="quote"></span>
+    <span class="asof" id="asOf"></span>
   </div>
 
   <div class="controls">
     <input class="qin" id="q" type="text" autocomplete="off" spellcheck="false"
            placeholder="ticker or company name" aria-label="ticker or company name">
-    <span class="hint" id="hint">ticker or name, enter opens</span>
+    <span class="hint">TICKER OR NAME</span>
     <div class="sug" id="sug"></div>
   </div>
 
-  <div id="dossier"></div>
+  <div class="strip" id="b_strip"></div>
+
+  <div class="grid">
+    <div class="card" id="c_rel">
+      <div class="ch"><span class="cl">RELATIONSHIPS</span><span class="cm" id="m_rel"></span></div>
+      <div class="cb" id="b_rel"></div>
+    </div>
+    <div class="card" id="c_px">
+      <div class="ch"><span class="cl">PRICE</span><span class="cm" id="m_px"></span></div>
+      <div class="cb" id="b_px"></div>
+    </div>
+    <div class="card" id="c_fin">
+      <div class="ch"><span class="cl">REVENUE / NET PROFIT</span><span class="cm" id="m_fin"></span></div>
+      <div class="cb" id="b_fin"></div>
+    </div>
+    <div class="card" id="c_own">
+      <div class="ch"><span class="cl">OWNERSHIP</span><span class="cm" id="m_own"></span></div>
+      <div class="cb" id="b_own"></div>
+    </div>
+    <div class="card" id="c_law">
+      <div class="ch"><span class="cl">LAWS / EXPOSURE</span><span class="cm" id="m_law"></span></div>
+      <div class="cb" id="b_law"></div>
+    </div>
+    <div class="card" id="c_news">
+      <div class="ch"><span class="cl">NEWS</span><span class="cm" id="m_news"></span></div>
+      <div class="cb" id="b_news"></div>
+    </div>
+  </div>
 
   <div class="foot">
     <span id="footTk">-</span>
@@ -188,15 +274,20 @@
   </div>
 </div>
 
+<script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 (function(){
   'use strict';
 
   var Q = new URLSearchParams(location.search);
   var EXS = ['NSE','JSE','NGX','EGX'];
-  var SEC_ORDER = ['rel','news','fin','own','gov','laws'];
-  var SEC_TITLE = {rel:'RELATIONSHIPS', news:'NEWS', fin:'FINANCIALS',
-                   own:'OWNERSHIP AND LINKS', gov:'GOVERNMENT EXPOSURE', laws:'LAWS'};
+  /* which exchange ships which headline file: asking for a file that is not in
+     the tree turns a missing dataset into a console 404 and reads like a failed
+     read, so the request is only made when the file is part of the product */
+  var NEWS_EX = {NSE:1, JSE:1, NGX:1, EGX:1};
+  var ANN_EX = {NSE:1, JSE:1, EGX:1};
+  var SEC_TITLE = {strip:'TILES', rel:'RELATIONSHIPS', px:'PRICE', fin:'FINANCIALS',
+                   own:'OWNERSHIP', law:'LAWS', news:'NEWS'};
   var DASH = '-';
 
   /* ---------- text, numbers, units ---------------------------------- */
@@ -215,7 +306,6 @@
 
   function isCents(c){ return String(c || '').toUpperCase() === 'ZAC'; }
   function ccyLabel(c){ return isCents(c) ? 'ZAc' : String(c || ''); }
-  function majUnit(c){ return isCents(c) ? 100 : 1; }
 
   function fx(v){
     if(!isNum(v)) return DASH;
@@ -250,11 +340,7 @@
   }
   function escRe(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
-  /* ---------- file reads, with the read state kept ----------------
-     A section has to tell three things apart: the file carries no record, the
-     file was read and the answer is genuinely absent, and the file could not
-     be read at all. The state of every read is kept so the words on screen can
-     be the right ones. */
+  /* ---------- file reads, with the read state kept ---------------- */
   var FILES = {};
   function getJSON(path){
     if(FILES[path]) return FILES[path].p;
@@ -320,7 +406,7 @@
   function rank(q){
     var s = String(q || '').trim().toUpperCase();
     if(!s) return [];
-    function pass(needle, exactOnly){
+    function pass(needle){
       var out = [];
       for(var i = 0; i < IDX.length; i++){
         var r = IDX[i];
@@ -334,7 +420,7 @@
         else if(nm.indexOf(needle) === 0) sc = 3;
         else if(tk.indexOf(needle) > 0) sc = 4;
         else if(nm.indexOf(needle) > 0) sc = 5;
-        if(sc >= 0 && !(exactOnly && sc > 0)) out.push({r:r, sc:sc, len:tk.length});
+        if(sc >= 0) out.push({r:r, sc:sc, len:tk.length});
       }
       out.sort(function(a, b){
         if(a.sc !== b.sc) return a.sc - b.sc;
@@ -344,13 +430,9 @@
       return out;
     }
     var hits = pass(s);
-    /* A full name is not always in the name field: the NGX row for Dangote
-       Cement is named "Dangote", so "dangote cement" matches nothing whole.
-       Fall back to the first word of the query rather than answering nothing
-       to the name a reader is most likely to type. */
-    if(!hits.length && s.indexOf(' ') > 0){
-      hits = pass(s.split(/\s+/)[0]);
-    }
+    /* the NGX row for Dangote Cement is named "Dangote", so a typed full name
+       falls back to its first word rather than answering nothing */
+    if(!hits.length && s.indexOf(' ') > 0) hits = pass(s.split(/\s+/)[0]);
     return hits.slice(0, 12).map(function(x){ return x.r; });
   }
   function drawSug(q){
@@ -359,7 +441,7 @@
     SUG.rows = rank(q);
     SUG.i = 0;
     if(!String(q || '').trim()){ box.className = 'sug'; box.innerHTML = ''; SUG.on = false; return; }
-    var h = '';
+    var h;
     if(!SUG.rows.length){
       h = '<div class="sg none">NO SECURITY MATCHES "' + t(q) + '"</div>';
       SUG.on = false;
@@ -388,32 +470,7 @@
     SUG.on = false;
   }
 
-  /* ---------- header ------------------------------------------------- */
-  function quoteHTML(row){
-    var px = numv(row.price) != null ? numv(row.price) : numv(row.ltp);
-    var ccy = row.currency || '';
-    var pct = numv(row.chgPct);
-    var prev = numv(row.prevClose);
-    if(px == null){
-      return '<span class="k">last</span><span class="v sm">no quote</span>';
-    }
-    var dir = pct == null ? 'flat' : (pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat'));
-    var h = '<span class="k">last</span><span class="v ' + dir + '">' + ipx(px) + '</span>' +
-            (ccy ? '<span class="v sm">' + t(ccyLabel(ccy)) + (isCents(ccy) ? ' cents' : '') + '</span>' : '');
-    if(pct == null){
-      h += '<span class="v sm">change not stated</span>';
-    } else {
-      h += '<span class="v ' + dir + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%</span>';
-      /* the level change is printed only when the row's own percent agrees with
-         price - prevClose, the rule the FOCUS card and FINANCIALS both apply */
-      if(prev != null && prev !== 0 && Math.abs(((px - prev) / prev * 100) - pct) <= 0.02){
-        var lv = px - prev;
-        h += '<span class="k">chg</span><span class="v ' + dir + '">' +
-             (lv >= 0 ? '+' : '') + ipx(lv) + '</span>';
-      }
-    }
-    return h;
-  }
+  /* ---------- head -------------------------------------------------- */
   function paintHead(row, info){
     var tk = rowTicker(row);
     var nm = row.name || (info && info.name) || '';
@@ -426,22 +483,14 @@
     var scT = document.getElementById('secTag');
     scT.textContent = nd(sec);
     scT.style.display = sec ? '' : 'none';
-    document.getElementById('quote').innerHTML = quoteHTML(row);
+    var a = [];
+    if(row.asOf) a.push(nd(row.asOf));
+    if(row.currency) a.push(ccyLabel(row.currency) + (isCents(row.currency) ? ' CENTS' : ''));
+    document.getElementById('asOf').textContent = a.join('  ');
     document.getElementById('footTk').textContent = tk + (row.ex ? '  ' + row.ex : '');
   }
 
-  /* ---------- the section shell and its guard ------------------------ */
-  function shells(){
-    return SEC_ORDER.map(function(k){
-      return '<div class="sec" id="sec_' + k + '">' +
-             '<div class="sh"><span class="sl">' + SEC_TITLE[k] + '</span>' +
-             '<span class="sm" id="m_' + k + '"></span></div>' +
-             '<div class="sb" id="b_' + k + '"><div class="emp">reading</div></div></div>';
-    }).join('');
-  }
-  /* One guard per section. A section that throws prints the failure where its
-     content belongs, in the failure style, rather than leaving a placeholder
-     that reads like a panel still loading. */
+  /* ---------- guards and meta --------------------------------------- */
   function guardDraw(key, fn){
     var box = document.getElementById('b_' + key);
     if(!box) return;
@@ -450,109 +499,602 @@
     }catch(e){
       box.innerHTML = '<div class="fail"><b>' + SEC_TITLE[key] + ' FAILED</b> ' +
         t(String((e && e.message) || e)) + '</div>';
-      var m = document.getElementById('m_' + key);
-      if(m) m.textContent = '';
+      meta(key, 'FAILED');
     }
   }
   function meta(key, s){
     var m = document.getElementById('m_' + key);
     if(m) m.textContent = nd(s || '');
   }
-  function empText(s){ return '<div class="emp">' + s + '</div>'; }
+  function failBox(what, why){
+    return '<div class="fail"><b>' + t(what) + ' NOT READ</b> ' + t(why) + '</div>';
+  }
+  function empBox(what, why){
+    return '<div class="emp"><b>' + t(what) + '</b> ' + t(why) + '</div>';
+  }
 
-  /* ---------- 2. RELATIONSHIPS --------------------------------------- */
-  function relTypes(){ return ['customers','suppliers','competitors','partners']; }
-  function relLabel(k){
-    return {customers:'CUSTOMERS', suppliers:'SUPPLIERS', competitors:'COMPETITORS', partners:'PARTNERS'}[k] || k;
-  }
-  function srcTag(src){
-    if(!src) return '';
-    var site = src.site || src.file || '';
-    var extra = src.page ? ' p' + src.page : '';
-    if(src.url){
-      return '<a href="' + t(src.url) + '" target="_blank" rel="noopener">' + t(site) + t(extra) + '</a>';
-    }
-    return t(site) + t(extra);
-  }
-  function drawRel(box, row, file, rec){
-    var path = sd('relationships_' + row.ex + '.json');
-    var st = readState(path);
-    if(st === 'failed' || !file){
-      box.innerHTML = empText('<b>relationships_' + t(row.ex) + '.json was not read</b>, so this ' +
-        'security cannot be placed in its relationship set. That is a failed read, not a finding ' +
-        'that the company has no named customers, suppliers, competitors or partners.');
-      meta('rel', 'file not read');
-      return;
-    }
-    var cov = (file && file.coverage) || {};
-    var withOne = isNum(cov.securitiesWithSourcedEntity) ? Number(cov.securitiesWithSourcedEntity)
-                                                         : Object.keys((file && file.securities) || {}).length;
-    var listed = isNum(cov.securitiesListed) ? Number(cov.securitiesListed) : null;
-    var coverTxt = withOne + (listed != null ? ' of ' + listed : '') + ' ' + row.ex + ' securities';
-    if(!rec){
-      /* genuinely absent: say how many do have one, and offer the nearest
-         populated peers by sector rather than a blank */
-      var peers = [], seen = {};
-      (MKT[row.ex] || []).forEach(function(p){
-        if(rowTicker(p) === rowTicker(row)) return;
-        if(!row.sector || p.sector !== row.sector) return;
-        var pr = (file.securities || {})[p.ticker] || (file.securities || {})[p.sym];
-        if(!pr) return;
-        var n = 0;
-        relTypes().forEach(function(k){ n += (pr[k] || []).length; });
-        if(!n || seen[rowTicker(p)]) return;
-        seen[rowTicker(p)] = 1;
-        peers.push(p);
+  /* re-draw registered by key, so a resize re-measures instead of stretching */
+  var PAINT = {};
+  var RT = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(RT);
+    RT = setTimeout(function(){
+      Object.keys(PAINT).forEach(function(k){
+        try{ PAINT[k](); }catch(e){}
       });
-      peers = peers.slice(0, 6);
-      var h = empText('<b>No relationship record</b> for ' + t(rowTicker(row)) +
-        ' in relationships_' + t(row.ex) + '.json. ' + t(coverTxt) + ' carry one, and this one is not ' +
-        'among them. Nothing is inferred from its sector.');
-      if(peers.length){
-        h += '<div class="gl" style="border-top:1px solid var(--line2)">NEAREST PEERS WITH A RECORD' +
-             (row.sector ? ' <span class="n">' + t(row.sector) + '</span>' : '') + '</div>';
-        h += peers.map(function(p){
-          return '<div class="rw"><span class="rn">' + t(rowTicker(p)) + '</span>' +
-                 '<span class="rr">' + t(p.name || '') + '</span>' +
-                 '<span class="rs">' + t(p.sector || '') + '</span></div>';
-        }).join('');
-      } else {
-        h += '<div class="emp" style="padding-top:0">No other ' + t(row.sector || 'same sector') +
-             ' security on ' + t(row.ex) + ' has a relationship record either.</div>';
-      }
-      box.innerHTML = h;
-      meta('rel', 'no record, ' + coverTxt);
-      return;
+    }, 120);
+  });
+
+  /* ---------- 1. TOP STRIP ------------------------------------------ */
+  function spark(arr, colour){
+    if(!arr || arr.length < 2) return '';
+    var w = 100, h = 22;
+    var mn = Math.min.apply(null, arr), mx = Math.max.apply(null, arr);
+    var span = (mx - mn) || 1;
+    var pts = arr.map(function(v, i){
+      var x = (i / (arr.length - 1)) * w;
+      var y = h - 1.5 - ((v - mn) / span) * (h - 3);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">' +
+      '<polyline points="' + pts + '" fill="none" stroke="' + colour + '" stroke-width="1.2" ' +
+      'vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>';
+  }
+  function vbars(vals, colour){
+    if(!vals || !vals.length) return '';
+    var max = Math.max.apply(null, vals) || 1;
+    var bw = 100 / vals.length;
+    var out = vals.map(function(v, i){
+      var hh = Math.max(1, (v / max) * 19);
+      return '<rect x="' + (i * bw + 0.4).toFixed(2) + '" y="' + (21 - hh).toFixed(2) +
+        '" width="' + (bw * 0.62).toFixed(2) + '" height="' + hh.toFixed(2) +
+        '" fill="' + colour + '" opacity=".55"/>';
+    }).join('');
+    return '<svg viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true">' + out + '</svg>';
+  }
+  /* where the last price sits inside the session range the row carries */
+  function rangebar(lo, hi, last, colour){
+    if(lo == null || hi == null || last == null || hi <= lo) return '';
+    var pos = Math.max(0, Math.min(1, (last - lo) / (hi - lo))) * 100;
+    return '<svg viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true">' +
+      '<line x1="0" y1="12" x2="100" y2="12" stroke="#262626" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
+      '<line x1="0" y1="8" x2="0" y2="16" stroke="#3a3a3a" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
+      '<line x1="100" y1="8" x2="100" y2="16" stroke="#3a3a3a" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
+      '<line x1="' + pos.toFixed(1) + '" y1="7" x2="' + pos.toFixed(1) + '" y2="17" stroke="' + colour +
+      '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>' +
+      '<circle cx="' + pos.toFixed(1) + '" cy="12" r="2.2" fill="' + colour + '"/></svg>';
+  }
+  function tile(o){
+    return '<div class="tile"' + (o.title ? ' title="' + t(o.title) + '"' : '') + '>' +
+      '<div class="tl">' + o.label + '</div>' +
+      '<div class="tv' + (o.vcls ? ' ' + o.vcls : '') + '">' + o.value + '</div>' +
+      '<div class="tm">' + (o.micro || '') + '</div>' +
+      '<div class="ts">' + (o.sub || '') + '</div></div>';
+  }
+  function multipleTile(an, key, fmt, period){
+    var v = an && an.valuation ? an.valuation : null;
+    var raw = v ? v[key] : null;
+    var wh = v ? (v[key + '_withheld'] === true) : false;
+    var reason = v ? (v[key + '_withheld_reason'] || '') : '';
+    if(raw != null && !wh && isNum(raw)){
+      return {value: fmt(raw), vcls: '', sub: period || 'NO PERIOD', title: ''};
     }
-    var total = 0;
-    var out = '';
-    relTypes().forEach(function(k){
-      var arr = (rec[k] || []);
-      if(!arr.length) return;
-      total += arr.length;
-      out += '<div class="gl">' + relLabel(k) + '<span class="n">' + arr.length + '</span></div>';
-      out += arr.map(function(c){
-        var reason = c.role || '';
-        if(c.note && String(c.note).toLowerCase().indexOf(String(reason).toLowerCase().slice(0, 18)) < 0){
-          reason = reason ? (reason + '. ' + c.note) : c.note;
-        }
-        return '<div class="rw"><span class="rn">' + t(c.name || 'unnamed') + '</span>' +
-               '<span class="rr">' + t(reason) + '</span>' +
-               '<span class="rs">' + srcTag(c.source) + '</span></div>';
-      }).join('');
+    if(wh || (raw === null && v)){
+      return {value: 'WITHHELD', vcls: 'sm', sub: 'REASON ON HOVER', title: reason || 'withheld'};
+    }
+    return {value: 'NOT ON FILE', vcls: 'xs', sub: 'NO ANALYTICS', title: 'no valuation record'};
+  }
+  function drawTiles(box, row, an, hist, histSt){
+    var px = numv(row.price) != null ? numv(row.price) : numv(row.ltp);
+    var pct = numv(row.chgPct);
+    var prev = numv(row.prevClose);
+    var dir = pct == null ? 'flat' : (pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat'));
+    var colour = dir === 'up' ? '#33e29a' : (dir === 'down' ? '#f87171' : '#9a9a9a');
+    var bars = (hist && hist.bars) || [];
+    var closes = [], vols = [];
+    bars.slice(-60).forEach(function(b){ var c = numv(b.c); if(c != null) closes.push(c); });
+    bars.slice(-20).forEach(function(b){ var v = numv(b.v); if(v != null) vols.push(v); });
+    var histSub = histSt === 'failed' ? 'HISTORY READ FAILED' : (bars.length ? 'HISTORY' : 'NO BARS');
+
+    var h = '';
+
+    h += tile({label:'LAST', value: px == null ? 'NO QUOTE' : ipx(px),
+      vcls: px == null ? 'xs' : dir,
+      micro: closes.length > 1 ? spark(closes, colour) : '',
+      sub: px == null ? 'PRICE NOT STATED' : (ccyLabel(row.currency) + (isCents(row.currency) ? ' CENTS' : '')),
+      title: row.name || ''});
+
+    var chgVal = pct == null ? 'NOT STATED' : ((pct >= 0 ? '+' : '') + pct.toFixed(2) + '%');
+    h += tile({label:'CHG %', value: chgVal, vcls: pct == null ? 'xs' : dir,
+      micro: rangebar(numv(row.low), numv(row.high), px, colour),
+      sub: (numv(row.low) != null && numv(row.high) != null)
+             ? ('LOW ' + ipx(row.low) + '  HIGH ' + ipx(row.high)) : 'RANGE NOT STATED',
+      title: prev != null ? ('prev close ' + ipx(prev)) : ''});
+
+    h += tile({label:'VOLUME', value: isNum(row.volume) ? fmoney(row.volume) : 'NOT STATED',
+      vcls: isNum(row.volume) ? '' : 'xs',
+      micro: vols.length ? vbars(vols, '#33e29a') : '',
+      sub: isNum(row.volume) ? 'SHARES TRADED' : 'NO TAPE',
+      title: isNum(row.volume) ? fnum(row.volume, 0) : ''});
+
+    var mc = row.marketCap;
+    var mcVal, mcSub, mcCls;
+    if(isNum(mc)){ mcVal = fmoney(mc); mcSub = ccyLabel(row.currency) + ' AT LAST'; mcCls = ''; }
+    else if(mc != null && String(mc).trim()){ mcVal = String(mc); mcSub = 'AS STATED'; mcCls = ''; }
+    else { mcVal = 'NOT STATED'; mcSub = 'NO MARKET CAP'; mcCls = 'xs'; }
+    h += tile({label:'MKT CAP', value: mcVal, vcls: mcCls, micro: '',
+      sub: isNum(row.sharesIssued) ? (fnum(row.sharesIssued, 0) + ' SHARES') : mcSub,
+      title: isNum(mc) ? fnum(mc, 0) : ''});
+
+    var pTag = an && an.valuation ? (an.valuation.pePeriod || an.valuation.asOfPeriod || an.period || '') : '';
+    [{l:'P/E', k:'pe', f:fx},
+     {l:'P/B', k:'pb', f:fx},
+     {l:'P/S', k:'ps', f:fx},
+     {l:'EARN YIELD', k:'earnings_yield', f:fpc}].forEach(function(m){
+      var o = multipleTile(an, m.k, m.f, pTag);
+      h += tile({label:m.l, value:o.value, vcls:o.vcls, micro:'', sub:o.sub, title:o.title});
     });
-    if(!total){
-      box.innerHTML = empText('<b>Record present, nothing named</b>: relationships_' + t(row.ex) +
-        '.json carries ' + t(rowTicker(row)) + ' but the recorded customer, supplier, competitor ' +
-        'and partner lists are all empty. ' + t(coverTxt) + ' carry a record.');
-      meta('rel', '0 named');
-      return;
-    }
-    box.innerHTML = out;
-    meta('rel', total + ' named, ' + coverTxt);
+
+    box.innerHTML = h;
+    meta('strip', px == null ? 'NO QUOTE' : (ccyLabel(row.currency) + '  ' + histSub));
   }
 
-  /* ---------- 3. NEWS ------------------------------------------------ */
+  /* ---------- 2. RELATIONSHIP NETWORK ------------------------------- */
+  function relTypes(){
+    return [
+      {k:'customers', c:'#33e29a', n:'CUSTOMERS'},
+      {k:'suppliers', c:'#6ea8fe', n:'SUPPLIERS'},
+      {k:'competitors', c:'#f87171', n:'COMPETITORS'},
+      {k:'partners', c:'#c08cff', n:'PARTNERS'}
+    ];
+  }
+  function nameKey(s){
+    return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  function linkCount(securities){
+    var freq = {};
+    relTypes().forEach(function(tp){
+      Object.keys(securities).forEach(function(k){
+        (securities[k][tp.k] || []).forEach(function(e){
+          var n = nameKey(e && e.name);
+          if(n) freq[n] = (freq[n] || 0) + 1;
+        });
+      });
+    });
+    return freq;
+  }
+  function listedCode(name){
+    var n = coreName(name);
+    if(!n) return '';
+    for(var i = 0; i < IDX.length; i++){
+      /* the whole normalised name has to agree: a prefix test would hang the
+         Dangote parent company on the DANGCEM ticker */
+      if(coreName(IDX[i].name) === n) return rowTicker(IDX[i]);
+    }
+    return '';
+  }
+  function codeOf(name){
+    var lc = listedCode(name);
+    if(lc) return lc;
+    var words = String(name || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').split(/\s+/)
+      .filter(function(w){ return w && w.length > 1; });
+    if(!words.length) return '?';
+    if(words.length === 1) return words[0].slice(0, 7);
+    var ini = words.map(function(w){ return w.charAt(0); }).join('');
+    return ini.length >= 2 ? ini.slice(0, 5) : words[0].slice(0, 6);
+  }
+  function centreNode(cx, cy, label){
+    return '<circle cx="' + cx + '" cy="' + cy + '" r="27" fill="#0a1c15" stroke="#33e29a" ' +
+      'stroke-width="1.5"/>' +
+      '<text x="' + cx + '" y="' + (cy + 4) + '" text-anchor="middle" font-size="12" ' +
+      'font-weight="700" fill="#33e29a" font-family="Oxygen Mono,monospace">' + t(label) + '</text>';
+  }
+  function graphBody(w, h, row, rec, securities){
+    var freq = linkCount(securities);
+    var nodes = [];
+    var seen = {};
+    relTypes().forEach(function(tp){
+      (rec[tp.k] || []).forEach(function(e){
+        var nm = String((e && e.name) || '').trim();
+        if(!nm) return;
+        var sk = nameKey(nm) + '|' + tp.k;
+        if(seen[sk]) return;
+        seen[sk] = 1;
+        var reason = (e && (e.role || e.note)) || '';
+        nodes.push({name:nm, type:tp.k, colour:tp.c, reason:reason,
+                    f:(freq[nameKey(nm)] || 1)});
+      });
+    });
+    var cx = w / 2, cy = h / 2 + 2;
+    /* two records can resolve to the same short code (Jamii Telecommunications
+       and Jamii Telkom both come out as JT), so a repeated code is numbered
+       rather than drawn twice under one label */
+    var usedCode = {};
+    nodes.forEach(function(n){
+      var c = codeOf(n.name);
+      if(usedCode[c]){ usedCode[c]++; c = c + usedCode[c]; }
+      else usedCode[c] = 1;
+      n.code = c;
+    });
+    /* an ellipse, not a circle: the card is wider than it is tall, and a circle
+       sized to the height leaves half the width empty */
+    var rx = Math.min(w * 0.40, 330), ry = Math.min(h * 0.34, 200);
+    var present = relTypes().filter(function(tp){
+      return nodes.some(function(n){ return n.type === tp.k; });
+    });
+    var gap = present.length > 1 ? 13 : 0;
+    var avail = 360 - gap * present.length;
+    var start = -90;
+    present.forEach(function(tp){
+      var arr = nodes.filter(function(n){ return n.type === tp.k; });
+      var span = avail * (arr.length / Math.max(1, nodes.length));
+      arr.forEach(function(n, i){
+        var ang = (start + span * ((i + 0.5) / arr.length)) * Math.PI / 180;
+        var k = (arr.length > 6 && i % 2) ? 0.72 : 1;
+        n.x = cx + Math.cos(ang) * rx * k;
+        n.y = cy + Math.sin(ang) * ry * k;
+      });
+      start += span + gap;
+    });
+    var out = '<ellipse cx="' + cx + '" cy="' + cy + '" rx="' + rx.toFixed(1) + '" ry="' +
+      ry.toFixed(1) + '" fill="none" stroke="#1a1a1a" stroke-width="1" stroke-dasharray="2 5"/>';
+    nodes.forEach(function(n){
+      out += '<line x1="' + cx + '" y1="' + cy + '" x2="' + n.x.toFixed(1) + '" y2="' + n.y.toFixed(1) +
+        '" stroke="#33e29a" stroke-opacity=".26" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+    });
+    nodes.forEach(function(n){
+      var r = 5 + Math.min(5, Math.log(n.f + 1) * 2.4);
+      out += '<g class="nd"><title>' + t(n.name + (n.reason ? ' | ' + n.reason : '')) + '</title>' +
+        '<circle cx="' + n.x.toFixed(1) + '" cy="' + n.y.toFixed(1) + '" r="' + r.toFixed(1) +
+        '" fill="#050505" stroke="' + n.colour + '" stroke-width="1.3"/>' +
+        '<text x="' + n.x.toFixed(1) + '" y="' + (n.y + r + 11).toFixed(1) + '" text-anchor="middle" ' +
+        'font-size="9" fill="#b0b0b0" font-family="Oxygen Mono,monospace">' + t(n.code) + '</text></g>';
+    });
+    out += centreNode(cx, cy, rowTicker(row));
+    /* legend, one colour per type, in the corner */
+    var counts = {};
+    nodes.forEach(function(n){ counts[n.type] = (counts[n.type] || 0) + 1; });
+    var ly = h - 8 - (relTypes().length - 1) * 12;
+    relTypes().forEach(function(tp, i){
+      var y = ly + i * 12;
+      out += '<rect x="9" y="' + (y - 6) + '" width="6" height="6" fill="' + tp.c + '"/>' +
+        '<text x="20" y="' + y + '" font-size="8" fill="#6a6a6a" letter-spacing=".08em" ' +
+        'font-family="Oxygen Mono,monospace">' + tp.n + ' ' + (counts[tp.k] || 0) + '</text>';
+    });
+    return out;
+  }
+  function drawRel(box, row, relFile, rec){
+    var path = sd('relationships_' + row.ex + '.json');
+    if(readState(path) === 'failed' || !relFile){
+      box.innerHTML = failBox('RELATIONSHIPS', 'relationships_' + row.ex + '.json not loaded');
+      meta('rel', 'FILE NOT READ');
+      return;
+    }
+    var cov = relFile.coverage || {};
+    var securities = relFile.securities || {};
+    var withOne = isNum(cov.securitiesWithSourcedEntity) ? Number(cov.securitiesWithSourcedEntity)
+                                                        : Object.keys(securities).length;
+    var listed = isNum(cov.securitiesListed) ? Number(cov.securitiesListed) : null;
+    if(!rec){
+      var covTxt = withOne + (listed != null ? ' OF ' + listed : '') + ' ' + row.ex +
+        ' SECURITIES CARRY A SOURCED RECORD';
+      box.innerHTML = '<div class="gwrap"><svg class="gsvg"></svg></div>' +
+        '<div class="gsub"><b>NO RECORD</b> | ' + t(covTxt) + '</div>';
+      var svg0 = box.querySelector('.gsvg');
+      var run0 = function(){
+        var r = svg0.getBoundingClientRect();
+        var w = Math.round(r.width || box.clientWidth || 600);
+        var hh = Math.round(r.height || (box.clientHeight - 18) || 220);
+        svg0.setAttribute('viewBox', '0 0 ' + w + ' ' + hh);
+        svg0.innerHTML = centreNode(w / 2, hh / 2, rowTicker(row));
+      };
+      run0();
+      PAINT.rel = run0;
+      meta('rel', '0 NODES | 0 LINKS');
+      return;
+    }
+    var count = relTypes().reduce(function(a, tp){ return a + (rec[tp.k] || []).length; }, 0);
+    if(!count){
+      box.innerHTML = empBox('EMPTY RECORD', 'the file carries ' + rowTicker(row) + ' but names nothing');
+      meta('rel', '0 NODES | 0 LINKS');
+      return;
+    }
+    box.innerHTML = '<div class="gwrap"><svg class="gsvg"></svg></div>';
+    var svg = box.querySelector('.gsvg');
+    var run = function(){
+      var r = svg.getBoundingClientRect();
+      var w = Math.round(r.width || box.clientWidth || 600);
+      var hh = Math.round(r.height || box.clientHeight || 260);
+      svg.setAttribute('viewBox', '0 0 ' + w + ' ' + hh);
+      svg.innerHTML = graphBody(w, hh, row, rec, securities);
+    };
+    run();
+    PAINT.rel = run;
+    meta('rel', count + ' NODES | ' + count + ' LINKS');
+  }
+
+  /* ---------- 3. REVENUE / NET PROFIT BARS --------------------------- */
+  function hasValue(r){
+    return !!(r && (r.values || []).some(function(v){ return isNum(v); }));
+  }
+  function pickVal(rows, re){
+    for(var i = 0; i < rows.length; i++){
+      if(re.test(String(rows[i].label || '')) && hasValue(rows[i])) return rows[i];
+    }
+    return null;
+  }
+  function finSeries(fin){
+    var P = (fin.periods || []);
+    var all = (fin.rows || []);
+    var rows = all.filter(function(r){ return !r.isGroupHeader; });
+    /* a group header labelled "Revenue" carries the total its sub lines add up
+       to, so an exact label holding numbers wins over the first line that only
+       starts with the word: that one is a component, not the top line */
+    var rev = pickVal(all, /^revenue$/i) || pickVal(rows, /^revenue/i) ||
+              pickVal(rows, /turnover|net sales/i);
+    var np = pickVal(all, /^net profit$/i) || pickVal(all, /^profit for the (year|period)$/i) ||
+             pickVal(rows, /net profit|profit for the (year|period)|profit after tax/i);
+    var out = [];
+    for(var i = P.length - 1; i >= 0; i--){
+      out.push({p:P[i], rev: rev ? numv((rev.values || [])[i]) : null,
+                       np: np ? numv((np.values || [])[i]) : null});
+    }
+    return {pts: out};
+  }
+  function barsSVG(w, h, pts){
+    var padL = 46, padR = 6, padT = 17, padB = 17;
+    var pw = Math.max(20, w - padL - padR), ph = Math.max(20, h - padT - padB);
+    var maxV = 0, minV = 0;
+    pts.forEach(function(o){
+      [o.rev, o.np].forEach(function(v){
+        if(v != null){ if(v > maxV) maxV = v; if(v < minV) minV = v; }
+      });
+    });
+    if(maxV === 0 && minV === 0) return '';
+    var span = (maxV - minV) || 1;
+    function y(v){ return padT + ph - ((v - minV) / span) * ph; }
+    var zero = y(0);
+    var n = pts.length || 1;
+    var gw = pw / n;
+    var bw = Math.max(3, Math.min(22, gw * 0.3));
+    var out = '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">';
+    [minV, (minV + maxV) / 2, maxV].forEach(function(v){
+      var yy = y(v).toFixed(1);
+      out += '<line x1="' + padL + '" y1="' + yy + '" x2="' + (w - padR) + '" y2="' + yy +
+        '" stroke="#141414" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
+        '<text x="' + (padL - 4) + '" y="' + (+yy + 2.5) + '" text-anchor="end" font-size="7.5" ' +
+        'fill="#6a6a6a" font-family="Oxygen Mono,monospace">' + t(fmoney(v)) + '</text>';
+    });
+    out += '<line x1="' + padL + '" y1="' + zero.toFixed(1) + '" x2="' + (w - padR) + '" y2="' +
+      zero.toFixed(1) + '" stroke="#262626" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+    pts.forEach(function(o, i){
+      var cxp = padL + gw * (i + 0.5);
+      var x1 = cxp - bw - 1.5, x2 = cxp + 1.5;
+      [[o.rev, x1, '#33e29a'], [o.np, x2, '#6ea8fe']].forEach(function(pair){
+        var v = pair[0];
+        if(v == null) return;
+        var top = Math.min(y(v), zero), hh = Math.max(1, Math.abs(y(v) - zero));
+        out += '<rect x="' + pair[1].toFixed(1) + '" y="' + top.toFixed(1) + '" width="' +
+          bw.toFixed(1) + '" height="' + hh.toFixed(1) + '" fill="' + pair[2] + '" opacity=".85"/>';
+        if(bw >= 13 && ph > 60){
+          var ly = v >= 0 ? Math.max(padT + 6, top - 3) : Math.min(h - padB - 2, top + hh + 8);
+          out += '<text x="' + (pair[1] + bw / 2).toFixed(1) + '" y="' + ly.toFixed(1) +
+            '" text-anchor="middle" font-size="7" fill="' + pair[2] + '" opacity=".9" ' +
+            'font-family="Oxygen Mono,monospace">' + t(fmoney(v)) + '</text>';
+        }
+      });
+      out += '<text x="' + cxp.toFixed(1) + '" y="' + (h - 4) + '" text-anchor="middle" ' +
+        'font-size="8" fill="#6a6a6a" font-family="Oxygen Mono,monospace">' + t(o.p) + '</text>';
+    });
+    out += '</svg>';
+    return out;
+  }
+  function statementTable(fin){
+    var ccy = fin.currency || '';
+    var periods = (fin.periods || []).slice(0, 3);
+    var rows = (fin.rows || []).filter(function(r){ return !r.isGroupHeader; });
+    var magSeen = {};
+    rows = rows.filter(function(r){
+      var vals = r.values || [], any = false, sig = [], neg = [];
+      for(var i = 0; i < vals.length; i++){
+        if(isNum(vals[i])){ any = true; sig.push(Number(vals[i]).toFixed(2)); neg.push((-Number(vals[i])).toFixed(2)); }
+        else { sig.push('x'); neg.push('x'); }
+      }
+      if(!any) return true;
+      var s = sig.join('|'), nn = neg.join('|');
+      if(magSeen[s] !== undefined || magSeen[nn] !== undefined) return false;
+      magSeen[s] = 1;
+      return true;
+    });
+    var h = '<table class="fin"><thead><tr><th>' + t(ccyLabel(ccy)) + '</th>';
+    periods.forEach(function(p){ h += '<th>' + t(p) + '</th>'; });
+    h += '</tr></thead><tbody>';
+    rows.slice(0, 40).forEach(function(r){
+      var vals = r.values || [];
+      h += '<tr' + (r.isGroupTotal ? ' class="tot"' : '') + '><td class="it">' + t(r.label) + '</td>';
+      periods.forEach(function(p, i){
+        var v = vals[i];
+        h += isNum(v) ? '<td class="' + (Number(v) < 0 ? 'neg' : '') + '">' + fmoney(v) + '</td>'
+                      : '<td>' + DASH + '</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    return h;
+  }
+  function drawFin(box, row, fin, an, key){
+    if(!fin || !(fin.rows || []).length){
+      if(fin && fin.available === false){
+        box.innerHTML = empBox('NO STATEMENT ON FILE', fin.source_note || 'the statement file says none is published');
+        meta('fin', 'STATEMENT ABSENT');
+      } else {
+        box.innerHTML = failBox('INCOME STATEMENT', key + ' not found');
+        meta('fin', 'NO FILE');
+      }
+      return;
+    }
+    var S = finSeries(fin);
+    var pts = S.pts;
+    box.innerHTML = '<div class="finbox"><div class="finchart"></div>' +
+      '<details class="stmt"><summary>STATEMENT ROWS</summary><div class="stwrap">' +
+      statementTable(fin) + '</div></details></div>';
+    var chart = box.querySelector('.finchart');
+    var run = function(){
+      var w = Math.round(chart.clientWidth || 0), h = Math.round(chart.clientHeight || 0);
+      if(!w || !h) return;
+      var svg = barsSVG(w, h, pts);
+      chart.innerHTML = svg || '<div class="emp">NO REVENUE OR NET PROFIT ROW</div>';
+    };
+    run();
+    PAINT.fin = run;
+    var newest = pts[pts.length - 1] || {};
+    meta('fin', pts.length + ' PERIODS | ' + ccyLabel(fin.currency || row.currency) +
+      ' | ' + fmoney(newest.rev) + ' / ' + fmoney(newest.np));
+  }
+
+  /* ---------- 4. PRICE CHART ----------------------------------------- */
+  var PXSTATE = {mode:'none', points:0, bars:0};
+  function histPaths(row){
+    var tk = rowTicker(row), sy = String(row.sym || '');
+    var c = [];
+    if(row.ex === 'NSE' || row.ex === 'NGX') c.push(row.ex + '_' + tk + '.json');
+    if(sy){ c.push(sy + '.max.json'); c.push(sy + '.json'); }
+    c.push(tk + '.max.json'); c.push(tk + '.json');
+    var seen = {}, out = [];
+    c.forEach(function(k){ if(k && !seen[k]){ seen[k] = 1; out.push(k); } });
+    return out;
+  }
+  function readHistory(row){
+    var keys = histPaths(row);
+    return (function step(i){
+      if(i >= keys.length) return Promise.resolve({d:null, path:sd('history/' + keys[0])});
+      var p = sd('history/' + keys[i]);
+      return getJSON(p).then(function(d){
+        if(d && (d.bars || []).length) return {d:d, path:p};
+        return step(i + 1);
+      });
+    })(0);
+  }
+  function engineReady(){
+    return new Promise(function(res){
+      if(window.LightweightCharts) return res(true);
+      var t0 = Date.now();
+      var iv = setInterval(function(){
+        if(window.LightweightCharts){ clearInterval(iv); res(true); }
+        else if(Date.now() - t0 > 3500){ clearInterval(iv); res(false); }
+      }, 100);
+    });
+  }
+  function svgLine(w, h, closes){
+    if(closes.length < 2) return '';
+    var padL = 6, padR = 6, padT = 10, padB = 14;
+    var pw = w - padL - padR, ph = h - padT - padB;
+    var mn = Math.min.apply(null, closes), mx = Math.max.apply(null, closes);
+    var span = (mx - mn) || 1;
+    var pts = closes.map(function(v, i){
+      var x = padL + (i / (closes.length - 1)) * pw;
+      var y = padT + ph - ((v - mn) / span) * ph;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '">' +
+      '<polyline points="' + pts + '" fill="none" stroke="#33e29a" stroke-width="1.3" ' +
+      'vector-effect="non-scaling-stroke"/>' +
+      '<text x="' + padL + '" y="' + (h - 4) + '" font-size="8" fill="#6a6a6a" ' +
+      'font-family="Oxygen Mono,monospace">' + t(ipx(mn)) + '</text>' +
+      '<text x="' + padL + '" y="' + (padT + 8) + '" font-size="8" fill="#6a6a6a" ' +
+      'font-family="Oxygen Mono,monospace">' + t(ipx(mx)) + '</text></svg>';
+  }
+  function drawPrice(box, row, hist, histPath, histSt){
+    var bars = (hist && hist.bars) || [];
+    if(histSt === 'failed'){
+      box.innerHTML = failBox('PRICE HISTORY', (histPath || '').split('/').pop() + ' not loaded');
+      meta('px', 'FILE NOT READ');
+      return;
+    }
+    if(!bars.length){
+      box.innerHTML = empBox('NO BARS ON FILE', 'no price history for ' + rowTicker(row));
+      meta('px', '0 BARS');
+      return;
+    }
+    box.innerHTML = '<div class="pxbox"><div class="pxchart"></div><div class="pxfb"></div></div>';
+    var host = box.querySelector('.pxchart');
+    var fb = box.querySelector('.pxfb');
+    var mapped = bars.map(function(b){
+      return {time:String(b.t).slice(0, 10), open:numv(b.o), high:numv(b.h), low:numv(b.l),
+              close:numv(b.c)};
+    }).filter(function(p){ return p.close != null; });
+    var canCandle = mapped.every(function(p){
+      return p.open != null && p.high != null && p.low != null;
+    });
+    PXSTATE.bars = bars.length;
+
+    function fallback(){
+      host.style.display = 'none';
+      fb.style.display = 'block';
+      var run = function(){
+        var w = Math.round(fb.clientWidth || 0), h = Math.round(fb.clientHeight || 0);
+        if(!w || !h) return;
+        var closes = mapped.slice(-160).map(function(p){ return p.close; });
+        fb.innerHTML = svgLine(w, h, closes) || '<div class="emp">NO BARS</div>';
+      };
+      run();
+      PAINT.px = run;
+      PXSTATE.mode = 'svg';
+      PXSTATE.points = Math.min(160, mapped.length);
+    }
+
+    engineReady().then(function(ok){
+      if(!ok || !window.LightweightCharts){ fallback(); return; }
+      try{
+        var w = Math.max(120, host.clientWidth || 0), h = Math.max(90, host.clientHeight || 0);
+        var chart = LightweightCharts.createChart(host, {
+          layout:{background:{color:'transparent'}, textColor:'#6a6a6a',
+                  fontFamily:'Oxygen Mono, monospace', fontSize:9},
+          grid:{vertLines:{color:'rgba(38,38,38,.45)'}, horzLines:{color:'rgba(38,38,38,.45)'}},
+          rightPriceScale:{borderColor:'#262626', scaleMargins:{top:.12, bottom:.12}},
+          timeScale:{borderColor:'#262626', timeVisible:false, rightOffset:2},
+          crosshair:{mode:1},
+          handleScroll:true,
+          handleScale:true,
+          localization:{priceFormatter:function(p){
+            return p >= 1000 ? p.toLocaleString(undefined, {maximumFractionDigits:0}) : p.toFixed(2);
+          }},
+          width:w, height:h
+        });
+        var series;
+        if(canCandle){
+          series = chart.addSeries(LightweightCharts.CandlestickSeries, {
+            upColor:'#33e29a', downColor:'#f87171', borderUpColor:'#33e29a',
+            borderDownColor:'#f87171', wickUpColor:'#33e29a', wickDownColor:'#f87171',
+            priceLineVisible:true, priceLineColor:'#33e29a', priceLineStyle:2
+          });
+          series.setData(mapped.map(function(p){
+            return {time:p.time, open:p.open, high:p.high, low:p.low, close:p.close};
+          }));
+          PXSTATE.mode = 'candle';
+        } else {
+          series = chart.addSeries(LightweightCharts.LineSeries, {
+            color:'#33e29a', lineWidth:2, priceLineVisible:true, priceLineColor:'#33e29a'
+          });
+          series.setData(mapped.map(function(p){ return {time:p.time, value:p.close}; }));
+          PXSTATE.mode = 'line';
+        }
+        PXSTATE.points = mapped.length;
+        chart.timeScale().fitContent();
+        PAINT.px = function(){
+          if(!host.clientWidth) return;
+          chart.applyOptions({width:host.clientWidth, height:host.clientHeight});
+        };
+      }catch(e){
+        fallback();
+      }
+    });
+
+    var last = mapped[mapped.length - 1] || {};
+    meta('px', fnum(bars.length, 0) + ' BARS | ' + mapped[0].time + ' > ' + last.time);
+  }
+
+  /* ---------- 5. NEWS STRIP ------------------------------------------ */
   var SUFFIX = {plc:1, ltd:1, limited:1, group:1, holdings:1, holding:1, company:1, co:1,
                 inc:1, corp:1, corporation:1, sa:1, nv:1, ag:1, the:1, public:1, 'and':1};
   function normChars(s){
@@ -564,19 +1106,19 @@
   }
   function keysFor(row){
     var keys = [], seen = {};
-    function add(k, tag){
+    function add(k){
       k = normChars(k);
       if(!k || k.length < 3 || seen[k]) return;
       seen[k] = 1;
-      keys.push({k:k, tag:tag, single:(k.indexOf(' ') < 0)});
+      keys.push({k:k, single:(k.indexOf(' ') < 0)});
     }
-    add(String(row.ticker || ''), 'ticker');
+    add(String(row.ticker || ''));
     var sy = String(row.sym || '');
     if(sy && sy.toUpperCase() !== String(row.ticker || '').toUpperCase()){
-      add(sy.replace(/\.(JO|CA)$/i, ''), 'sym');
+      add(sy.replace(/\.(JO|CA)$/i, ''));
     }
-    add(row.name, 'name');
-    add(coreName(row.name), 'core');
+    add(row.name);
+    add(coreName(row.name));
     return keys;
   }
   function rivalsFor(row){
@@ -608,17 +1150,14 @@
   }
   function tsOf(it){
     if(isNum(it.ts)) return Number(it.ts) * 1000;
-    if(it.date){
-      var d = Date.parse(it.date);
-      if(!isNaN(d)) return d;
-    }
+    if(it.date){ var d = Date.parse(it.date); if(!isNaN(d)) return d; }
     if(isNum(it.year)) return Date.UTC(Number(it.year), 0, 1);
     return 0;
   }
   function dateLabel(it){
     if(it.date) return nd(it.date);
     if(isNum(it.year)) return String(it.year);
-    return 'year not stated';
+    return 'NO DATE';
   }
   function drawNews(box, row){
     var nPath = sd(row.ex.toLowerCase() + '_news.json');
@@ -626,7 +1165,6 @@
     var newsFile = FILES[nPath] && FILES[nPath].ok ? FILES[nPath].data : null;
     var annFile = FILES[aPath] && FILES[aPath].ok ? FILES[aPath].data : null;
     var newsSt = readState(nPath), annSt = readState(aPath);
-
     var keys = keysFor(row), rivals = rivalsFor(row);
     var news = [], ann = [];
     if(newsFile){
@@ -644,307 +1182,52 @@
     }
     news.sort(function(a, b){ return tsOf(b) - tsOf(a); });
     ann.sort(function(a, b){ return tsOf(b) - tsOf(a); });
-
-    var nShown = news.slice(0, 6), aShown = ann.slice(0, 8);
-    if(!nShown.length && !aShown.length && !newsFile && !annFile){
-      box.innerHTML = empText('No headline file for ' + t(row.ex) + ' was read: ' +
-        (newsSt === 'failed' ? 'the news file did not load' : 'no news file is shipped') + ' and ' +
-        (annSt === 'failed' ? 'the announcement file did not load' : 'no announcement file is shipped') +
-        '. That is a read failure, not a quiet news day.');
-      meta('news', 'files not read');
-      return;
-    }
-    function rowOf(it, kind){
-      var title = nd(it.title || '');
-      var src = it.publisher || it.source || (kind === 'ANN' ? 'announcement' : '');
-      var url = it.url || '';
-      var body = url
-        ? '<a class="tt" href="' + t(url) + '" target="_blank" rel="noopener">' + t(title) + '</a>'
-        : '<span class="tt">' + t(title) + '</span>';
-      return '<div class="nw"><span class="dt">' + t(dateLabel(it)) + '</span>' +
-             body + '<span class="sc">' + t(src) + (kind === 'ANN' ? '  ANN' : '') + '</span></div>';
-    }
-    var h = '';
-    if(nShown.length){
-      h += '<div class="gl">HEADLINES<span class="n">' + news.length + '</span></div>';
-      h += nShown.map(function(it){ return rowOf(it, 'NEWS'); }).join('');
-    }
-    if(aShown.length){
-      h += '<div class="gl">ANNOUNCEMENTS<span class="n">' + ann.length + '</span></div>';
-      h += aShown.map(function(it){ return rowOf(it, 'ANN'); }).join('');
-    }
-    if(!h){
-      var bits = [];
-      if(newsFile) bits.push(news.length + ' of the ' + ((newsFile.items || newsFile || []).length) +
-        ' headlines in ' + row.ex.toLowerCase() + '_news.json');
-      if(annFile) bits.push(ann.length + ' of the ' + ((annFile.items || annFile || []).length) +
-        ' announcements in ' + row.ex.toLowerCase() + '_announcements.json');
-      h = empText('<b>No item names ' + t(rowTicker(row)) + ' or ' + t(coreName(row.name) || row.name) +
-        '</b>. Read: ' + t(bits.join('; ')) + '.');
-    }
-    var more = [];
-    if(news.length > nShown.length) more.push((news.length - nShown.length) + ' older headline(s)');
-    if(ann.length > aShown.length) more.push((ann.length - aShown.length) + ' older announcement(s)');
-    if(more.length) h += '<div class="emp" style="border-top:1px solid var(--line)">Not shown: ' +
-      t(more.join(', ')) + '.</div>';
-    box.innerHTML = h;
-    var mt = [];
-    if(newsFile) mt.push(news.length + ' headline' + (news.length === 1 ? '' : 's'));
-    if(annFile) mt.push(ann.length + ' announcement' + (ann.length === 1 ? '' : 's'));
-    if(!annFile) mt.push('no announcement file for ' + row.ex);
-    meta('news', mt.join(', '));
-  }
-
-  /* ---------- 4. FINANCIALS ------------------------------------------ */
-  function rowUnit(label){
-    var l = String(label || '');
-    if(/%/.test(l)) return 'pct';
-    if(/earnings per share|^eps$|\beps\b/i.test(l)) return 'eps';
-    if(/debt to equity|interest cover|asset turnover|current ratio|debt\/equity/i.test(l)) return 'x';
-    return 'money';
-  }
-  /* The files carry the same lines in three different orders and SCOM groups
-     them out of statement order. One canonical reading order, applied by label,
-     makes the three companies comparable without hiding a line: nothing is
-     dropped, only placed. */
-  var LINE_ORDER = [
-    [/^revenue/i, 0],
-    [/cost of sales|cost of revenue|direct cost/i, 1],
-    [/gross profit/i, 2],
-    [/amorti|depreciation|operating expense|other operating/i, 3],
-    [/operating profit|^ebit|operating income/i, 4],
-    [/finance cost|finance income|net finance|interest expense|interest income/i, 5],
-    [/profit before tax|^pbt/i, 6],
-    [/income tax|^tax\b/i, 7],
-    [/net profit|profit for the|total profit|group total/i, 8],
-    [/^eps|earnings per share/i, 9],
-    [/ro[ea]|margin|debt to equity|asset turnover|interest cover/i, 10]
-  ];
-  function lineRank(label){
-    var l = String(label || '');
-    for(var i = 0; i < LINE_ORDER.length; i++){
-      if(LINE_ORDER[i][0].test(l)) return LINE_ORDER[i][1];
-    }
-    return 11;
-  }
-  function cell(v, unit){
-    if(!isNum(v)) return '<td class="dim">' + DASH + '</td>';
-    var n = Number(v);
-    var s, cls = n < 0 ? ' class="neg"' : '';
-    if(unit === 'pct') s = fpc(n);
-    else if(unit === 'eps') s = fnum(n, 2);
-    else if(unit === 'x') s = fx(n);
-    else s = fmoney(n);
-    return '<td' + cls + '>' + s + '</td>';
-  }
-  function drawFin(box, row, fin, an, finKey){
-    var ccy = (fin && fin.currency) || row.currency || '';
-    var parts = [], bits = [];
-    if(fin && fin.available === false){
-      parts.push(empText('<b>No statement on file.</b> ' + t(fin.source_note || fin.note ||
-        'The statement file says the issuer publishes none.')));
-      bits.push('statement absent');
-    } else if(fin && (fin.rows || []).length){
-      var periods = (fin.periods || []).slice(0, 3);
-      var rows = (fin.rows || []).filter(function(r){ return !r.isGroupHeader; });
-      /* SCOM's file carries the same expense twice, once as "Direct Costs"
-         negative and once as "Cost of Sales" positive: one figure, two signs.
-         Printing both reads as two lines of that size, so an exact sign mirror
-         of a row already taken is dropped and the first spelling is kept. */
-      var magSeen = {};
-      rows = rows.filter(function(r){
-        var vals = r.values || [];
-        var any = false, sig = [], neg = [];
-        for(var i = 0; i < vals.length; i++){
-          if(isNum(vals[i])){ any = true; sig.push(Number(vals[i]).toFixed(2)); neg.push((-Number(vals[i])).toFixed(2)); }
-          else { sig.push('x'); neg.push('x'); }
+    var all = news.map(function(x){ return {it:x, kind:'NEWS'}; })
+                  .concat(ann.map(function(x){ return {it:x, kind:'ANN'}; }));
+    if(!all.length){
+      if(!newsFile && !annFile){
+        var bad = [];
+        if(newsSt === 'failed') bad.push('news not loaded');
+        if(annSt === 'failed') bad.push('filings not loaded');
+        if(bad.length){
+          box.innerHTML = failBox('HEADLINE FILES', bad.join(', '));
+          meta('news', 'FILES NOT READ');
+        } else {
+          box.innerHTML = empBox('NO HEADLINE FILE', 'none is shipped for ' + row.ex);
+          meta('news', 'NO FILE');
         }
-        if(!any) return true;
-        var s = sig.join('|'), n = neg.join('|');
-        if(magSeen[s] !== undefined || magSeen[n] !== undefined) return false;
-        magSeen[s] = r.label;
-        return true;
-      });
-      rows = rows.map(function(r, i){ return {r:r, i:i, k:lineRank(r.label)}; })
-                 .sort(function(a, b){ return (a.k - b.k) || (a.i - b.i); })
-                 .map(function(x){ return x.r; });
-      var h = '<table class="fin"><thead><tr><th>' + t(ccyLabel(ccy)) + '</th>';
-      periods.forEach(function(p){ h += '<th>' + t(p) + '</th>'; });
-      h += '</tr></thead><tbody>';
-      rows.forEach(function(r){
-        var u = rowUnit(r.label);
-        var tot = r.isGroupTotal ? ' class="tot"' : '';
-        h += '<tr' + tot + '><td class="it">' + t(r.label) + '</td>';
-        periods.forEach(function(p, i){ h += cell((r.values || [])[i], u); });
-        h += '</tr>';
-      });
-      h += '</tbody></table>';
-      parts.push(h);
-      var pm = (fin.periods || []).length;
-      bits.push(t(ccyLabel(ccy)) + (isCents(ccy) ? ' cents' : ''));
-      if(row.currency && String(row.currency).toUpperCase() !== String(ccy).toUpperCase()){
-        bits.push(t(ccyLabel(row.currency)) + ' quote');
+        return;
       }
-      bits.push(periods.length + ' of ' + pm + ' period' + (pm === 1 ? '' : 's'));
-    } else {
-      parts.push(empText('<b>No income statement file</b> for ' + t(finKey || rowTicker(row)) +
-        ' on ' + t(row.ex) + '.'));
-      bits.push('no statement file');
-    }
-
-    /* valuation block: pe, pb, ps, earnings yield, each with its period, its
-       inputs and the cross check the analytics file records */
-    var v = (an && an.valuation) || null;
-    if(v){
-      var pTag = v.pePeriod || v.asOfPeriod || an.period || '';
-      var items = [
-        {k:'P/E', n:'pe', w:v.pe_withheld, r:v.pe_withheld_reason},
-        {k:'P/B', n:'pb', w:v.pb_withheld, r:v.pb_withheld_reason},
-        {k:'P/S', n:'ps', w:v.ps_withheld, r:v.ps_withheld_reason},
-        {k:'Earnings yield', n:'earnings_yield', w:v.earnings_yield_withheld, r:v.earnings_yield_withheld_reason}
-      ];
-      var vh = '<div class="gl" style="border-top:1px solid var(--line2)">VALUATION<span class="n">' +
-               t(pTag) + '</span></div><div class="vg">';
-      var reasons = [];
-      items.forEach(function(it){
-        var raw = v[it.n];
-        var isW = raw === null || raw === undefined || it.w === true;
-        if(isW && it.r) reasons.push({k:it.k, r:it.r});
-        vh += '<div class="vr"><span class="k">' + it.k +
-              (pTag ? '<span class="p">' + t(pTag) + '</span>' : '') + '</span>' +
-              '<span class="v' + (isW ? ' wh' : '') + '">' +
-              (isW ? 'withheld' : (it.n === 'earnings_yield' ? fpc(raw) : fx(raw))) + '</span></div>';
-      });
-      if(isNum(v.ev_ebit) || v.ev_ebit_withheld){
-        var ew = v.ev_ebit === null || v.ev_ebit === undefined || v.ev_ebit_withheld === true;
-        if(ew && v.ev_ebit_withheld_reason) reasons.push({k:'EV/EBIT', r:v.ev_ebit_withheld_reason});
-        vh += '<div class="vr"><span class="k">EV/EBIT</span><span class="v' + (ew ? ' wh' : '') + '">' +
-              (ew ? 'withheld' : fx(v.ev_ebit)) + '</span></div>';
-      }
-      vh += '</div>';
-      parts.push(vh);
-      /* one reason covers every ratio it withholds (NPN withholds all four for
-         the same USD against ZAR cause), so the reason is printed once with the
-         ratios it covers rather than four times over */
-      var byReason = [];
-      reasons.forEach(function(x){
-        var key = String(x.r);
-        var at = -1;
-        for(var i = 0; i < byReason.length; i++){ if(byReason[i].r === key){ at = i; break; } }
-        if(at < 0){ byReason.push({r:key, ks:[x.k]}); }
-        else byReason[at].ks.push(x.k);
-      });
-      byReason.forEach(function(g){
-        parts.push('<div class="whn"><b>' + t(g.ks.join(', ')) + ' WITHHELD</b> ' + t(g.r) + '</div>');
-      });
-      var pi = v.peInputs || null;
-      if(pi){
-        var ih = '<div class="sub"><div class="ttl">inputs</div><div class="vg" style="padding:0">';
-        if(isNum(pi.price)) ih += '<div class="vr"><span class="k">price</span><span class="v">' +
-          ipx(pi.price) + ' ' + t(ccyLabel(ccy)) + '</span></div>';
-        if(isNum(pi.eps)) ih += '<div class="vr"><span class="k">eps</span><span class="v">' +
-          fnum(pi.eps, 2) + '</span></div>';
-        if(isNum(pi.marketCap)) ih += '<div class="vr"><span class="k">market cap</span><span class="v">' +
-          fmoney(pi.marketCap) + '</span></div>';
-        if(isNum(pi.netProfit)) ih += '<div class="vr"><span class="k">net profit</span><span class="v">' +
-          fmoney(pi.netProfit) + '</span></div>';
-        ih += '</div></div>';
-        parts.push(ih);
-      }
-      if(v.peCrossCheck) parts.push('<div class="cc"><b>CROSS CHECK</b> ' + t(v.peCrossCheck) + '</div>');
-      if(!isNum(v.pe)) bits.push('multiples withheld');
-    } else {
-      parts.push(empText('<b>No analytics file</b> for ' + t(rowTicker(row)) +
-        ', so no multiple is printed here.'));
-      bits.push('no analytics file');
-    }
-    box.innerHTML = parts.join('');
-    meta('fin', bits.join(', '));
-  }
-
-  /* ---------- 5. OWNERSHIP ------------------------------------------- */
-  function drawOwn(box, row, file){
-    var path = sd('shareholders_' + row.ex + '.json');
-    var st = readState(path);
-    if(st === 'failed' || !file){
-      box.innerHTML = empText('<b>The holder file for ' + t(row.ex) + ' was not read.</b> ' +
-        'No holder is printed and none is inferred.');
-      meta('own', 'file not read');
+      box.innerHTML = empBox('NO ITEM NAMES ' + rowTicker(row), 'headline and filing files read');
+      meta('news', '0 HEADLINES');
       return;
     }
-    var map = file.securities || {};
-    var rec = map[row.ticker] || map[row.sym] || map[rowTicker(row)] || null;
-    if(!rec){
-      box.innerHTML = empText('<b>No holder record</b> for ' + t(rowTicker(row)) + ' in ' +
-        'shareholders_' + t(row.ex) + '.json, which carries ' + Object.keys(map).length +
-        ' of the exchange\'s securities.');
-      meta('own', 'no record');
-      return;
-    }
-    var groups = [
-      {k:'substantial', t:'HOLDERS'},
-      {k:'promoters', t:'PROMOTERS'},
-      {k:'directors', t:'DIRECTORS'},
-      {k:'other', t:'OTHER HOLDERS'}
-    ];
-    var rows = [], used = [];
-    groups.forEach(function(g){
-      var arr = rec[g.k] || [];
-      var clean = arr.filter(function(x){ return x && (x.name || x.holder); });
-      if(!clean.length) return;
-      used.push({t:g.t, arr:clean});
-      rows = rows.concat(clean);
-    });
-    var h = '<div class="rw" style="grid-template-columns:1fr auto auto">' +
-            '<span class="rn">issued shares</span>' +
-            '<span class="rr">' + (rec.asOf ? 'as at ' + t(rec.asOf) : '') + '</span>' +
-            '<span class="rs" style="color:var(--tx)">' + (isNum(rec.issued) ? fnum(rec.issued, 0) : DASH) + '</span></div>';
-    if(isNum(rec.freeFloat)){
-      h += '<div class="rw" style="grid-template-columns:1fr auto auto">' +
-           '<span class="rn">free float</span><span class="rr"></span>' +
-           '<span class="rs" style="color:var(--tx)">' + fnum(rec.freeFloat, 2) + '%</span></div>';
-    }
-    used.forEach(function(g){
-      h += '<div class="gl" style="border-top:1px solid var(--line2)">' + t(g.t) +
-           '<span class="n">' + g.arr.length + '</span></div>';
-      h += g.arr.map(function(x){
-        var nm = x.name || x.holder || '';
-        var hold = isNum(x.holding) ? x.holding : (isNum(x.shares) ? x.shares : null);
-        return '<div class="rw"><span class="rn">' + t(nm) + '</span>' +
-               '<span class="rr"></span>' +
-               '<span class="rs" style="color:var(--tx)">' +
-               (hold == null ? DASH : fnum(hold, 0)) + '  ' +
-               (isNum(x.pct) ? fnum(x.pct, 2) + '%' : DASH) + '</span></div>';
-      }).join('');
-    });
-    if(rows.length && !rows.some(function(x){ return isNum(x.pct); })){
-      h += '<div class="emp" style="padding-top:5px">The source table prints share counts only, ' +
-           'so no holding percentage is shown and none is computed from the share count.</div>';
-    }
-    if(!rows.length){
-      /* the record exists but carries nothing: that is not the same fact as a
-         company with no record, and the notes the file keeps explain why */
-      var notes = (rec.notes || []).filter(function(x){ return x; });
-      h += '<div class="emp"><b>The holder record exists but carries no holders</b>' +
-           (rec.asOf ? ' (as at ' + t(rec.asOf) + ')' : '') +
-           (isNum(rec.issued) ? '' : ', and no issued share count') + '. ' +
-           'shareholders_' + t(row.ex) + '.json holds ' + Object.keys(map).length + ' records' +
-           (notes.length ? '; this one records: ' + t(notes.join(' ')) : '') + '</div>';
-    }
-    if(rec.source && (rec.source.url || rec.source.file)){
-      h += '<div class="emp" style="padding-top:4px">' +
-        (rec.source.url
-          ? '<a href="' + t(rec.source.url) + '" target="_blank" rel="noopener">source' +
-            (rec.source.page ? ' p' + rec.source.page : '') + '</a>'
-          : '') +
-        (rec.source.via ? t(rec.source.via) : '') + '</div>';
-    }
-    box.innerHTML = h;
-    meta('own', rows.length ? (rows.length + ' holder' + (rows.length === 1 ? '' : 's') +
-      (rec.asOf ? ', as at ' + rec.asOf : '')) : 'record carries no holders');
+    var shown = all.slice(0, 6);
+    box.innerHTML = shown.map(function(x){
+      var it = x.it;
+      var title = nd(it.title || '');
+      var src = it.publisher || it.source || (x.kind === 'ANN' ? 'FILING' : row.ex);
+      var inner = it.url
+        ? '<a href="' + t(it.url) + '" target="_blank" rel="noopener">' + t(title) + '</a>'
+        : t(title);
+      return '<div class="ncard"><div class="nd"><span class="ndd">' + t(dateLabel(it)) + '</span>' +
+        '<span class="nds">' + t(src) + '</span></div>' +
+        '<div class="nt" title="' + t(title) + '">' + inner + '</div></div>';
+    }).join('');
+    var extra = all.length - shown.length;
+    meta('news', all.length + ' ITEM' + (all.length === 1 ? '' : 'S') +
+      (extra > 0 ? ' | ' + extra + ' MORE' : '') +
+      ' | ' + news.length + ' HEADLINE' + (news.length === 1 ? '' : 'S'));
   }
 
-  /* ---------- 6. GOVERNMENT EXPOSURE --------------------------------- */
+  /* ---------- 6. LAWS AND EXPOSURE ----------------------------------- */
+  function shortLaw(nm){
+    var s = String(nm || '');
+    s = s.replace(/\((?:No\.|Legal Notice)[^)]*\)/gi, '');
+    s = s.replace(/,\s*(19|20)\d\d\s*$/g, '');
+    s = s.replace(/\s+/g, ' ').replace(/[,\s]+$/, '').trim();
+    return s.length > 26 ? s.slice(0, 25) + '.' : s;
+  }
   function exposureHits(file, tkr){
     var hits = [];
     var map = (file && (file.sector_exposure || file.sectors)) || {};
@@ -961,101 +1244,142 @@
     });
     return hits;
   }
-  function drawGov(box, row, files){
-    var wanted = row.ex === 'NSE' ? ['KE'] : (row.ex === 'JSE' ? ['SA'] : []);
-    if(!wanted.length){
-      box.innerHTML = empText('<b>No government budget file covers ' + t(row.ex) + '.</b> ' +
-        'The fiscal link is recorded for NSE (gov_exposure_KE.json) and JSE (gov_exposure_SA.json) only.');
-      meta('gov', 'no file for ' + row.ex);
-      return;
-    }
-    var jur = wanted[0];
-    var file = files[jur];
-    var path = sd('gov_exposure_' + jur + '.json');
-    if(readState(path) === 'failed' || !file){
-      box.innerHTML = empText('<b>gov_exposure_' + t(jur) + '.json was not read.</b> ' +
-        'This security\'s fiscal link is unknown here, not absent.');
-      meta('gov', 'file not read');
-      return;
-    }
-    var hits = exposureHits(file, rowTicker(row));
-    if(!hits.length){
-      var n = 0, seen = {};
-      var map = file.sector_exposure || {};
-      Object.keys(map).forEach(function(s){
-        ['direct','indirect'].forEach(function(k){
-          (map[s][k] || []).forEach(function(r){
-            var tk = Array.isArray(r) ? r[0] : r.ticker;
-            if(tk && !seen[tk]){ seen[tk] = 1; n++; }
-          });
-        });
-      });
-      box.innerHTML = empText('<b>No budget sector record</b> for ' + t(rowTicker(row)) + ' in ' +
-        'gov_exposure_' + t(jur) + '.json, which records ' + n + ' securities. Nothing is implied ' +
-        'about its revenue from the absence.');
-      meta('gov', 'no record, ' + n + ' recorded');
-      return;
-    }
+  function drawLaws(box, row, lawsFile, govFile, govJur){
     var h = '';
-    hits.forEach(function(x){
-      h += '<div class="gl" style="border-top:1px solid var(--line2)">' + t(x.sector) +
-           (x.code ? '<span class="n">code ' + t(x.code) + '</span>' : '') + '</div>' +
-           '<div class="co"><span class="tg' + (x.kind === 'indirect' ? ' ind' : '') + '">' +
-           x.kind.toUpperCase() + '</span><span class="bd">' + t(x.reason) + '</span></div>';
-    });
+    var n = 0;
+    var colours = {enacted:0, repealed:0, withdrawn:0};
+    if(row.ex !== 'NSE'){
+      h += '<span class="chip other">NO LAW FILE ' + t(row.ex) + '</span>';
+      meta('law', 'NO LAW FILE');
+    } else if(readState(sd('gov_laws_KE.json')) === 'failed' || !lawsFile){
+      h += '<span class="chip other">LAW FILE NOT READ</span>';
+      meta('law', 'FILE NOT READ');
+    } else {
+      var tk = rowTicker(row);
+      var laws = (lawsFile.laws || []).filter(function(l){
+        var list = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); });
+        return list.indexOf(tk) >= 0 || list.indexOf('ALL') >= 0;
+      });
+      laws.sort(function(a, b){
+        var A = (a.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0 ? 0 : 1;
+        var B = (b.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0 ? 0 : 1;
+        if(A !== B) return A - B;
+        return String(b.year || '').localeCompare(String(a.year || ''));
+      });
+      if(!laws.length) h += '<span class="chip other">NO ACT NAMES ' + t(tk) + '</span>';
+      laws.forEach(function(l){
+        var st = String(l.status || '').toLowerCase();
+        var cl = (st === 'enacted' || st === 'repealed' || st === 'withdrawn') ? st : 'other';
+        if(colours[cl] != null) colours[cl]++;
+        var tip = [l.name || l.id || '', st || 'status not stated',
+                   l.mechanism || '', l.status_note || ''].filter(Boolean).join(' | ');
+        h += '<span class="chip ' + cl + '" title="' + t(tip) + '">' +
+          (l.year ? '<i>' + t(l.year) + '</i>' : '') + t(shortLaw(l.name || l.id || '')) + '</span>';
+        n++;
+      });
+      meta('law', n + ' ACTS | ' + colours.enacted + ' ENACTED ' + colours.withdrawn + ' WITHDRAWN ' +
+        colours.repealed + ' REPEALED');
+    }
+    /* the government budget link, or one chip saying there is none */
+    if(govJur){
+      if(readState(sd('gov_exposure_' + govJur + '.json')) === 'failed' || !govFile){
+        h += '<span class="chip other">EXPOSURE FILE NOT READ</span>';
+      } else {
+        var hits = exposureHits(govFile, rowTicker(row));
+        if(!hits.length){
+          h += '<span class="chip none">NO BUDGET LINK</span>';
+        } else {
+          hits.slice(0, 2).forEach(function(x){
+            h += '<span class="chip gov' + (x.kind === 'indirect' ? ' ind' : '') +
+              '" title="' + t(x.reason) + '">' + t(x.sector.toUpperCase()) + ' <b>' +
+              t(x.kind.toUpperCase()) + '</b></span>';
+          });
+        }
+      }
+    } else {
+      /* no budget file covers this exchange at all: the chip still reads as an
+         absent link, and its hover says which file would have carried one */
+      h += '<span class="chip none" title="no budget file covers ' + t(row.ex) +
+        '; the fiscal link is recorded for NSE and JSE">NO BUDGET LINK</span>';
+    }
     box.innerHTML = h;
-    meta('gov', hits.length + ' link' + (hits.length === 1 ? '' : 's') + ', gov_exposure_' + jur);
   }
 
-  /* ---------- 7. LAWS ------------------------------------------------- */
-  function drawLaws(box, row, file){
-    if(row.ex !== 'NSE'){
-      box.innerHTML = empText('<b>No law file covers ' + t(row.ex) + '.</b> ' +
-        'gov_laws_KE.json records Kenyan Acts against NSE issuers only.');
-      meta('laws', 'no file for ' + row.ex);
-      return;
-    }
-    var path = sd('gov_laws_KE.json');
+  /* ---------- 7. OWNERSHIP ------------------------------------------- */
+  var SEGCOL = ['#33e29a', '#1ecfb0', '#6ea8fe', '#c08cff', '#e0a341'];
+  function segColour(i){ return i < SEGCOL.length ? SEGCOL[i] : '#4a4a4a'; }
+  function drawOwn(box, row, file){
+    var path = sd('shareholders_' + row.ex + '.json');
     if(readState(path) === 'failed' || !file){
-      box.innerHTML = empText('<b>gov_laws_KE.json was not read.</b> ' +
-        'No Act is printed and none is inferred.');
-      meta('laws', 'file not read');
+      box.innerHTML = failBox('SHAREHOLDER FILE', 'shareholders_' + row.ex + '.json not loaded');
+      meta('own', 'FILE NOT READ');
       return;
     }
-    var tk = rowTicker(row);
-    var laws = (file.laws || []).filter(function(l){
-      var list = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); });
-      return list.indexOf(tk) >= 0 || list.indexOf('ALL') >= 0;
-    });
-    if(!laws.length){
-      box.innerHTML = empText('<b>No Act in gov_laws_KE.json names ' + t(tk) + '.</b> ' +
-        'The file carries ' + ((file.laws || []).length) + ' Acts.');
-      meta('laws', '0 of ' + ((file.laws || []).length));
+    var map = file.securities || {};
+    var rec = map[row.ticker] || map[row.sym] || map[rowTicker(row)] || null;
+    if(!rec){
+      box.innerHTML = empBox('NO HOLDER RECORD', Object.keys(map).length + ' ' + row.ex + ' records, not this one');
+      meta('own', 'NO RECORD');
       return;
     }
-    /* the Acts that name this issuer first, the every-issuer ones after */
-    laws.sort(function(a, b){
-      var A = (a.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0 ? 0 : 1;
-      var B = (b.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0 ? 0 : 1;
-      if(A !== B) return A - B;
-      return String(b.year || '').localeCompare(String(a.year || ''));
+    var holders = [];
+    ['substantial','promoters','directors','other'].forEach(function(g){
+      (rec[g] || []).forEach(function(x){
+        if(!x) return;
+        var nm = x.name || x.holder || '';
+        if(!nm) return;
+        holders.push({name:nm, holding:numv(x.holding != null ? x.holding : x.shares),
+                      pct:numv(x.pct)});
+      });
     });
-    var mine = laws.filter(function(l){
-      return (l.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0;
-    }).length;
-    box.innerHTML = laws.map(function(l){
-      var all = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) < 0;
-      var st = String(l.status || '').toLowerCase();
-      return '<div class="lw"><div class="h1">' +
-        (l.year ? '<span class="st">' + t(l.year) + '</span>' : '') +
-        '<span class="nm">' + t(l.name || l.id || '') + '</span>' +
-        '<span class="st ' + t(st) + '">' + t(st || 'status not stated') + '</span>' +
-        (all ? '<span class="all">ALL ISSUERS</span>' : '') +
-        '</div>' + (l.mechanism ? '<div class="mech">' + t(l.mechanism) + '</div>' : '') +
-        (l.status_note ? '<div class="mech" style="color:var(--tx3)">' + t(l.status_note) + '</div>' : '') +
-        '</div>';
-    }).join('');
-    meta('laws', mine + ' naming ' + rowTicker(row) + ', ' + (laws.length - mine) + ' every issuer');
+    var issued = numv(rec.issued);
+    var basis = 'STATED PCT';
+    if(!holders.length){
+      box.innerHTML = empBox('RECORD CARRIES NO HOLDERS', (rec.asOf ? 'AS AT ' + rec.asOf : '') +
+        (issued != null ? ' | ' + fnum(issued, 0) + ' ISSUED' : ''));
+      meta('own', '0 HOLDERS');
+      return;
+    }
+    /* per cent comes from the file when it prints one; when it prints share
+       counts only the width is shares held over issued shares, and the caption
+       says so instead of implying a printed percentage */
+    var anyPct = holders.some(function(x){ return x.pct != null; });
+    if(!anyPct && issued){
+      holders.forEach(function(x){
+        if(x.holding != null) x.pct = x.holding / issued * 100;
+      });
+      basis = 'SHARE OF ISSUED';
+    }
+    holders = holders.filter(function(x){ return x.pct != null && x.pct > 0; })
+                     .sort(function(a, b){ return b.pct - a.pct; });
+    if(!holders.length){
+      box.innerHTML = empBox('NO HOLDING PERCENTAGE', 'the record carries share counts only');
+      meta('own', '0 HOLDERS');
+      return;
+    }
+    var big = holders.filter(function(x){ return x.pct >= 0.5; }).slice(0, 6);
+    var sum = big.reduce(function(a, x){ return a + x.pct; }, 0);
+    var segs = big.slice();
+    if(sum < 99.5) segs.push({name:'OTHER HOLDERS', pct:100 - sum, rest:true});
+
+    var h = '<div class="ofig"><span class="ofv">' + (issued != null ? fnum(issued, 0) : DASH) +
+      '</span><span class="ofl">ISSUED</span></div>';
+    h += '<div class="obar">';
+    segs.forEach(function(s, i){
+      h += '<div class="seg" style="width:' + s.pct.toFixed(2) + '%;background:' +
+        (s.rest ? '#3a3a3a' : segColour(i)) +
+        '" title="' + t(s.name + ' ' + s.pct.toFixed(2) + '%') + '"></div>';
+    });
+    h += '</div><div class="oleg">';
+    segs.slice(0, 3).forEach(function(s, i){
+      h += '<div class="olr"><span class="old" style="background:' +
+        (s.rest ? '#3a3a3a' : segColour(i)) + '"></span>' +
+        '<span class="oln">' + t(s.name) + '</span>' +
+        '<span class="olp">' + s.pct.toFixed(2) + '%</span></div>';
+    });
+    h += '</div>';
+    box.innerHTML = h;
+    meta('own', segs.length + ' SEGMENTS | ' + basis + (rec.asOf ? ' | ' + rec.asOf : ''));
   }
 
   /* ---------- the build ---------------------------------------------- */
@@ -1066,7 +1390,7 @@
     var name = encodeURIComponent(String(key).replace(/\//g, '_'));
     return base + name + (kind === 'analytics' ? '.json' : '__income.json');
   }
-  function tryKeys(row, kind){
+  function tryKeys(row){
     var keys = [String(row.ticker || '')];
     if(row.sym && String(row.sym).toUpperCase() !== String(row.ticker).toUpperCase()) keys.push(String(row.sym));
     if(row.ex === 'JSE' && String(row.ticker).indexOf('.') < 0) keys.push(String(row.ticker) + '.JO');
@@ -1075,7 +1399,7 @@
     return out;
   }
   function readFirst(row, kind){
-    var keys = tryKeys(row, kind);
+    var keys = tryKeys(row);
     return (function step(i){
       if(i >= keys.length) return Promise.resolve(null);
       return getJSON(finPath(row, keys[i], kind)).then(function(d){
@@ -1088,57 +1412,65 @@
   function build(row){
     var gen = ++GEN;
     CUR = row;
+    PAINT = {};
+    PXSTATE = {mode:'none', points:0, bars:0};
     paintHead(row, null);
-    document.getElementById('dossier').innerHTML = shells();
     document.getElementById('footNote').textContent = '';
 
     var ex = row.ex;
-    var jobs = [];
-    jobs.push(getJSON(sd('company_info.json')));
-    jobs.push(getJSON(sd('relationships_' + ex + '.json')));
-    jobs.push(getJSON(sd(ex.toLowerCase() + '_news.json')));
-    jobs.push(getJSON(sd(ex.toLowerCase() + '_announcements.json')));
-    jobs.push(getJSON(sd('shareholders_' + ex + '.json')));
-    jobs.push(readFirst(row, 'income'));
-    jobs.push(readFirst(row, 'analytics'));
+    var J = {};
+    J.info = getJSON(sd('company_info.json'));
+    J.rel = getJSON(sd('relationships_' + ex + '.json'));
+    J.news = NEWS_EX[ex] ? getJSON(sd(ex.toLowerCase() + '_news.json')) : Promise.resolve(null);
+    J.ann = ANN_EX[ex] ? getJSON(sd(ex.toLowerCase() + '_announcements.json')) : Promise.resolve(null);
+    J.sh = getJSON(sd('shareholders_' + ex + '.json'));
+    J.fin = readFirst(row, 'income');
+    J.an = readFirst(row, 'analytics');
+    J.hist = readHistory(row);
     if(ex === 'NSE'){
-      jobs.push(getJSON(sd('gov_exposure_KE.json')));
-      jobs.push(getJSON(sd('gov_laws_KE.json')));
+      J.gov = getJSON(sd('gov_exposure_KE.json'));
+      J.laws = getJSON(sd('gov_laws_KE.json'));
     } else if(ex === 'JSE'){
-      jobs.push(getJSON(sd('gov_exposure_SA.json')));
+      J.gov = getJSON(sd('gov_exposure_SA.json'));
     }
 
-    Promise.all(jobs).then(function(R){
+    Promise.all([J.info, J.rel, J.news, J.ann, J.sh, J.fin, J.an, J.hist,
+                 J.gov || null, J.laws || null])
+    .then(function(R){
       if(gen !== GEN) return;
-      var info = R[0], relFile = R[1], newsFile = R[2], annFile = R[3], shFile = R[4];
-      var fin = R[5], an = R[6];
+      var info = R[0], relFile = R[1], shFile = R[4], fin = R[5], an = R[6], hist = R[7];
+      var govFile = R[8], lawsFile = R[9];
       paintHead(row, info && (info[row.ticker] || info[ex + ':' + row.sym] || info[row.sym] || info[rowTicker(row)]));
-      var govFiles = {};
-      if(ex === 'NSE'){ govFiles.KE = R[7]; }
-      if(ex === 'JSE'){ govFiles.SA = R[7]; }
-      var lawsFile = ex === 'NSE' ? R[8] : null;
 
       var relRec = null;
       if(relFile && relFile.securities){
         var s = relFile.securities;
         relRec = s[row.ticker] || s[row.sym] || s[rowTicker(row)] || null;
       }
+      var histSt = hist ? readState(hist.path) : 'unread';
+
+      guardDraw('strip', function(box){
+        drawTiles(box, row, an && an.d, hist && hist.d, histSt);
+      });
       guardDraw('rel', function(box){ drawRel(box, row, relFile, relRec); });
-      guardDraw('news', function(box){ drawNews(box, row); });
       guardDraw('fin', function(box){
         drawFin(box, row, fin && fin.d, an && an.d, (fin && fin.key) || rowTicker(row));
       });
       guardDraw('own', function(box){ drawOwn(box, row, shFile); });
-      guardDraw('gov', function(box){ drawGov(box, row, govFiles); });
-      guardDraw('laws', function(box){ drawLaws(box, row, lawsFile); });
+      guardDraw('law', function(box){
+        drawLaws(box, row, lawsFile, govFile, ex === 'NSE' ? 'KE' : (ex === 'JSE' ? 'SA' : ''));
+      });
+      guardDraw('news', function(box){ drawNews(box, row); });
+      guardDraw('px', function(box){ drawPrice(box, row, hist && hist.d, hist && hist.path, histSt); });
 
       var bits = [];
-      if(relFile && relFile.generated) bits.push('relationships ' + relFile.generated);
+      if(relFile && relFile.generated) bits.push('REL ' + relFile.generated);
+      if(hist && hist.d && hist.d.realigned_at) bits.push('HIST ' + hist.d.realigned_at);
       document.getElementById('footNote').textContent = nd(bits.join('  '));
     }).catch(function(e){
       if(gen !== GEN) return;
-      document.getElementById('dossier').innerHTML =
-        '<div class="fail"><b>DOSSIER FAILED</b> ' + t(String((e && e.message) || e)) + '</div>';
+      document.getElementById('b_rel').innerHTML =
+        '<div class="fail"><b>DASHBOARD FAILED</b> ' + t(String((e && e.message) || e)) + '</div>';
     });
   }
 
@@ -1216,24 +1548,41 @@
   }
 
   /* the proof surface: what this panel believes, readable from the DOM */
+  function textWords(){
+    var txt = (document.body.innerText || '').replace(/\s+/g, ' ').trim();
+    return txt ? txt.split(' ').length : 0;
+  }
   window.__mtPerpState = function(){
-    var out = {ticker: CUR ? rowTicker(CUR) : '', ex: CUR ? CUR.ex : '',
-               name: CUR ? nd(CUR.name || '') : '', sections:{},
-               inputs: document.querySelectorAll('input').length,
-               buttons: document.querySelectorAll('button').length};
-    SEC_ORDER.forEach(function(k){
-      var b = document.getElementById('b_' + k);
-      var m = document.getElementById('m_' + k);
-      var first = b ? b.querySelector('.rw .rn, .nw .tt, .lw .nm, .co .bd, table.fin tbody td.it, .emp b') : null;
-      out.sections[k] = {
-        meta: m ? nd(m.textContent || '').trim() : '',
-        failed: !!(b && b.querySelector('.fail')),
-        rows: b ? b.querySelectorAll('.rw, .nw, .lw, .co, table.fin tbody tr').length : 0,
-        first: first ? nd(first.textContent || '').trim().slice(0, 160) : '',
-        text: b ? nd(b.textContent || '').trim().slice(0, 240) : ''
-      };
+    var tiles = Array.prototype.map.call(document.querySelectorAll('#b_strip .tile'), function(el){
+      var l = el.querySelector('.tl'), v = el.querySelector('.tv'), s = el.querySelector('.ts');
+      return {label: l ? l.textContent : '', value: v ? v.textContent : '', sub: s ? s.textContent : ''};
     });
-    return out;
+    var segs = Array.prototype.map.call(document.querySelectorAll('#b_own .seg'), function(el){
+      return {w: el.style.width, c: el.style.background, t: el.getAttribute('title')};
+    });
+    var chips = Array.prototype.map.call(document.querySelectorAll('#b_law .chip'), function(el){
+      return {text: el.textContent.trim(), cls: el.className.replace('chip', '').trim()};
+    });
+    return {
+      ticker: CUR ? rowTicker(CUR) : '', ex: CUR ? CUR.ex : '', name: CUR ? nd(CUR.name || '') : '',
+      tiles: tiles,
+      rel: {nodes: document.querySelectorAll('#b_rel .nd').length,
+            edges: document.querySelectorAll('#b_rel line').length,
+            legend: Array.prototype.map.call(
+              document.querySelectorAll('#b_rel svg text'), function(e){ return e.textContent; })
+              .filter(function(s){ return /^(CUSTOMERS|SUPPLIERS|COMPETITORS|PARTNERS) /.test(s); })},
+      fin: {periods: document.querySelectorAll('#b_fin text[text-anchor="middle"]').length,
+            labels: Array.prototype.map.call(
+              document.querySelectorAll('#b_fin svg text[text-anchor="middle"]'),
+              function(e){ return e.textContent; })},
+      px: {mode: PXSTATE.mode, points: PXSTATE.points, bars: PXSTATE.bars},
+      news: {cards: document.querySelectorAll('#b_news .ncard').length},
+      laws: {chips: chips},
+      own: {segments: segs},
+      inputs: document.querySelectorAll('input').length,
+      buttons: document.querySelectorAll('button').length,
+      words: textWords()
+    };
   };
 
   /* boot */
@@ -1249,9 +1598,8 @@
     }
     if(row){ pick(row); announceReady(); return; }
     if(!tk && ex){
-      /* No security was named. Open on a security of the exchange the shell is
-         showing that actually carries a relationship record, so the first
-         screen is a dossier and not an empty frame. */
+      /* open on a security of the exchange the shell shows that carries a
+         relationship record, so the first screen is a dossier not an empty frame */
       getJSON(sd('relationships_' + ex + '.json')).then(function(rel){
         var secs = (rel && rel.securities) || {};
         var sel = null;
