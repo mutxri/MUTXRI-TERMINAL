@@ -1,49 +1,48 @@
 <!--
-  mx_perplexity.html - PERPLEXITY: the research panel.
+  mx_perplexity.html - PERPLEXITY: policy transmission on one relationship map.
 
-  This is a research tool, not a company dashboard. Its job is to answer a
-  question of the form "how does X affect Y" and to show how the companies in
-  the terminal interlink: start from one security, walk the links its record
-  states, then walk the links of those companies, so a chain across two
-  exchanges becomes visible. Beside the graph, a thesis block answers in the
-  shape a good research answer takes: what is DIRECT, what reaches a company
-  through a MECHANISM, what is NOT THERE, and WHERE IT WAS READ.
+  One job. The map answers one question: when a government Act changes the
+  terms an industry works under, which listed companies does it reach, and how
+  far does that reach travel through links the records actually state.
 
-  Layout: eight figure tiles across the top, the relationship map as the
-  centrepiece, the selected link in a short side list, the thesis block, the
-  price history on the same lightweight-charts engine the CHART window uses,
-  laws as status coloured chips and a strip of headline cards. Revenue bars and
-  the ownership bar were removed on the owner's correction: this window is for
-  research, and those two belong to the company dossier elsewhere.
+  Everything else that used to live here is gone on the owner's correction:
+  the eight figure tiles and their sparklines, the price and candlestick card,
+  the news strip, the law chip list and the thesis block. The panel is the map.
 
-  Nothing here is fetched from a new source. The panel reads what the terminal
-  already ships:
+  What the map reads, and nothing else:
 
-    TILES         static_data/market_<EX>.json, static_data/analytics/<KEY>.json,
-                  static_data/history/<KEY>.json
-    LINKS         static_data/relationships_NSE.json, _JSE.json, _NGX.json,
-                  _EGX.json (all four, so a link can cross an exchange)
-    THESIS        static_data/research_theses.json
-    PRICE         static_data/history/NSE_<TK>.json or NGX_<TK>.json
-    NEWS          static_data/<ex>_news.json and <ex>_announcements.json
-    LAWS          static_data/gov_laws_KE.json
-    EXPOSURE      static_data/gov_exposure_KE.json / gov_exposure_SA.json
+    LINKS     static_data/relationships_NSE.json, _JSE.json, _NGX.json,
+              _EGX.json (all four, so a link can cross an exchange)
+    ACTS      static_data/gov_laws_KE.json: name, year, status, mechanism,
+              sectors and tickers for each Act
+    LISTING   static_data/market_<EX>.json for the ticker, name and sector of
+              each security
+    INFO      static_data/company_info.json for a name the market file lacks
+
+  How a chosen Act is drawn:
+    * DIRECT: a security the Act's ticker list names, or a security on the
+      Act's own exchange whose sector the Act names. Solid amber ring, full
+      opacity. The record's own sector list decides, never a guess.
+    * HOP 1: a company one recorded link away from a direct company, because a
+      cost change at one party reaches the party it buys from or sells to.
+      Dashed amber ring, reduced opacity.
+    * HOP 2: one recorded link past that. Dotted amber ring, dimmer again, and
+      the panel says so rather than cutting it silently.
+    * UNAFFECTED: low opacity and a desaturated ring, so the reach stands out.
+    * EDGES on the reach turn amber and thicken; the rest dim.
 
   Rules this file keeps:
-    * a figure is printed only when the file carries it;
-    * a withheld multiple prints WITHHELD in amber and keeps its stored reason
-      on the tile's hover title, never as a paragraph;
     * a link is drawn only when a recorded relationship names it: no peer set,
-      no sector inference, no chain invented to fill the frame;
-    * a node cap and the exchange files read are both printed on the panel, so
-      a truncated graph says it is truncated;
-    * an empty record is told apart from a failed read, and a failed read prints
-      the failure where its content belongs;
+      no sector inference on the map, no chain invented to fill the frame;
+    * an Act that names no security on the map is said plainly, not drawn as an
+      unmarked map;
+    * a company with no link record cannot propagate, and the panel says so;
+    * the 25 node cap and the four exchange files read are printed on the map;
+    * an empty record is told apart from a failed read, and a failed read
+      prints the failure where its content belongs;
     * every block draws inside a guard, so one broken read blanks one block;
-    * one search input, one hop toggle, one set of type filters, no more;
-    * the map is drawn the way a relationship map is read: one focal node, the
-      counterparties on rings by hop, links curved with an arrow at the target,
-      a boxed legend with counts, and pan, zoom and reset on the map itself.
+    * one line states what the map shows and what it does not claim.
+
   Vanilla JS, single file, no build step. Mint on black, Oxygen Mono.
 -->
 <!DOCTYPE html>
@@ -60,7 +59,7 @@
   :root{
     --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
     --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;--up:#33e29a;--acc:#33e29a;--down:#f87171;
-    --acc2:#1ecfb0;--warn:#e0a341;--blue:#6ea8fe;--violet:#c08cff;
+    --warn:#e0a341;--blue:#6ea8fe;--violet:#c08cff;
     --mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
     --ui:Inter,system-ui,sans-serif;
   }
@@ -74,42 +73,21 @@
   .wrap{display:flex;flex-direction:column;height:100%;min-height:0;border:0;background:transparent;
         max-width:none;margin:0;border-radius:0}
 
-  /* ---------- head ---------- */
-  .head{display:flex;align-items:center;gap:9px;padding:6px 12px;border-bottom:1px solid var(--line2);
-        background:var(--bg2);flex:0 0 auto;min-width:0}
-  .head .code{color:var(--acc);font-weight:700;letter-spacing:.06em;font-size:10px}
-  .head .tkr{font-weight:700;letter-spacing:.04em;font-size:14px}
-  .head .name{color:var(--tx2);font-family:var(--ui);font-size:11px;white-space:nowrap;overflow:hidden;
-              text-overflow:ellipsis;max-width:34vw}
-  .head .tag{font-size:8px;letter-spacing:.08em;color:var(--acc);border:1px solid #1f4f3c;
-             padding:1px 4px;border-radius:2px;white-space:nowrap}
-  .head .tag.dim{color:var(--tx3);border-color:var(--line2)}
-  .spacer{margin-left:auto}
-  .head .asof{font-size:8px;color:var(--tx3);letter-spacing:.06em;white-space:nowrap}
-
-  /* ---------- search: one input, no typing to search ---------- */
-  .controls{position:relative;display:flex;align-items:center;gap:9px;padding:5px 12px;
-            border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap;min-height:0}
+  /* ---------- search and the Act selector, both above the map ---------- */
+  .controls{position:relative;display:flex;align-items:center;gap:8px;padding:5px 12px;
+            border-bottom:1px solid var(--line2);flex:0 0 auto;flex-wrap:wrap;min-width:0}
+  .controls .cl2{font-size:7px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase;
+                 white-space:nowrap;flex:0 0 auto}
   input.qin{background:var(--bg3);color:var(--tx);border:1px solid var(--line2);border-radius:2px;
-            padding:4px 8px;font-family:var(--mono);font-size:11px;width:260px;text-transform:uppercase}
+            padding:4px 8px;font-family:var(--mono);font-size:11px;width:210px;
+            text-transform:uppercase;min-width:0}
   input.qin:focus{outline:0;border-color:var(--acc)}
-  .hint{color:var(--tx3);font-size:8px;letter-spacing:.1em}
-  /* the only new controls: one hop toggle and one filter row */
-  .cgrp{display:flex;align-items:center;gap:4px;min-width:0}
-  .cgrp .cl2{font-size:7px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase;
-             white-space:nowrap}
-  button.kn{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;
-            color:var(--tx3);background:#0a0a0a;border:1px solid var(--line2);border-radius:2px;
-            padding:3px 6px;cursor:pointer;line-height:1.1;white-space:nowrap}
-  button.kn:hover{color:var(--tx2);border-color:#3a3a3a}
-  button.kn[aria-pressed="true"]{color:#04120c;background:var(--acc);border-color:var(--acc);
-                                 font-weight:700}
-  button.kn.ft[aria-pressed="true"]{color:#04120c}
-  button.kn.ft[data-t="customers"][aria-pressed="true"]{background:#33e29a;border-color:#33e29a}
-  button.kn.ft[data-t="suppliers"][aria-pressed="true"]{background:#6ea8fe;border-color:#6ea8fe}
-  button.kn.ft[data-t="competitors"][aria-pressed="true"]{background:#f87171;border-color:#f87171}
-  button.kn.ft[data-t="partners"][aria-pressed="true"]{background:#c08cff;border-color:#c08cff}
-  button.kn:focus-visible{outline:1px solid var(--acc)}
+  select.psel{background:var(--bg3);color:var(--tx);border:1px solid var(--line2);border-radius:2px;
+              padding:4px 6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;
+              max-width:400px;min-width:0;cursor:pointer}
+  select.psel:focus{outline:0;border-color:var(--acc)}
+  select.psel option{background:#0a0a0a;color:#f0f0f0}
+  .hint{color:var(--tx3);font-size:7.5px;letter-spacing:.09em;white-space:nowrap}
   .sug{position:absolute;left:12px;top:100%;width:400px;max-height:250px;overflow:auto;
        background:var(--bg3);border:1px solid var(--line2);border-top:0;z-index:60;display:none}
   .sug.on{display:block}
@@ -122,40 +100,49 @@
   .sg .ex{color:var(--tx3);font-size:8px;letter-spacing:.06em}
   .sg.none{color:var(--tx3);font-size:10px;cursor:default}
 
-  /* ---------- top strip of tiles ---------- */
-  .strip{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:1px;background:var(--line2);
-         border-bottom:1px solid var(--line2);flex:0 0 auto}
-  .tile{background:#050505;padding:6px 8px 5px;display:flex;flex-direction:column;gap:1px;
-        min-width:0;overflow:hidden}
-  .tile .tl{font-size:7.5px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;white-space:nowrap}
-  .tile .tv{font-size:20px;font-weight:700;line-height:1.06;white-space:nowrap;overflow:hidden;
-            text-overflow:ellipsis;color:var(--tx)}
-  .tile .tv.up{color:var(--up)} .tile .tv.down{color:var(--down)} .tile .tv.flat{color:var(--tx2)}
-  .tile .tv.sm{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--warn)}
-  .tile .tv.xs{font-size:9.5px;font-weight:500;letter-spacing:.06em;color:var(--tx3)}
-  .tile .tm{height:22px;margin-top:1px;display:flex;align-items:flex-end}
-  .tile .tm svg{width:100%;height:22px;display:block}
-  .tile .ts{font-size:7.5px;color:var(--tx3);letter-spacing:.04em;white-space:nowrap;overflow:hidden;
-            text-overflow:ellipsis}
-
-  /* ---------- research grid ---------- */
+  /* ---------- the map, and the detail of the node the reader pinned ---------- */
   .grid{flex:1 1 auto;min-height:0;display:grid;gap:1px;background:var(--line2);padding:1px;
-        grid-template-columns:repeat(12,minmax(0,1fr));
-        grid-template-rows:minmax(0,1.52fr) minmax(0,1fr) minmax(0,.5fr)}
-  .card{background:var(--bg);display:flex;flex-direction:column;min-height:0;min-width:0;position:relative}
-  #c_rel{grid-column:1/8;grid-row:1}
-  #c_thes{grid-column:8/13;grid-row:1}
-  #c_px{grid-column:1/6;grid-row:2}
-  #c_sel{grid-column:6/9;grid-row:2}
-  #c_law{grid-column:9/13;grid-row:2}
-  #c_news{grid-column:1/13;grid-row:3}
+        grid-template-columns:minmax(0,1fr) 282px}
+  .card{background:var(--bg);display:flex;flex-direction:column;min-height:0;min-width:0;
+        position:relative}
   .ch{display:flex;align-items:center;gap:8px;padding:3px 8px;border-bottom:1px solid var(--line);
-      flex:0 0 auto;min-width:0}
+      flex:0 0 auto;min-width:0;flex-wrap:nowrap}
   .cl{font-size:7.5px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;font-weight:600;
       white-space:nowrap}
   .cm{margin-left:auto;font-size:7.5px;color:var(--tx3);letter-spacing:.05em;white-space:nowrap;
-      overflow:hidden;text-overflow:ellipsis}
+      overflow:hidden;text-overflow:ellipsis;min-width:0}
   .cb{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
+  .cgrp{display:flex;align-items:center;gap:4px;min-width:0}
+  .cgrp .cl2{font-size:6.5px}
+  button.kn{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;
+            color:var(--tx3);background:#0a0a0a;border:1px solid var(--line2);border-radius:2px;
+            padding:3px 6px;cursor:pointer;line-height:1.1;white-space:nowrap}
+  button.kn:hover{color:var(--tx2);border-color:#3a3a3a}
+  button.kn[aria-pressed="true"]{color:#04120c;background:var(--acc);border-color:var(--acc);
+                                 font-weight:700}
+  button.kn.ft[data-t="customers"][aria-pressed="true"]{background:#33e29a;border-color:#33e29a}
+  button.kn.ft[data-t="suppliers"][aria-pressed="true"]{background:#6ea8fe;border-color:#6ea8fe}
+  button.kn.ft[data-t="competitors"][aria-pressed="true"]{background:#f87171;border-color:#f87171}
+  button.kn.ft[data-t="partners"][aria-pressed="true"]{background:#c08cff;border-color:#c08cff}
+  button.kn:focus-visible{outline:1px solid var(--acc)}
+  button.kn.z{width:18px;padding:2px 0;text-align:center}
+  .zk{font-size:7px;color:var(--tx3);letter-spacing:.04em;min-width:27px;text-align:right}
+
+  /* the Act line: what is chosen, what it does mechanically, what it reaches */
+  .actbar{flex:0 0 auto;border-bottom:1px solid var(--line);padding:3px 9px 4px;
+          display:flex;flex-direction:column;gap:1px;min-width:0}
+  .abrow{display:flex;gap:8px;align-items:baseline;min-width:0}
+  .abhead{font-size:8px;letter-spacing:.08em;color:var(--warn);font-weight:700;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+  .abstat{font-size:6.5px;letter-spacing:.10em;color:var(--tx3);border:1px solid var(--line2);
+          padding:0 3px;border-radius:2px;white-space:nowrap;flex:0 0 auto}
+  .abmech{font-size:7.5px;color:var(--tx2);line-height:1.3;white-space:nowrap;overflow:hidden;
+          text-overflow:ellipsis;min-width:0}
+  .abtr{display:flex;flex-wrap:wrap;gap:7px;font-size:7.5px;letter-spacing:.05em;color:var(--tx3);
+        line-height:1.3}
+  .abtr b{color:var(--warn);font-weight:700}
+  .abtr .no{color:var(--warn);font-weight:700;letter-spacing:.06em}
+  .abtr .q{color:var(--tx2)}
 
   /* relationship map: one focal node, counterparties on hop rings, curved
      arrowed links, a boxed legend and a tight toolbar. Dark and quiet. */
@@ -170,6 +157,8 @@
   .rg{fill:none;stroke:#1b1b1b;stroke-width:1;stroke-dasharray:2 7}
   .rl{font-size:6.8px;letter-spacing:.13em;fill:#585858}
   .ge{fill:none;stroke-linecap:round;stroke-opacity:.55;transition:stroke-opacity .09s linear}
+  .ge.off{stroke-opacity:.10}
+  .ge.am{stroke-opacity:.95}
   .ge.dim{stroke-opacity:.10}
   .ge.hi{stroke-opacity:.95}
   .nd{pointer-events:all;cursor:pointer}
@@ -177,8 +166,7 @@
   .nd .nl{transition:stroke-width .08s linear}
   .nd.dim{opacity:.3}
   .nd:hover .nl,.nd.hv .nl,.nd.on .nl{stroke-width:2.2}
-  /* the legend, boxed at the corner of the map on its own rail, so no node or
-     label is ever drawn under it */
+  /* the legend, boxed in a rail of its own, so no node or label is drawn under it */
   .gleg{position:absolute;right:0;top:0;bottom:0;width:138px;border-left:1px solid var(--line2);
         background:rgba(3,3,3,.94);padding:5px 7px 4px;z-index:5}
   .gleg .lgh{font-size:6.5px;letter-spacing:.16em;color:var(--tx3);border-bottom:1px solid var(--line);
@@ -186,21 +174,24 @@
   .gleg .lgr{display:flex;align-items:center;gap:5px;font-size:7.5px;letter-spacing:.05em;
              color:var(--tx2);line-height:1.5;white-space:nowrap}
   .gleg .lgr i{width:6px;height:6px;flex:0 0 6px;display:block}
+  .gleg .lgr i.sw{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:transparent;
+                  border:1.5px solid var(--warn)}
+  .gleg .lgr i.sw.d{border-style:dashed;border-width:1.4px}
+  .gleg .lgr i.sw.p{border-style:dotted;border-width:1.2px;opacity:.62}
+  .gleg .lgr i.sw.g{border-color:#2c2c2c;border-width:1px}
   .gleg .lgr span{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
   .gleg .lgr b{color:var(--tx);font-weight:700}
   .gleg .lgr.off{opacity:.42}
+  .gleg .lgr b.a{color:var(--warn)}
   .gleg .lgf{display:flex;justify-content:space-between;font-size:6.5px;letter-spacing:.14em;
              color:var(--tx3);border-top:1px solid var(--line);margin-top:3px;padding-top:2px}
   .gleg .lgf b{color:var(--acc);font-weight:700;letter-spacing:.04em}
+  .gleg .lgf.w b{color:var(--warn)}
   .gleg .lgrg{display:flex;justify-content:space-between;font-size:7.5px;letter-spacing:.05em;
               color:var(--tx3);line-height:1.5}
   .gleg .lgrg b{color:var(--tx);font-weight:700}
-  /* the toolbar in the map header: depth, type filters, view */
-  .ch .cgrp .cl2{font-size:6.5px}
-  button.kn.z{width:18px;padding:2px 0;text-align:center}
-  .zk{font-size:7px;color:var(--tx3);letter-spacing:.04em;min-width:27px;text-align:right}
 
-  /* the selected link, six short rows, no paragraphs */
+  /* the selected node, seven short rows, no paragraphs */
   #b_sel{padding:5px 8px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
   .srow{display:flex;gap:6px;align-items:baseline;min-width:0;line-height:1.25}
   .sk{flex:0 0 52px;font-size:7px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase}
@@ -215,67 +206,6 @@
   .tag2{flex:0 0 auto;font-size:6.5px;letter-spacing:.08em;color:var(--warn);border:1px solid #4a3810;
         padding:0 2px;border-radius:1px;line-height:1.3}
 
-  /* thesis: DIRECT, MECHANISM, ABSENT, SOURCE, four stacked short groups */
-  #b_thes{padding:4px 8px 6px;overflow:auto;display:flex;flex-direction:column;gap:4px;
-          align-content:start;min-height:0}
-  .tg{min-width:0;display:flex;flex-direction:column;gap:1px}
-  .tgh{display:flex;align-items:baseline;gap:5px;font-size:7px;letter-spacing:.13em;color:var(--tx3);
-       text-transform:uppercase;border-bottom:1px solid var(--line);padding-bottom:1px;margin-bottom:2px}
-  .tgh b{color:var(--tx2);font-weight:700}
-  .tgh .hit{color:var(--acc);font-weight:700}
-  .tr{display:flex;gap:5px;align-items:baseline;min-width:0;font-size:8.5px;color:var(--tx2);
-      white-space:nowrap;overflow:hidden;padding-left:4px;border-left:1px solid var(--line2)}
-  .tr.hit{border-left-color:var(--acc);color:var(--tx);background:#061109}
-  .trk{flex:0 0 auto;color:var(--acc);font-weight:700;letter-spacing:.03em;min-width:0}
-  .ttx{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
-  .tsrc{flex:0 1 auto;min-width:0;max-width:170px;overflow:hidden;text-overflow:ellipsis;
-        color:var(--tx3);font-size:7.5px;letter-spacing:.02em}
-  .tsd{flex:0 0 auto;color:var(--tx3);font-size:7.5px;letter-spacing:.03em}
-  .tr.abs .trk{color:var(--warn)}
-  .tr.ab{color:var(--tx3);font-size:8px;letter-spacing:.05em;border-left-color:transparent;
-         padding-left:4px}
-  .tnote{font-size:8px;letter-spacing:.05em;color:var(--tx3);text-transform:uppercase;
-         padding-top:2px;border-top:1px solid var(--line)}
-  .tnote b{color:var(--warn)}
-
-
-  /* price chart */
-  .pxbox{position:absolute;inset:0}
-  .pxchart{position:absolute;inset:0}
-  .pxfb{position:absolute;inset:0;display:none}
-  .pxfb svg{width:100%;height:100%;display:block}
-
-  /* law and exposure chips */
-  #b_law{padding:5px 8px;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;overflow:hidden}
-  .chip{display:inline-flex;align-items:center;gap:4px;font-size:8.5px;letter-spacing:.04em;
-        padding:2px 5px;border:1px solid var(--line2);color:var(--tx2);background:#0a0a0a;
-        max-width:100%;overflow:hidden;white-space:nowrap}
-  .chip i{font-style:normal;font-size:7.5px;color:var(--tx3);letter-spacing:.06em}
-  .chip.enacted{color:var(--acc);border-color:#1f4f3c;background:#07130e}
-  .chip.enacted i{color:#1f8f66}
-  .chip.repealed{color:var(--down);border-color:#5c2222;background:#140909}
-  .chip.repealed i{color:#a25555}
-  .chip.withdrawn{color:var(--warn);border-color:#4a3810;background:#120d05}
-  .chip.withdrawn i{color:#8a6a2c}
-  .chip.gov{color:var(--tx2);border-style:dashed}
-  .chip.gov b{font-weight:700;color:var(--acc)}
-  .chip.gov.ind b{color:var(--warn)}
-  .chip.none{color:var(--tx3);border-style:dashed}
-  .chip.other{color:var(--tx3)}
-
-  /* news strip */
-  #b_news{display:flex;gap:1px;background:var(--line2)}
-  .ncard{flex:1 1 0;min-width:0;background:#050505;padding:5px 7px;display:flex;flex-direction:column;
-         gap:4px;overflow:hidden}
-  .nd{display:flex;gap:5px;align-items:baseline;font-size:7.5px;letter-spacing:.05em;color:var(--tx3);
-      min-width:0}
-  .ndd{color:var(--acc);font-weight:700;flex:0 0 auto}
-  .nds{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase}
-  .nt{font-size:10px;line-height:1.3;color:var(--tx2);font-family:var(--ui);white-space:nowrap;
-      overflow:hidden;text-overflow:ellipsis}
-  .nt a{color:inherit;text-decoration:none}
-  .ncard:hover .nt{color:var(--tx)}
-
   /* states */
   .fail{margin:5px 8px;padding:4px 6px;border-left:2px solid var(--down);color:var(--down);
         font-size:8.5px;line-height:1.4;letter-spacing:.03em;text-transform:uppercase}
@@ -283,7 +213,12 @@
   .emp{margin:5px 8px;padding:4px 6px;border-left:2px solid var(--line2);color:var(--tx3);
        font-size:8.5px;line-height:1.4;letter-spacing:.03em;text-transform:uppercase}
   .emp b{color:var(--tx2);font-weight:600}
-  /* honest search bar: a disabled field, styled to match, that says the truth */
+
+  /* the claim, permanent and one line */
+  .claim{flex:0 0 auto;padding:3px 9px 4px;border-top:1px solid var(--line);font-size:8px;
+         letter-spacing:.02em;color:var(--tx3);line-height:1.35}
+
+  /* honest web research bar: a disabled field, styled to match, that says the truth */
   .sbar{display:flex;align-items:center;gap:9px;padding:4px 12px;background:#050505;
         border-top:1px solid var(--line2);flex:0 0 auto;min-width:0}
   .sbar .sl{font-size:7px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;
@@ -294,33 +229,24 @@
   .sbar input.wq::placeholder{color:#5a5a5a}
   .sbar .sn{font-size:7.5px;letter-spacing:.08em;color:var(--tx3);text-transform:uppercase;
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sbar .sn b{color:var(--warn);font-weight:700}
   .foot{display:flex;align-items:center;gap:10px;padding:2px 12px;background:var(--bg2);
         border-top:1px solid var(--line2);color:var(--tx3);font-size:7.5px;letter-spacing:.08em;
-        flex:0 0 auto}
-  .foot .sp{margin-left:auto}
+        flex:0 0 auto;min-width:0}
+  .foot .sp{margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
 <div class="wrap" id="panel">
-  <div class="head" id="head">
-    <span class="code">PX</span>
-    <span class="tkr" id="tkr">-</span>
-    <span class="name" id="coName"></span>
-    <span class="tag" id="exTag" style="display:none"></span>
-    <span class="tag dim" id="secTag" style="display:none"></span>
-    <span class="spacer"></span>
-    <span class="asof" id="asOf"></span>
-  </div>
 
   <div class="controls">
+    <span class="cl2">COMPANY</span>
     <input class="qin" id="q" type="text" autocomplete="off" spellcheck="false"
-           placeholder="ticker or company name" aria-label="ticker or company name">
-    <span class="hint">TICKER OR NAME</span>
+           placeholder="centre company: ticker or name" aria-label="centre company: ticker or name">
+    <span class="cl2">ACT</span>
+    <select class="psel" id="pol" aria-label="Act to trace through the map"></select>
+    <span class="hint">PICK THE CENTRE, THEN THE ACT</span>
     <div class="sug" id="sug"></div>
   </div>
-
-  <div class="strip" id="b_strip"></div>
 
   <div class="grid">
     <div class="card" id="c_rel">
@@ -347,36 +273,23 @@
         </div>
         <span class="cm" id="m_rel"></span>
       </div>
+      <div class="actbar" id="actbar"></div>
       <div class="cb" id="b_rel"></div>
-    </div>
-    <div class="card" id="c_px">
-      <div class="ch"><span class="cl">PRICE</span><span class="cm" id="m_px"></span></div>
-      <div class="cb" id="b_px"></div>
-    </div>
-    <div class="card" id="c_thes">
-      <div class="ch"><span class="cl">THESIS</span><span class="cm" id="m_thes"></span></div>
-      <div class="cb" id="b_thes"></div>
+      <div class="claim" id="claim">This map shows which companies an Act reaches and how far that reach travels
+        through recorded links; it is not a price prediction.</div>
     </div>
     <div class="card" id="c_sel">
       <div class="ch"><span class="cl">LINK DETAIL</span><span class="cm" id="m_sel"></span></div>
       <div class="cb" id="b_sel"></div>
     </div>
-    <div class="card" id="c_law">
-      <div class="ch"><span class="cl">LAWS / EXPOSURE</span><span class="cm" id="m_law"></span></div>
-      <div class="cb" id="b_law"></div>
-    </div>
-    <div class="card" id="c_news">
-      <div class="ch"><span class="cl">NEWS</span><span class="cm" id="m_news"></span></div>
-      <div class="cb" id="b_news"></div>
-    </div>
   </div>
 
   <!-- Live web research is NOT wired in. The shell publishes window.MUTXRI_API_BASE
-       (static_index.html line 1523) and uses it for auth and quotes only: there is
-       no search or research endpoint in financials_api.py, indices_api.py or
-       auth_api.py, and no key is shipped to the browser. So this field is a
-       statement, not a control: it is disabled, it takes no keystrokes and it
-       calls nothing. The panel answers from the files it lists in the footer. -->
+       and uses it for auth and quotes only: there is no search or research endpoint
+       in financials_api.py, indices_api.py or auth_api.py, and no key is shipped to
+       the browser. So this field is a statement, not a control: it is disabled, it
+       takes no keystrokes and it calls nothing. The panel answers from the files
+       named in this file's header. -->
   <div class="sbar" id="sbar">
     <span class="sl">WEB RESEARCH</span>
     <input class="wq" id="webq" type="text" disabled aria-disabled="true"
@@ -391,73 +304,30 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 (function(){
   'use strict';
 
   var Q = new URLSearchParams(location.search);
   var EXS = ['NSE','JSE','NGX','EGX'];
-  /* which exchange ships which headline file: asking for a file that is not in
-     the tree turns a missing dataset into a console 404 and reads like a failed
-     read, so the request is only made when the file is part of the product */
-  var NEWS_EX = {NSE:1, JSE:1, NGX:1, EGX:1};
-  var ANN_EX = {NSE:1, JSE:1, EGX:1};
-  var SEC_TITLE = {strip:'TILES', rel:'INTERLINK GRAPH', px:'PRICE', thes:'THESIS',
-                   sel:'LINK DETAIL', law:'LAWS', news:'NEWS'};
+  var SEC_TITLE = {rel:'RELATIONSHIP MAP', sel:'LINK DETAIL'};
   var DASH = '-';
+  var AMB = '#e0a341';
 
-  /* ---------- text, numbers, units ---------------------------------- */
+  /* ---------- text, numbers ------------------------------------------ */
   function esc(s){
     return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
     });
   }
   /* the product prints no em dash and no en dash, including when the dash
-     arrives inside a recorded sentence or a headline */
+     arrives inside a recorded sentence */
   function nd(s){ return String(s == null ? '' : s).replace(/[\u2013\u2014]/g, '-'); }
   function t(s){ return esc(nd(s)); }
-
   function isNum(v){ return v !== null && v !== undefined && v !== '' && !isNaN(Number(v)); }
   function numv(v){ return isNum(v) ? Number(v) : null; }
 
-  function isCents(c){ return String(c || '').toUpperCase() === 'ZAC'; }
-  function ccyLabel(c){ return isCents(c) ? 'ZAc' : String(c || ''); }
-
-  function fx(v){
-    if(!isNum(v)) return DASH;
-    var n = Number(v);
-    return (Math.abs(n) >= 100 ? n.toFixed(1) : n.toFixed(2)) + 'x';
-  }
-  function fpc(v){
-    if(!isNum(v)) return DASH;
-    var n = Number(v);
-    return (Math.abs(n) >= 100 ? n.toFixed(1) : n.toFixed(2)) + '%';
-  }
-  function fnum(v, dp){
-    if(!isNum(v)) return DASH;
-    var n = Number(v);
-    if(dp != null) return n.toLocaleString('en-US', {minimumFractionDigits:dp, maximumFractionDigits:dp});
-    if(Math.abs(n) >= 1000) return n.toLocaleString('en-US', {maximumFractionDigits:0});
-    return n.toFixed(2);
-  }
-  function fmoney(v){
-    if(!isNum(v)) return DASH;
-    var f = Number(v), s = f < 0 ? '-' : '', a = Math.abs(f), o;
-    if(a >= 1e12) o = (a/1e12).toFixed(2) + 'T';
-    else if(a >= 1e9) o = (a/1e9).toFixed(2) + 'B';
-    else if(a >= 1e6) o = (a/1e6).toFixed(2) + 'M';
-    else if(a >= 1e3) o = (a/1e3).toFixed(2) + 'K';
-    else o = a.toFixed(2);
-    return s + o;
-  }
-  function ipx(v){
-    if(!isNum(v)) return DASH;
-    return Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-  }
-  function escRe(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-
-  /* ---------- file reads, with the read state kept ---------------- */
+  /* ---------- file reads, with the read state kept -------------------- */
   var FILES = {};
   function getJSON(path){
     if(FILES[path]) return FILES[path].p;
@@ -477,7 +347,7 @@
   }
   function sd(p){ return '../../static_data/' + p; }
 
-  /* ---------- market index: every exchange, one list ---------------- */
+  /* ---------- market index: every exchange, one list ------------------ */
   var MKT = {}, IDX = [], IDX_P = null;
   function loadIndex(){
     if(IDX_P) return IDX_P;
@@ -502,15 +372,9 @@
     var pool = IDX.slice();
     if(e) pool.sort(function(a, b){ return (a.ex === e ? 0 : 1) - (b.ex === e ? 0 : 1); });
     var i;
-    for(i = 0; i < pool.length; i++){
-      if(String(pool[i].ticker || '').toUpperCase() === q) return pool[i];
-    }
-    for(i = 0; i < pool.length; i++){
-      if(String(pool[i].sym || '').toUpperCase() === q) return pool[i];
-    }
-    for(i = 0; i < pool.length; i++){
-      if(String(pool[i].name || '').toUpperCase() === q) return pool[i];
-    }
+    for(i = 0; i < pool.length; i++) if(String(pool[i].ticker || '').toUpperCase() === q) return pool[i];
+    for(i = 0; i < pool.length; i++) if(String(pool[i].sym || '').toUpperCase() === q) return pool[i];
+    for(i = 0; i < pool.length; i++) if(String(pool[i].name || '').toUpperCase() === q) return pool[i];
     for(i = 0; i < pool.length; i++){
       if(String(pool[i].name || '').toUpperCase().indexOf(q) >= 0) return pool[i];
     }
@@ -518,7 +382,18 @@
   }
   function rowTicker(r){ return String((r && (r.ticker || r.sym)) || '').toUpperCase(); }
 
-  /* ---------- the search bar: one input, ticker first then name ------ */
+  /* ---------- name normalising: one security per normalised name ------ */
+  var SUFFIX = {plc:1, ltd:1, limited:1, group:1, holdings:1, holding:1, company:1, co:1,
+                inc:1, corp:1, corporation:1, sa:1, nv:1, ag:1, the:1, public:1, 'and':1};
+  function normChars(s){
+    return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+  }
+  function coreName(s){
+    return normChars(s).split(' ').filter(function(w){ return w && !SUFFIX[w]; }).join(' ');
+  }
+
+  /* ---------- the search box: one input, ticker first then name ------- */
   var SUG = {rows:[], i:0, on:false};
   function rank(q){
     var s = String(q || '').trim().toUpperCase();
@@ -547,8 +422,6 @@
       return out;
     }
     var hits = pass(s);
-    /* the NGX row for Dangote Cement is named "Dangote", so a typed full name
-       falls back to its first word rather than answering nothing */
     if(!hits.length && s.indexOf(' ') > 0) hits = pass(s.split(/\s+/)[0]);
     return hits.slice(0, 12).map(function(x){ return x.r; });
   }
@@ -587,27 +460,7 @@
     SUG.on = false;
   }
 
-  /* ---------- head -------------------------------------------------- */
-  function paintHead(row, info){
-    var tk = rowTicker(row);
-    var nm = row.name || (info && info.name) || '';
-    var sec = row.sector || (info && info.sector) || '';
-    document.getElementById('tkr').textContent = tk;
-    document.getElementById('coName').textContent = nd(nm);
-    var exT = document.getElementById('exTag');
-    exT.textContent = row.ex || '';
-    exT.style.display = row.ex ? '' : 'none';
-    var scT = document.getElementById('secTag');
-    scT.textContent = nd(sec);
-    scT.style.display = sec ? '' : 'none';
-    var a = [];
-    if(row.asOf) a.push(nd(row.asOf));
-    if(row.currency) a.push(ccyLabel(row.currency) + (isCents(row.currency) ? ' CENTS' : ''));
-    document.getElementById('asOf').textContent = a.join('  ');
-    document.getElementById('footTk').textContent = tk + (row.ex ? '  ' + row.ex : '');
-  }
-
-  /* ---------- guards and meta --------------------------------------- */
+  /* ---------- guards and meta ----------------------------------------- */
   function guardDraw(key, fn){
     var box = document.getElementById('b_' + key);
     if(!box) return;
@@ -642,121 +495,178 @@
     }, 120);
   });
 
-  /* ---------- 1. TOP STRIP ------------------------------------------ */
-  function spark(arr, colour){
-    if(!arr || arr.length < 2) return '';
-    var w = 100, h = 22;
-    var mn = Math.min.apply(null, arr), mx = Math.max.apply(null, arr);
-    var span = (mx - mn) || 1;
-    var pts = arr.map(function(v, i){
-      var x = (i / (arr.length - 1)) * w;
-      var y = h - 1.5 - ((v - mn) / span) * (h - 3);
-      return x.toFixed(1) + ',' + y.toFixed(1);
-    }).join(' ');
-    return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">' +
-      '<polyline points="' + pts + '" fill="none" stroke="' + colour + '" stroke-width="1.2" ' +
-      'vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>';
+  /* ---------- 1. THE ACTS: the policy side of the panel ---------------- */
+  /* The file is the only source for which companies an Act names: its own
+     ticker list and its own sector list. Nothing is added to it here. */
+  var LAW = {list:[], byId:{}, st:'unread', err:'', ex:'NSE'};
+
+  function lawLabel(l){
+    var nm = String(l.name || l.id || '');
+    nm = nm.replace(/\((?:No\.|Legal Notice|Cap\.)[^)]*\)/gi, '');
+    nm = nm.replace(/,\s*(19|20)\d\d\s*$/, '');
+    nm = nm.replace(/\s+/g, ' ').replace(/[,\s]+$/, '').trim();
+    var st = String(l.status || '').toLowerCase();
+    var tag = (st && st !== 'enacted') ? ' [' + st.toUpperCase() + ']' : '';
+    return (l.year ? String(l.year) + ' ' : '') + nm + tag;
   }
-  function vbars(vals, colour){
-    if(!vals || !vals.length) return '';
-    var max = Math.max.apply(null, vals) || 1;
-    var bw = 100 / vals.length;
-    var out = vals.map(function(v, i){
-      var hh = Math.max(1, (v / max) * 19);
-      return '<rect x="' + (i * bw + 0.4).toFixed(2) + '" y="' + (21 - hh).toFixed(2) +
-        '" width="' + (bw * 0.62).toFixed(2) + '" height="' + hh.toFixed(2) +
-        '" fill="' + colour + '" opacity=".55"/>';
-    }).join('');
-    return '<svg viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true">' + out + '</svg>';
-  }
-  /* where the last price sits inside the session range the row carries */
-  function rangebar(lo, hi, last, colour){
-    if(lo == null || hi == null || last == null || hi <= lo) return '';
-    var pos = Math.max(0, Math.min(1, (last - lo) / (hi - lo))) * 100;
-    return '<svg viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true">' +
-      '<line x1="0" y1="12" x2="100" y2="12" stroke="#262626" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
-      '<line x1="0" y1="8" x2="0" y2="16" stroke="#3a3a3a" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
-      '<line x1="100" y1="8" x2="100" y2="16" stroke="#3a3a3a" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
-      '<line x1="' + pos.toFixed(1) + '" y1="7" x2="' + pos.toFixed(1) + '" y2="17" stroke="' + colour +
-      '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>' +
-      '<circle cx="' + pos.toFixed(1) + '" cy="12" r="2.2" fill="' + colour + '"/></svg>';
-  }
-  function tile(o){
-    return '<div class="tile"' + (o.title ? ' title="' + t(o.title) + '"' : '') + '>' +
-      '<div class="tl">' + o.label + '</div>' +
-      '<div class="tv' + (o.vcls ? ' ' + o.vcls : '') + '">' + o.value + '</div>' +
-      '<div class="tm">' + (o.micro || '') + '</div>' +
-      '<div class="ts">' + (o.sub || '') + '</div></div>';
-  }
-  function multipleTile(an, key, fmt, period){
-    var v = an && an.valuation ? an.valuation : null;
-    var raw = v ? v[key] : null;
-    var wh = v ? (v[key + '_withheld'] === true) : false;
-    var reason = v ? (v[key + '_withheld_reason'] || '') : '';
-    if(raw != null && !wh && isNum(raw)){
-      return {value: fmt(raw), vcls: '', sub: period || 'NO PERIOD', title: ''};
-    }
-    if(wh || (raw === null && v)){
-      return {value: 'WITHHELD', vcls: 'sm', sub: 'REASON ON HOVER', title: reason || 'withheld'};
-    }
-    return {value: 'NOT ON FILE', vcls: 'xs', sub: 'NO ANALYTICS', title: 'no valuation record'};
-  }
-  function drawTiles(box, row, an, hist, histSt){
-    var px = numv(row.price) != null ? numv(row.price) : numv(row.ltp);
-    var pct = numv(row.chgPct);
-    var prev = numv(row.prevClose);
-    var dir = pct == null ? 'flat' : (pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat'));
-    var colour = dir === 'up' ? '#33e29a' : (dir === 'down' ? '#f87171' : '#9a9a9a');
-    var bars = (hist && hist.bars) || [];
-    var closes = [], vols = [];
-    bars.slice(-60).forEach(function(b){ var c = numv(b.c); if(c != null) closes.push(c); });
-    bars.slice(-20).forEach(function(b){ var v = numv(b.v); if(v != null) vols.push(v); });
-    var histSub = histSt === 'failed' ? 'HISTORY READ FAILED' : (bars.length ? 'HISTORY' : 'NO BARS');
-
-    var h = '';
-
-    h += tile({label:'LAST', value: px == null ? 'NO QUOTE' : ipx(px),
-      vcls: px == null ? 'xs' : dir,
-      micro: closes.length > 1 ? spark(closes, colour) : '',
-      sub: px == null ? 'PRICE NOT STATED' : (ccyLabel(row.currency) + (isCents(row.currency) ? ' CENTS' : '')),
-      title: row.name || ''});
-
-    var chgVal = pct == null ? 'NOT STATED' : ((pct >= 0 ? '+' : '') + pct.toFixed(2) + '%');
-    h += tile({label:'CHG %', value: chgVal, vcls: pct == null ? 'xs' : dir,
-      micro: rangebar(numv(row.low), numv(row.high), px, colour),
-      sub: (numv(row.low) != null && numv(row.high) != null)
-             ? ('LOW ' + ipx(row.low) + '  HIGH ' + ipx(row.high)) : 'RANGE NOT STATED',
-      title: prev != null ? ('prev close ' + ipx(prev)) : ''});
-
-    h += tile({label:'VOLUME', value: isNum(row.volume) ? fmoney(row.volume) : 'NOT STATED',
-      vcls: isNum(row.volume) ? '' : 'xs',
-      micro: vols.length ? vbars(vols, '#33e29a') : '',
-      sub: isNum(row.volume) ? 'SHARES TRADED' : 'NO TAPE',
-      title: isNum(row.volume) ? fnum(row.volume, 0) : ''});
-
-    var mc = row.marketCap;
-    var mcVal, mcSub, mcCls;
-    if(isNum(mc)){ mcVal = fmoney(mc); mcSub = ccyLabel(row.currency) + ' AT LAST'; mcCls = ''; }
-    else if(mc != null && String(mc).trim()){ mcVal = String(mc); mcSub = 'AS STATED'; mcCls = ''; }
-    else { mcVal = 'NOT STATED'; mcSub = 'NO MARKET CAP'; mcCls = 'xs'; }
-    h += tile({label:'MKT CAP', value: mcVal, vcls: mcCls, micro: '',
-      sub: isNum(row.sharesIssued) ? (fnum(row.sharesIssued, 0) + ' SHARES') : mcSub,
-      title: isNum(mc) ? fnum(mc, 0) : ''});
-
-    var pTag = an && an.valuation ? (an.valuation.pePeriod || an.valuation.asOfPeriod || an.period || '') : '';
-    [{l:'P/E', k:'pe', f:fx},
-     {l:'P/B', k:'pb', f:fx},
-     {l:'P/S', k:'ps', f:fx},
-     {l:'EARN YIELD', k:'earnings_yield', f:fpc}].forEach(function(m){
-      var o = multipleTile(an, m.k, m.f, pTag);
-      h += tile({label:m.l, value:o.value, vcls:o.vcls, micro:'', sub:o.sub, title:o.title});
+  function loadLaws(){
+    var p = sd('gov_laws_KE.json');
+    return getJSON(p).then(function(d){
+      var sel = document.getElementById('pol');
+      LAW.st = readState(p);
+      /* the exchange is stated once for the file, not on every Act record */
+      LAW.ex = String((d && d.exchange) || 'NSE').toUpperCase();
+      LAW.list = (d && d.laws) || [];
+      LAW.byId = {};
+      LAW.list.forEach(function(l){ if(l && l.id) LAW.byId[l.id] = l; });
+      if(!sel) return;
+      sel.innerHTML = '';
+      var o0 = document.createElement('option');
+      o0.value = '';
+      o0.textContent = LAW.st === 'failed' ? 'ACTS NOT READ' : 'NO ACT SELECTED';
+      sel.appendChild(o0);
+      if(LAW.st === 'failed'){
+        sel.disabled = true;
+        LAW.err = (FILES[p] && FILES[p].err) || 'gov_laws_KE.json not loaded';
+        return;
+      }
+      var sorted = LAW.list.slice().sort(function(a, b){
+        var ya = Number(a.year) || 0, yb = Number(b.year) || 0;
+        if(ya !== yb) return yb - ya;
+        return String(a.id || '').localeCompare(String(b.id || ''));
+      });
+      sorted.forEach(function(l){
+        var o = document.createElement('option');
+        o.value = l.id;
+        o.textContent = lawLabel(l);
+        sel.appendChild(o);
+      });
+      sel.disabled = false;
     });
-
-    box.innerHTML = h;
-    meta('strip', px == null ? 'NO QUOTE' : (ccyLabel(row.currency) + '  ' + histSub));
+  }
+  /* the scope the Act itself states: its exchange, its tickers, its sectors */
+  function lawScope(){
+    var law = G.law;
+    if(!law) return null;
+    var named = (law.tickers || []).map(function(x){ return String(x).toUpperCase(); });
+    var secs = (law.sectors || []).map(function(s){ return String(s).toUpperCase(); })
+      .filter(function(s){ return s && s !== 'ALL SECTORS'; });
+    return {ex:String(law.exchange || LAW.ex || 'NSE').toUpperCase(), named:named,
+            all:named.indexOf('ALL') >= 0, secs:secs};
+  }
+  /* The transmission walk. Direct comes from the Act record alone: a named
+     ticker on the Act's exchange, every issuer on that exchange when the
+     record says ALL, or a security whose recorded sector the Act names. Hop 1
+     and hop 2 come only from edges the relationship files actually carry, so a
+     company with no record cannot pass anything on. */
+  function trans(g){
+    g.tm = null;
+    var sc = lawScope();
+    if(!sc) return;
+    var rank = {};
+    g.nodes.forEach(function(n){
+      n.st = 'off'; n.why = '';
+      var ex = String(n.ex || '').toUpperCase();
+      var tk = String(n.tk || '').toUpperCase();
+      var se = String(n.sector || '').toUpperCase();
+      if(!n.listed || !tk || ex !== sc.ex) return;
+      if(sc.named.indexOf(tk) >= 0){ n.st = 'direct'; n.why = 'named'; rank[n.key] = 1; return; }
+      if(sc.all){ n.st = 'direct'; n.why = 'all'; rank[n.key] = 1; return; }
+      if(se && sc.secs.indexOf(se) >= 0){ n.st = 'direct'; n.why = 'sector'; rank[n.key] = 1; }
+    });
+    var H1 = {}, H2 = {};
+    g.edges.forEach(function(e){
+      if(rank[e.a] === 1 && rank[e.b] == null) H1[e.b] = 1;
+      if(rank[e.b] === 1 && rank[e.a] == null) H1[e.a] = 1;
+    });
+    Object.keys(H1).forEach(function(k){ rank[k] = 2; });
+    g.edges.forEach(function(e){
+      if(rank[e.a] === 2 && rank[e.b] == null) H2[e.b] = 1;
+      if(rank[e.b] === 2 && rank[e.a] == null) H2[e.a] = 1;
+    });
+    Object.keys(H2).forEach(function(k){ rank[k] = 3; });
+    var direct = [], h1 = [], h2 = [], off = [], noRec = 0;
+    g.nodes.forEach(function(n){
+      var r = rank[n.key];
+      n.st = r === 1 ? 'direct' : (r === 2 ? 'hop1' : (r === 3 ? 'hop2' : 'off'));
+      if(n.st === 'direct'){ direct.push(n); if(!n.rec) noRec++; }
+      else if(n.st === 'hop1') h1.push(n);
+      else if(n.st === 'hop2') h2.push(n);
+      else off.push(n);
+    });
+    g.edges.forEach(function(e){
+      var A = rank[e.a] || 9, B = rank[e.b] || 9;
+      e.am = (A <= 3 && B <= 3 && Math.abs(A - B) <= 1);
+    });
+    var namedTk = sc.named.filter(function(x){ return x !== 'ALL'; });
+    g.tm = {ex:sc.ex, all:sc.all, named:namedTk, sectors:sc.secs,
+            direct:direct.length, hop1:h1.length, hop2:h2.length, off:off.length,
+            directList:direct.map(function(n){ return n.tk || n.name; }),
+            hop1List:h1.map(function(n){ return n.tk || n.name; }),
+            hop2List:h2.map(function(n){ return n.tk || n.name; }),
+            offList:off.map(function(n){ return n.tk || n.name; }),
+            noRec:noRec, edgesAmber:g.edges.filter(function(e){ return e.am; }).length};
+    g.tm.msg = transMsg(g.tm);
+  }
+  function transMsg(tm){
+    if(tm.direct) return '';
+    var s = 'THIS ACT NAMES NO SECURITY ON THIS MAP';
+    if(!tm.named.length && !tm.all){
+      return s + ': ITS RECORD NAMES NO TICKER, ONLY SECTORS ' +
+        (tm.sectors.length ? tm.sectors.join(' ') : 'NONE');
+    }
+    if(tm.all && !tm.named.length){
+      return s + ': IT NAMES EVERY ' + tm.ex + ' ISSUER AND NO ' + tm.ex +
+        ' ISSUER IS DRAWN HERE';
+    }
+    var tk = tm.named.slice(0, 4).join(' ') + (tm.named.length > 4 ? ' +' + (tm.named.length - 4) : '');
+    var se = tm.sectors.length ? tm.sectors.join(' ') : 'NONE';
+    return s + ': ITS TICKERS ' + tk + ' AND ITS SECTORS ' + se + ' ARE NOT DRAWN HERE';
+  }
+  function paintAct(){
+    var bar = document.getElementById('actbar');
+    if(!bar) return;
+    var law = G.law;
+    if(!law){
+      bar.innerHTML = '<div class="abrow"><span class="abhead">NO ACT SELECTED</span>' +
+        '<span class="abstat">MAP</span></div>' +
+        '<div class="abrow"><span class="abmech">the map shows the links the records state; ' +
+        'choose an act to trace how far it reaches</span></div>';
+      return;
+    }
+    var mech = nd(String(law.mechanism || ''));
+    var full = mech;
+    if(mech.length > 150){
+      var cut = mech.slice(0, 150);
+      var sp = cut.lastIndexOf(' ');
+      if(sp > 90) cut = cut.slice(0, sp);
+      mech = cut.replace(/[,\s]+$/, '') + '...';
+    }
+    var tm = G.tm;
+    var tr = '';
+    if(tm){
+      tr = (tm.msg ? '<span class="no">' + t(tm.msg) + '</span>'
+                   : '<span>DIRECT <b>' + tm.direct + '</b></span>' +
+                     '<span>1 LINK <b>' + tm.hop1 + '</b></span>' +
+                     '<span>2 LINKS <b>' + tm.hop2 + '</b></span>' +
+                     '<span>DIMMED <b>' + tm.off + '</b></span>' +
+                     '<span class="q">2 LINKS SHOWN DIMMER, NOT CUT</span>' +
+                     (tm.noRec ? '<span class="q">' + tm.noRec +
+                       (tm.noRec === 1 ? ' DIRECT COMPANY CARRIES' : ' DIRECT COMPANIES CARRY') +
+                       ' NO LINK RECORD, SO NOTHING PROPAGATES FROM ' +
+                       (tm.noRec === 1 ? 'IT' : 'THEM') + '</span>' : ''));
+    } else {
+      tr = '<span class="q">NO MAP TO TRACE ON THIS SECURITY</span>';
+    }
+    bar.innerHTML =
+      '<div class="abrow"><span class="abhead" title="' + t((law.id || '') + ' ' + (law.name || '')) + '">' +
+        t((law.id || '') + '  ' + (law.name || '')) + '</span>' +
+      '<span class="abstat">' + t(String(law.status || '').toUpperCase()) + '</span></div>' +
+      '<div class="abrow"><span class="abmech" title="' + t(full) + '">' + t(mech) + '</span></div>' +
+      '<div class="abrow abtr">' + tr + '</div>';
   }
 
-  /* ---------- 2. INTERLINK GRAPH ------------------------------------- */
+  /* ---------- 2. THE MAP --------------------------------------------- */
   /* A link is drawn only where a relationship file records one. All four
      exchange files are read, so a chain can cross boards. The walk is the
      selected security, then the companies its record names (hop 1), then at two
@@ -764,7 +674,7 @@
      generated and nothing is read off a sector label. */
   var REL = {}, RELF = {}, REL_ST = {}, RECBY = null, CORE2ROW = null;
   var G = {hops:1, types:{customers:true, suppliers:true, competitors:true, partners:true},
-           cap:25, selKey:'', last:null, row:null, rec:null};
+           cap:25, selKey:'', last:null, row:null, rec:null, law:null, tm:null};
 
   function relTypes(){
     return [
@@ -796,8 +706,6 @@
     for(var i = 0; i < pool.length; i++){ if(rowTicker(pool[i]) === want) return pool[i]; }
     return null;
   }
-  /* one index over the four files: a name in any record resolves to the listed
-     security of the same normalised name and to that security's own record */
   function buildRelIndex(){
     if(RECBY) return;
     RECBY = {};
@@ -825,16 +733,18 @@
       var rec = (REL[h.ex] || {})[h.key] || null;
       var rr = rowForTicker(h.ex, h.key);
       return {key:'R:' + h.ex + ':' + h.key, ex:h.ex, tk:String(h.key).toUpperCase(),
-              name:((rec && rec.name) || name), rec:rec, row:rr, listed:!!rr};
+              name:((rec && rec.name) || name), rec:rec, row:rr, listed:!!rr,
+              sector:(rr && rr.sector) || ''};
     }
     var row = CORE2ROW[c];
     if(row){
       var tk = rowTicker(row);
       var own = (REL[row.ex] || {})[tk] || null;
       return {key:'L:' + row.ex + ':' + tk, ex:row.ex, tk:tk, name:(row.name || name),
-              rec:own, row:row, listed:true};
+              rec:own, row:row, listed:true, sector:row.sector || ''};
     }
-    return {key:'U:' + c, ex:'', tk:'', name:String(name || ''), rec:null, row:null, listed:false};
+    return {key:'U:' + c, ex:'', tk:'', name:String(name || ''), rec:null, row:null,
+            listed:false, sector:''};
   }
   function srcLabel(e){
     var s = (e && e.source) || {};
@@ -853,7 +763,7 @@
     var nodes = [], byKey = {}, edges = [], trunc = 0;
     var centre = {key:'C:' + row.ex + ':' + rowTicker(row), depth:0, name:row.name || rowTicker(row),
                   ex:row.ex, tk:rowTicker(row), listed:true, rec:rec, types:[],
-                  reason:'selected security', src:''};
+                  sector:row.sector || '', reason:'selected security', src:''};
     nodes.push(centre);
     byKey[centre.key] = centre;
 
@@ -869,7 +779,7 @@
       if(nodes.length - 1 >= G.cap){ trunc++; return null; }
       var n = {key:id.key, depth:depth, name:id.name, ex:id.ex, tk:id.tk, listed:id.listed,
                rec:id.rec, types:(type ? [type] : []), parent:parent || null,
-               reason:'', src:''};
+               sector:id.sector || '', reason:'', src:''};
       nodes.push(n);
       byKey[n.key] = n;
       return n;
@@ -901,17 +811,16 @@
         });
       });
     }
-    return {nodes:nodes, edges:edges, centre:centre, trunc:trunc};
+    return {nodes:nodes, edges:edges, centre:centre, trunc:trunc, tm:null};
   }
   /* The map is read the way the Bloomberg relationship map is read: one focal
      node, counterparties on concentric rings by hop, curved links with an
-     arrowhead at the target end, coloured by relationship type. Radii, arrow
-     direction and the hop of every node come from the graph build above, so a
-     link is still drawn only where a record names it. */
+     arrowhead at the target end. Radii, arrow direction and the hop of every
+     node come from the graph build above, so a link is still drawn only where a
+     record names it. */
   var R_CTR = 24, R_L1 = 4.8, R_L2 = 3.8;
   var MAP = {k:1, x:0, y:0, drag:false, moved:false, sx:0, sy:0, ox:0, oy:0, svg:null};
 
-  /* the legend keeps a rail of its own, so no node is ever drawn under it */
   function mapGeo(w, h){
     var legW = w >= 460 ? 138 : 0;
     var mapW = Math.max(180, w - legW);
@@ -934,7 +843,6 @@
     var ryCap = geo.maxRy * 0.95;
     var rx1, ry1, rx2 = 0, ry2 = 0, aspect = 0.55;
     if(hop2.length){
-      /* two rings: the outer one holds the height, the inner sits well inside it */
       rx2 = Math.min(geo.maxRx, Math.max(200, hop2.length * 15, hop1.length * 20));
       ry2 = Math.max(50, Math.min(ryCap, rx2 * 0.55));
       aspect = ry2 / rx2;
@@ -962,7 +870,6 @@
     if(hop2.length){
       var pa = {};
       hop1.forEach(function(n){ pa[n.key] = n.ang; });
-      /* second hop ordered by the angle of its parent, so children sit near it */
       hop2.sort(function(a, b){
         var x = (a.parent && pa[a.parent.key] != null) ? pa[a.parent.key] : 0;
         var y = (b.parent && pa[b.parent.key] != null) ? pa[b.parent.key] : 0;
@@ -1010,6 +917,15 @@
   function radiusOf(n){
     return n.depth === 0 ? R_CTR : (n.depth === 1 ? R_L1 : R_L2);
   }
+  /* the state of one node under the chosen Act: the ring it wears and how far
+     the page lets it recede */
+  function nodePaint(n){
+    if(!G.law) return null;
+    if(n.st === 'direct') return {stroke:AMB, w:2.1, dash:'', op:1, tx:'#f2f2f2'};
+    if(n.st === 'hop1') return {stroke:AMB, w:1.5, dash:'3 2.4', op:.66, tx:'#c2c2c2'};
+    if(n.st === 'hop2') return {stroke:'#c08a3a', w:1.1, dash:'1.4 2.4', op:.34, tx:'#888888'};
+    return {stroke:'#2c2c2c', w:.9, dash:'', op:.34, tx:'#5a5a5a'};
+  }
   function markersHTML(){
     var h = '<defs>';
     relTypes().forEach(function(tp){
@@ -1017,12 +933,17 @@
         'markerHeight="7" orient="auto"><path d="M0 0.7 L7.2 4 L0 7.3 Z" fill="' + tp.c +
         '"/></marker>';
     });
+    if(G.law){
+      h += '<marker id="ar_amber" viewBox="0 0 8 8" refX="7.2" refY="4" markerWidth="7" ' +
+        'markerHeight="7" orient="auto"><path d="M0 0.7 L7.2 4 L0 7.3 Z" fill="' + AMB +
+        '"/></marker>';
+    }
     return h + '</defs>';
   }
   /* a curved bezier per link, bowed so parallel links never sit on each other,
      trimmed to the rims so the arrowhead lands on the disc */
   function edgesHTML(g){
-    var pos = {}, i;
+    var pos = {};
     g.nodes.forEach(function(n){ pos[n.key] = n; });
     var pairCount = {}, pairIdx = {}, out = '';
     g.edges.forEach(function(e){
@@ -1050,10 +971,22 @@
       var y2 = b.ty + (my - b.ty) / d2 * (rb + 4.5);
       var cnt = pairCount[e.pk];
       var wd = Math.min(2.3, 0.9 + 0.3 * (cnt - 1));
-      out += '<path class="ge" data-a="' + t(e.a) + '" data-b="' + t(e.b) + '" d="M' +
+      var stroke = typeOf(e.type).c, mk = 'url(#ar_' + t(e.type) + ')';
+      var cls = 'ge';
+      if(G.law){
+        if(e.am){
+          stroke = AMB;
+          wd = Math.max(1.6, wd * 1.55);
+          mk = 'url(#ar_amber)';
+          cls += ' am';
+        } else {
+          cls += ' off';
+        }
+      }
+      out += '<path class="' + cls + '" data-a="' + t(e.a) + '" data-b="' + t(e.b) + '" d="M' +
         x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' +
-        x2.toFixed(1) + ' ' + y2.toFixed(1) + '" fill="none" stroke="' + typeOf(e.type).c +
-        '" stroke-width="' + wd.toFixed(2) + '" marker-end="url(#ar_' + t(e.type) + ')"/>';
+        x2.toFixed(1) + ' ' + y2.toFixed(1) + '" fill="none" stroke="' + stroke +
+        '" stroke-width="' + wd.toFixed(2) + '" marker-end="' + mk + '"/>';
     });
     return out;
   }
@@ -1061,39 +994,55 @@
     var out = '';
     g.nodes.forEach(function(n){
       if(n.depth === 0) return;
-      var col = typeOf(n.types[0]).c;
+      var p = nodePaint(n);
+      var st = (G.law && n.st) ? n.st : 'free';
+      var col = p ? p.stroke : typeOf(n.types[0]).c;
+      var sw = p ? p.w : 1;
+      var dash = (p && p.dash) ? ' stroke-dasharray="' + p.dash + '"' : '';
+      var tcol = p ? p.tx : (n.depth === 1 ? '#a8a8a8' : '#7a7a7a');
       var lbl = String(n.code || n.tk || '');
       var r = n.depth === 1 ? R_L1 : R_L2;
       var title = n.name + (n.ex ? ' ' + n.ex : '') + (n.tk ? ' ' + n.tk : '') +
         (n.reason ? ' | ' + n.reason : '') + (n.src ? ' | ' + n.src : '');
-      out += '<g class="nd" data-k="' + t(n.key) + '" data-d="' + n.depth + '">' +
+      out += '<g class="nd st-' + st + '" data-k="' + t(n.key) + '" data-d="' + n.depth +
+        '" data-st="' + st + '"' + (p ? ' opacity="' + p.op + '"' : '') + '>' +
         '<title>' + t(title) + '</title>' +
         '<circle cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' +
         (r + 5).toFixed(1) + '" fill="transparent" stroke="none"/>' +
         '<circle class="nl" cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' + r +
-        '" fill="#050505" stroke="' + col + '" stroke-width="1"/>' +
+        '" fill="#050505" stroke="' + col + '" stroke-width="' + sw + '"' + dash + '/>' +
         '<text x="' + n.lx.toFixed(1) + '" y="' + n.ly.toFixed(1) + '" text-anchor="' + n.la +
-        '" font-size="' + (n.depth === 1 ? 7.6 : 7) + '" fill="' +
-        (n.depth === 1 ? '#a8a8a8' : '#7a7a7a') + '">' + t(lbl) + '</text></g>';
+        '" font-size="' + (n.depth === 1 ? 7.6 : 7) + '" fill="' + tcol + '">' + t(lbl) +
+        '</text></g>';
     });
     /* the focal node: a filled disc with a coloured ring, big enough to carry
        the ticker inside and the company name under it */
     var c = g.centre;
+    var cp = nodePaint(c);
+    var cst = (G.law && c.st) ? c.st : 'free';
+    var cCol = cp ? cp.stroke : '#33e29a';
+    var cW = cp ? (cp.w + 0.2) : 1.6;
+    var cDash = (cp && cp.dash) ? ' stroke-dasharray="' + cp.dash + '"' : '';
+    var cTxt = cp ? cp.tx : '#33e29a';
+    var cFill = (cp && c.st === 'off') ? '#0a0a0a' : '#071710';
     var lbl = String(c.tk || '');
     var fs = lbl.length <= 5 ? 10.5 : (lbl.length <= 8 ? 8.6 : 7.2);
     var nm = String(c.name || '');
     var nmS = nm.length > 30 ? nm.slice(0, 29) + '.' : nm;
-    out += '<g class="nd ct" data-k="' + t(c.key) + '" data-d="0">' +
+    out += '<g class="nd ct st-' + cst + '" data-k="' + t(c.key) + '" data-d="0" data-st="' +
+      cst + '"' + (cp ? ' opacity="' + cp.op + '"' : '') + '>' +
       '<title>' + t(nm + ' ' + c.ex + ' ' + lbl) + '</title>' +
       '<circle cx="' + c.tx.toFixed(1) + '" cy="' + c.ty.toFixed(1) + '" r="' + (R_CTR + 6) +
-      '" fill="none" stroke="#1f4f3c" stroke-width="1" stroke-dasharray="2 3"/>' +
+      '" fill="none" stroke="' + ((cp && c.st === 'off') ? '#222' : '#1f4f3c') +
+      '" stroke-width="1" stroke-dasharray="2 3"/>' +
       '<circle class="nl" cx="' + c.tx.toFixed(1) + '" cy="' + c.ty.toFixed(1) + '" r="' + R_CTR +
-      '" fill="#071710" stroke="#33e29a" stroke-width="1.6"/>' +
+      '" fill="' + cFill + '" stroke="' + cCol + '" stroke-width="' + cW + '"' + cDash + '/>' +
       '<text x="' + c.tx.toFixed(1) + '" y="' + (c.ty + 3.6).toFixed(1) +
-      '" text-anchor="middle" font-size="' + fs + '" font-weight="700" fill="#33e29a">' +
+      '" text-anchor="middle" font-size="' + fs + '" font-weight="700" fill="' + cTxt + '">' +
       t(lbl) + '</text>' +
       '<text x="' + c.tx.toFixed(1) + '" y="' + (c.ty + R_CTR + 13).toFixed(1) +
-      '" text-anchor="middle" font-size="7.4" fill="#8a8a8a">' + t(nmS) + '</text></g>';
+      '" text-anchor="middle" font-size="7.4" fill="' + (cp && c.st === 'off' ? '#5a5a5a' : '#8a8a8a') +
+      '">' + t(nmS) + '</text></g>';
     return out;
   }
   function legendHTML(g){
@@ -1110,6 +1059,17 @@
     });
     h += '<div class="lgf"><span>NODES</span><b>' + g.nodes.length + '</b></div>' +
       '<div class="lgf"><span>EDGES</span><b>' + g.edges.length + '</b></div>';
+    if(G.law && g.tm){
+      h += '<div class="lgh" style="margin-top:5px">TRANSMISSION</div>' +
+        '<div class="lgr"><i class="sw"></i><span>DIRECT</span><b class="a">' + g.tm.direct + '</b></div>' +
+        '<div class="lgr"><i class="sw d"></i><span>1 LINK</span><b class="a">' + g.tm.hop1 + '</b></div>' +
+        '<div class="lgr"><i class="sw p"></i><span>2 LINKS</span><b class="a">' + g.tm.hop2 + '</b></div>' +
+        '<div class="lgr"><i class="sw g"></i><span>UNAFFECTED</span><b>' + g.tm.off + '</b></div>' +
+        '<div class="lgf w"><span>SCOPE</span><b>' + t(g.tm.ex) + '</b></div>';
+      if(g.tm.noRec){
+        h += '<div class="lgf w"><span>NO RECORD</span><b>' + g.tm.noRec + ' DIRECT</b></div>';
+      }
+    }
     if(g.geo && g.geo.rings && g.geo.rings.length){
       h += '<div class="lgh" style="margin-top:6px">RINGS</div>';
       g.geo.rings.forEach(function(r){
@@ -1182,7 +1142,8 @@
     });
     return out;
   }
-  /* hover marks the edges a node actually carries and dulls the rest */
+  /* hover marks the edges a node actually carries and dulls the rest; the Act
+     colouring is a separate class, so a hover never rewrites it */
   function hoverNode(svg, key){
     var near = linkedSet(G.last, key);
     Array.prototype.forEach.call(svg.querySelectorAll('path.ge'), function(el){
@@ -1212,7 +1173,6 @@
       var key = el.getAttribute('data-k') || '';
       el.addEventListener('mouseenter', function(){ hoverNode(svg, key); });
       el.addEventListener('mouseleave', function(){ clearHover(svg); });
-      /* a click pins the node into the side list; a drag does not count as one */
       el.addEventListener('click', function(ev){
         if(MAP.moved) return;
         ev.stopPropagation();
@@ -1268,8 +1228,6 @@
         if(!MAP.drag) return;
         MAP.drag = false;
         if(MAP.svg) MAP.svg.classList.remove('drag');
-        /* MAP.moved is cleared by the next mousedown, so the click that ends a
-           drag cannot pin a node */
       });
     }
     if(!svg) return;
@@ -1289,6 +1247,19 @@
       var r = svg.getBoundingClientRect();
       zoomAt(svg, ev.clientX - r.left, ev.clientY - r.top, ev.deltaY < 0 ? 1.12 : 1 / 1.12);
     }, {passive:false});
+  }
+
+  /* ---------- 3. THE NODE THE READER PINNED -------------------------- */
+  function actBasis(n){
+    if(!G.law || !n || !n.st) return '';
+    if(n.st === 'direct'){
+      if(n.why === 'named') return 'DIRECT, NAMED BY ACT';
+      if(n.why === 'all') return 'DIRECT, ACT NAMES ALL ' + ((G.tm && G.tm.ex) || '') + ' ISSUERS';
+      return 'DIRECT, SECTOR NAMED BY ACT';
+    }
+    if(n.st === 'hop1') return 'HOP 1, ONE RECORDED LINK FROM A DIRECT COMPANY';
+    if(n.st === 'hop2') return 'HOP 2, ONE LINK FURTHER, DIMMER';
+    return 'NOT REACHED BY THIS ACT';
   }
   function paintSel(){
     var box = document.getElementById('b_sel');
@@ -1314,6 +1285,11 @@
     h += '<div class="srow"><span class="sk">LINK</span><span class="sv ' +
       (n.depth === 0 ? 'dm' : 'wr') + '">' + t(link) + '</span>' +
       '<span class="sk sk2">HOP ' + n.depth + '</span></div>';
+    if(G.law){
+      h += '<div class="srow"><span class="sk">ACT</span><span class="sv ' +
+        (n.st === 'direct' ? 'wr' : 'dm') + '" title="' + t(actBasis(n)) + '">' +
+        t(actBasis(n)) + '</span></div>';
+    }
     h += '<div class="srow"><span class="sk">REASON</span><span class="sv clip" title="' +
       t(n.reason || '') + '">' + t(n.reason || 'none recorded') + '</span></div>';
     h += '<div class="srow"><span class="sk">SOURCE</span><span class="sv dm" title="' +
@@ -1323,15 +1299,22 @@
       ['customers', 'suppliers', 'competitors', 'partners'].forEach(function(k){
         cnt += (n.rec[k] || []).length;
       });
-      h += '<div class="srow"><span class="sk">RECORD</span><span class="sv dm">' + fnum(cnt, 0) +
+      h += '<div class="srow"><span class="sk">RECORD</span><span class="sv dm">' + cnt +
         ' LINKS ON FILE</span></div>';
+    } else if(G.law && (n.st === 'direct' || n.st === 'hop1' || n.st === 'hop2')){
+      h += '<div class="srow"><span class="sk">RECORD</span><span class="sv wr">' +
+        'NONE ON FILE, SO NOTHING PROPAGATES FROM IT</span></div>';
     }
     box.innerHTML = h;
     meta('sel', 'HOP ' + n.depth + ' | ' + (n.ex || 'UNLISTED'));
   }
+
+  /* ---------- 4. DRAW ------------------------------------------------ */
   function renderGraph(box, row){
     var g = buildGraph(row, G.rec);
     codeFor(g);
+    trans(g);
+    G.tm = g.tm;
     box.innerHTML = '<div class="gwrap"></div>' +
       '<div class="gsub" id="gsub">' + graphSub(g) + '</div>';
     var wrap = box.querySelector('.gwrap');
@@ -1340,6 +1323,7 @@
       var w = Math.round(r.width || box.clientWidth || 600);
       var hh = Math.round(r.height || box.clientHeight || 260);
       if(w < 60 || hh < 60) return;
+      layoutRings(g, w, hh);
       wrap.innerHTML = '<svg class="gsvg" viewBox="0 0 ' + w + ' ' + hh + '" width="' + w +
         '" height="' + hh + '">' + graphSVG(g, w, hh) + '</svg>';
       var svg = wrap.querySelector('.gsvg');
@@ -1358,18 +1342,17 @@
     run();
     PAINT.rel = run;
     G.last = g;
-    var n1 = 0, n2 = 0, e1 = 0, e2 = 0;
-    g.nodes.forEach(function(n){ if(n.depth === 1) n1++; else if(n.depth === 2) n2++; });
-    g.edges.forEach(function(e){ if(e.depth === 1) e1++; else e2++; });
     meta('rel', g.nodes.length + ' NODES | ' + g.edges.length + ' LINKS' +
-      (G.hops > 1 ? ' | ' + n2 + ' AT HOP 2' : ''));
+      (G.law && g.tm ? ' | ' + g.tm.direct + ' DIRECT' : ''));
     paintSel();
+    paintAct();
   }
   function drawRel(box, row, relFile, rec){
     G.row = row;
     G.rec = rec;
     G.selKey = '';
     G.last = null;
+    G.tm = null;
     /* a new security opens at the whole map, not at the last zoom */
     MAP.k = 1;
     MAP.x = 0;
@@ -1379,6 +1362,7 @@
       box.innerHTML = failBox('RELATIONSHIPS', 'relationships_' + row.ex + '.json not loaded');
       meta('rel', 'FILE NOT READ');
       paintSel();
+      paintAct();
       return;
     }
     buildRelIndex();
@@ -1406,6 +1390,7 @@
       PAINT.rel = run0;
       meta('rel', '0 NODES | 0 LINKS');
       paintSel();
+      paintAct();
       return;
     }
     var count = activeTypes().reduce(function(a, tp){ return a + (rec[tp.k] || []).length; }, 0);
@@ -1415,6 +1400,7 @@
         ' but names nothing') + '<div class="gsub" id="gsub">' + filesLine() + '</div>';
       meta('rel', '0 NODES | 0 LINKS');
       paintSel();
+      paintAct();
       return;
     }
     if(!count){
@@ -1422,19 +1408,25 @@
         ' links, none of an active type') + '<div class="gsub" id="gsub">' + filesLine() + '</div>';
       meta('rel', '0 NODES | 0 LINKS');
       paintSel();
+      paintAct();
       return;
     }
     renderGraph(box, row);
   }
-  /* the controls in the map header, and nothing else, change the graph */
+  /* the controls in the map header, and the Act selector above it, are the only
+     things that change the graph */
+  function setHop(n){
+    G.hops = n === 2 ? 2 : 1;
+    var ctl = document.querySelectorAll('#c_hop .hp');
+    Array.prototype.forEach.call(ctl, function(x){
+      x.setAttribute('aria-pressed', Number(x.getAttribute('data-hop')) === G.hops ? 'true' : 'false');
+    });
+  }
   function wireGraphControls(){
     var ctl = document.querySelectorAll('#c_hop .hp');
     Array.prototype.forEach.call(ctl, function(b){
       b.addEventListener('click', function(){
-        G.hops = Number(b.getAttribute('data-hop')) === 2 ? 2 : 1;
-        Array.prototype.forEach.call(ctl, function(x){
-          x.setAttribute('aria-pressed', Number(x.getAttribute('data-hop')) === G.hops ? 'true' : 'false');
-        });
+        setHop(Number(b.getAttribute('data-hop')));
         redrawGraph();
       });
     });
@@ -1450,501 +1442,35 @@
         redrawGraph();
       });
     });
-    /* view controls: zoom in, zoom out, back to the whole map */
     var zo = document.getElementById('zout');
     if(zo) zo.addEventListener('click', function(){ zoomBy(1 / 1.3); });
     var zi = document.getElementById('zin');
     if(zi) zi.addEventListener('click', function(){ zoomBy(1.3); });
     var zr = document.getElementById('zrst');
     if(zr) zr.addEventListener('click', function(){ resetView(); });
+    var pol = document.getElementById('pol');
+    if(pol){
+      pol.addEventListener('change', function(){
+        G.law = LAW.byId[pol.value] || null;
+        /* an Act is traced two hops out, so its reach is visible without a
+           second click; the reader can put it back to one hop */
+        if(G.law) setHop(2);
+        redrawGraph();
+        if(!G.row) paintAct();
+      });
+    }
   }
   function redrawGraph(){
-    if(!G.row) return;
+    if(!G.row){ paintAct(); return; }
     var box = document.getElementById('b_rel');
     if(!box) return;
-    guardDraw('rel', function(b){ drawRel(b, G.row, (REL_ST[G.row.ex] === 'ok' ? RELF[G.row.ex] : null), G.rec); });
-  }
-
-  /* ---------- 3. THESIS ---------------------------------------------- */
-  /* The shape of a research answer: what is DIRECT, what reaches a company
-     through a MECHANISM, what is NOT THERE, and what was read. Every row comes
-     from static_data/research_theses.json and names the source and the date it
-     was read at. Rows naming the selected security are marked and sorted first;
-     the rest of the theme stays visible, because a theme is read as a whole. */
-  var TH = {list:[], theme:'', marked:0, st:'unread'};
-
-  function upperList(a){
-    return (a || []).map(function(x){ return String(x).toUpperCase(); });
-  }
-  function thesisFor(tk){
-    for(var i = 0; i < TH.list.length; i++){
-      if(upperList(TH.list[i].securities).indexOf(tk) >= 0) return TH.list[i];
-    }
-    return null;
-  }
-  function rowHit(o, tk){
-    return upperList(o && o.tickers).indexOf(tk) >= 0;
-  }
-  function tRow(o, tk, kind){
-    var hit = rowHit(o, tk);
-    var tks = upperList(o.tickers);
-    var lead = (kind === 'source') ? '' : (tks.length ? tks.slice(0, 2).join(' ') : 'ALL');
-    var cls = 'tr' + (hit ? ' hit' : '') + (kind === 'absent' ? ' abs' : '');
-    var tip = [o.text || o.name || '', o.source || '', o.date || '', o.basis || '',
-               o.url || ''].filter(Boolean).join(' | ');
-    var h = '<div class="' + cls + '" title="' + t(tip) + '">';
-    if(lead) h += '<span class="trk">' + t(lead) + '</span>';
-    if(kind === 'mech') h += '<span class="tag2">IND</span>';
-    h += '<span class="ttx">' + t(nd(o.text || o.name || '')) + '</span>';
-    if(o.source && kind !== 'source') h += '<span class="tsrc">' + t(nd(o.source)) + '</span>';
-    if(o.date) h += '<span class="tsd">' + t(nd(o.date)) + '</span>';
-    h += '</div>';
-    return h;
-  }
-  function tGroup(label, list, tk, kind, cap){
-    var arr = (list || []).slice(), n = arr.length;
-    var marked = arr.filter(function(o){ return rowHit(o, tk); }).length;
-    var h = '<div class="tg"><div class="tgh">' + label + ' <b>' + n + '</b>' +
-      (marked ? '<span class="hit">' + marked + ' MARKED</span>' : '') + '</div>';
-    /* rows naming this security first, then the rest of the theme */
-    arr.sort(function(a, b){ return (rowHit(b, tk) ? 1 : 0) - (rowHit(a, tk) ? 1 : 0); });
-    arr.slice(0, cap || 4).forEach(function(o){ h += tRow(o, tk, kind); });
-    if(n > (cap || 4)) h += '<div class="tr ab">+' + (n - (cap || 4)) + ' MORE IN RECORD</div>';
-    if(!n) h += '<div class="tr ab">NONE RECORDED</div>';
-    h += '</div>';
-    return h;
-  }
-  function drawThesis(box, row, file, st){
-    var tk = rowTicker(row);
-    TH.st = st;
-    TH.list = (file && file.theses) || [];
-    TH.marked = 0;
-    if(st === 'failed' || !file){
-      box.innerHTML = failBox('THESIS', 'research_theses.json not loaded');
-      meta('thes', 'FILE NOT READ');
-      return;
-    }
-    if(!TH.list.length){
-      box.innerHTML = empBox('NO THESIS ON FILE', 'the file carries no theme');
-      meta('thes', '0 THEMES');
-      return;
-    }
-    var th = thesisFor(tk);
-    if(!th){
-      /* the theme does not name this security, so the honest answer is the
-         negative plus the securities the theme does reach: a lead, not a blank */
-      var named = [];
-      TH.list.forEach(function(x){ named = named.concat(x.securities || []); });
-      var uniq = [], seen = {};
-      named.forEach(function(x){
-        var u = String(x).toUpperCase();
-        if(!seen[u]){ seen[u] = 1; uniq.push(u); }
-      });
-      var head = uniq.slice(0, 14).join(' ') + (uniq.length > 14 ? ' +' + (uniq.length - 14) : '');
-      box.innerHTML = empBox('NO THESIS NAMES ' + t(tk), TH.list.length + ' THEME' +
-        (TH.list.length === 1 ? '' : 'S') + ' ON FILE: ' +
-        TH.list.map(function(x){ return nd(x.theme || x.id); }).join(', ') +
-        ' | NAMES ' + head);
-      meta('thes', '0 MARKED');
-      return;
-    }
-    var marked = 0;
-    ['direct', 'mechanisms', 'absent', 'sources'].forEach(function(k){
-      marked += (th[k] || []).filter(function(o){ return rowHit(o, tk); }).length;
+    guardDraw('rel', function(b){
+      drawRel(b, G.row, (REL_ST[G.row.ex] === 'ok' ? RELF[G.row.ex] : null), G.rec);
     });
-    TH.theme = nd(th.theme || th.id);
-    TH.marked = marked;
-    var h = '';
-    h += tGroup('DIRECT LINKS', th.direct, tk, 'direct', 4);
-    h += tGroup('MECHANISMS / INDIRECT', th.mechanisms, tk, 'mech', 3);
-    h += tGroup('WHAT IS NOT THERE', th.absent, tk, 'absent', 3);
-    h += tGroup('SOURCES', th.sources, tk, 'source', 4);
-    h += '<div class="tnote">THEME ' + t(TH.theme) + ' | ' +
-      (marked ? '<b>' + marked + ' MARKED</b> FOR ' + t(tk) : 'NO ROW NAMES ' + t(tk)) +
-      '</div>';
-    box.innerHTML = h;
-    meta('thes', String(th.id || '').toUpperCase() + ' | ' + marked + ' MARKED');
-  }
-
-  /* ---------- 4. PRICE CHART ----------------------------------------- */
-  var PXSTATE = {mode:'none', points:0, bars:0};
-  function histPaths(row){
-    var tk = rowTicker(row), sy = String(row.sym || '');
-    var c = [];
-    if(row.ex === 'NSE' || row.ex === 'NGX') c.push(row.ex + '_' + tk + '.json');
-    if(sy){ c.push(sy + '.max.json'); c.push(sy + '.json'); }
-    c.push(tk + '.max.json'); c.push(tk + '.json');
-    var seen = {}, out = [];
-    c.forEach(function(k){ if(k && !seen[k]){ seen[k] = 1; out.push(k); } });
-    return out;
-  }
-  function readHistory(row){
-    var keys = histPaths(row);
-    return (function step(i){
-      if(i >= keys.length) return Promise.resolve({d:null, path:sd('history/' + keys[0])});
-      var p = sd('history/' + keys[i]);
-      return getJSON(p).then(function(d){
-        if(d && (d.bars || []).length) return {d:d, path:p};
-        return step(i + 1);
-      });
-    })(0);
-  }
-  function engineReady(){
-    return new Promise(function(res){
-      if(window.LightweightCharts) return res(true);
-      var t0 = Date.now();
-      var iv = setInterval(function(){
-        if(window.LightweightCharts){ clearInterval(iv); res(true); }
-        else if(Date.now() - t0 > 3500){ clearInterval(iv); res(false); }
-      }, 100);
-    });
-  }
-  function svgLine(w, h, closes){
-    if(closes.length < 2) return '';
-    var padL = 6, padR = 6, padT = 10, padB = 14;
-    var pw = w - padL - padR, ph = h - padT - padB;
-    var mn = Math.min.apply(null, closes), mx = Math.max.apply(null, closes);
-    var span = (mx - mn) || 1;
-    var pts = closes.map(function(v, i){
-      var x = padL + (i / (closes.length - 1)) * pw;
-      var y = padT + ph - ((v - mn) / span) * ph;
-      return x.toFixed(1) + ',' + y.toFixed(1);
-    }).join(' ');
-    return '<svg viewBox="0 0 ' + w + ' ' + h + '">' +
-      '<polyline points="' + pts + '" fill="none" stroke="#33e29a" stroke-width="1.3" ' +
-      'vector-effect="non-scaling-stroke"/>' +
-      '<text x="' + padL + '" y="' + (h - 4) + '" font-size="8" fill="#6a6a6a" ' +
-      'font-family="Oxygen Mono,monospace">' + t(ipx(mn)) + '</text>' +
-      '<text x="' + padL + '" y="' + (padT + 8) + '" font-size="8" fill="#6a6a6a" ' +
-      'font-family="Oxygen Mono,monospace">' + t(ipx(mx)) + '</text></svg>';
-  }
-  function drawPrice(box, row, hist, histPath, histSt){
-    var bars = (hist && hist.bars) || [];
-    if(histSt === 'failed'){
-      box.innerHTML = failBox('PRICE HISTORY', (histPath || '').split('/').pop() + ' not loaded');
-      meta('px', 'FILE NOT READ');
-      return;
-    }
-    if(!bars.length){
-      box.innerHTML = empBox('NO BARS ON FILE', 'no price history for ' + rowTicker(row));
-      meta('px', '0 BARS');
-      return;
-    }
-    box.innerHTML = '<div class="pxbox"><div class="pxchart"></div><div class="pxfb"></div></div>';
-    var host = box.querySelector('.pxchart');
-    var fb = box.querySelector('.pxfb');
-    var mapped = bars.map(function(b){
-      return {time:String(b.t).slice(0, 10), open:numv(b.o), high:numv(b.h), low:numv(b.l),
-              close:numv(b.c)};
-    }).filter(function(p){ return p.close != null; });
-    var canCandle = mapped.every(function(p){
-      return p.open != null && p.high != null && p.low != null;
-    });
-    PXSTATE.bars = bars.length;
-
-    function fallback(){
-      host.style.display = 'none';
-      fb.style.display = 'block';
-      var run = function(){
-        var w = Math.round(fb.clientWidth || 0), h = Math.round(fb.clientHeight || 0);
-        if(!w || !h) return;
-        var closes = mapped.slice(-160).map(function(p){ return p.close; });
-        fb.innerHTML = svgLine(w, h, closes) || '<div class="emp">NO BARS</div>';
-      };
-      run();
-      PAINT.px = run;
-      PXSTATE.mode = 'svg';
-      PXSTATE.points = Math.min(160, mapped.length);
-    }
-
-    engineReady().then(function(ok){
-      if(!ok || !window.LightweightCharts){ fallback(); return; }
-      try{
-        var w = Math.max(120, host.clientWidth || 0), h = Math.max(90, host.clientHeight || 0);
-        var chart = LightweightCharts.createChart(host, {
-          layout:{background:{color:'transparent'}, textColor:'#6a6a6a',
-                  fontFamily:'Oxygen Mono, monospace', fontSize:9},
-          grid:{vertLines:{color:'rgba(38,38,38,.45)'}, horzLines:{color:'rgba(38,38,38,.45)'}},
-          rightPriceScale:{borderColor:'#262626', scaleMargins:{top:.12, bottom:.12}},
-          timeScale:{borderColor:'#262626', timeVisible:false, rightOffset:2},
-          crosshair:{mode:1},
-          handleScroll:true,
-          handleScale:true,
-          localization:{priceFormatter:function(p){
-            return p >= 1000 ? p.toLocaleString(undefined, {maximumFractionDigits:0}) : p.toFixed(2);
-          }},
-          width:w, height:h
-        });
-        var series;
-        if(canCandle){
-          series = chart.addSeries(LightweightCharts.CandlestickSeries, {
-            upColor:'#33e29a', downColor:'#f87171', borderUpColor:'#33e29a',
-            borderDownColor:'#f87171', wickUpColor:'#33e29a', wickDownColor:'#f87171',
-            priceLineVisible:true, priceLineColor:'#33e29a', priceLineStyle:2
-          });
-          series.setData(mapped.map(function(p){
-            return {time:p.time, open:p.open, high:p.high, low:p.low, close:p.close};
-          }));
-          PXSTATE.mode = 'candle';
-        } else {
-          series = chart.addSeries(LightweightCharts.LineSeries, {
-            color:'#33e29a', lineWidth:2, priceLineVisible:true, priceLineColor:'#33e29a'
-          });
-          series.setData(mapped.map(function(p){ return {time:p.time, value:p.close}; }));
-          PXSTATE.mode = 'line';
-        }
-        PXSTATE.points = mapped.length;
-        chart.timeScale().fitContent();
-        PAINT.px = function(){
-          if(!host.clientWidth) return;
-          chart.applyOptions({width:host.clientWidth, height:host.clientHeight});
-        };
-      }catch(e){
-        fallback();
-      }
-    });
-
-    var last = mapped[mapped.length - 1] || {};
-    meta('px', fnum(bars.length, 0) + ' BARS | ' + mapped[0].time + ' > ' + last.time);
-  }
-
-  /* ---------- 5. NEWS STRIP ------------------------------------------ */
-  var SUFFIX = {plc:1, ltd:1, limited:1, group:1, holdings:1, holding:1, company:1, co:1,
-                inc:1, corp:1, corporation:1, sa:1, nv:1, ag:1, the:1, public:1, 'and':1};
-  function normChars(s){
-    return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ')
-      .replace(/\s+/g, ' ').trim();
-  }
-  function coreName(s){
-    return normChars(s).split(' ').filter(function(w){ return w && !SUFFIX[w]; }).join(' ');
-  }
-  function keysFor(row){
-    var keys = [], seen = {};
-    function add(k){
-      k = normChars(k);
-      if(!k || k.length < 3 || seen[k]) return;
-      seen[k] = 1;
-      keys.push({k:k, single:(k.indexOf(' ') < 0)});
-    }
-    add(String(row.ticker || ''));
-    var sy = String(row.sym || '');
-    if(sy && sy.toUpperCase() !== String(row.ticker || '').toUpperCase()){
-      add(sy.replace(/\.(JO|CA)$/i, ''));
-    }
-    add(row.name);
-    add(coreName(row.name));
-    return keys;
-  }
-  function rivalsFor(row){
-    var core = coreName(row.name);
-    if(!core || core.indexOf(' ') >= 0) return [];
-    var out = [];
-    (MKT[row.ex] || []).forEach(function(p){
-      if(rowTicker(p) === rowTicker(row)) return;
-      var c = coreName(p.name);
-      if(c && c !== core && c.indexOf(core + ' ') === 0) out.push(c);
-    });
-    return out;
-  }
-  function namedIn(text, keys, rivals){
-    var hay = normChars(text);
-    for(var i = 0; i < keys.length; i++){
-      var re = new RegExp('(^| )' + escRe(keys[i].k) + '( |$)');
-      if(!re.test(hay)) continue;
-      if(keys[i].single && rivals.length){
-        var blocked = false;
-        for(var j = 0; j < rivals.length; j++){
-          if(hay.indexOf(rivals[j]) >= 0){ blocked = true; break; }
-        }
-        if(blocked) continue;
-      }
-      return true;
-    }
-    return false;
-  }
-  function tsOf(it){
-    if(isNum(it.ts)) return Number(it.ts) * 1000;
-    if(it.date){ var d = Date.parse(it.date); if(!isNaN(d)) return d; }
-    if(isNum(it.year)) return Date.UTC(Number(it.year), 0, 1);
-    return 0;
-  }
-  function dateLabel(it){
-    if(it.date) return nd(it.date);
-    if(isNum(it.year)) return String(it.year);
-    return 'NO DATE';
-  }
-  function drawNews(box, row){
-    var nPath = sd(row.ex.toLowerCase() + '_news.json');
-    var aPath = sd(row.ex.toLowerCase() + '_announcements.json');
-    var newsFile = FILES[nPath] && FILES[nPath].ok ? FILES[nPath].data : null;
-    var annFile = FILES[aPath] && FILES[aPath].ok ? FILES[aPath].data : null;
-    var newsSt = readState(nPath), annSt = readState(aPath);
-    var keys = keysFor(row), rivals = rivalsFor(row);
-    var news = [], ann = [];
-    if(newsFile){
-      (newsFile.items || newsFile || []).forEach(function(it){
-        if(!it) return;
-        if(namedIn(String(it.title || '') + ' ' + String(it.summary || ''), keys, rivals)) news.push(it);
-      });
-    }
-    if(annFile){
-      (annFile.items || annFile || []).forEach(function(it){
-        if(!it) return;
-        if(namedIn(String(it.title || '') + ' ' + String(it.company || '') + ' ' +
-                   String(it.ticker || ''), keys, rivals)) ann.push(it);
-      });
-    }
-    news.sort(function(a, b){ return tsOf(b) - tsOf(a); });
-    ann.sort(function(a, b){ return tsOf(b) - tsOf(a); });
-    var all = news.map(function(x){ return {it:x, kind:'NEWS'}; })
-                  .concat(ann.map(function(x){ return {it:x, kind:'ANN'}; }));
-    if(!all.length){
-      if(!newsFile && !annFile){
-        var bad = [];
-        if(newsSt === 'failed') bad.push('news not loaded');
-        if(annSt === 'failed') bad.push('filings not loaded');
-        if(bad.length){
-          box.innerHTML = failBox('HEADLINE FILES', bad.join(', '));
-          meta('news', 'FILES NOT READ');
-        } else {
-          box.innerHTML = empBox('NO HEADLINE FILE', 'none is shipped for ' + row.ex);
-          meta('news', 'NO FILE');
-        }
-        return;
-      }
-      box.innerHTML = empBox('NO ITEM NAMES ' + rowTicker(row), 'headline and filing files read');
-      meta('news', '0 HEADLINES');
-      return;
-    }
-    var shown = all.slice(0, 6);
-    box.innerHTML = shown.map(function(x){
-      var it = x.it;
-      var title = nd(it.title || '');
-      var src = it.publisher || it.source || (x.kind === 'ANN' ? 'FILING' : row.ex);
-      var inner = it.url
-        ? '<a href="' + t(it.url) + '" target="_blank" rel="noopener">' + t(title) + '</a>'
-        : t(title);
-      return '<div class="ncard"><div class="nd"><span class="ndd">' + t(dateLabel(it)) + '</span>' +
-        '<span class="nds">' + t(src) + '</span></div>' +
-        '<div class="nt" title="' + t(title) + '">' + inner + '</div></div>';
-    }).join('');
-    var extra = all.length - shown.length;
-    meta('news', all.length + ' ITEM' + (all.length === 1 ? '' : 'S') +
-      (extra > 0 ? ' | ' + extra + ' MORE' : '') +
-      ' | ' + news.length + ' HEADLINE' + (news.length === 1 ? '' : 'S'));
-  }
-
-  /* ---------- 6. LAWS AND EXPOSURE ----------------------------------- */
-  function shortLaw(nm){
-    var s = String(nm || '');
-    s = s.replace(/\((?:No\.|Legal Notice)[^)]*\)/gi, '');
-    s = s.replace(/,\s*(19|20)\d\d\s*$/g, '');
-    s = s.replace(/\s+/g, ' ').replace(/[,\s]+$/, '').trim();
-    return s.length > 26 ? s.slice(0, 25) + '.' : s;
-  }
-  function exposureHits(file, tkr){
-    var hits = [];
-    var map = (file && (file.sector_exposure || file.sectors)) || {};
-    Object.keys(map).forEach(function(secName){
-      var rec = map[secName] || {};
-      ['direct','indirect'].forEach(function(kind){
-        (rec[kind] || []).forEach(function(r){
-          var tk = Array.isArray(r) ? r[0] : r.ticker;
-          if(String(tk || '').toUpperCase() !== tkr) return;
-          hits.push({sector:secName, code:rec.sector_code || '', kind:kind,
-                     reason:(Array.isArray(r) ? r[1] : r.reason) || ''});
-        });
-      });
-    });
-    return hits;
-  }
-  function drawLaws(box, row, lawsFile, govFile, govJur){
-    var h = '';
-    var n = 0;
-    var colours = {enacted:0, repealed:0, withdrawn:0};
-    if(row.ex !== 'NSE'){
-      h += '<span class="chip other">NO LAW FILE ' + t(row.ex) + '</span>';
-      meta('law', 'NO LAW FILE');
-    } else if(readState(sd('gov_laws_KE.json')) === 'failed' || !lawsFile){
-      h += '<span class="chip other">LAW FILE NOT READ</span>';
-      meta('law', 'FILE NOT READ');
-    } else {
-      var tk = rowTicker(row);
-      var laws = (lawsFile.laws || []).filter(function(l){
-        var list = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); });
-        return list.indexOf(tk) >= 0 || list.indexOf('ALL') >= 0;
-      });
-      laws.sort(function(a, b){
-        var A = (a.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0 ? 0 : 1;
-        var B = (b.tickers || []).map(function(x){ return String(x).toUpperCase(); }).indexOf(tk) >= 0 ? 0 : 1;
-        if(A !== B) return A - B;
-        return String(b.year || '').localeCompare(String(a.year || ''));
-      });
-      if(!laws.length) h += '<span class="chip other">NO ACT NAMES ' + t(tk) + '</span>';
-      laws.forEach(function(l){
-        var st = String(l.status || '').toLowerCase();
-        var cl = (st === 'enacted' || st === 'repealed' || st === 'withdrawn') ? st : 'other';
-        if(colours[cl] != null) colours[cl]++;
-        var tip = [l.name || l.id || '', st || 'status not stated',
-                   l.mechanism || '', l.status_note || ''].filter(Boolean).join(' | ');
-        h += '<span class="chip ' + cl + '" title="' + t(tip) + '">' +
-          (l.year ? '<i>' + t(l.year) + '</i>' : '') + t(shortLaw(l.name || l.id || '')) + '</span>';
-        n++;
-      });
-      meta('law', n + ' ACTS | ' + colours.enacted + ' ENACTED ' + colours.withdrawn + ' WITHDRAWN ' +
-        colours.repealed + ' REPEALED');
-    }
-    /* the government budget link, or one chip saying there is none */
-    if(govJur){
-      if(readState(sd('gov_exposure_' + govJur + '.json')) === 'failed' || !govFile){
-        h += '<span class="chip other">EXPOSURE FILE NOT READ</span>';
-      } else {
-        var hits = exposureHits(govFile, rowTicker(row));
-        if(!hits.length){
-          h += '<span class="chip none">NO BUDGET LINK</span>';
-        } else {
-          hits.slice(0, 2).forEach(function(x){
-            h += '<span class="chip gov' + (x.kind === 'indirect' ? ' ind' : '') +
-              '" title="' + t(x.reason) + '">' + t(x.sector.toUpperCase()) + ' <b>' +
-              t(x.kind.toUpperCase()) + '</b></span>';
-          });
-        }
-      }
-    } else {
-      /* no budget file covers this exchange at all: the chip still reads as an
-         absent link, and its hover says which file would have carried one */
-      h += '<span class="chip none" title="no budget file covers ' + t(row.ex) +
-        '; the fiscal link is recorded for NSE and JSE">NO BUDGET LINK</span>';
-    }
-    box.innerHTML = h;
   }
 
   /* ---------- the build ---------------------------------------------- */
   var GEN = 0, CUR = null;
-
-  function finPath(row, key, kind){
-    var base = '../../static_data/' + (kind === 'analytics' ? 'analytics/' : 'financials/');
-    var name = encodeURIComponent(String(key).replace(/\//g, '_'));
-    return base + name + (kind === 'analytics' ? '.json' : '__income.json');
-  }
-  function tryKeys(row){
-    var keys = [String(row.ticker || '')];
-    if(row.sym && String(row.sym).toUpperCase() !== String(row.ticker).toUpperCase()) keys.push(String(row.sym));
-    if(row.ex === 'JSE' && String(row.ticker).indexOf('.') < 0) keys.push(String(row.ticker) + '.JO');
-    var seen = {}, out = [];
-    keys.forEach(function(k){ if(k && !seen[k]){ seen[k] = 1; out.push(k); } });
-    return out;
-  }
-  function readFirst(row, kind){
-    var keys = tryKeys(row);
-    return (function step(i){
-      if(i >= keys.length) return Promise.resolve(null);
-      return getJSON(finPath(row, keys[i], kind)).then(function(d){
-        if(d) return {d:d, key:keys[i]};
-        return step(i + 1);
-      });
-    })(0);
-  }
 
   function build(row){
     var gen = ++GEN;
@@ -1953,12 +1479,13 @@
     G.rec = null;
     G.selKey = '';
     G.last = null;
+    G.tm = null;
     RECBY = null;
     PAINT = {};
-    PXSTATE = {mode:'none', points:0, bars:0};
-    paintHead(row, null);
+    document.getElementById('footTk').textContent = rowTicker(row) + (row.ex ? '  ' + row.ex : '');
     document.getElementById('footNote').textContent = '';
     paintSel();
+    paintAct();
 
     var ex = row.ex;
     var J = {};
@@ -1966,25 +1493,11 @@
     J.rel = getJSON(sd('relationships_' + ex + '.json'));
     /* all four boards are read, so a chain can cross an exchange board */
     J.rell = EXS.map(function(e2){ return getJSON(sd('relationships_' + e2 + '.json')); });
-    J.thes = getJSON(sd('research_theses.json'));
-    J.news = NEWS_EX[ex] ? getJSON(sd(ex.toLowerCase() + '_news.json')) : Promise.resolve(null);
-    J.ann = ANN_EX[ex] ? getJSON(sd(ex.toLowerCase() + '_announcements.json')) : Promise.resolve(null);
-    J.an = readFirst(row, 'analytics');
-    J.hist = readHistory(row);
-    if(ex === 'NSE'){
-      J.gov = getJSON(sd('gov_exposure_KE.json'));
-      J.laws = getJSON(sd('gov_laws_KE.json'));
-    } else if(ex === 'JSE'){
-      J.gov = getJSON(sd('gov_exposure_SA.json'));
-    }
 
-    Promise.all([J.info, J.rel, Promise.all(J.rell), J.thes, J.news, J.ann, J.an, J.hist,
-                 J.gov || null, J.laws || null])
+    Promise.all([J.info, J.rel, Promise.all(J.rell)])
     .then(function(R){
       if(gen !== GEN) return;
-      var info = R[0], relFile = R[1], thesFile = R[3], an = R[6], hist = R[7];
-      var govFile = R[8], lawsFile = R[9];
-      paintHead(row, info && (info[row.ticker] || info[ex + ':' + row.sym] || info[row.sym] || info[rowTicker(row)]));
+      var relFile = R[1];
 
       /* what each of the four link files actually returned, kept for the panel
          to print rather than assumed */
@@ -2001,26 +1514,12 @@
         var s = relFile.securities;
         relRec = s[row.ticker] || s[row.sym] || s[rowTicker(row)] || null;
       }
-      var histSt = hist ? readState(hist.path) : 'unread';
 
-      guardDraw('strip', function(box){
-        drawTiles(box, row, an && an.d, hist && hist.d, histSt);
-      });
       guardDraw('rel', function(box){ drawRel(box, row, relFile, relRec); });
-      guardDraw('thes', function(box){
-        drawThesis(box, row, thesFile, readState(sd('research_theses.json')));
-      });
-      guardDraw('law', function(box){
-        drawLaws(box, row, lawsFile, govFile, ex === 'NSE' ? 'KE' : (ex === 'JSE' ? 'SA' : ''));
-      });
-      guardDraw('news', function(box){ drawNews(box, row); });
-      guardDraw('px', function(box){ drawPrice(box, row, hist && hist.d, hist && hist.path, histSt); });
-      paintSel();
 
       var bits = [];
       if(relFile && relFile.generated) bits.push('LINKS ' + relFile.generated);
-      if(thesFile && thesFile.generated) bits.push('THESIS ' + thesFile.generated);
-      if(hist && hist.d && hist.d.realigned_at) bits.push('HIST ' + hist.d.realigned_at);
+      if(LAW.list.length) bits.push('ACTS ' + LAW.list.length);
       document.getElementById('footNote').textContent = nd(bits.join('  '));
     }).catch(function(e){
       if(gen !== GEN) return;
@@ -2116,16 +1615,10 @@
     if(!n) return null;
     return {name:n.name, ticker:n.tk || 'UNLISTED', exchange:n.ex || 'NOT IN TERMINAL',
             hop:n.depth, link:(n.depth === 0 ? 'selected security' : typeLabel(n.types[0])),
-            reason:n.reason || '', source:n.src || '', carriedRecord:!!n.rec};
+            reason:n.reason || '', source:n.src || '', carriedRecord:!!n.rec,
+            actState:n.st || '', actBasis:actBasis(n)};
   }
   window.__mtPerpState = function(){
-    var tiles = Array.prototype.map.call(document.querySelectorAll('#b_strip .tile'), function(el){
-      var l = el.querySelector('.tl'), v = el.querySelector('.tv'), s = el.querySelector('.ts');
-      return {label: l ? l.textContent : '', value: v ? v.textContent : '', sub: s ? s.textContent : ''};
-    });
-    var chips = Array.prototype.map.call(document.querySelectorAll('#b_law .chip'), function(el){
-      return {text: el.textContent.trim(), cls: el.className.replace('chip', '').trim()};
-    });
     var g = G.last, hop1 = 0, hop2 = 0, e1 = 0, e2 = 0, cross = 0, crossEx = [];
     if(g){
       g.nodes.forEach(function(n){
@@ -2138,20 +1631,45 @@
       });
       g.edges.forEach(function(e){ if(e.depth === 1) e1++; else e2++; });
     }
-    var sub = document.getElementById('gsub');
-    var wq = document.getElementById('webq');
+    var sub = document.getElementById('gsub'), wq = document.getElementById('webq');
+    var pol = document.getElementById('pol');
+    var opts = pol ? Array.prototype.map.call(pol.options, function(o){
+      return {value:o.value, label:o.textContent};
+    }) : [];
+    var law = G.law, tm = g ? g.tm : null;
+    var claim = document.getElementById('claim');
+    var ab = document.getElementById('actbar');
     return {
       ticker: CUR ? rowTicker(CUR) : '', ex: CUR ? CUR.ex : '', name: CUR ? nd(CUR.name || '') : '',
-      tiles: tiles,
+      policy: {
+        id: law ? law.id : '', name: law ? nd(law.name || '') : '',
+        year: law ? law.year : '', status: law ? law.status : '',
+        mechanism: law ? nd(law.mechanism || '') : '',
+        sectors: law ? (law.sectors || []) : [], tickers: law ? (law.tickers || []) : [],
+        exchange: law ? String(law.exchange || LAW.ex || '') : '',
+        optionCount: opts.length, options: opts,
+        selected: pol ? pol.value : '',
+        fileState: LAW.st
+      },
+      transmission: tm ? {
+        ex: tm.ex, all: tm.all, named: tm.named, sectors: tm.sectors,
+        direct: tm.direct, hop1: tm.hop1, hop2: tm.hop2, off: tm.off,
+        directList: tm.directList, hop1List: tm.hop1List, hop2List: tm.hop2List,
+        offList: tm.offList, noRec: tm.noRec, amberEdges: tm.edgesAmber, message: tm.msg,
+        domDirect: document.querySelectorAll('#b_rel g.nd.st-direct').length,
+        domHop1: document.querySelectorAll('#b_rel g.nd.st-hop1').length,
+        domHop2: document.querySelectorAll('#b_rel g.nd.st-hop2').length,
+        domOff: document.querySelectorAll('#b_rel g.nd.st-off').length,
+        domAmberEdges: document.querySelectorAll('#b_rel path.ge.am').length,
+        domOffEdges: document.querySelectorAll('#b_rel path.ge.off').length
+      } : null,
       graph: {
         hopMode: G.hops, cap: G.cap, truncated: g ? g.trunc : 0,
         nodes: g ? g.nodes.length : 0, edges: g ? g.edges.length : 0,
         hop1: hop1, hop2: hop2, edgesHop1: e1, edgesHop2: e2,
         crossExchange: cross, crossList: crossEx,
         domNodes: document.querySelectorAll('#b_rel .nd').length,
-        /* the map draws bezier paths with an arrowhead, not straight lines */
         domEdges: document.querySelectorAll('#b_rel path.ge').length,
-        domPaths: document.querySelectorAll('#b_rel svg path').length,
         bezierEdges: Array.prototype.filter.call(document.querySelectorAll('#b_rel path.ge'),
           function(p){ return String(p.getAttribute('d') || '').indexOf(' Q') > 0; }).length,
         arrowedEdges: Array.prototype.filter.call(document.querySelectorAll('#b_rel path.ge'),
@@ -2161,8 +1679,6 @@
         centreRadius: g && g.geo ? g.geo.rCtr : 0,
         leafRadius: g && g.geo ? g.geo.r1 : 0,
         zoom: {k: Math.round(MAP.k * 1000) / 1000, x: Math.round(MAP.x), y: Math.round(MAP.y)},
-        hoverDim: document.querySelectorAll('#b_rel path.ge.dim').length,
-        hoverHi: document.querySelectorAll('#b_rel path.ge.hi').length,
         pinned: G.selKey,
         legendRows: Array.prototype.map.call(document.querySelectorAll('#b_rel .gleg .lgr'),
           function(el){ return el.textContent.replace(/\s+/g, ' ').trim(); }),
@@ -2171,22 +1687,25 @@
         mapControls: document.querySelectorAll('#c_rel .kn').length,
         files: EXS.map(function(ex){ return {ex: ex, state: REL_ST[ex] || 'unread'}; }),
         sub: sub ? sub.textContent : '',
-        types: relTypes().filter(function(tp){ return G.types[tp.k]; })
-                        .map(function(tp){ return tp.k; })
+        types: relTypes().filter(function(tp){ return G.types[tp.k]; }).map(function(tp){ return tp.k; })
       },
       sel: selInfo(),
-      thes: {state: TH.st, theme: TH.theme, marked: TH.marked,
-             rows: document.querySelectorAll('#b_thes .tr').length,
-             hits: document.querySelectorAll('#b_thes .tr.hit').length,
-             text: (document.getElementById('b_thes') || {}).textContent || ''},
-      removed: {revenuePanel: !document.getElementById('c_fin'),
-                revenueBox: !document.getElementById('b_fin'),
-                ownershipPanel: !document.getElementById('c_own'),
-                ownershipBox: !document.getElementById('b_own')},
-      px: {mode: PXSTATE.mode, points: PXSTATE.points, bars: PXSTATE.bars},
-      news: {cards: document.querySelectorAll('#b_news .ncard').length},
-      laws: {chips: chips},
+      removed: {
+        head: !document.getElementById('head'),
+        tiles: !document.getElementById('b_strip') && document.querySelectorAll('.tile').length === 0,
+        price: !document.getElementById('c_px') && !document.getElementById('b_px'),
+        charts: document.querySelectorAll('.pxchart,.pxfb').length === 0 &&
+                document.querySelectorAll('script[src*="unpkg"]').length === 0,
+        news: !document.getElementById('c_news') && document.querySelectorAll('.ncard').length === 0,
+        lawChips: !document.getElementById('c_law') && !document.getElementById('b_law') &&
+                  document.querySelectorAll('.chip').length === 0,
+        thesis: !document.getElementById('c_thes') && !document.getElementById('b_thes'),
+        financial: !document.getElementById('c_fin') && !document.getElementById('b_fin')
+      },
+      actbar: ab ? ab.textContent.replace(/\s+/g, ' ').trim() : '',
+      claim: claim ? claim.textContent.replace(/\s+/g, ' ').trim() : '',
       inputs: document.querySelectorAll('input').length,
+      selects: document.querySelectorAll('select').length,
       enabledInputs: document.querySelectorAll('input:not([disabled])').length,
       buttons: document.querySelectorAll('button').length,
       webq: wq ? {disabled: !!wq.disabled, placeholder: wq.placeholder} : null,
@@ -2195,6 +1714,7 @@
   };
 
   /* boot */
+  loadLaws();
   loadIndex().then(function(){
     var tk = Q.get('sym') || Q.get('ticker') || '';
     var ex = (Q.get('ex') || '').toUpperCase();
@@ -2208,7 +1728,7 @@
     if(row){ pick(row); announceReady(); return; }
     if(!tk && ex){
       /* open on a security of the exchange the shell shows that carries a
-         relationship record, so the first screen is a dossier not an empty frame */
+         relationship record, so the first screen is a map with links */
       getJSON(sd('relationships_' + ex + '.json')).then(function(rel){
         var secs = (rel && rel.securities) || {};
         var sel = null;
@@ -2223,7 +1743,7 @@
       });
       return;
     }
-    var def = findRow('SCOM', 'NSE') || IDX[0];
+    var def = findRow('KCB', 'NSE') || findRow('SCOM', 'NSE') || IDX[0];
     if(def) pick(def);
     announceReady();
   });
