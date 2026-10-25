@@ -8,9 +8,9 @@ if(location.protocol==='http:'&&location.hostname!=='localhost'&&location.hostna
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MUTXRI TERMINAL - User Guide</title>
 <link rel="canonical" href="https://mutxriterminal.com/guide.html">
-<meta name="description" content="How to drive MUTXRI TERMINAL. Keyboard-first commands, layouts, markets and panels for JSE, NGX, NSE and EGX, explained in two minutes.">
+<meta name="description" content="How to drive MUTXRI TERMINAL. The command line, the workspaces, every panel code for JSE, NGX, NSE and EGX, the chart search, and what the figures promise.">
 <meta property="og:title" content="MUTXRI TERMINAL - User Guide">
-<meta property="og:description" content="How to drive the terminal: the layout, the command line, and every panel code.">
+<meta property="og:description" content="How to drive the terminal: the layout, the command line, the workspaces, and every panel code.">
 <meta property="og:image" content="/mutxri_logo.png">
 <link rel="icon" href="/mutxri_logo_256.png">
 <link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -63,13 +63,6 @@ h1 span{color:var(--acc)}
      display:flex;gap:14px;flex-wrap:wrap;padding-bottom:6px}
 .cap b{color:var(--tx2);font-weight:400}
 
-.chap{background:var(--bg2);border:1px solid var(--line);border-radius:6px;
-      padding:10px 12px;font-size:12px;color:var(--tx2);cursor:pointer;text-align:left;
-      font-family:var(--sans)}
-.chap:hover{border-color:var(--acc);color:var(--tx)}
-.chap i{font-style:normal;font-family:var(--mono);color:var(--acc);font-size:11px;
-        display:block;margin-bottom:2px}
-
 h2{font-size:13px;font-family:var(--mono);letter-spacing:.16em;color:var(--acc);
    padding:52px 0 6px;text-transform:uppercase}
 h2:first-of-type{padding-top:40px}
@@ -78,9 +71,12 @@ p{color:var(--tx2);font-size:14px;padding:5px 0;max-width:760px}
 code{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);
      padding:1px 7px;border-radius:3px;color:var(--acc);font-size:12.5px;white-space:nowrap}
 strong{color:var(--tx);font-weight:600}
+/* a short code printed under the long name, the way the terminal lists an alias */
+.ali{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.04em;
+     color:var(--tx3);margin-top:3px;line-height:1.5}
 
 /* layout diagram */
-.diagram{display:grid;grid-template-columns:150px 1fr 190px;grid-template-rows:auto auto 1fr auto;
+.diagram{display:grid;grid-template-columns:150px 1fr 190px;grid-template-rows:auto auto 1fr auto auto;
          gap:6px;margin:18px 0 6px;font-family:var(--mono);font-size:10.5px;
          border:1px solid var(--line2);border-radius:8px;padding:10px;background:var(--bg2)}
 .box{border:1px solid var(--line2);border-radius:5px;padding:10px 8px;color:var(--tx3);
@@ -90,6 +86,10 @@ strong{color:var(--tx);font-weight:600}
 .stagebox{min-height:120px;display:flex;align-items:center;justify-content:center;
           color:var(--tx3);text-align:center}
 
+/* the tables scroll sideways inside their own box on a narrow screen rather
+   than pushing the page wider than the phone */
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0 6px;max-width:100%}
+.tblwrap table{margin:0}
 table{width:100%;border-collapse:collapse;font-size:13px;margin:14px 0 6px}
 th{color:var(--acc);text-align:left;padding:9px 10px;border-bottom:1px solid var(--line2);
    font-family:var(--mono);font-size:11px;letter-spacing:.1em;font-weight:400}
@@ -99,7 +99,6 @@ tr:hover td{background:#080808}
 .tag{font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:3px;
      border:1px solid var(--line2);color:var(--tx3);white-space:nowrap}
 .tag.live{color:var(--acc);border-color:rgba(51,226,154,.35)}
-.tag.samp{color:var(--warn);border-color:rgba(224,163,64,.35)}
 .tag.none{color:var(--tx3)}
 
 .note{border-left:2px solid var(--acc);background:var(--bg2);padding:12px 16px;
@@ -111,16 +110,37 @@ tr:hover td{background:#080808}
       color:var(--tx3);font-family:var(--mono);font-size:11px}
 .foot a{color:var(--tx2)}
 /* too narrow to centre between the brand and the button: drop the links onto
-   their own centred row instead of letting them overlap */
+   their own centred row instead of letting them overlap, and let them wrap so
+   a long list never pushes the page wider than the screen */
 @media(max-width:900px){
   .top{flex-wrap:wrap;row-gap:10px}
-  .top nav{position:static;transform:none;order:3;width:100%;justify-content:center}
+  .top nav{position:static;transform:none;order:3;width:100%;justify-content:center;
+           white-space:normal;flex-wrap:wrap;row-gap:4px}
 }
 @media(max-width:720px){
   h1{font-size:29px}
+  /* one column, and every box spans it: a span written for three columns
+     would otherwise create implicit ones and squeeze the boxes to a third */
   .diagram{grid-template-columns:1fr}
+  .span3{grid-column:1/-1}
   .top{padding:12px 16px}
   .wrap{padding:0 16px 60px}
+  td:first-child{white-space:normal}
+  table{font-size:12px}
+  th,td{padding:7px 6px}
+  .tag{white-space:normal}
+  /* the panel table stacks: four columns on a phone leave the description in a
+     strip too narrow to read and push the data tag off the edge. Each row
+     becomes the command, the panel name, the description, then the tag. */
+  .panels,.panels tbody{display:block}
+  .panels tr{display:block;padding:9px 0;border-bottom:1px solid #131313}
+  .panels tr:first-child{display:none}
+  .panels td{display:block;border:0;padding:1px 0}
+  .panels td:nth-child(2){font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+                          color:var(--tx3);text-transform:uppercase;padding-top:5px}
+  .panels td:nth-child(3){padding-top:5px}
+  .panels td:nth-child(4){padding-top:6px}
+  .panels .ali{display:inline-block;margin-left:6px;vertical-align:middle}
 }
 </style>
 <script type="application/ld+json">
@@ -131,7 +151,7 @@ tr:hover td{background:#080808}
       "@type": "Article",
       "@id": "https://mutxriterminal.com/guide.html#article",
       "headline": "Drive the terminal from the first keystroke",
-      "description": "A walkthrough of the MUTXRI TERMINAL: the layout, the ticker command, switching market, window handling, paper trading, panel codes and how to read the labels.",
+      "description": "A walkthrough of the MUTXRI TERMINAL: the layout, the command line, the workspaces, every panel code, the chart search and how to read the labels.",
       "url": "https://mutxriterminal.com/guide.html",
       "inLanguage": "en",
       "isPartOf": {"@id": "https://mutxriterminal.com/#website"},
@@ -158,12 +178,13 @@ tr:hover td{background:#080808}
     <span class="bname">MUTXRI <b>TERMINAL</b></span>
   </a>
   <nav>
-    
     <a href="#layout">Layout</a>
     <a href="#commands">Commands</a>
-    <a href="#markets">Markets</a>
-    <a href="#windows">Windows</a>
+    <a href="#workspaces">Workspaces</a>
     <a href="#panels">Panels</a>
+    <a href="#chart">Chart</a>
+    <a href="#landing">Landing</a>
+    <a href="#data">Data</a>
   </nav>
   <a class="cta" href="/terminal/">Open the Terminal</a>
 </header>
@@ -178,15 +199,17 @@ tr:hover td{background:#080808}
   </section>
 
   <h2 id="layout">The layout</h2>
-  <p>Six regions. Everything you type lands in one of them.</p>
+  <p>Four windows, one strip of workspaces, and a command line. Everything you type
+  lands in one of them.</p>
 
   <div class="diagram">
-    <div class="box span3"><b>TOP BAR</b>Brand, the command line, workspace tabs, clock</div>
+    <div class="box span3"><b>TOP BAR</b>Brand, the command line, the market in front, the clock</div>
     <div class="box span3"><b>TAPE</b>Scrolling prices for the exchange you are on</div>
-    <div class="box"><b>WATCHLIST</b>Every security on this exchange. Code, price, change. Click a row to load it.</div>
-    <div class="box stagebox"><b>STAGE</b><br>The panel you opened. Heatmap by default. Switch with the tabs above it or a command.</div>
-    <div class="box"><b>MARKET</b>Session summary by default; the quote sheet for whatever security you select, and where command errors appear.</div>
-    <div class="box span3"><b>ROOM</b>The chat rail on the far right, for signed-in users</div>
+    <div class="box"><b>WATCHLIST</b>Every security on this exchange. Code, name, price, change. Click a row to load it.</div>
+    <div class="box stagebox"><b>STAGE</b>Where a panel opens. Panels float over the workspace in their own windows, and several stay open at once.</div>
+    <div class="box"><b>MARKET</b>The quote sheet for whatever security you selected, and where a command that does not resolve answers in words.</div>
+    <div class="box span3"><b>CHAT</b>The room window in the right column, for signed-in readers</div>
+    <div class="box span3"><b>WORKSPACES</b>The sheet strip along the foot of the window. MAIN on a first visit; the + adds another.</div>
   </div>
 
   <div class="note">
@@ -195,52 +218,45 @@ tr:hover td{background:#080808}
     is not case sensitive.</p>
   </div>
 
-  <h2 id="commands">
-    <table class=cmds><thead><tr><th>Command</th><th>What it does</th><th>Notes</th></tr></thead><tbody>
-      <tr><td><code>TICKER</code></td><td>Open a security</td><td>Type a ticker on its own, for example <code>SCOM</code>.</td></tr>
-      <tr><td><code>TICKER PANEL</code></td><td>Open both at once</td><td>A ticker followed by a panel, for example <code>MTN FINANCIALS</code>.</td></tr>
-      <tr><td><code>HEATMAP</code></td><td>Heatmap</td><td>The board. One cell per security, grouped by sector, each cell carrying its ticker. Green up, red down, neutral when a security closed unchanged, a dash when no change was published.</td></tr>
-      <tr><td><code>SCREENER</code> <span class=ali>EQS</span></td><td>Screener</td><td>Screen the listed universe on the selected exchange by price, change, volume and the derived ratios.</td></tr>
-      <tr><td><code>TRADE</code> <span class=ali>TR</span></td><td>Trade</td><td>The paper book. Simulated buys, sells and shorts at real exchange prices, accepted only while the exchange is in session.</td></tr>
-      <tr><td><code>FINANCIALS</code> <span class=ali>FA FIN GP HP RV</span></td><td>Financials</td><td>The filed statements. Income statement, balance sheet and cash flow, several years side by side, margins beneath, each figure carrying its source.</td></tr>
-      <tr><td><code>COMPARE</code> <span class=ali>CMP CMPR</span></td><td>Compare</td><td>Two securities on one axis, rebased to a common starting point.</td></tr>
-      <tr><td><code>NEWS</code> <span class=ali>CN NEWS REG</span></td><td>News</td><td>Press headlines, the regulatory wire and corporate actions in one panel.</td></tr>
-      <tr><td><code>ANNOUNCEMENTS</code></td><td>Announcements</td><td>Announcements published by the listed companies and the exchanges.</td></tr>
-      <tr><td><code>BND</code></td><td>Bnd</td><td>The bond board for the selected market.</td></tr>
-      <tr><td><code>FX</code></td><td>Fx</td><td>The cross rate matrix and a converter, so a figure quoted in one currency can be read in another.</td></tr>
-      <tr><td><code>MACRO</code></td><td>Macro</td><td>Annual consumer price inflation per market, with the series and its publication date stated rather than implied.</td></tr>
-      <tr><td><code>PORTFOLIO</code> <span class=ali>TFOLIO PF</span></td><td>Portfolio</td><td>Positions, market value, cost, profit and loss, exposure by sector and by exchange, risk per position.</td></tr>
-      <tr><td><code>RATINGS</code></td><td>Ratings</td><td>Opens the ratings panel.</td></tr>
-      <tr><td><code>REG</code></td><td>Reg</td><td>Opens the reg panel.</td></tr>
-      <tr><td><code>CORP</code></td><td>Corp</td><td>Opens the corp panel.</td></tr>
-      <tr><td><code>GLCO</code></td><td>Glco</td><td>Opens the glco panel.</td></tr>
-      <tr><td><code>TAS</code></td><td>Tas</td><td>Opens the tas panel.</td></tr>
-      <tr><td><code>COMPARE A B</code> <span class=ali>CMP CMPR</span></td><td>Compare</td><td>Two securities side by side, rebased to a common window. Also accepts <code>CMP A B</code> or the form <code>A VS B</code>.</td></tr>
-      <tr><td><code>CLOSE PANEL</code></td><td>Close one window</td><td>Closes the named panel, for example <code>CLOSE FINANCIALS</code>, so the centre stage is clear for the next command.</td></tr>
-      <tr><td><code>TILE</code></td><td>Lay the windows out</td><td>Tiles the open panel windows instead of letting them overlap.</td></tr>
-      <tr><td><code>RESET</code></td><td>Back to the default layout</td><td>Clears the panel windows and returns the workspace to its starting arrangement.</td></tr>
-    </tbody></table>
-What to type</h2>
+  <h2 id="commands">Commands</h2>
+  <p>One line takes a ticker, a panel code, a market, or a few of them together.</p>
+
+  <div class="tblwrap"><table>
+    <tr><th>Type</th><th>What it does</th><th>Notes</th></tr>
+    <tr><td><code>SCOM</code></td><td>Open a security</td><td>A ticker on its own. A company name works too: <code>SAFARICOM</code>.</td></tr>
+    <tr><td><code>MTN FINANCIALS</code></td><td>Open both at once</td><td>A ticker then a panel code, so the panel opens already scoped to that company.</td></tr>
+    <tr><td><code>FISCAL</code></td><td>Open a panel window</td><td>Any code from the panel list below. Type the same code again to close that window.</td></tr>
+    <tr><td><code>HELP</code></td><td>List the panels</td><td>Every panel code and name, in the rail on the right.</td></tr>
+    <tr><td><code>CLOSE FINANCIALS</code></td><td>Close one panel window</td><td>Leaves the rest of the set alone, so the stage is clear for the next command.</td></tr>
+    <tr><td><code>TILE</code></td><td>Lay the windows out</td><td>Tiles the open panel windows instead of letting them overlap.</td></tr>
+    <tr><td><code>RESET</code></td><td>Back to the default layout</td><td>Closes the extra panel windows and restores the house arrangement.</td></tr>
+    <tr><td><code>WINDOWS</code></td><td>Open all four windows</td><td><code>ALL</code> does the same.</td></tr>
+    <tr><td><code>WATCH</code>, <code>PANEL</code>, <code>MARKET</code>, <code>CHAT</code></td><td>Toggle one window</td><td><code>WATCHLIST</code>, <code>CENTER</code>, <code>INFO</code> and <code>ROOM</code> do the same. A window you shut is remembered between sessions.</td></tr>
+    <tr><td><code>COMPARE SCOM EQTY</code></td><td>Compare securities</td><td><code>CMP</code> or <code>CMPR</code>, two to four securities, or the form <code>SCOM VS EQTY</code>.</td></tr>
+    <tr><td><code>NGX</code></td><td>Switch market</td><td>An exchange (<code>JSE</code>, <code>NGX</code>, <code>NSE</code>, <code>EGX</code>) or a country (<code>ZA</code>, <code>NG</code>, <code>KE</code>, <code>EG</code>).</td></tr>
+  </table></div>
+
+  <h2 id="typing">What to type</h2>
   <p>Four patterns cover the everyday work.</p>
 
-  <table>
+  <div class="tblwrap"><table>
     <tr><th>Pattern</th><th>Example</th><th>What happens</th></tr>
     <tr>
       <td><code>HELP</code></td>
       <td><code>HELP</code></td>
-      <td>Lists every panel code in the info rail on the right.</td>
+      <td>Lists every panel code in the rail on the right.</td>
     </tr>
     <tr>
       <td>A ticker</td>
       <td><code>SOL</code></td>
-      <td>Opens that company's quote sheet in the info rail: price, change, volume,
+      <td>Opens that company's quote sheet in the MARKET window: price, change, volume,
           sector, country, chief executive, competitors, customers, partners, suppliers,
           shares in issue, market cap and major shareholders.</td>
     </tr>
     <tr>
       <td>A panel code</td>
       <td><code>HEATMAP</code></td>
-      <td>Opens that panel in the stage, on the exchange you are currently viewing.</td>
+      <td>Opens that panel in its own window, on the exchange you are currently viewing.</td>
     </tr>
     <tr>
       <td>Ticker then panel</td>
@@ -248,22 +264,21 @@ What to type</h2>
       <td>Opens the panel already scoped to that company. This is the fastest route to a
           single company's statements.</td>
     </tr>
-  </table>
+  </table></div>
 
-  <p>A company name works wherever a ticker does, if you type it in full. Anything the
-  terminal cannot resolve comes back as a short error in the info rail rather than a
-  blank screen.</p>
+  <p>A company name works wherever a ticker does. Anything the terminal cannot resolve
+  comes back as a short error in the rail rather than a blank screen.</p>
 
   <h2 id="markets">Switching market</h2>
   <p>You never have to leave the command line to change exchange.</p>
 
-  <table>
+  <div class="tblwrap"><table>
     <tr><th>Pattern</th><th>Example</th><th>What happens</th></tr>
     <tr><td>An exchange</td><td><code>NGX</code></td><td>Switches the whole board to that market. <code>JSE</code>, <code>NGX</code>, <code>EGX</code>.</td></tr>
     <tr><td>A country code</td><td><code>KE</code></td><td>Same thing by country: <code>ZA</code>, <code>NG</code>, <code>KE</code>, <code>EG</code>.</td></tr>
     <tr><td>Ticker then market</td><td><code>MTN JSE</code></td><td>Switches market and opens that company, in one go.</td></tr>
     <tr><td>Market then panel</td><td><code>EGX NEWS</code></td><td>Switches market and opens the panel there, at market level.</td></tr>
-  </table>
+  </table></div>
 
   <div class="note warn">
     <p><strong>One exception worth knowing.</strong> <code>NSE</code> and <code>JSE</code> are each both an exchange and a company
@@ -276,94 +291,166 @@ What to type</h2>
   <p>If you have used a terminal keyboard, these will be familiar. They work anywhere a
   panel code does, including after a ticker.</p>
 
-  <table>
+  <div class="tblwrap"><table>
     <tr><th>Type</th><th>Same as</th></tr>
-    <tr><td><code>FA</code>, <code>FIN</code>, <code>RV</code></td><td><code>FINANCIALS</code> - so <code>SCOM FA</code> is Safaricom's statements</td></tr>
+    <tr><td><code>FA</code>, <code>FIN</code>, <code>GP</code>, <code>HP</code>, <code>RV</code></td><td><code>FINANCIALS</code>, so <code>SCOM FA</code> is Safaricom's statements</td></tr>
     <tr><td><code>EQS</code></td><td><code>SCREENER</code></td></tr>
-    <tr><td><code>CN</code>, <code>REG</code></td><td><code>NEWS</code> - company news and the regulator wire live in the one panel</td></tr>
-    <tr><td><code>DES</code>, <code>SPLC</code></td><td>The quote sheet for the security you have selected</td></tr>
-  </table>
+    <tr><td><code>CN</code></td><td><code>NEWS</code></td></tr>
+    <tr><td><code>CMP</code>, <code>CMPR</code></td><td><code>COMPARE</code></td></tr>
+    <tr><td><code>TR</code></td><td><code>TRADE</code></td></tr>
+    <tr><td><code>BOND</code>, <code>BONDS</code></td><td><code>BND</code></td></tr>
+    <tr><td><code>DERIV</code>, <code>DERIVATIVES</code></td><td><code>DER</code></td></tr>
+    <tr><td><code>BUDGET</code>, <code>BUDGETS</code></td><td><code>FISCAL</code></td></tr>
+    <tr><td><code>PF</code></td><td><code>PORTFOLIO</code></td></tr>
+  </table></div>
 
   <h2 id="windows">Windows</h2>
-  <p>Each region can be closed with its own control, and the closed state is remembered
-  between sessions - so these are how you get one back.</p>
+  <p>Each window can be closed with its own control, and the closed state is remembered
+  between sessions, so these are how you get one back.</p>
 
-  <table>
+  <div class="tblwrap"><table>
     <tr><th>Type</th><th>What happens</th></tr>
     <tr><td><code>WATCH</code>, <code>PANEL</code>, <code>MARKET</code>, <code>CHAT</code></td><td>Opens that window, or closes it if it is already open. <code>WATCHLIST</code>, <code>CENTER</code>, <code>INFO</code> and <code>ROOM</code> do the same.</td></tr>
     <tr><td><code>WINDOWS</code>, <code>ALL</code></td><td>Opens all four at once.</td></tr>
     <tr><td><code>RESET</code>, <code>TILE</code></td><td>Puts the layout back to the default tiling.</td></tr>
-  </table>
+  </table></div>
+
+  <h2 id="workspaces">Workspaces</h2>
+  <p>The strip along the foot of the window holds your workspaces. A first visit has one,
+  <strong>MAIN</strong>, and it holds WATCHLIST, MARKET, FOCUS and CHAT.</p>
+
+  <p>The other six sets are not tabs. They are behind the <strong>+</strong> at the right
+  end of the strip: <strong>START HERE</strong>, <strong>INVESTOR</strong>,
+  <strong>TRADER</strong>, <strong>ANALYST</strong>, <strong>FUND MANAGER</strong> and
+  <strong>ECONOMIST</strong>. Picking one appends it, so it never replaces the workspace
+  you already have. Anything you add from the + is yours: it is saved, and it comes back on
+  the next visit. A guest's arrangement lasts while the page stays open, and the strip says
+  so.</p>
+
+  <div class="tblwrap"><table>
+    <tr><th>Control</th><th>What happens</th></tr>
+    <tr><td><code>MAIN</code></td><td>The house arrangement: WATCHLIST down the left, MARKET the largest in the middle, FOCUS top right, CHAT under it. It re-tiles to the window you actually have until you move something.</td></tr>
+    <tr><td><code>+</code></td><td>Adds a workspace. The menu offers an empty one, or one of the six sets above.</td></tr>
+    <tr><td>A tab</td><td>Switches to that workspace. Each one keeps its own window places, sizes and stacking order.</td></tr>
+    <tr><td>Double click a tab</td><td>Renames it.</td></tr>
+    <tr><td><code>x</code> on a tab</td><td>Deletes it. One workspace always stays.</td></tr>
+    <tr><td>Dragging a window</td><td>That workspace stops being automatic and keeps the arrangement you gave it.</td></tr>
+  </table></div>
 
   <h2 id="trade">Paper trading</h2>
-  <p>The <code>TRADE</code> panel has two tabs. <b>PAPER</b> is a practice account: orders are
-  simulated against real exchange prices, no fees or taxes are modelled, and nothing is sent to a
-  broker, because MX Terminal is not one. The account is held in your own browser, one per exchange,
-  in that market&rsquo;s currency. <b>LIVE</b> shows what a real brokerage account needs on that
-  market; live orders are in development.</p>
-  <p>Prices on the site refresh about every three hours, and the panel checks every five minutes.
-  Each time, positions revalue at the latest price, with day P&amp;L against the previous close, and
-  working orders are checked. A resting order is only checked against sessions after the one it was
-  placed in: a limit fills at its price, or at the open if that session gapped through it; a stop
-  fills at its price, or at the open if it gapped past. DAY orders expire after one session, GTC
-  orders carry over, and cash or shares are set aside for orders still working.</p>
+  <p>The <code>TRADE</code> panel has two tabs. <b>PAPER</b> is a practice account: orders
+  are simulated against the published prices, no fees or taxes are modelled, and nothing is
+  sent to a broker, because MX Terminal is not one. The account is held in your own browser,
+  one per exchange, in that market's currency. <b>LIVE</b> says what a real brokerage account
+  would need on that market; live orders are not available.</p>
 
-  <table>
-    <tr><th>Type</th><th>What happens</th></tr>
-    <tr><td><code>TRADE</code></td><td>Opens the paper account for the market you are on.</td></tr>
-    <tr><td><code>BUY SCOM 100</code></td><td>A market order: buys 100 Safaricom at the latest price.</td></tr>
-    <tr><td><code>SELL MTN 50</code></td><td>Sells 50 from a paper position, if you hold that many.</td></tr>
-    <tr><td>Limit, stop, stop limit</td><td>Pick the order type in the ticket, set the price, and choose DAY or GTC. The order waits under Working orders until a new session reaches its price, and you can cancel it any time.</td></tr>
-  </table>
+  <p>The ticket takes a side, a quantity, an order type and, where the type needs them, a
+  price and a time in force. Market orders fill at the latest published price. Limit, stop
+  and stop-limit orders rest under working orders until a session reaches them. DAY orders
+  expire after one session and GTC orders carry over. <code>RESET PAPER ACCOUNT</code>
+  clears the book for that exchange.</p>
 
   <h2 id="panels">Panel codes</h2>
   <p>Type any of these on their own, or after a ticker. They are also the tabs across the
-  top of the stage.</p>
+  top of the stage. <code>HELP</code> prints this list in the terminal.</p>
 
-  <table>
-    <tr><th>Code</th><th>Panel</th><th>Data</th></tr>
-    <tr><td><code>HEATMAP</code></td><td>Sector map for the exchange. Cell size is weight, colour is the day's move. Click a sector for its constituents, then a name to chart it in candles, line or area over 1D, 1M, 1Y, 10Y or the full history.</td><td><span class="tag live">live snapshot</span></td></tr>
-    <tr><td><code>SCREENER</code></td><td>Every listed equity, filtered by sector, price, change, volume and dividend yield. Exports to CSV.</td><td><span class="tag live">live snapshot</span></td></tr>
-    <tr><td><code>FINANCIALS</code></td><td>Income statement, balance sheet and cash flow, parsed from company filings, with reporting periods side by side.</td><td><span class="tag live">all four exchanges</span></td></tr>
-        <tr><td><code>NEWS</code></td><td>One wire per market: press headlines, the regulator wire, and corporate actions - dividends and book closures with ticker chips.</td><td><span class="tag live">live</span></td></tr>
-    <tr><td><code>COMPARE</code></td><td>Two securities side by side on price, valuation and the statement lines behind them.</td><td><span class="tag live">all four exchanges</span></td></tr>
-    <tr><td><code>ANNOUNCEMENTS</code></td><td>Dated company announcements and the corporate-actions calendar - dividends, book closures and AGMs.</td><td><span class="tag live">live</span></td></tr>
-    <tr><td><code>MACRO</code></td><td>Published annual inflation and macro series by country, plotted from the source release.</td><td><span class="tag live">published data</span></td></tr>
-    <tr><td><code>PORTFOLIO</code></td><td>Your paper book by exchange: positions, profit and loss, allocation and the value curve.</td><td><span class="tag none">paper</span></td></tr>
-        <tr><td><code>BND</code></td><td>Government bonds and treasury bills by country.</td><td><span class="tag live">central-bank auctions</span></td></tr>
-<tr><td><code>FX</code></td><td>Cross rates and a converter across KES, NGN, ZAR, EGP, USD, EUR and GBP.</td><td><span class="tag live">live</span></td></tr>
-    <tr><td><code>TAS</code></td><td>Time and sales, the intraday print tape.</td><td><span class="tag none">not available</span></td></tr>
-    <tr><td><code>RATINGS</code></td><td>Analyst consensus and signal tally.</td><td><span class="tag none">no signals yet</span></td></tr>
-    <tr><td><code>TRADE</code></td><td>Paper trading with market, limit, stop and stop-limit orders against real prices; positions and P&amp;L move as prices refresh. The LIVE tab shows what a real account needs on each market. Nothing reaches a broker, no money moves, and the account lives in your browser.</td><td><span class="tag none">paper</span></td></tr>
-  </table>
+  <div class="tblwrap"><table class="panels">
+    <tr><th>Command</th><th>Panel</th><th>What it shows</th><th>Data</th></tr>
+    <tr><td><code>HEATMAP</code></td><td>Sector map</td><td>One cell per security, packed by weight and coloured by the day's move. Click a sector for its constituents, then a name for its chart.</td><td><span class="tag live">day snapshot</span></td></tr>
+    <tr><td><code>SCREENER</code><span class="ali">EQS</span></td><td>Screener</td><td>The listed universe filtered by sector, price, change, volume and dividend yield. Exports to CSV.</td><td><span class="tag live">day snapshot</span></td></tr>
+    <tr><td><code>TRADE</code><span class="ali">TR</span></td><td>Paper book</td><td>The ticket: BUY, SELL or SHORT at the published price, with market, limit, stop and stop-limit orders, DAY or GTC, plus positions and working orders.</td><td><span class="tag none">paper, in your browser</span></td></tr>
+    <tr><td><code>FINANCIALS</code><span class="ali">FA FIN GP HP RV</span></td><td>Financials</td><td>Income statement, balance sheet and cash flow from the filed statements, periods side by side, each figure with its source and unit.</td><td><span class="tag live">filings</span></td></tr>
+    <tr><td><code>COMPARE</code><span class="ali">CMP CMPR</span></td><td>Compare</td><td>Two to four securities side by side. Every figure carries its period and its currency, a missing one prints as absent, and a withheld one says why.</td><td><span class="tag live">filings, analytics</span></td></tr>
+    <tr><td><code>NEWS</code><span class="ali">CN</span></td><td>News</td><td>Press headlines and the corporate actions wire for the exchange, in one panel.</td><td><span class="tag live">published wire</span></td></tr>
+    <tr><td><code>ANNOUNCEMENTS</code></td><td>Announcements</td><td>Listed company announcements with a link to the source filing: results, AGM notices, dividends, board changes, disclosures.</td><td><span class="tag live">exchange filings</span></td></tr>
+    <tr><td><code>BND</code><span class="ali">BOND BONDS</span></td><td>Bond board</td><td>Sovereign and corporate instruments with coupon, maturity and the yield or price, each row carrying its own as-of date and source.</td><td><span class="tag live">curated snapshot</span></td></tr>
+    <tr><td><code>DER</code><span class="ali">DERIV DERIVATIVES</span></td><td>Derivatives</td><td>Listed contracts: underlying, type, expiry with the days to expiry computed from the real date, and the price or settlement. An expiry that has passed is tagged EXPIRED.</td><td><span class="tag live">snapshot</span></td></tr>
+    <tr><td><code>FX</code></td><td>Cross rates</td><td>The matrix across KES, NGN, ZAR, EGP, USD, EUR and GBP, plus a converter.</td><td><span class="tag live">published rates</span></td></tr>
+    <tr><td><code>MACRO</code></td><td>Macro</td><td>Annual consumer price inflation, GDP, GDP growth and GDP per capita per country, reproduced as published. Annual series, not a monthly print.</td><td><span class="tag live">World Bank data</span></td></tr>
+    <tr><td><code>FISCAL</code><span class="ali">BUDGET BUDGETS</span></td><td>Government budget</td><td>The budget by sector with the year on year change as an amount and a percentage, the listed companies each sector reaches, and the Acts in force. NSE and JSE carry the budget; NGX and EGX say none was sourced.</td><td><span class="tag live">budget and Acts files</span></td></tr>
+    <tr><td><code>PORTFOLIO</code><span class="ali">PF</span></td><td>Portfolio</td><td>Your paper book by exchange: positions, value, profit and loss, allocation and the value curve. A position it cannot price is named, not valued at zero.</td><td><span class="tag none">paper, in your browser</span></td></tr>
+    <tr><td><code>REG</code></td><td>Regulatory wire</td><td>Official regulator and central bank releases for the selected market.</td><td><span class="tag live">published releases</span></td></tr>
+    <tr><td><code>CORP</code></td><td>Corporate actions</td><td>Dividends and book closures, index levels, and the gainers, losers and movers lists.</td><td><span class="tag live">exchange notices</span></td></tr>
+    <tr><td><code>GLCO</code></td><td>Commodities</td><td>The commodity board with its regional angle: gold and platinum, cocoa, coffee and tea, each with a price, a day move and a sparkline.</td><td><span class="tag live">published board</span></td></tr>
+    <tr><td><code>TAS</code></td><td>Time and sales</td><td>The trade tape for markets that publish intraday prints. Where a market is end of day it says there is no intraday tape.</td><td><span class="tag none">no tape yet</span></td></tr>
+    <tr><td><code>FOCUS</code></td><td>Quote card</td><td>One security, large: the price, the change in percent and in levels, a block of price history and the top holders. It is the panel in the house arrangement.</td><td><span class="tag live">day snapshot</span></td></tr>
+    <tr><td><code>CHART</code></td><td>Chart</td><td>Candlestick, line or area for one security, with drawing tools, indicators and its own search field. See the chart section below.</td><td><span class="tag live">exchange bars</span></td></tr>
+  </table></div>
 
   <div class="note warn">
-    <p><strong>Why some panels say that.</strong> These markets are end of day, so there
-    is no intraday print tape to show under TAS, and no free analyst feed behind RATINGS.
-    The terminal says so rather than filling the space with numbers nobody sourced. BND
-    has real central bank auction data behind it, but the deployed panel is still pointed
-    at a live endpoint that the static site does not serve, so it falls back to its
-    labelled sample.</p>
+    <p><strong>Why a panel can be empty.</strong> These markets are end of day, so where no
+    intraday print exists TAS says so instead of drawing a tape. BND, DER and GLCO read
+    published snapshots rather than a live feed, because no free real-time feed exists for
+    them, and a value the source does not publish is left blank with its reason rather than
+    filled in.</p>
+    <p>HOLDERS and RESEARCH are no longer panels. The holder rows sit in the MARKET window
+    and in FOCUS, and the research stack opens in the MARKET window when you click a
+    security there.</p>
   </div>
 
-  <h2>Reading the labels</h2>
-  <table>
+  <h2 id="chart">The chart panel</h2>
+  <p><code>CHART</code> opens a chart for the security in focus, with its own search field
+  in the header. Type a ticker, or part of a company name, and a list of matching securities
+  appears under the field as you type. It is not case sensitive.</p>
+
+  <p>A ticker that starts with what you typed is listed first, then any other ticker or name
+  that contains it. Only securities the selected exchange lists are offered, because the
+  list is read from the same market file the chart draws from. Pick a row with the mouse, or
+  move with the arrow keys and press Enter; Enter with no row highlighted opens the first
+  match. Escape clears the field.</p>
+
+  <p>A query that matches nothing prints <code>NO NSE SECURITY MATCHES "..."</code>, naming
+  the exchange and what you typed, and the chart stays on the security it was showing. If
+  you press Enter on words that match nothing, they are passed through as a ticker and the
+  chart says it has no quote or no history for it rather than drawing something else.</p>
+
+  <h2 id="landing">On the landing page</h2>
+  <p>The landing page now carries a display-only terminal in the hero, and one static panel
+  view beside each of its eight feature sections. They are pictures of the product. Every
+  frame is inert: nothing inside a display can be clicked, typed into or scrolled, and the
+  search field drawn in the CHART window of the hero is part of the picture too. Open the
+  terminal for the real thing.</p>
+
+  <p>Below 821px the page stacks. The desk inside the hero frame becomes one column of seven
+  windows, in this order: <strong>MARKET</strong>, <strong>CHART</strong>,
+  <strong>FOCUS</strong>, <strong>COMPARE</strong>, <strong>HEATMAP</strong>,
+  <strong>MACRO</strong>, <strong>WATCHLIST</strong>. The frame takes the height of that
+  column, so you scroll the page and the desk moves past with it.</p>
+
+  <p>The eight feature sections show the quote monitor, the chart, financials, the screener,
+  the investor sheet, corporate actions, news and paper trading, each as one panel view on
+  one exchange.</p>
+
+  <h2 id="data">What the figures promise</h2>
+  <p>Every figure the terminal prints carries its source and its unit, and the period it
+  belongs to where the period matters. A figure the source does not publish prints as
+  absent, in words or as a dash with the reason on it, and never as a zero. A period the
+  source marks as a projection is labelled as a projection. A ratio that is withheld prints
+  as withheld and says why. A panel with nothing behind it says so rather than filling the
+  space.</p>
+
+  <h2 id="labels">Reading the labels</h2>
+  <div class="tblwrap"><table>
     <tr><th>You see</th><th>It means</th></tr>
     <tr><td><code>EOD</code></td><td>End of day. The price is the last official close, not a live quote.</td></tr>
-    <tr><td><code>SAMPLE</code></td><td>Placeholder data, shown only where a real feed is not wired up yet. Never mixed into real numbers.</td></tr>
-    <tr><td><code>-</code></td><td>No value exists for that field. The terminal leaves it blank rather than guessing.</td></tr>
-    <tr><td>NO FREE OHLC FEED</td><td>No public price history exists for that security, so the chart shows the honest board price instead of drawing a line.</td></tr>
-  </table>
+    <tr><td><code>withheld</code></td><td>The exchange withheld that figure. The cell names the reason it is withheld.</td></tr>
+    <tr><td><code>-</code></td><td>No value exists for that field. Where the panel records a reason, the cell carries it.</td></tr>
+    <tr><td><code>no current quote</code>, <code>change not stated</code></td><td>The snapshot has no price or no change for that security, so the panel says so instead of printing a zero.</td></tr>
+    <tr><td><code>n/a</code></td><td>No value was published for that year. It is never filled in.</td></tr>
+    <tr><td><code>EXPIRED</code></td><td>A contract whose expiry date has passed.</td></tr>
+  </table></div>
 
-  <h2>Getting in</h2>
-  <p>The terminal is behind a sign in. From the landing page, choose <strong>Login</strong>
-  or <strong>Sign Up</strong>, then either continue with Google or use an email and
-  password. Google is the quickest route: pick the account and you land straight in the
-  terminal with no new password to remember.</p>
+  <h2 id="signin">Getting in</h2>
+  <p>Open the terminal and it loads on the market you last used. Reading is open to anyone.
+  Two things ask for an account: the paper book (<code>TRADE</code> and
+  <code>PORTFOLIO</code>), and saving a layout, including the workspaces you add. From the
+  landing page choose <strong>Login</strong> or <strong>Sign Up</strong>, then continue with
+  Google or use an email and password. Google is the quickest route: pick the account and
+  you land straight in the terminal with no new password to remember.</p>
 
   <div class="foot">
-    MX Terminal user guide &middot; <a href="/terminal/">Open the terminal</a> &middot;
-    <a href="/">Home</a> &middot; <a href="/privacy.html">Privacy</a> &middot;
+    MX Terminal user guide / <a href="/terminal/">Open the terminal</a> /
+    <a href="/">Home</a> / <a href="/privacy.html">Privacy</a> /
     <a href="/terms.html">Terms</a>
   </div>
 
