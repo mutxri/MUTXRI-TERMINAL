@@ -7,11 +7,19 @@
     CENTRE         one box: ticker and board on a coloured strip, the company
                    name, the last price, the percent change, and a sparkline
                    read from static_data/history/<KEY>.json.
-    CONSTELLATION  separate small clusters on a rough ring around that box, each
+    CONSTELLATION  twelve small circles on a rough ring around that box, each
                    with its own title and a count in brackets, each joined to the
-                   centre by one thin line. Each radial cluster has a tiny hub
-                   and coloured labelled boxes around it, joined to that hub by
-                   short lines. Box colour carries meaning, never decoration.
+                   centre by one thin line. A radial cluster is drawn as a
+                   starburst: one tiny hub disc at its own centre, a faint
+                   dashed circle at the node radius, and the coloured labelled
+                   boxes standing on that circle, each joined to the hub by a
+                   short spoke. A cluster past ten nodes would use one inner and
+                   one outer ring; the per cluster cap of eight means every
+                   cluster here draws a single ring. Box colour carries meaning,
+                   never decoration.
+    KEPT AS PANELS NEWS, EVENTS and BALANCE SHEET stay framed panels: a list of
+                   headlines and three bars are not radial data, and turning
+                   either into a circle would destroy the reading.
 
   What each cluster reads, and nothing else:
 
@@ -162,16 +170,22 @@
   .gsub b{color:var(--down);font-weight:700}
   path.cn{fill:none;stroke:#1d1d1d;stroke-width:1}
   path.cn.hi{stroke:#4a4a4a}
+  /* a radial cluster is a circle: a hub, a faint dashed ring at the node
+     radius, and its boxes on that ring, joined to the hub by short spokes */
+  circle.cring{fill:none;stroke:#282828;stroke-width:.9;stroke-dasharray:2.6 3.4}
+  circle.cring.hi{stroke:#484848}
+  circle.cring.promo{stroke:#4a3810}
+  /* the two text clusters and the bar cluster keep a framed panel: a list of
+     headlines and three bars are not radial data */
   rect.cb2{fill:#030303;stroke:#1a1a1a;stroke-width:1}
-  rect.cb2.promo{stroke:#4a3810}
   rect.cb2.hi{stroke:#3d3d3d}
   text.ct{font-family:var(--mono);font-size:7.6px;letter-spacing:.13em;font-weight:700;fill:#33e29a}
   text.ct.promo{fill:#e0a341}
   text.cc{font-family:var(--mono);font-size:7.2px;letter-spacing:.06em;fill:#6a6a6a}
-  line.crule{stroke:#171717;stroke-width:1}
-  rect.pbar{fill:#e0a341}
   circle.hub{fill:#1b1b1b;stroke:#3a3a3a;stroke-width:.8}
+  circle.hub.promo{fill:#3a2c10;stroke:#8a6a22}
   line.sp{stroke:#242424;stroke-width:.7}
+  line.sp.promo{stroke:#3a2c10}
   g.nd{pointer-events:all;cursor:pointer}
   rect.nb{fill:#080808;stroke:#3a3a3a;stroke-width:1}
   text.nt{font-family:var(--mono);font-size:6.8px;letter-spacing:.03em}
@@ -1228,120 +1242,186 @@
 
   /* ---------- 5. geometry ------------------------------------------- */
   /* Sizes shrink with the viewport so twelve clusters and one centre box fit at
-     1280 as well as at 1600. Placement is a rough ring of seeds plus a
-     separation pass; if any two boxes still touch, the whole set is scaled down
-     and placed again, so an overlap is never shipped. */
-  function sizeOf(c, s){
+     1100 as well as at 1600. Every cluster is laid out as a CIRCLE: the radial
+     ones are circles by construction (hub, ring, boxes on the ring), and the
+     three the owner kept as panels are inscribed in one, so a single rule
+     covers all twelve. Placement is a seed on an ellipse plus a separation
+     pass; if any two circles still touch, the whole set is scaled down and
+     placed again, so an overlap is never shipped. */
+  function nodeBoxW(c, s){
+    var fs = 6.8 * s, w = Math.max(24, 30 * s);
+    c.items.forEach(function(it){
+      w = Math.max(w, Math.round(String(it.label || '?').length * fs * 0.62 + 7));
+    });
+    return Math.round(w);
+  }
+  /* one ring while a cluster is small; past ten nodes a single inner ring and a
+     single outer ring, so the circle never becomes a dense wall of boxes */
+  function ringPlan(n, s, boxW, boxH){
+    var minR = Math.max(24 * s, boxW * 0.5 + 9 * s);
+    function chordR(cnt){
+      if(cnt <= 1) return 0;
+      return (boxW + Math.max(5 * s, 6)) / (2 * Math.sin(Math.PI / cnt));
+    }
+    if(n <= 10){
+      var r0 = n <= 1 ? minR : Math.max(minR, chordR(n));
+      return [{r:r0, n:n}];
+    }
+    var inner = Math.ceil(n * 0.42), outer = n - inner;
+    var r1 = Math.max(minR, chordR(inner));
+    var r2 = Math.max(r1 + boxH + 12 * s, chordR(outer), r1 * 1.7);
+    return [{r:r1, n:inner}, {r:r2, n:outer}];
+  }
+  function footOf(c, s){
     if(c.kind === 'text'){
       var nt = Math.max(1, c.items.length);
-      return {w:Math.round(152 * s), h:Math.round((20 + nt * 12) * s + 6)};
+      var w1 = Math.round(152 * s), h1 = Math.round((20 + nt * 12) * s + 6);
+      return {kind:'text', w:w1, h:h1, R:Math.sqrt(w1 * w1 + h1 * h1) / 2 + 1, rings:[]};
     }
     if(c.kind === 'bars'){
-      return {w:Math.round(140 * s), h:Math.round(92 * s)};
+      var w2 = Math.round(140 * s), h2 = Math.round(92 * s);
+      return {kind:'bars', w:w2, h:h2, R:Math.sqrt(w2 * w2 + h2 * h2) / 2 + 1, rings:[]};
     }
-    var cnt = Math.max(1, c.items.length);
-    var rx = 26 * s + Math.min(8, cnt) * 4.6 * s;
-    if(c.promo) rx = Math.max(rx, 40 * s);
-    var ry = rx * 0.70;
-    var maxLen = 0;
-    c.items.forEach(function(it){ maxLen = Math.max(maxLen, String(it.label || '').length); });
-    var padX = Math.max(26 * s, maxLen * 6.8 * s * 0.62 + 11 * s);
-    var w = Math.round(2 * rx + padX), h = Math.round(2 * ry + 30 * s);
-    if(c.promo){ w = Math.max(w, Math.round(172 * s)); h = Math.max(h, Math.round(120 * s)); }
-    return {w:w, h:h, rx:rx, ry:ry};
+    var boxH = Math.max(9, Math.round(12 * s));
+    var boxW = nodeBoxW(c, s);
+    var rings = ringPlan(Math.max(0, c.items.length), s, boxW, boxH);
+    var rmax = 0;
+    rings.forEach(function(rg){ rmax = Math.max(rmax, rg.r); });
+    var body = rmax + boxH / 2 + 3 * s;
+    /* the title sits above the circle, inside the footprint, so a title can
+       never run into a neighbour even when the ring is small */
+    return {kind:'radial', boxW:boxW, boxH:boxH, fs:6.8 * s, rings:rings,
+            body:body, R:body + Math.max(10 * s, 9)};
   }
-  function aabbHit(a, b, gap){
-    return !(a.x + a.w + gap <= b.x || b.x + b.w + gap <= a.x ||
-             a.y + a.h + gap <= b.y || b.y + b.h + gap <= a.y);
+  function onBox(b, x, y){
+    return {x:Math.max(b.x, Math.min(b.x + b.w, x)),
+            y:Math.max(b.y, Math.min(b.y + b.h, y))};
   }
-  function relax(boxes, cbox, W, areaH, topPad, gap){
-    var i, j, it, a, b, ox, oy, minY = topPad + 2, maxY = topPad + areaH - 6;
-    for(it = 0; it < 320; it++){
+  function relaxCircles(nodes, cbox, W, areaH, topPad, gap){
+    var i, j, it, a, b, dx, dy, d, need, push, ux, uy;
+    for(it = 0; it < 420; it++){
       var moved = false;
-      for(i = 0; i < boxes.length; i++){
-        for(j = i + 1; j < boxes.length; j++){
-          a = boxes[i]; b = boxes[j];
-          ox = (a.w + b.w) / 2 + gap - Math.abs((a.x + a.w / 2) - (b.x + b.w / 2));
-          oy = (a.h + b.h) / 2 + gap - Math.abs((a.y + a.h / 2) - (b.y + b.h / 2));
-          if(ox > 0 && oy > 0){
-            if(ox < oy){
-              var sx = (a.x + a.w / 2) < (b.x + b.w / 2) ? -1 : 1;
-              a.x += sx * Math.ceil(ox / 2); b.x -= sx * Math.ceil(ox / 2);
+      for(i = 0; i < nodes.length; i++){
+        for(j = i + 1; j < nodes.length; j++){
+          a = nodes[i]; b = nodes[j];
+          dx = b.x - a.x; dy = b.y - a.y;
+          d = Math.sqrt(dx * dx + dy * dy);
+          need = a.R + b.R + gap;
+          if(d < need){
+            if(d < 0.01){ ux = 1; uy = 0; } else { ux = dx / d; uy = dy / d; }
+            /* the amber LAWS cluster is pinned at nine o'clock, so it holds its
+               place and the rest of the ring moves around it */
+            if(a.pin && b.pin) continue;
+            if(a.pin){
+              b.x += ux * (need - d + 0.5); b.y += uy * (need - d + 0.5);
+            } else if(b.pin){
+              a.x -= ux * (need - d + 0.5); a.y -= uy * (need - d + 0.5);
             } else {
-              var sy = (a.y + a.h / 2) < (b.y + b.h / 2) ? -1 : 1;
-              a.y += sy * Math.ceil(oy / 2); b.y -= sy * Math.ceil(oy / 2);
+              push = (need - d) / 2 + 0.5;
+              a.x -= ux * push; a.y -= uy * push;
+              b.x += ux * push; b.y += uy * push;
             }
             moved = true;
           }
         }
       }
-      boxes.forEach(function(p){
-        ox = (p.w + cbox.w) / 2 + gap - Math.abs((p.x + p.w / 2) - (cbox.x + cbox.w / 2));
-        oy = (p.h + cbox.h) / 2 + gap - Math.abs((p.y + p.h / 2) - (cbox.y + cbox.h / 2));
-        if(ox > 0 && oy > 0){
-          if(ox < oy){
-            p.x += ((p.x + p.w / 2) < (cbox.x + cbox.w / 2) ? -1 : 1) * Math.ceil(ox);
+      nodes.forEach(function(p){
+        var q = onBox(cbox, p.x, p.y);
+        dx = p.x - q.x; dy = p.y - q.y;
+        d = Math.sqrt(dx * dx + dy * dy);
+        if(d < p.R + gap){
+          if(d < 0.01){
+            /* the centre landed inside the box: leave by the nearest side */
+            if(p.y < cbox.y) p.y = cbox.y - p.R - gap;
+            else if(p.y > cbox.y + cbox.h) p.y = cbox.y + cbox.h + p.R + gap;
+            else if(p.x < cbox.x) p.x = cbox.x - p.R - gap;
+            else p.x = cbox.x + cbox.w + p.R + gap;
           } else {
-            p.y += ((p.y + p.h / 2) < (cbox.y + cbox.h / 2) ? -1 : 1) * Math.ceil(oy);
+            p.x += (dx / d) * (p.R + gap - d);
+            p.y += (dy / d) * (p.R + gap - d);
           }
           moved = true;
         }
-        p.x = Math.max(3, Math.min(W - p.w - 3, p.x));
-        p.y = Math.max(minY, Math.min(maxY - p.h, p.y));
+        var nx = Math.max(p.R + 3, Math.min(W - p.R - 3, p.x));
+        var ny = Math.max(topPad + 2 + p.R, Math.min(topPad + areaH - 4 - p.R, p.y));
+        if(nx !== p.x || ny !== p.y){ p.x = nx; p.y = ny; moved = true; }
       });
       if(!moved) break;
     }
   }
-  function overlaps(boxes, cbox){
-    var out = [], i, j;
-    for(i = 0; i < boxes.length; i++){
-      if(aabbHit(boxes[i], cbox, 0)) out.push(boxes[i].key + '|CENTRE');
-      for(j = i + 1; j < boxes.length; j++){
-        if(aabbHit(boxes[i], boxes[j], 0)) out.push(boxes[i].key + '|' + boxes[j].key);
+  function overlaps(nodes, cbox, W, areaH, topPad){
+    var out = [], i, j, a, b, dx, dy, d, q;
+    for(i = 0; i < nodes.length; i++){
+      a = nodes[i];
+      if(a.x - a.R < 2 || a.x + a.R > W - 2 ||
+         a.y - a.R < topPad + 1 || a.y + a.R > topPad + areaH - 3){
+        out.push(a.key + '|OUT');
+      }
+      q = onBox(cbox, a.x, a.y);
+      dx = a.x - q.x; dy = a.y - q.y;
+      d = Math.sqrt(dx * dx + dy * dy);
+      if(d < a.R - 0.01) out.push(a.key + '|CENTRE');
+      for(j = i + 1; j < nodes.length; j++){
+        b = nodes[j];
+        dx = b.x - a.x; dy = b.y - a.y;
+        d = Math.sqrt(dx * dx + dy * dy);
+        if(d < a.R + b.R - 0.01) out.push(a.key + '|' + b.key);
       }
     }
     return out;
   }
-  function gapOf(a, b){
-    var gx = Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w));
-    var gy = Math.max(b.y - (a.y + a.h), a.y - (b.y + b.h));
-    return Math.max(gx, gy);
-  }
-  function minGap(boxes, cbox){
-    var mg = 1e9, i, j;
-    for(i = 0; i < boxes.length; i++){
-      mg = Math.min(mg, gapOf(boxes[i], cbox));
-      for(j = i + 1; j < boxes.length; j++) mg = Math.min(mg, gapOf(boxes[i], boxes[j]));
+  function minGapCircles(nodes, cbox){
+    var mg = 1e9, mc = 1e9, i, j, a, b, dx, dy, d, q;
+    function r1(v){ return Math.round(v * 10) / 10; }
+    for(i = 0; i < nodes.length; i++){
+      a = nodes[i];
+      q = onBox(cbox, a.x, a.y);
+      dx = a.x - q.x; dy = a.y - q.y;
+      d = Math.sqrt(dx * dx + dy * dy) - a.R;
+      if(d < mc) mc = d;
+      for(j = i + 1; j < nodes.length; j++){
+        b = nodes[j];
+        dx = b.x - a.x; dy = b.y - a.y;
+        d = Math.sqrt(dx * dx + dy * dy) - a.R - b.R;
+        if(d < mg) mg = d;
+      }
     }
-    return (mg === 1e9 ? 0 : Math.round(mg));
+    return {pairs:(mg === 1e9 ? 0 : r1(mg)), centre:(mc === 1e9 ? 0 : r1(mc))};
   }
   function layoutMap(m, W, H){
     var s0 = Math.min(W / 1090, (H - 30) / 530);
-    s0 = Math.max(0.62, Math.min(1.25, s0));
+    s0 = Math.max(0.55, Math.min(1.25, s0));
     var topPad = 8, subH = 20;
     var areaH = Math.max(150, H - subH - topPad);
     var cx = W / 2, cy = topPad + areaH / 2;
-    var CW = Math.round(208 * s0), CH = Math.round(106 * s0);
-    var cbox = {x:Math.round(cx - CW / 2), y:Math.round(cy - CH / 2), w:CW, h:CH};
-    var s = s0, boxes = null, tries = 0;
-    for(tries = 0; tries < 14; tries++){
+    var s = s0, nodes = [], cbox = null, ov = [], tries = 0, gap = 0;
+    for(tries = 0; tries < 18; tries++){
       s = s0 * Math.pow(0.945, tries);
-      boxes = m.clusters.map(function(c){
-        var z = sizeOf(c, s);
-        return {key:c.key, c:c, w:z.w, h:z.h, rx:z.rx, ry:z.ry, s:s};
+      var CW = Math.round(208 * s), CH = Math.round(106 * s);
+      cbox = {x:Math.round(cx - CW / 2), y:Math.round(cy - CH / 2), w:CW, h:CH};
+      nodes = m.clusters.map(function(c){
+        var f = footOf(c, s);
+        return {key:c.key, c:c, f:f, R:f.R, w:f.w || 0, h:f.h || 0, x:cx, y:cy, s:s,
+                pin:!!c.promo};
       });
-      var arx = W * 0.335, ary = areaH * 0.325;
-      boxes.forEach(function(b){
+      var rmax = 0;
+      nodes.forEach(function(b){ rmax = Math.max(rmax, b.R); });
+      var arx = Math.max(40, (W / 2 - 12 - rmax) * 0.93);
+      var ary = Math.max(36, (areaH / 2 - 14 - rmax) * 0.93);
+      nodes.forEach(function(b){
         var a = (b.c.seed || 0) * Math.PI / 180;
-        b.x = Math.round(cx + Math.cos(a) * arx - b.w / 2);
-        b.y = Math.round(cy + Math.sin(a) * ary - b.h / 2);
+        b.x = cx + Math.cos(a) * arx;
+        b.y = cy + Math.sin(a) * ary;
       });
-      relax(boxes, cbox, W, areaH, topPad, Math.max(4, 9 * s));
-      if(!overlaps(boxes, cbox).length) break;
+      gap = Math.max(5, 10 * s);
+      relaxCircles(nodes, cbox, W, areaH, topPad, gap);
+      ov = overlaps(nodes, cbox, W, areaH, topPad);
+      if(!ov.length) break;
     }
-    m.geo = {w:W, h:H, s:s, cbox:cbox, boxes:boxes, overlaps:overlaps(boxes, cbox),
-             areaH:areaH, topPad:topPad, subH:subH, tries:tries + 1};
-    m.geo.minGap = minGap(boxes, cbox);
+    var mg = minGapCircles(nodes, cbox);
+    m.geo = {w:W, h:H, s:s, cbox:cbox, boxes:nodes, overlaps:ov,
+             areaH:areaH, topPad:topPad, subH:subH, tries:tries + 1,
+             minGap:mg.pairs, minGapCentre:mg.centre, gap:Math.round(gap * 10) / 10};
     return m.geo;
   }
 
@@ -1360,6 +1440,18 @@
       t2 = 1 - Math.min(ux, uy);
     }
     return [ax + dx * t1, ay + dy * t1, ax + dx * t2, ay + dy * t2];
+  }
+  /* one thin line from the centre box out to a cluster hub, leaving the box at
+     its edge and ending on the hub itself */
+  function hubPath(cbox, hx, hy){
+    var ax = cbox.x + cbox.w / 2, ay = cbox.y + cbox.h / 2;
+    var dx = hx - ax, dy = hy - ay, t1 = 0;
+    if(dx !== 0 || dy !== 0){
+      var tx = dx === 0 ? 1e9 : (cbox.w / 2) / Math.abs(dx);
+      var ty = dy === 0 ? 1e9 : (cbox.h / 2) / Math.abs(dy);
+      t1 = Math.min(tx, ty);
+    }
+    return [ax + dx * t1, ay + dy * t1, hx, hy];
   }
   function nodeHTML(it, x, y, w, h, fs){
     var cls = 'nd' + (it.st ? ' st-' + it.st : '');
@@ -1383,60 +1475,59 @@
       '" text-anchor="middle" fill="' + it.colour + '">' + t(lbl) + '</text></g>';
     return out;
   }
+  function clusterHead(c, x, ty, anchor){
+    return '<text class="ct' + (c.promo ? ' promo' : '') + '" x="' + x.toFixed(1) + '" y="' +
+      ty.toFixed(1) + '"' + (anchor ? ' text-anchor="' + anchor + '"' : '') + '>' +
+      t(c.title) + '<tspan class="cc" dx="3">(' + c.shown + '/' + (c.total || 0) +
+      ')</tspan></text>';
+  }
   function clusterSVG(m, b, s){
-    var c = b.c;
-    var fs = 6.8 * s;
-    var out = '<g class="clgrp" data-cl="' + t(c.key) + '"><title>' +
-      t(c.tip || (c.title + ' ' + c.shown + ' of ' + (c.total || 0) + ' drawn from ' + (c.file || 'the record'))) +
-      '</title>';
-    out += '<rect class="cb2' + (c.promo ? ' promo' : '') + '" x="' + b.x + '" y="' + b.y +
-      '" width="' + b.w + '" height="' + b.h + '" rx="2"/>';
-    if(c.promo){
-      out += '<rect class="pbar" x="' + b.x + '" y="' + b.y + '" width="2" height="' + b.h + '"/>';
-    }
-    out += '<text class="ct' + (c.promo ? ' promo' : '') + '" x="' + (b.x + 7) + '" y="' +
-      (b.y + 12 * s).toFixed(1) + '">' + t(c.title) +
-      '<tspan class="cc" dx="3">(' + c.shown + '/' + (c.total || 0) + ')</tspan></text>';
-    out += '<line class="crule" x1="' + (b.x + 5) + '" y1="' + (b.y + 16 * s).toFixed(1) +
-      '" x2="' + (b.x + b.w - 5) + '" y2="' + (b.y + 16 * s).toFixed(1) + '"/>';
+    var c = b.c, f = b.f, ss = b.s || s;
+    var cx = b.x, cy = b.y;
+    var out = '<g class="clgrp" data-cl="' + t(c.key) + '" data-kind="' + t(c.kind) + '">' +
+      '<title>' + t(c.tip || (c.title + ' ' + c.shown + ' of ' + (c.total || 0) +
+        ' drawn from ' + (c.file || 'the record'))) + '</title>';
 
-    var top = b.y + 17 * s, bot = b.y + b.h - 5;
-    if(c.state === 'fail'){
-      out += '<text class="notread" x="' + (b.x + 8) + '" y="' + (top + 14).toFixed(1) +
-        '">FILE NOT READ</text>';
-      out += '<text class="notread" x="' + (b.x + 8) + '" y="' + (top + 26).toFixed(1) + '">' +
-        t(cut(c.err || 'no detail', 30)) + '</text>';
-      return out + '</g>';
-    }
-    if(!c.shown){
-      out += '<text class="none" x="' + (b.x + b.w / 2) + '" y="' + ((top + bot) / 2 + 3) +
-        '" text-anchor="middle">NONE</text>';
-      return out + '</g>';
-    }
-
-    if(c.kind === 'text'){
-      var y = top + 9 * s;
-      var lim = Math.max(10, Math.floor((b.w - 20) / (6.9 * s * 0.60)));
-      c.items.forEach(function(it){
-        out += '<g class="nd" data-k="' + t(it.key) + '" data-cl="' + t(c.key) + '" data-st="' +
-          t(it.st || '') + '" data-co="0"><title>' + t(it.name + ' | ' + it.reason) + '</title>' +
-          '<rect x="' + (b.x + 4) + '" y="' + (y - 7 * s).toFixed(1) + '" width="' + (b.w - 8) +
-          '" height="' + (11 * s).toFixed(1) + '" fill="transparent"/>' +
-          '<circle class="td" cx="' + (b.x + 8) + '" cy="' + (y - 2 * s).toFixed(1) +
-          '" r="1.8" fill="' + it.colour + '"/>' +
-          '<text class="tl" x="' + (b.x + 13) + '" y="' + y.toFixed(1) + '">' +
-          t(cut(it.label, lim)) + '</text></g>';
-        y += 12 * s;
-      });
-      return out + '</g>';
-    }
-    if(c.kind === 'bars'){
-      var bx = b.x + 10, bwid = b.w - 20, nbar = c.items.length;
+    /* the two text clusters and the bar cluster stay framed panels: a headline
+       list and three bars are not radial data */
+    if(f.kind === 'text' || f.kind === 'bars'){
+      var rx = Math.round(cx - f.w / 2), ry = Math.round(cy - f.h / 2);
+      out += clusterHead(c, rx, ry - 4.5, '');
+      out += '<rect class="cb2" x="' + rx + '" y="' + ry + '" width="' + f.w +
+        '" height="' + f.h + '" rx="2"/>';
+      if(c.state === 'fail'){
+        out += '<text class="notread" x="' + (rx + 8) + '" y="' + (ry + 17).toFixed(1) +
+          '">FILE NOT READ</text>';
+        out += '<text class="notread" x="' + (rx + 8) + '" y="' + (ry + 29).toFixed(1) + '">' +
+          t(cut(c.err || 'no detail', 30)) + '</text>';
+        return out + '</g>';
+      }
+      if(!c.shown){
+        out += '<text class="none" x="' + cx.toFixed(1) + '" y="' + (cy + 3).toFixed(1) +
+          '" text-anchor="middle">NONE</text>';
+        return out + '</g>';
+      }
+      if(f.kind === 'text'){
+        var ty2 = ry + 11 * ss, lim = Math.max(10, Math.floor((f.w - 20) / (6.9 * ss * 0.60)));
+        c.items.forEach(function(it){
+          out += '<g class="nd" data-k="' + t(it.key) + '" data-cl="' + t(c.key) + '" data-st="' +
+            t(it.st || '') + '" data-co="0"><title>' + t(it.name + ' | ' + it.reason) + '</title>' +
+            '<rect x="' + (rx + 4) + '" y="' + (ty2 - 7 * ss).toFixed(1) + '" width="' +
+            (f.w - 8) + '" height="' + (11 * ss).toFixed(1) + '" fill="transparent"/>' +
+            '<circle class="td" cx="' + (rx + 8) + '" cy="' + (ty2 - 2 * ss).toFixed(1) +
+            '" r="1.8" fill="' + it.colour + '"/>' +
+            '<text class="tl" x="' + (rx + 13) + '" y="' + ty2.toFixed(1) + '">' +
+            t(cut(it.label, lim)) + '</text></g>';
+          ty2 += 12 * ss;
+        });
+        return out + '</g>';
+      }
+      var bx = rx + 10, bwid = f.w - 20, nbar = c.items.length;
       var slot = bwid / Math.max(1, nbar);
-      var barW = Math.min(22 * s, slot - 8);
+      var barW = Math.min(22 * ss, slot - 8);
       var maxV = 0;
       c.items.forEach(function(it){ maxV = Math.max(maxV, Math.abs(it.value || 0)); });
-      var base = bot - 12 * s, hMax = Math.max(16, base - (top + 12));
+      var base = ry + f.h - 12 * ss, hMax = Math.max(16, base - (ry + 12));
       c.items.forEach(function(it, i){
         var hgt = maxV > 0 ? Math.max(2, Math.round(Math.abs(it.value || 0) / maxV * hMax)) : 2;
         var x = bx + slot * i + (slot - barW) / 2;
@@ -1446,28 +1537,69 @@
           barW.toFixed(1) + '" height="' + hgt + '" fill="' + it.colour + '" opacity=".8"/>' +
           '<text class="bv" x="' + (x + barW / 2).toFixed(1) + '" y="' + (base - hgt - 3) +
           '" text-anchor="middle">' + t(fmtBig(it.value)) + '</text>' +
-          '<text class="bl" x="' + (x + barW / 2).toFixed(1) + '" y="' + (base + 8 * s).toFixed(1) +
+          '<text class="bl" x="' + (x + barW / 2).toFixed(1) + '" y="' + (base + 8 * ss).toFixed(1) +
           '" text-anchor="middle">' + t(it.label) + '</text></g>';
       });
       return out + '</g>';
     }
-    /* radial: a hub and coloured labelled boxes on a ring around it */
-    var hx = b.x + b.w / 2, hy = (top + bot) / 2;
-    var nn = c.items.length, placed = [];
-    c.items.forEach(function(it, i){
-      var ang = nn === 1 ? 0 : (-Math.PI / 2 + (Math.PI * 2 / Math.max(1, nn)) * i);
-      placed.push({it:it, x:hx + Math.cos(ang) * b.rx, y:hy + Math.sin(ang) * b.ry});
+
+    /* radial: one hub at the cluster centre, a faint dashed ring at the node
+       radius, each node box on that ring, and a spoke from the hub to the box.
+       A cluster past ten nodes gets one inner ring and one outer ring. */
+    out += clusterHead(c, cx, cy - f.R + Math.max(9 * ss, 8), 'middle');
+    f.rings.forEach(function(rg){
+      out += '<circle class="cring' + (c.promo ? ' promo' : '') + '" cx="' + cx.toFixed(1) +
+        '" cy="' + cy.toFixed(1) + '" r="' + rg.r.toFixed(1) + '"/>';
     });
+    var hubR = Math.max(2.6, 3.6 * ss);
+    if(c.state === 'fail'){
+      out += '<circle class="hub' + (c.promo ? ' promo' : '') + '" cx="' + cx.toFixed(1) +
+        '" cy="' + cy.toFixed(1) + '" r="' + hubR.toFixed(1) + '"/>';
+      out += '<text class="notread" x="' + cx.toFixed(1) + '" y="' + (cy + hubR + 10).toFixed(1) +
+        '" text-anchor="middle">FILE NOT READ</text>';
+      out += '<text class="notread" x="' + cx.toFixed(1) + '" y="' + (cy + hubR + 20).toFixed(1) +
+        '" text-anchor="middle">' + t(cut(c.err || 'no detail', 24)) + '</text>';
+      return out + '</g>';
+    }
+
+    var placed = [], nn = c.items.length;
+    if(f.rings.length === 1){
+      var r0 = f.rings[0].r;
+      c.items.forEach(function(it, i){
+        var ang = nn === 1 ? -Math.PI / 2 : (-Math.PI / 2 + (Math.PI * 2 / nn) * i);
+        placed.push({it:it, x:cx + Math.cos(ang) * r0, y:cy + Math.sin(ang) * r0});
+      });
+    } else {
+      var k = 0;
+      f.rings.forEach(function(rg, ri){
+        var cnt = Math.min(rg.n, nn - k);
+        if(cnt <= 0) return;
+        var off = ri === 0 ? Math.PI / Math.max(1, f.rings[f.rings.length - 1].n) : 0;
+        for(var i = 0; i < cnt; i++){
+          var ang = -Math.PI / 2 + (Math.PI * 2 / cnt) * i + off;
+          placed.push({it:c.items[k], x:cx + Math.cos(ang) * rg.r,
+                       y:cy + Math.sin(ang) * rg.r});
+          k++;
+        }
+      });
+    }
     placed.forEach(function(p){
-      out += '<line class="sp" x1="' + hx.toFixed(1) + '" y1="' + hy.toFixed(1) + '" x2="' +
-        p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) + '"/>';
+      out += '<line class="sp' + (c.promo ? ' promo' : '') + '" x1="' + cx.toFixed(1) +
+        '" y1="' + cy.toFixed(1) + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) + '"/>';
     });
-    out += '<circle class="hub" cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="3"/>';
+    out += '<circle class="hub' + (c.promo ? ' promo' : '') + '" cx="' + cx.toFixed(1) +
+      '" cy="' + cy.toFixed(1) + '" r="' + hubR.toFixed(1) + '"/>';
+    if(!nn){
+      out += '<text class="none" x="' + cx.toFixed(1) + '" y="' + (cy + hubR + 11).toFixed(1) +
+        '" text-anchor="middle">NONE</text>';
+      return out + '</g>';
+    }
     placed.forEach(function(p){
-      out += nodeHTML(p.it, p.x, p.y, 30 * s, 12 * s, fs);
+      out += nodeHTML(p.it, p.x, p.y, f.boxW, f.boxH, f.fs);
     });
     return out + '</g>';
   }
+
   function sparkSVG(m, x, y, w, h){
     var d = m.spark;
     var bars = (d && d.bars) || null;
@@ -1523,7 +1655,13 @@
   function svgAll(m, W, H){
     var s = m.geo.s, out = '<g class="gv">';
     m.geo.boxes.forEach(function(b){
-      var p = connPath(m.geo.cbox, b);
+      var ex = b.x, ey = b.y;
+      if(b.f && (b.f.kind === 'text' || b.f.kind === 'bars')){
+        var pb = {x:b.x - b.w / 2, y:b.y - b.h / 2, w:b.w, h:b.h};
+        var pp = connPath(m.geo.cbox, pb);
+        ex = pp[2]; ey = pp[3];
+      }
+      var p = hubPath(m.geo.cbox, ex, ey);
       out += '<path class="cn" data-cl="' + t(b.key) + '" d="M' + p[0].toFixed(1) + ' ' +
         p[1].toFixed(1) + ' L' + p[2].toFixed(1) + ' ' + p[3].toFixed(1) + '"/>';
     });
@@ -1637,7 +1775,7 @@
     Array.prototype.forEach.call(svg.querySelectorAll('path.cn'), function(el){
       el.classList.toggle('hi', !!cl && el.getAttribute('data-cl') === cl);
     });
-    Array.prototype.forEach.call(svg.querySelectorAll('rect.cb2'), function(el){
+    Array.prototype.forEach.call(svg.querySelectorAll('circle.cring, rect.cb2'), function(el){
       var grp = el.parentNode;
       el.classList.toggle('hi', !!cl && grp && grp.getAttribute('data-cl') === cl);
     });
@@ -1650,7 +1788,7 @@
     Array.prototype.forEach.call(svg.querySelectorAll('path.cn'), function(el){
       el.classList.remove('hi');
     });
-    Array.prototype.forEach.call(svg.querySelectorAll('rect.cb2'), function(el){
+    Array.prototype.forEach.call(svg.querySelectorAll('circle.cring, rect.cb2'), function(el){
       el.classList.remove('hi');
     });
   }
@@ -2082,9 +2220,22 @@
     var claim = document.getElementById('claim'), ab = document.getElementById('actbar');
     var geo = (m && m.geo) ? {
       w:m.geo.w, h:m.geo.h, scale:Math.round(m.geo.s * 1000) / 1000, tries:m.geo.tries,
-      overlaps:m.geo.overlaps, minGap:m.geo.minGap, centre:m.geo.cbox,
+      overlaps:m.geo.overlaps, minGap:m.geo.minGap, minGapCentre:m.geo.minGapCentre,
+      circleGap:m.geo.gap, centre:m.geo.cbox,
       boxes:m.geo.boxes.map(function(b){
-        return {key:b.key, title:b.c.title, x:b.x, y:b.y, w:b.w, h:b.h};
+        return {key:b.key, title:b.c.title, kind:b.c.kind,
+                x:Math.round((b.x - b.R) * 10) / 10, y:Math.round((b.y - b.R) * 10) / 10,
+                w:Math.round(2 * b.R * 10) / 10, h:Math.round(2 * b.R * 10) / 10};
+      }),
+      circles:m.geo.boxes.map(function(b){
+        return {key:b.key, title:b.c.title, kind:b.c.kind,
+                cx:Math.round(b.x * 10) / 10, cy:Math.round(b.y * 10) / 10,
+                R:Math.round(b.R * 10) / 10,
+                hub:{x:Math.round(b.x * 10) / 10, y:Math.round(b.y * 10) / 10},
+                rings:(b.f.rings || []).map(function(rg){
+                  return {r:Math.round(rg.r * 10) / 10, nodes:rg.n};
+                }),
+                nodes:b.c.items.length, promo:!!b.c.promo, seed:b.c.seed};
       })
     } : null;
     return {
@@ -2129,6 +2280,10 @@
         domClusters: document.querySelectorAll('#b_rel .clgrp').length,
         domConnectors: document.querySelectorAll('#b_rel path.cn').length,
         domHubs: document.querySelectorAll('#b_rel circle.hub').length,
+        domDashedRings: document.querySelectorAll('#b_rel circle.cring').length,
+        domSpokes: document.querySelectorAll('#b_rel line.sp').length,
+        domFrames: document.querySelectorAll('#b_rel rect.cb2').length,
+        domNodeBoxes: document.querySelectorAll('#b_rel rect.nb').length,
         zoom:{k:Math.round(MAP.k * 1000) / 1000, x:Math.round(MAP.x), y:Math.round(MAP.y)},
         pinned:G.selKey,
         files:EXS.map(function(ex){ return {ex:ex, state:REL_ST[ex] || 'unread'}; }),
