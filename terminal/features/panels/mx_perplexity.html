@@ -1,23 +1,31 @@
 <!--
-  mx_perplexity.html - PERPLEXITY: the visual dossier for one security.
+  mx_perplexity.html - PERPLEXITY: the research panel.
 
-  A dashboard, not a document. Eight figure tiles across the top, a relationship
-  network as the centrepiece, revenue and net profit as grouped bars, the price
-  history on the same lightweight-charts engine the CHART window uses, a strip of
-  headline cards, laws as status coloured chips and ownership as one stacked bar.
-  Labels are short and figures are large: a reader should read the company in
-  about three seconds.
+  This is a research tool, not a company dashboard. Its job is to answer a
+  question of the form "how does X affect Y" and to show how the companies in
+  the terminal interlink: start from one security, walk the links its record
+  states, then walk the links of those companies, so a chain across two
+  exchanges becomes visible. Beside the graph, a thesis block answers in the
+  shape a good research answer takes: what is DIRECT, what reaches a company
+  through a MECHANISM, what is NOT THERE, and WHERE IT WAS READ.
+
+  Layout: eight figure tiles across the top, the interlink graph as the
+  centrepiece, the selected link in a short side list, the thesis block, the
+  price history on the same lightweight-charts engine the CHART window uses,
+  laws as status coloured chips and a strip of headline cards. Revenue bars and
+  the ownership bar were removed on the owner's correction: this window is for
+  research, and those two belong to the company dossier elsewhere.
 
   Nothing here is fetched from a new source. The panel reads what the terminal
-  already ships for the selected security:
+  already ships:
 
     TILES         static_data/market_<EX>.json, static_data/analytics/<KEY>.json,
                   static_data/history/<KEY>.json
-    RELATIONSHIPS static_data/relationships_<EX>.json
+    LINKS         static_data/relationships_NSE.json, _JSE.json, _NGX.json,
+                  _EGX.json (all four, so a link can cross an exchange)
+    THESIS        static_data/research_theses.json
     PRICE         static_data/history/NSE_<TK>.json or NGX_<TK>.json
-    FINANCIALS    static_data/financials/<KEY>__income.json
     NEWS          static_data/<ex>_news.json and <ex>_announcements.json
-    OWNERSHIP     static_data/shareholders_<EX>.json
     LAWS          static_data/gov_laws_KE.json
     EXPOSURE      static_data/gov_exposure_KE.json / gov_exposure_SA.json
 
@@ -25,10 +33,14 @@
     * a figure is printed only when the file carries it;
     * a withheld multiple prints WITHHELD in amber and keeps its stored reason
       on the tile's hover title, never as a paragraph;
+    * a link is drawn only when a recorded relationship names it: no peer set,
+      no sector inference, no chain invented to fill the frame;
+    * a node cap and the exchange files read are both printed on the panel, so
+      a truncated graph says it is truncated;
     * an empty record is told apart from a failed read, and a failed read prints
       the failure where its content belongs;
     * every block draws inside a guard, so one broken read blanks one block;
-    * one input, no buttons.
+    * one search input, one hop toggle, one set of type filters, no more.
   Vanilla JS, single file, no build step. Mint on black, Oxygen Mono.
 -->
 <!DOCTYPE html>
@@ -72,13 +84,29 @@
   .spacer{margin-left:auto}
   .head .asof{font-size:8px;color:var(--tx3);letter-spacing:.06em;white-space:nowrap}
 
-  /* ---------- search: one input, no buttons ---------- */
+  /* ---------- search: one input, no typing to search ---------- */
   .controls{position:relative;display:flex;align-items:center;gap:9px;padding:5px 12px;
-            border-bottom:1px solid var(--line);flex:0 0 auto}
+            border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap;min-height:0}
   input.qin{background:var(--bg3);color:var(--tx);border:1px solid var(--line2);border-radius:2px;
             padding:4px 8px;font-family:var(--mono);font-size:11px;width:260px;text-transform:uppercase}
   input.qin:focus{outline:0;border-color:var(--acc)}
   .hint{color:var(--tx3);font-size:8px;letter-spacing:.1em}
+  /* the only new controls: one hop toggle and one filter row */
+  .cgrp{display:flex;align-items:center;gap:4px;min-width:0}
+  .cgrp .cl2{font-size:7px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase;
+             white-space:nowrap}
+  button.kn{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;
+            color:var(--tx3);background:#0a0a0a;border:1px solid var(--line2);border-radius:2px;
+            padding:3px 6px;cursor:pointer;line-height:1.1;white-space:nowrap}
+  button.kn:hover{color:var(--tx2);border-color:#3a3a3a}
+  button.kn[aria-pressed="true"]{color:#04120c;background:var(--acc);border-color:var(--acc);
+                                 font-weight:700}
+  button.kn.ft[aria-pressed="true"]{color:#04120c}
+  button.kn.ft[data-t="customers"][aria-pressed="true"]{background:#33e29a;border-color:#33e29a}
+  button.kn.ft[data-t="suppliers"][aria-pressed="true"]{background:#6ea8fe;border-color:#6ea8fe}
+  button.kn.ft[data-t="competitors"][aria-pressed="true"]{background:#f87171;border-color:#f87171}
+  button.kn.ft[data-t="partners"][aria-pressed="true"]{background:#c08cff;border-color:#c08cff}
+  button.kn:focus-visible{outline:1px solid var(--acc)}
   .sug{position:absolute;left:12px;top:100%;width:400px;max-height:250px;overflow:auto;
        background:var(--bg3);border:1px solid var(--line2);border-top:0;z-index:60;display:none}
   .sug.on{display:block}
@@ -107,16 +135,16 @@
   .tile .ts{font-size:7.5px;color:var(--tx3);letter-spacing:.04em;white-space:nowrap;overflow:hidden;
             text-overflow:ellipsis}
 
-  /* ---------- dashboard grid ---------- */
+  /* ---------- research grid ---------- */
   .grid{flex:1 1 auto;min-height:0;display:grid;gap:1px;background:var(--line2);padding:1px;
         grid-template-columns:repeat(12,minmax(0,1fr));
-        grid-template-rows:minmax(0,1.52fr) minmax(0,1.02fr) minmax(0,.62fr)}
+        grid-template-rows:minmax(0,1.52fr) minmax(0,1fr) minmax(0,.5fr)}
   .card{background:var(--bg);display:flex;flex-direction:column;min-height:0;min-width:0;position:relative}
   #c_rel{grid-column:1/8;grid-row:1}
-  #c_px{grid-column:8/13;grid-row:1}
-  #c_fin{grid-column:1/7;grid-row:2}
-  #c_own{grid-column:7/10;grid-row:2}
-  #c_law{grid-column:10/13;grid-row:2}
+  #c_thes{grid-column:8/13;grid-row:1}
+  #c_px{grid-column:1/6;grid-row:2}
+  #c_sel{grid-column:6/9;grid-row:2}
+  #c_law{grid-column:9/13;grid-row:2}
   #c_news{grid-column:1/13;grid-row:3}
   .ch{display:flex;align-items:center;gap:8px;padding:3px 8px;border-bottom:1px solid var(--line);
       flex:0 0 auto;min-width:0}
@@ -126,55 +154,64 @@
       overflow:hidden;text-overflow:ellipsis}
   .cb{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
 
-  /* relationship graph */
+  /* interlink graph: company to company, two hops, four exchange files */
   .gwrap{position:absolute;inset:0}
   .gwrap svg{width:100%;height:100%;display:block}
-  .gsub{position:absolute;left:0;right:0;bottom:0;padding:3px 9px 5px;font-size:8.5px;letter-spacing:.07em;
-        color:#9a9a9a;text-transform:uppercase;background:rgba(0,0,0,.55)}
+  .gsub{position:absolute;left:0;right:0;bottom:0;padding:2px 9px 4px;font-size:7.5px;
+        letter-spacing:.07em;color:#8a8a8a;text-transform:uppercase;background:rgba(0,0,0,.72);
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gsub b{color:var(--warn);font-weight:700}
-  .nd{pointer-events:all}
+  .gsub i{font-style:normal;color:var(--acc)}
+  .nd{pointer-events:all;cursor:pointer}
   .nd text{font-family:var(--mono);letter-spacing:.02em}
+  .nd circle{transition:stroke-width .08s linear}
+  .nd:hover circle{stroke-width:2.6}
+  .nd.on circle{stroke-width:2.8}
+
+  /* the selected link, six short rows, no paragraphs */
+  #b_sel{padding:5px 8px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+  .srow{display:flex;gap:6px;align-items:baseline;min-width:0;line-height:1.25}
+  .sk{flex:0 0 52px;font-size:7px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase}
+  .sv{flex:1 1 auto;min-width:0;font-size:9px;color:var(--tx);overflow:hidden;
+      text-overflow:ellipsis;white-space:nowrap}
+  .sv.tk{color:var(--acc);font-weight:700;letter-spacing:.04em}
+  .sv.dm{color:var(--tx2)}
+  .sv.wr{color:var(--warn)}
+  .sv.clip{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+           overflow:hidden;font-family:var(--ui);font-size:9.5px;color:var(--tx2);line-height:1.25}
+  .sk.sk2{flex:0 0 auto;color:var(--tx3)}
+  .tag2{flex:0 0 auto;font-size:6.5px;letter-spacing:.08em;color:var(--warn);border:1px solid #4a3810;
+        padding:0 2px;border-radius:1px;line-height:1.3}
+
+  /* thesis: DIRECT, MECHANISM, ABSENT, SOURCE, four stacked short groups */
+  #b_thes{padding:4px 8px 6px;overflow:auto;display:flex;flex-direction:column;gap:4px;
+          align-content:start;min-height:0}
+  .tg{min-width:0;display:flex;flex-direction:column;gap:1px}
+  .tgh{display:flex;align-items:baseline;gap:5px;font-size:7px;letter-spacing:.13em;color:var(--tx3);
+       text-transform:uppercase;border-bottom:1px solid var(--line);padding-bottom:1px;margin-bottom:2px}
+  .tgh b{color:var(--tx2);font-weight:700}
+  .tgh .hit{color:var(--acc);font-weight:700}
+  .tr{display:flex;gap:5px;align-items:baseline;min-width:0;font-size:8.5px;color:var(--tx2);
+      white-space:nowrap;overflow:hidden;padding-left:4px;border-left:1px solid var(--line2)}
+  .tr.hit{border-left-color:var(--acc);color:var(--tx);background:#061109}
+  .trk{flex:0 0 auto;color:var(--acc);font-weight:700;letter-spacing:.03em;min-width:0}
+  .ttx{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .tsrc{flex:0 1 auto;min-width:0;max-width:170px;overflow:hidden;text-overflow:ellipsis;
+        color:var(--tx3);font-size:7.5px;letter-spacing:.02em}
+  .tsd{flex:0 0 auto;color:var(--tx3);font-size:7.5px;letter-spacing:.03em}
+  .tr.abs .trk{color:var(--warn)}
+  .tr.ab{color:var(--tx3);font-size:8px;letter-spacing:.05em;border-left-color:transparent;
+         padding-left:4px}
+  .tnote{font-size:8px;letter-spacing:.05em;color:var(--tx3);text-transform:uppercase;
+         padding-top:2px;border-top:1px solid var(--line)}
+  .tnote b{color:var(--warn)}
+
 
   /* price chart */
   .pxbox{position:absolute;inset:0}
   .pxchart{position:absolute;inset:0}
   .pxfb{position:absolute;inset:0;display:none}
   .pxfb svg{width:100%;height:100%;display:block}
-
-  /* financial bars + statement rows kept available */
-  .finbox{position:absolute;inset:0;display:flex;flex-direction:column}
-  .finchart{flex:1 1 auto;min-height:0;position:relative}
-  .finchart svg{width:100%;height:100%;display:block}
-  details.stmt{flex:0 0 auto;border-top:1px solid var(--line);background:#050505}
-  details.stmt summary{list-style:none;cursor:pointer;font-size:7.5px;letter-spacing:.14em;
-    color:var(--tx3);text-transform:uppercase;padding:3px 8px;outline:0}
-  details.stmt summary::-webkit-details-marker{display:none}
-  details.stmt summary:hover{color:var(--acc)}
-  details.stmt[open] summary{color:var(--acc);border-bottom:1px solid var(--line)}
-  .stwrap{max-height:190px;overflow:auto}
-  table.fin{width:100%;border-collapse:collapse}
-  table.fin th,table.fin td{padding:2px 8px;text-align:right;white-space:nowrap;font-size:9.5px}
-  table.fin th:first-child,table.fin td:first-child{text-align:left}
-  table.fin thead th{color:var(--tx3);font-size:7.5px;letter-spacing:.05em;text-transform:uppercase;
-    border-bottom:1px solid var(--line2);font-weight:400;position:sticky;top:0;background:#050505}
-  table.fin tbody td{border-top:1px solid #0f0f0f}
-  table.fin td.it{color:var(--tx2);font-family:var(--ui);font-size:10px;white-space:normal}
-  table.fin tr.tot td{color:var(--tx);font-weight:700}
-  table.fin td.neg{color:var(--down)}
-
-  /* ownership */
-  #b_own{padding:6px 8px;display:flex;flex-direction:column;gap:6px}
-  .ofig{display:flex;align-items:baseline;gap:6px;min-width:0}
-  .ofv{font-size:16px;font-weight:700;letter-spacing:-.01em}
-  .ofl{font-size:7.5px;letter-spacing:.12em;color:var(--tx3);white-space:nowrap}
-  .obar{display:flex;height:13px;width:100%;border:1px solid var(--line2);overflow:hidden;background:#0a0a0a}
-  .seg{height:100%;min-width:1px}
-  .oleg{display:flex;flex-direction:column;gap:3px;min-height:0}
-  .olr{display:flex;align-items:center;gap:5px;font-size:8.5px;color:var(--tx2);white-space:nowrap;
-       overflow:hidden;min-width:0}
-  .old{width:6px;height:6px;flex:0 0 auto;border-radius:1px}
-  .oln{overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0}
-  .olp{color:var(--tx);font-weight:700;flex:0 0 auto}
 
   /* law and exposure chips */
   #b_law{padding:5px 8px;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;overflow:hidden}
@@ -214,6 +251,18 @@
   .emp{margin:5px 8px;padding:4px 6px;border-left:2px solid var(--line2);color:var(--tx3);
        font-size:8.5px;line-height:1.4;letter-spacing:.03em;text-transform:uppercase}
   .emp b{color:var(--tx2);font-weight:600}
+  /* honest search bar: a disabled field, styled to match, that says the truth */
+  .sbar{display:flex;align-items:center;gap:9px;padding:4px 12px;background:#050505;
+        border-top:1px solid var(--line2);flex:0 0 auto;min-width:0}
+  .sbar .sl{font-size:7px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;
+            white-space:nowrap}
+  .sbar input.wq{flex:1 1 auto;min-width:0;max-width:520px;background:#0a0a0a;color:var(--tx3);
+                 border:1px dashed var(--line2);border-radius:2px;padding:3px 8px;
+                 font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;cursor:not-allowed}
+  .sbar input.wq::placeholder{color:#5a5a5a}
+  .sbar .sn{font-size:7.5px;letter-spacing:.08em;color:var(--tx3);text-transform:uppercase;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sbar .sn b{color:var(--warn);font-weight:700}
   .foot{display:flex;align-items:center;gap:10px;padding:2px 12px;background:var(--bg2);
         border-top:1px solid var(--line2);color:var(--tx3);font-size:7.5px;letter-spacing:.08em;
         flex:0 0 auto}
@@ -236,6 +285,18 @@
     <input class="qin" id="q" type="text" autocomplete="off" spellcheck="false"
            placeholder="ticker or company name" aria-label="ticker or company name">
     <span class="hint">TICKER OR NAME</span>
+    <div class="cgrp" id="c_hop">
+      <span class="cl2">DEPTH</span>
+      <button class="kn hp" type="button" data-hop="1" aria-pressed="true">1 HOP</button>
+      <button class="kn hp" type="button" data-hop="2" aria-pressed="false">2 HOPS</button>
+    </div>
+    <div class="cgrp" id="c_type">
+      <span class="cl2">LINKS</span>
+      <button class="kn ft" type="button" data-t="customers" aria-pressed="true">CUST</button>
+      <button class="kn ft" type="button" data-t="suppliers" aria-pressed="true">SUPP</button>
+      <button class="kn ft" type="button" data-t="competitors" aria-pressed="true">COMP</button>
+      <button class="kn ft" type="button" data-t="partners" aria-pressed="true">PART</button>
+    </div>
     <div class="sug" id="sug"></div>
   </div>
 
@@ -243,20 +304,20 @@
 
   <div class="grid">
     <div class="card" id="c_rel">
-      <div class="ch"><span class="cl">RELATIONSHIPS</span><span class="cm" id="m_rel"></span></div>
+      <div class="ch"><span class="cl">INTERLINK GRAPH</span><span class="cm" id="m_rel"></span></div>
       <div class="cb" id="b_rel"></div>
     </div>
     <div class="card" id="c_px">
       <div class="ch"><span class="cl">PRICE</span><span class="cm" id="m_px"></span></div>
       <div class="cb" id="b_px"></div>
     </div>
-    <div class="card" id="c_fin">
-      <div class="ch"><span class="cl">REVENUE / NET PROFIT</span><span class="cm" id="m_fin"></span></div>
-      <div class="cb" id="b_fin"></div>
+    <div class="card" id="c_thes">
+      <div class="ch"><span class="cl">THESIS</span><span class="cm" id="m_thes"></span></div>
+      <div class="cb" id="b_thes"></div>
     </div>
-    <div class="card" id="c_own">
-      <div class="ch"><span class="cl">OWNERSHIP</span><span class="cm" id="m_own"></span></div>
-      <div class="cb" id="b_own"></div>
+    <div class="card" id="c_sel">
+      <div class="ch"><span class="cl">LINK DETAIL</span><span class="cm" id="m_sel"></span></div>
+      <div class="cb" id="b_sel"></div>
     </div>
     <div class="card" id="c_law">
       <div class="ch"><span class="cl">LAWS / EXPOSURE</span><span class="cm" id="m_law"></span></div>
@@ -266,6 +327,20 @@
       <div class="ch"><span class="cl">NEWS</span><span class="cm" id="m_news"></span></div>
       <div class="cb" id="b_news"></div>
     </div>
+  </div>
+
+  <!-- Live web research is NOT wired in. The shell publishes window.MUTXRI_API_BASE
+       (static_index.html line 1523) and uses it for auth and quotes only: there is
+       no search or research endpoint in financials_api.py, indices_api.py or
+       auth_api.py, and no key is shipped to the browser. So this field is a
+       statement, not a control: it is disabled, it takes no keystrokes and it
+       calls nothing. The panel answers from the files it lists in the footer. -->
+  <div class="sbar" id="sbar">
+    <span class="sl">WEB RESEARCH</span>
+    <input class="wq" id="webq" type="text" disabled aria-disabled="true"
+           placeholder="live web research is not wired into the terminal yet"
+           title="no search endpoint and no key are shipped to this page; nothing is fetched">
+    <span class="sn">this panel shows what is held on disk</span>
   </div>
 
   <div class="foot">
@@ -286,8 +361,8 @@
      read, so the request is only made when the file is part of the product */
   var NEWS_EX = {NSE:1, JSE:1, NGX:1, EGX:1};
   var ANN_EX = {NSE:1, JSE:1, EGX:1};
-  var SEC_TITLE = {strip:'TILES', rel:'RELATIONSHIPS', px:'PRICE', fin:'FINANCIALS',
-                   own:'OWNERSHIP', law:'LAWS', news:'NEWS'};
+  var SEC_TITLE = {strip:'TILES', rel:'INTERLINK GRAPH', px:'PRICE', thes:'THESIS',
+                   sel:'LINK DETAIL', law:'LAWS', news:'NEWS'};
   var DASH = '-';
 
   /* ---------- text, numbers, units ---------------------------------- */
@@ -639,7 +714,16 @@
     meta('strip', px == null ? 'NO QUOTE' : (ccyLabel(row.currency) + '  ' + histSub));
   }
 
-  /* ---------- 2. RELATIONSHIP NETWORK ------------------------------- */
+  /* ---------- 2. INTERLINK GRAPH ------------------------------------- */
+  /* A link is drawn only where a relationship file records one. All four
+     exchange files are read, so a chain can cross boards. The walk is the
+     selected security, then the companies its record names (hop 1), then at two
+     hops the links those companies carry themselves (hop 2). No peer set is
+     generated and nothing is read off a sector label. */
+  var REL = {}, RELF = {}, REL_ST = {}, RECBY = null, CORE2ROW = null;
+  var G = {hops:1, types:{customers:true, suppliers:true, competitors:true, partners:true},
+           cap:25, selKey:'', last:null, row:null, rec:null};
+
   function relTypes(){
     return [
       {k:'customers', c:'#33e29a', n:'CUSTOMERS'},
@@ -648,308 +732,562 @@
       {k:'partners', c:'#c08cff', n:'PARTNERS'}
     ];
   }
-  function nameKey(s){
-    return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  function typeOf(k){
+    var a = relTypes();
+    for(var i = 0; i < a.length; i++){ if(a[i].k === k) return a[i]; }
+    return {k:k, c:'#6a6a6a', n:String(k || '').toUpperCase()};
   }
-  function linkCount(securities){
-    var freq = {};
-    relTypes().forEach(function(tp){
-      Object.keys(securities).forEach(function(k){
-        (securities[k][tp.k] || []).forEach(function(e){
-          var n = nameKey(e && e.name);
-          if(n) freq[n] = (freq[n] || 0) + 1;
-        });
+  function typeLabel(k){
+    var n = typeOf(k).n;
+    return n.charAt(0) + n.slice(1).toLowerCase();
+  }
+  function typeOrder(k){
+    var a = relTypes();
+    for(var i = 0; i < a.length; i++){ if(a[i].k === k) return i; }
+    return 9;
+  }
+  function activeTypes(){
+    return relTypes().filter(function(tp){ return G.types[tp.k]; });
+  }
+  function rowForTicker(ex, tk){
+    var pool = MKT[ex] || [], want = String(tk || '').toUpperCase();
+    for(var i = 0; i < pool.length; i++){ if(rowTicker(pool[i]) === want) return pool[i]; }
+    return null;
+  }
+  /* one index over the four files: a name in any record resolves to the listed
+     security of the same normalised name and to that security's own record */
+  function buildRelIndex(){
+    if(RECBY) return;
+    RECBY = {};
+    CORE2ROW = {};
+    IDX.forEach(function(r){
+      var c = coreName(r.name);
+      if(c && !CORE2ROW[c]) CORE2ROW[c] = r;
+    });
+    EXS.forEach(function(ex){
+      var secs = REL[ex] || {};
+      Object.keys(secs).forEach(function(k){
+        var c = coreName((secs[k] && secs[k].name) || k);
+        if(!c) return;
+        if(!RECBY[c]) RECBY[c] = [];
+        RECBY[c].push({ex:ex, key:k});
       });
     });
-    return freq;
   }
-  function listedCode(name){
-    var n = coreName(name);
-    if(!n) return '';
-    for(var i = 0; i < IDX.length; i++){
-      /* the whole normalised name has to agree: a prefix test would hang the
-         Dangote parent company on the DANGCEM ticker */
-      if(coreName(IDX[i].name) === n) return rowTicker(IDX[i]);
+  function identOf(name){
+    var c = coreName(name);
+    if(!c) return null;
+    var hit = RECBY[c];
+    if(hit && hit.length){
+      var h = hit[0];
+      var rec = (REL[h.ex] || {})[h.key] || null;
+      var rr = rowForTicker(h.ex, h.key);
+      return {key:'R:' + h.ex + ':' + h.key, ex:h.ex, tk:String(h.key).toUpperCase(),
+              name:((rec && rec.name) || name), rec:rec, row:rr, listed:!!rr};
     }
+    var row = CORE2ROW[c];
+    if(row){
+      var tk = rowTicker(row);
+      var own = (REL[row.ex] || {})[tk] || null;
+      return {key:'L:' + row.ex + ':' + tk, ex:row.ex, tk:tk, name:(row.name || name),
+              rec:own, row:row, listed:true};
+    }
+    return {key:'U:' + c, ex:'', tk:'', name:String(name || ''), rec:null, row:null, listed:false};
+  }
+  function srcLabel(e){
+    var s = (e && e.source) || {};
+    if(s.site) return String(s.site) + (s.retrieved ? ' ' + s.retrieved : '');
+    if(s.file) return String(s.file).split('/').pop() + (s.page ? ' p' + s.page : '');
     return '';
   }
-  function codeOf(name){
-    var lc = listedCode(name);
-    if(lc) return lc;
-    var words = String(name || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').split(/\s+/)
-      .filter(function(w){ return w && w.length > 1; });
-    if(!words.length) return '?';
-    if(words.length === 1) return words[0].slice(0, 7);
-    var ini = words.map(function(w){ return w.charAt(0); }).join('');
-    return ini.length >= 2 ? ini.slice(0, 5) : words[0].slice(0, 6);
-  }
-  function centreNode(cx, cy, label){
-    return '<circle cx="' + cx + '" cy="' + cy + '" r="27" fill="#0a1c15" stroke="#33e29a" ' +
-      'stroke-width="1.5"/>' +
-      '<text x="' + cx + '" y="' + (cy + 4) + '" text-anchor="middle" font-size="12" ' +
-      'font-weight="700" fill="#33e29a" font-family="Oxygen Mono,monospace">' + t(label) + '</text>';
-  }
-  function graphBody(w, h, row, rec, securities){
-    var freq = linkCount(securities);
-    var nodes = [];
-    var seen = {};
-    relTypes().forEach(function(tp){
-      (rec[tp.k] || []).forEach(function(e){
-        var nm = String((e && e.name) || '').trim();
-        if(!nm) return;
-        var sk = nameKey(nm) + '|' + tp.k;
-        if(seen[sk]) return;
-        seen[sk] = 1;
-        var reason = (e && (e.role || e.note)) || '';
-        nodes.push({name:nm, type:tp.k, colour:tp.c, reason:reason,
-                    f:(freq[nameKey(nm)] || 1)});
-      });
-    });
-    var cx = w / 2, cy = h / 2 + 2;
-    /* two records can resolve to the same short code (Jamii Telecommunications
-       and Jamii Telkom both come out as JT), so a repeated code is numbered
-       rather than drawn twice under one label */
-    var usedCode = {};
-    nodes.forEach(function(n){
-      var c = codeOf(n.name);
-      if(usedCode[c]){ usedCode[c]++; c = c + usedCode[c]; }
-      else usedCode[c] = 1;
-      n.code = c;
-    });
-    /* an ellipse, not a circle: the card is wider than it is tall, and a circle
-       sized to the height leaves half the width empty */
-    var rx = Math.min(w * 0.40, 330), ry = Math.min(h * 0.34, 200);
-    var present = relTypes().filter(function(tp){
-      return nodes.some(function(n){ return n.type === tp.k; });
-    });
-    var gap = present.length > 1 ? 13 : 0;
-    var avail = 360 - gap * present.length;
-    var start = -90;
-    present.forEach(function(tp){
-      var arr = nodes.filter(function(n){ return n.type === tp.k; });
-      var span = avail * (arr.length / Math.max(1, nodes.length));
-      arr.forEach(function(n, i){
-        var ang = (start + span * ((i + 0.5) / arr.length)) * Math.PI / 180;
-        var k = (arr.length > 6 && i % 2) ? 0.72 : 1;
-        n.x = cx + Math.cos(ang) * rx * k;
-        n.y = cy + Math.sin(ang) * ry * k;
-      });
-      start += span + gap;
-    });
-    var out = '<ellipse cx="' + cx + '" cy="' + cy + '" rx="' + rx.toFixed(1) + '" ry="' +
-      ry.toFixed(1) + '" fill="none" stroke="#1a1a1a" stroke-width="1" stroke-dasharray="2 5"/>';
-    nodes.forEach(function(n){
-      out += '<line x1="' + cx + '" y1="' + cy + '" x2="' + n.x.toFixed(1) + '" y2="' + n.y.toFixed(1) +
-        '" stroke="#33e29a" stroke-opacity=".26" stroke-width="1" vector-effect="non-scaling-stroke"/>';
-    });
-    nodes.forEach(function(n){
-      var r = 5 + Math.min(5, Math.log(n.f + 1) * 2.4);
-      out += '<g class="nd"><title>' + t(n.name + (n.reason ? ' | ' + n.reason : '')) + '</title>' +
-        '<circle cx="' + n.x.toFixed(1) + '" cy="' + n.y.toFixed(1) + '" r="' + r.toFixed(1) +
-        '" fill="#050505" stroke="' + n.colour + '" stroke-width="1.3"/>' +
-        '<text x="' + n.x.toFixed(1) + '" y="' + (n.y + r + 11).toFixed(1) + '" text-anchor="middle" ' +
-        'font-size="9" fill="#b0b0b0" font-family="Oxygen Mono,monospace">' + t(n.code) + '</text></g>';
-    });
-    out += centreNode(cx, cy, rowTicker(row));
-    /* legend, one colour per type, in the corner */
-    var counts = {};
-    nodes.forEach(function(n){ counts[n.type] = (counts[n.type] || 0) + 1; });
-    var ly = h - 8 - (relTypes().length - 1) * 12;
-    relTypes().forEach(function(tp, i){
-      var y = ly + i * 12;
-      out += '<rect x="9" y="' + (y - 6) + '" width="6" height="6" fill="' + tp.c + '"/>' +
-        '<text x="20" y="' + y + '" font-size="8" fill="#6a6a6a" letter-spacing=".08em" ' +
-        'font-family="Oxygen Mono,monospace">' + tp.n + ' ' + (counts[tp.k] || 0) + '</text>';
+  function linkList(rec){
+    var out = [];
+    activeTypes().forEach(function(tp){
+      (rec[tp.k] || []).forEach(function(e){ out.push({e:e, type:tp.k}); });
     });
     return out;
   }
-  function drawRel(box, row, relFile, rec){
-    var path = sd('relationships_' + row.ex + '.json');
-    if(readState(path) === 'failed' || !relFile){
-      box.innerHTML = failBox('RELATIONSHIPS', 'relationships_' + row.ex + '.json not loaded');
-      meta('rel', 'FILE NOT READ');
+  function buildGraph(row, rec){
+    var nodes = [], byKey = {}, edges = [], trunc = 0;
+    var centre = {key:'C:' + row.ex + ':' + rowTicker(row), depth:0, name:row.name || rowTicker(row),
+                  ex:row.ex, tk:rowTicker(row), listed:true, rec:rec, types:[],
+                  reason:'selected security', src:''};
+    nodes.push(centre);
+    byKey[centre.key] = centre;
+
+    function add(name, depth, type, parent){
+      var id = identOf(name);
+      if(!id) return null;
+      if(id.ex && id.ex === centre.ex && String(id.tk) === String(centre.tk)) return null;
+      var have = byKey[id.key];
+      if(have){
+        if(type && have.types.indexOf(type) < 0) have.types.push(type);
+        return have;
+      }
+      if(nodes.length - 1 >= G.cap){ trunc++; return null; }
+      var n = {key:id.key, depth:depth, name:id.name, ex:id.ex, tk:id.tk, listed:id.listed,
+               rec:id.rec, types:(type ? [type] : []), parent:parent || null,
+               reason:'', src:''};
+      nodes.push(n);
+      byKey[n.key] = n;
+      return n;
+    }
+
+    if(rec){
+      linkList(rec).forEach(function(link){
+        var n = add(link.e && link.e.name, 1, link.type, centre);
+        if(!n || n.depth !== 1) return;
+        if(!n.reason){
+          n.reason = String((link.e && (link.e.role || link.e.note)) || '');
+          n.src = srcLabel(link.e);
+        }
+        edges.push({a:centre.key, b:n.key, type:link.type, depth:1});
+      });
+    }
+    var hop1 = nodes.filter(function(n){ return n.depth === 1; });
+    if(G.hops > 1){
+      hop1.forEach(function(p){
+        if(!p.rec) return;
+        linkList(p.rec).forEach(function(link){
+          var n = add(link.e && link.e.name, 2, link.type, p);
+          if(!n || n.depth !== 2) return;
+          if(!n.reason){
+            n.reason = String((link.e && (link.e.role || link.e.note)) || '');
+            n.src = srcLabel(link.e);
+          }
+          edges.push({a:p.key, b:n.key, type:link.type, depth:2});
+        });
+      });
+    }
+    return {nodes:nodes, edges:edges, centre:centre, trunc:trunc};
+  }
+  function layoutGraph(g, w, h){
+    var cx = w / 2, cy = h / 2 - 3;
+    var padX = 40, padT = 22, padB = 22;
+    g.centre.tx = cx;
+    g.centre.ty = cy;
+    g.centre.ang = -Math.PI / 2;
+    var hop1 = g.nodes.filter(function(n){ return n.depth === 1; });
+    var hop2 = g.nodes.filter(function(n){ return n.depth === 2; });
+    var availH = Math.max(60, h - padT - padB);
+    var rx1 = Math.min(w * 0.27, 300), ry1 = Math.min(availH * 0.33, 120);
+    var rx2 = Math.min(w * 0.45, 520), ry2 = Math.min(availH * 0.47, 180);
+    hop1.sort(function(a, b){ return typeOrder(a.types[0]) - typeOrder(b.types[0]); });
+    hop1.forEach(function(n, i){
+      var ang = (-90 + (i / Math.max(1, hop1.length)) * 360) * Math.PI / 180;
+      n.tx = cx + Math.cos(ang) * rx1;
+      n.ty = cy + Math.sin(ang) * ry1;
+      n.ang = ang;
+    });
+    var byParent = {};
+    hop2.forEach(function(n){
+      var k = n.parent ? n.parent.key : '';
+      if(!byParent[k]) byParent[k] = [];
+      byParent[k].push(n);
+    });
+    Object.keys(byParent).forEach(function(k){
+      var arr = byParent[k], p = null, i;
+      for(i = 0; i < hop1.length; i++){ if(hop1[i].key === k) p = hop1[i]; }
+      var base = (p && p.ang != null) ? p.ang : -Math.PI / 2;
+      var spread = Math.min(0.95, 0.32 * Math.max(1, arr.length - 1));
+      arr.forEach(function(n, j){
+        var off = arr.length > 1 ? (-spread + (2 * spread) * (j / (arr.length - 1))) : 0;
+        var ang = base + off;
+        n.tx = cx + Math.cos(ang) * rx2;
+        n.ty = cy + Math.sin(ang) * ry2;
+        n.ang = ang;
+      });
+    });
+    /* a light relaxation only: nodes are pushed apart so labels keep their own
+       space, the centre never moves, and nothing leaves the frame */
+    var all = hop1.concat(hop2), minD = 30;
+    for(var it = 0; it < 90; it++){
+      var moved = false, i, j;
+      for(i = 0; i < all.length; i++){
+        for(j = i + 1; j < all.length; j++){
+          var a = all[i], b = all[j];
+          var dx = b.tx - a.tx, dy = b.ty - a.ty;
+          var d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+          if(d >= minD) continue;
+          var push = (minD - d) / 2 + 0.4;
+          var ux = dx / d, uy = dy / d;
+          a.tx -= ux * push; a.ty -= uy * push;
+          b.tx += ux * push; b.ty += uy * push;
+          moved = true;
+        }
+      }
+      all.forEach(function(n){
+        var dx = n.tx - cx, dy = n.ty - cy, d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        if(d < 52){
+          n.tx = cx + (dx / d) * 52;
+          n.ty = cy + (dy / d) * 52;
+        }
+        n.tx = Math.max(padX, Math.min(w - padX, n.tx));
+        n.ty = Math.max(padT, Math.min(h - padB - 10, n.ty));
+      });
+      if(!moved && it > 6) break;
+    }
+  }
+  function graphSVG(g, w, h, row){
+    layoutGraph(g, w, h);
+    var pos = {}, i;
+    g.nodes.forEach(function(n){ pos[n.key] = n; });
+    var cx = w / 2, cy = h / 2 - 3;
+    var out = '<ellipse cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" rx="' +
+      Math.min(w * 0.27, 300).toFixed(1) + '" ry="' + Math.min(Math.max(60, h - 44) * 0.33, 120).toFixed(1) +
+      '" fill="none" stroke="#161616" stroke-width="1" stroke-dasharray="2 6"/>';
+    g.edges.forEach(function(e){
+      var a = pos[e.a], b = pos[e.b];
+      if(!a || !b || a.tx == null || b.tx == null) return;
+      var col = typeOf(e.type).c;
+      var op = e.depth === 1 ? .34 : .24;
+      out += '<line x1="' + a.tx.toFixed(1) + '" y1="' + a.ty.toFixed(1) + '" x2="' + b.tx.toFixed(1) +
+        '" y2="' + b.ty.toFixed(1) + '" stroke="' + col + '" stroke-opacity="' + op +
+        '" stroke-width="' + (e.depth === 1 ? 1 : 0.8) + '"' +
+        (e.depth === 2 ? ' stroke-dasharray="2 3"' : '') + ' vector-effect="non-scaling-stroke"/>';
+    });
+    g.nodes.forEach(function(n){
+      var col = n.depth === 0 ? '#33e29a' : typeOf(n.types[0]).c;
+      var lbl = String(n.depth === 0 ? (n.tk || '') : (n.code || n.tk || ''));
+      var r = n.depth === 0 ? (lbl.length >= 8 ? 28 : 24) : (n.depth === 1 ? 5.6 : 3.8);
+      var fill = n.depth === 0 ? '#0a1c15' : '#050505';
+      var title = n.name + (n.ex ? ' ' + n.ex : '') + (n.tk ? ' ' + n.tk : '') +
+        (n.reason ? ' | ' + n.reason : '') + (n.src ? ' | ' + n.src : '');
+      out += '<g class="nd' + (n.depth === 0 ? ' ct' : '') + '" data-k="' + t(n.key) + '">' +
+        '<title>' + t(title) + '</title>' +
+        '<circle cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' + (r + 7).toFixed(1) +
+        '" fill="transparent" stroke="none"/>' +
+        '<circle cx="' + n.tx.toFixed(1) + '" cy="' + n.ty.toFixed(1) + '" r="' + r +
+        '" fill="' + fill + '" stroke="' + col + '" stroke-width="' + (n.depth === 0 ? 1.5 : 1.3) + '"/>';
+      if(n.depth === 0){
+        out += '<text x="' + n.tx.toFixed(1) + '" y="' + (n.ty + 3.5).toFixed(1) +
+          '" text-anchor="middle" font-size="' + (lbl.length >= 8 ? 9 : 11) +
+          '" font-weight="700" fill="#33e29a">' + t(lbl) + '</text>';
+      } else {
+        out += '<text x="' + n.tx.toFixed(1) + '" y="' + (n.ty + r + 10).toFixed(1) +
+          '" text-anchor="middle" font-size="' + (n.depth === 1 ? 8.5 : 8) + '" fill="' +
+          (n.depth === 1 ? '#b0b0b0' : '#808080') + '">' + t(lbl) + '</text>';
+      }
+      out += '</g>';
+    });
+    var counts = {customers:0, suppliers:0, competitors:0, partners:0};
+    g.nodes.forEach(function(n){
+      if(n.depth === 0) return;
+      counts[n.types[0]] = (counts[n.types[0]] || 0) + 1;
+    });
+    relTypes().forEach(function(tp, k){
+      var x = 9, y = 12 + k * 11;
+      out += '<rect x="' + x + '" y="' + (y - 6) + '" width="6" height="6" fill="' + tp.c + '"/>' +
+        '<text x="' + (x + 11) + '" y="' + y + '" font-size="7.5" fill="#6a6a6a" letter-spacing=".06em">' +
+        tp.n + ' ' + (counts[tp.k] || 0) + '</text>';
+    });
+    return out;
+  }
+  function codeFor(g){
+    var used = {};
+    g.nodes.forEach(function(n){
+      if(n.depth === 0){ n.code = n.tk; return; }
+      var c = n.tk;
+      if(!c){
+        var words = String(n.name || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').split(' ')
+          .filter(function(w){ return w && w.length > 1; });
+        if(!words.length) c = '?';
+        else if(words.length === 1) c = words[0].slice(0, 6);
+        else {
+          var ini = words.map(function(w){ return w.charAt(0); }).join('');
+          c = ini.length >= 2 ? ini.slice(0, 5) : words[0].slice(0, 6);
+        }
+      }
+      if(used[c]){ used[c]++; c = c + used[c]; }
+      else used[c] = 1;
+      n.code = c;
+    });
+  }
+  function filesLine(){
+    var ok = [], bad = [];
+    EXS.forEach(function(ex){ (REL_ST[ex] === 'ok' ? ok : bad).push(ex); });
+    return 'FILES ' + (ok.length ? ok.join(' ') : 'NONE') +
+      (bad.length ? ' | <b>' + bad.join(' ') + ' NOT READ</b>' : '');
+  }
+  function graphSub(g){
+    var n1 = 0, n2 = 0;
+    g.nodes.forEach(function(n){ if(n.depth === 1) n1++; else if(n.depth === 2) n2++; });
+    var s = 'HOP ' + G.hops + ' | ' + n1 + ' FIRST' + (G.hops > 1 ? ' + ' + n2 + ' SECOND' : '') +
+      ' | CAP ' + G.cap + ' NODES';
+    if(g.trunc) s += ' | <b>' + g.trunc + ' DROPPED AT CAP</b>';
+    return s + ' | ' + filesLine();
+  }
+  function markNode(svg){
+    if(!svg) return;
+    Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
+      if(el.getAttribute('data-k') === G.selKey) el.classList.add('on');
+      else el.classList.remove('on');
+    });
+  }
+  function wireNodes(svg){
+    Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
+      function take(){
+        G.selKey = el.getAttribute('data-k') || '';
+        markNode(svg);
+        paintSel();
+      }
+      el.addEventListener('mouseenter', take);
+      el.addEventListener('click', take);
+    });
+  }
+  function paintSel(){
+    var box = document.getElementById('b_sel');
+    if(!box) return;
+    var g = G.last, n = null, i;
+    if(g && G.selKey){
+      for(i = 0; i < g.nodes.length; i++){ if(g.nodes[i].key === G.selKey){ n = g.nodes[i]; break; } }
+    }
+    if(!n){
+      box.innerHTML = '<div class="emp"><b>NO NODE PICKED</b> hover or click a node</div>';
+      meta('sel', DASH);
       return;
     }
-    var cov = relFile.coverage || {};
-    var securities = relFile.securities || {};
-    var withOne = isNum(cov.securitiesWithSourcedEntity) ? Number(cov.securitiesWithSourcedEntity)
-                                                        : Object.keys(securities).length;
-    var listed = isNum(cov.securitiesListed) ? Number(cov.securitiesListed) : null;
-    if(!rec){
-      var covTxt = withOne + (listed != null ? ' OF ' + listed : '') + ' ' + row.ex +
-        ' SECURITIES CARRY A SOURCED RECORD';
-      box.innerHTML = '<div class="gwrap"><svg class="gsvg"></svg></div>' +
-        '<div class="gsub"><b>NO RECORD</b> | ' + t(covTxt) + '</div>';
-      var svg0 = box.querySelector('.gsvg');
-      var run0 = function(){
-        var r = svg0.getBoundingClientRect();
-        var w = Math.round(r.width || box.clientWidth || 600);
-        var hh = Math.round(r.height || (box.clientHeight - 18) || 220);
-        svg0.setAttribute('viewBox', '0 0 ' + w + ' ' + hh);
-        svg0.innerHTML = centreNode(w / 2, hh / 2, rowTicker(row));
-      };
-      run0();
-      PAINT.rel = run0;
-      meta('rel', '0 NODES | 0 LINKS');
-      return;
+    var tk = n.tk || 'UNLISTED';
+    var ex = n.ex || 'NOT IN TERMINAL';
+    var link = n.depth === 0 ? 'SELECTED SECURITY'
+      : (typeLabel(n.types[0]) + (n.types.length > 1 ? ' +' + (n.types.length - 1) : ''));
+    var h = '';
+    h += '<div class="srow"><span class="sk">NAME</span><span class="sv clip" title="' +
+      t(n.name) + '">' + t(n.name) + '</span></div>';
+    h += '<div class="srow"><span class="sk">TICKER</span><span class="sv tk">' + t(tk) + '</span>' +
+      '<span class="sk sk2">' + t(ex) + '</span></div>';
+    h += '<div class="srow"><span class="sk">LINK</span><span class="sv ' +
+      (n.depth === 0 ? 'dm' : 'wr') + '">' + t(link) + '</span>' +
+      '<span class="sk sk2">HOP ' + n.depth + '</span></div>';
+    h += '<div class="srow"><span class="sk">REASON</span><span class="sv clip" title="' +
+      t(n.reason || '') + '">' + t(n.reason || 'none recorded') + '</span></div>';
+    h += '<div class="srow"><span class="sk">SOURCE</span><span class="sv dm" title="' +
+      t(n.src || '') + '">' + t(n.src || DASH) + '</span></div>';
+    if(n.rec){
+      var cnt = 0;
+      ['customers', 'suppliers', 'competitors', 'partners'].forEach(function(k){
+        cnt += (n.rec[k] || []).length;
+      });
+      h += '<div class="srow"><span class="sk">RECORD</span><span class="sv dm">' + fnum(cnt, 0) +
+        ' LINKS ON FILE</span></div>';
     }
-    var count = relTypes().reduce(function(a, tp){ return a + (rec[tp.k] || []).length; }, 0);
-    if(!count){
-      box.innerHTML = empBox('EMPTY RECORD', 'the file carries ' + rowTicker(row) + ' but names nothing');
-      meta('rel', '0 NODES | 0 LINKS');
-      return;
-    }
-    box.innerHTML = '<div class="gwrap"><svg class="gsvg"></svg></div>';
+    box.innerHTML = h;
+    meta('sel', 'HOP ' + n.depth + ' | ' + (n.ex || 'UNLISTED'));
+  }
+  function renderGraph(box, row){
+    var g = buildGraph(row, G.rec);
+    codeFor(g);
+    box.innerHTML = '<div class="gwrap"><svg class="gsvg"></svg></div>' +
+      '<div class="gsub" id="gsub">' + graphSub(g) + '</div>';
     var svg = box.querySelector('.gsvg');
     var run = function(){
       var r = svg.getBoundingClientRect();
       var w = Math.round(r.width || box.clientWidth || 600);
       var hh = Math.round(r.height || box.clientHeight || 260);
       svg.setAttribute('viewBox', '0 0 ' + w + ' ' + hh);
-      svg.innerHTML = graphBody(w, hh, row, rec, securities);
+      svg.innerHTML = graphSVG(g, w, hh, row);
+      wireNodes(svg);
+      markNode(svg);
+      G.last = g;
     };
     run();
     PAINT.rel = run;
-    meta('rel', count + ' NODES | ' + count + ' LINKS');
+    G.last = g;
+    var n1 = 0, n2 = 0, e1 = 0, e2 = 0;
+    g.nodes.forEach(function(n){ if(n.depth === 1) n1++; else if(n.depth === 2) n2++; });
+    g.edges.forEach(function(e){ if(e.depth === 1) e1++; else e2++; });
+    meta('rel', g.nodes.length + ' NODES | ' + g.edges.length + ' LINKS' +
+      (G.hops > 1 ? ' | ' + n2 + ' AT HOP 2' : ''));
+    paintSel();
+  }
+  function drawRel(box, row, relFile, rec){
+    G.row = row;
+    G.rec = rec;
+    G.selKey = '';
+    G.last = null;
+    var path = sd('relationships_' + row.ex + '.json');
+    if(readState(path) === 'failed' || !relFile){
+      box.innerHTML = failBox('RELATIONSHIPS', 'relationships_' + row.ex + '.json not loaded');
+      meta('rel', 'FILE NOT READ');
+      paintSel();
+      return;
+    }
+    buildRelIndex();
+    if(!rec){
+      var cov = relFile.coverage || {};
+      var secs = relFile.securities || {};
+      var withOne = isNum(cov.securitiesWithSourcedEntity) ? Number(cov.securitiesWithSourcedEntity)
+                                                          : Object.keys(secs).length;
+      var listed = isNum(cov.securitiesListed) ? Number(cov.securitiesListed) : null;
+      box.innerHTML = '<div class="gwrap"><svg class="gsvg"></svg></div>' +
+        '<div class="gsub" id="gsub"><b>NO RECORD</b> | ' + withOne + (listed != null ? ' OF ' + listed : '') +
+        ' ' + t(row.ex) + ' SECURITIES CARRY A SOURCED RECORD | ' + filesLine() + '</div>';
+      var svg0 = box.querySelector('.gsvg');
+      var run0 = function(){
+        var r = svg0.getBoundingClientRect();
+        var w = Math.round(r.width || box.clientWidth || 600);
+        var hh = Math.round(r.height || (box.clientHeight - 18) || 220);
+        svg0.setAttribute('viewBox', '0 0 ' + w + ' ' + hh);
+        svg0.innerHTML = '<circle cx="' + (w / 2) + '" cy="' + (hh / 2) + '" r="24" fill="#0a1c15" ' +
+          'stroke="#33e29a" stroke-width="1.5"/><text x="' + (w / 2) + '" y="' + (hh / 2 + 4) +
+          '" text-anchor="middle" font-size="11" font-weight="700" fill="#33e29a">' +
+          t(rowTicker(row)) + '</text>';
+      };
+      run0();
+      PAINT.rel = run0;
+      meta('rel', '0 NODES | 0 LINKS');
+      paintSel();
+      return;
+    }
+    var count = activeTypes().reduce(function(a, tp){ return a + (rec[tp.k] || []).length; }, 0);
+    var total = relTypes().reduce(function(a, tp){ return a + (rec[tp.k] || []).length; }, 0);
+    if(!total){
+      box.innerHTML = empBox('EMPTY RECORD', 'the file carries ' + rowTicker(row) +
+        ' but names nothing') + '<div class="gsub" id="gsub">' + filesLine() + '</div>';
+      meta('rel', '0 NODES | 0 LINKS');
+      paintSel();
+      return;
+    }
+    if(!count){
+      box.innerHTML = empBox('FILTER HIDES EVERY LINK', 'the record carries ' + total +
+        ' links, none of an active type') + '<div class="gsub" id="gsub">' + filesLine() + '</div>';
+      meta('rel', '0 NODES | 0 LINKS');
+      paintSel();
+      return;
+    }
+    renderGraph(box, row);
+  }
+  /* the two controls, and nothing else, change the graph */
+  function wireGraphControls(){
+    var ctl = document.querySelectorAll('#c_hop .hp');
+    Array.prototype.forEach.call(ctl, function(b){
+      b.addEventListener('click', function(){
+        G.hops = Number(b.getAttribute('data-hop')) === 2 ? 2 : 1;
+        Array.prototype.forEach.call(ctl, function(x){
+          x.setAttribute('aria-pressed', Number(x.getAttribute('data-hop')) === G.hops ? 'true' : 'false');
+        });
+        redrawGraph();
+      });
+    });
+    var flt = document.querySelectorAll('#c_type .ft');
+    Array.prototype.forEach.call(flt, function(b){
+      b.addEventListener('click', function(){
+        var k = b.getAttribute('data-t');
+        var on = G.types[k];
+        var live = relTypes().filter(function(tp){ return G.types[tp.k]; }).length;
+        if(on && live <= 1) return;
+        G.types[k] = !on;
+        b.setAttribute('aria-pressed', G.types[k] ? 'true' : 'false');
+        redrawGraph();
+      });
+    });
+  }
+  function redrawGraph(){
+    if(!G.row) return;
+    var box = document.getElementById('b_rel');
+    if(!box) return;
+    guardDraw('rel', function(b){ drawRel(b, G.row, (REL_ST[G.row.ex] === 'ok' ? RELF[G.row.ex] : null), G.rec); });
   }
 
-  /* ---------- 3. REVENUE / NET PROFIT BARS --------------------------- */
-  function hasValue(r){
-    return !!(r && (r.values || []).some(function(v){ return isNum(v); }));
+  /* ---------- 3. THESIS ---------------------------------------------- */
+  /* The shape of a research answer: what is DIRECT, what reaches a company
+     through a MECHANISM, what is NOT THERE, and what was read. Every row comes
+     from static_data/research_theses.json and names the source and the date it
+     was read at. Rows naming the selected security are marked and sorted first;
+     the rest of the theme stays visible, because a theme is read as a whole. */
+  var TH = {list:[], theme:'', marked:0, st:'unread'};
+
+  function upperList(a){
+    return (a || []).map(function(x){ return String(x).toUpperCase(); });
   }
-  function pickVal(rows, re){
-    for(var i = 0; i < rows.length; i++){
-      if(re.test(String(rows[i].label || '')) && hasValue(rows[i])) return rows[i];
+  function thesisFor(tk){
+    for(var i = 0; i < TH.list.length; i++){
+      if(upperList(TH.list[i].securities).indexOf(tk) >= 0) return TH.list[i];
     }
     return null;
   }
-  function finSeries(fin){
-    var P = (fin.periods || []);
-    var all = (fin.rows || []);
-    var rows = all.filter(function(r){ return !r.isGroupHeader; });
-    /* a group header labelled "Revenue" carries the total its sub lines add up
-       to, so an exact label holding numbers wins over the first line that only
-       starts with the word: that one is a component, not the top line */
-    var rev = pickVal(all, /^revenue$/i) || pickVal(rows, /^revenue/i) ||
-              pickVal(rows, /turnover|net sales/i);
-    var np = pickVal(all, /^net profit$/i) || pickVal(all, /^profit for the (year|period)$/i) ||
-             pickVal(rows, /net profit|profit for the (year|period)|profit after tax/i);
-    var out = [];
-    for(var i = P.length - 1; i >= 0; i--){
-      out.push({p:P[i], rev: rev ? numv((rev.values || [])[i]) : null,
-                       np: np ? numv((np.values || [])[i]) : null});
-    }
-    return {pts: out};
+  function rowHit(o, tk){
+    return upperList(o && o.tickers).indexOf(tk) >= 0;
   }
-  function barsSVG(w, h, pts){
-    var padL = 46, padR = 6, padT = 17, padB = 17;
-    var pw = Math.max(20, w - padL - padR), ph = Math.max(20, h - padT - padB);
-    var maxV = 0, minV = 0;
-    pts.forEach(function(o){
-      [o.rev, o.np].forEach(function(v){
-        if(v != null){ if(v > maxV) maxV = v; if(v < minV) minV = v; }
-      });
-    });
-    if(maxV === 0 && minV === 0) return '';
-    var span = (maxV - minV) || 1;
-    function y(v){ return padT + ph - ((v - minV) / span) * ph; }
-    var zero = y(0);
-    var n = pts.length || 1;
-    var gw = pw / n;
-    var bw = Math.max(3, Math.min(22, gw * 0.3));
-    var out = '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">';
-    [minV, (minV + maxV) / 2, maxV].forEach(function(v){
-      var yy = y(v).toFixed(1);
-      out += '<line x1="' + padL + '" y1="' + yy + '" x2="' + (w - padR) + '" y2="' + yy +
-        '" stroke="#141414" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
-        '<text x="' + (padL - 4) + '" y="' + (+yy + 2.5) + '" text-anchor="end" font-size="7.5" ' +
-        'fill="#6a6a6a" font-family="Oxygen Mono,monospace">' + t(fmoney(v)) + '</text>';
-    });
-    out += '<line x1="' + padL + '" y1="' + zero.toFixed(1) + '" x2="' + (w - padR) + '" y2="' +
-      zero.toFixed(1) + '" stroke="#262626" stroke-width="1" vector-effect="non-scaling-stroke"/>';
-    pts.forEach(function(o, i){
-      var cxp = padL + gw * (i + 0.5);
-      var x1 = cxp - bw - 1.5, x2 = cxp + 1.5;
-      [[o.rev, x1, '#33e29a'], [o.np, x2, '#6ea8fe']].forEach(function(pair){
-        var v = pair[0];
-        if(v == null) return;
-        var top = Math.min(y(v), zero), hh = Math.max(1, Math.abs(y(v) - zero));
-        out += '<rect x="' + pair[1].toFixed(1) + '" y="' + top.toFixed(1) + '" width="' +
-          bw.toFixed(1) + '" height="' + hh.toFixed(1) + '" fill="' + pair[2] + '" opacity=".85"/>';
-        if(bw >= 13 && ph > 60){
-          var ly = v >= 0 ? Math.max(padT + 6, top - 3) : Math.min(h - padB - 2, top + hh + 8);
-          out += '<text x="' + (pair[1] + bw / 2).toFixed(1) + '" y="' + ly.toFixed(1) +
-            '" text-anchor="middle" font-size="7" fill="' + pair[2] + '" opacity=".9" ' +
-            'font-family="Oxygen Mono,monospace">' + t(fmoney(v)) + '</text>';
-        }
-      });
-      out += '<text x="' + cxp.toFixed(1) + '" y="' + (h - 4) + '" text-anchor="middle" ' +
-        'font-size="8" fill="#6a6a6a" font-family="Oxygen Mono,monospace">' + t(o.p) + '</text>';
-    });
-    out += '</svg>';
-    return out;
-  }
-  function statementTable(fin){
-    var ccy = fin.currency || '';
-    var periods = (fin.periods || []).slice(0, 3);
-    var rows = (fin.rows || []).filter(function(r){ return !r.isGroupHeader; });
-    var magSeen = {};
-    rows = rows.filter(function(r){
-      var vals = r.values || [], any = false, sig = [], neg = [];
-      for(var i = 0; i < vals.length; i++){
-        if(isNum(vals[i])){ any = true; sig.push(Number(vals[i]).toFixed(2)); neg.push((-Number(vals[i])).toFixed(2)); }
-        else { sig.push('x'); neg.push('x'); }
-      }
-      if(!any) return true;
-      var s = sig.join('|'), nn = neg.join('|');
-      if(magSeen[s] !== undefined || magSeen[nn] !== undefined) return false;
-      magSeen[s] = 1;
-      return true;
-    });
-    var h = '<table class="fin"><thead><tr><th>' + t(ccyLabel(ccy)) + '</th>';
-    periods.forEach(function(p){ h += '<th>' + t(p) + '</th>'; });
-    h += '</tr></thead><tbody>';
-    rows.slice(0, 40).forEach(function(r){
-      var vals = r.values || [];
-      h += '<tr' + (r.isGroupTotal ? ' class="tot"' : '') + '><td class="it">' + t(r.label) + '</td>';
-      periods.forEach(function(p, i){
-        var v = vals[i];
-        h += isNum(v) ? '<td class="' + (Number(v) < 0 ? 'neg' : '') + '">' + fmoney(v) + '</td>'
-                      : '<td>' + DASH + '</td>';
-      });
-      h += '</tr>';
-    });
-    h += '</tbody></table>';
+  function tRow(o, tk, kind){
+    var hit = rowHit(o, tk);
+    var tks = upperList(o.tickers);
+    var lead = (kind === 'source') ? '' : (tks.length ? tks.slice(0, 2).join(' ') : 'ALL');
+    var cls = 'tr' + (hit ? ' hit' : '') + (kind === 'absent' ? ' abs' : '');
+    var tip = [o.text || o.name || '', o.source || '', o.date || '', o.basis || '',
+               o.url || ''].filter(Boolean).join(' | ');
+    var h = '<div class="' + cls + '" title="' + t(tip) + '">';
+    if(lead) h += '<span class="trk">' + t(lead) + '</span>';
+    if(kind === 'mech') h += '<span class="tag2">IND</span>';
+    h += '<span class="ttx">' + t(nd(o.text || o.name || '')) + '</span>';
+    if(o.source && kind !== 'source') h += '<span class="tsrc">' + t(nd(o.source)) + '</span>';
+    if(o.date) h += '<span class="tsd">' + t(nd(o.date)) + '</span>';
+    h += '</div>';
     return h;
   }
-  function drawFin(box, row, fin, an, key){
-    if(!fin || !(fin.rows || []).length){
-      if(fin && fin.available === false){
-        box.innerHTML = empBox('NO STATEMENT ON FILE', fin.source_note || 'the statement file says none is published');
-        meta('fin', 'STATEMENT ABSENT');
-      } else {
-        box.innerHTML = failBox('INCOME STATEMENT', key + ' not found');
-        meta('fin', 'NO FILE');
-      }
+  function tGroup(label, list, tk, kind, cap){
+    var arr = (list || []).slice(), n = arr.length;
+    var marked = arr.filter(function(o){ return rowHit(o, tk); }).length;
+    var h = '<div class="tg"><div class="tgh">' + label + ' <b>' + n + '</b>' +
+      (marked ? '<span class="hit">' + marked + ' MARKED</span>' : '') + '</div>';
+    /* rows naming this security first, then the rest of the theme */
+    arr.sort(function(a, b){ return (rowHit(b, tk) ? 1 : 0) - (rowHit(a, tk) ? 1 : 0); });
+    arr.slice(0, cap || 4).forEach(function(o){ h += tRow(o, tk, kind); });
+    if(n > (cap || 4)) h += '<div class="tr ab">+' + (n - (cap || 4)) + ' MORE IN RECORD</div>';
+    if(!n) h += '<div class="tr ab">NONE RECORDED</div>';
+    h += '</div>';
+    return h;
+  }
+  function drawThesis(box, row, file, st){
+    var tk = rowTicker(row);
+    TH.st = st;
+    TH.list = (file && file.theses) || [];
+    TH.marked = 0;
+    if(st === 'failed' || !file){
+      box.innerHTML = failBox('THESIS', 'research_theses.json not loaded');
+      meta('thes', 'FILE NOT READ');
       return;
     }
-    var S = finSeries(fin);
-    var pts = S.pts;
-    box.innerHTML = '<div class="finbox"><div class="finchart"></div>' +
-      '<details class="stmt"><summary>STATEMENT ROWS</summary><div class="stwrap">' +
-      statementTable(fin) + '</div></details></div>';
-    var chart = box.querySelector('.finchart');
-    var run = function(){
-      var w = Math.round(chart.clientWidth || 0), h = Math.round(chart.clientHeight || 0);
-      if(!w || !h) return;
-      var svg = barsSVG(w, h, pts);
-      chart.innerHTML = svg || '<div class="emp">NO REVENUE OR NET PROFIT ROW</div>';
-    };
-    run();
-    PAINT.fin = run;
-    var newest = pts[pts.length - 1] || {};
-    meta('fin', pts.length + ' PERIODS | ' + ccyLabel(fin.currency || row.currency) +
-      ' | ' + fmoney(newest.rev) + ' / ' + fmoney(newest.np));
+    if(!TH.list.length){
+      box.innerHTML = empBox('NO THESIS ON FILE', 'the file carries no theme');
+      meta('thes', '0 THEMES');
+      return;
+    }
+    var th = thesisFor(tk);
+    if(!th){
+      /* the theme does not name this security, so the honest answer is the
+         negative plus the securities the theme does reach: a lead, not a blank */
+      var named = [];
+      TH.list.forEach(function(x){ named = named.concat(x.securities || []); });
+      var uniq = [], seen = {};
+      named.forEach(function(x){
+        var u = String(x).toUpperCase();
+        if(!seen[u]){ seen[u] = 1; uniq.push(u); }
+      });
+      var head = uniq.slice(0, 14).join(' ') + (uniq.length > 14 ? ' +' + (uniq.length - 14) : '');
+      box.innerHTML = empBox('NO THESIS NAMES ' + t(tk), TH.list.length + ' THEME' +
+        (TH.list.length === 1 ? '' : 'S') + ' ON FILE: ' +
+        TH.list.map(function(x){ return nd(x.theme || x.id); }).join(', ') +
+        ' | NAMES ' + head);
+      meta('thes', '0 MARKED');
+      return;
+    }
+    var marked = 0;
+    ['direct', 'mechanisms', 'absent', 'sources'].forEach(function(k){
+      marked += (th[k] || []).filter(function(o){ return rowHit(o, tk); }).length;
+    });
+    TH.theme = nd(th.theme || th.id);
+    TH.marked = marked;
+    var h = '';
+    h += tGroup('DIRECT LINKS', th.direct, tk, 'direct', 4);
+    h += tGroup('MECHANISMS / INDIRECT', th.mechanisms, tk, 'mech', 3);
+    h += tGroup('WHAT IS NOT THERE', th.absent, tk, 'absent', 3);
+    h += tGroup('SOURCES', th.sources, tk, 'source', 4);
+    h += '<div class="tnote">THEME ' + t(TH.theme) + ' | ' +
+      (marked ? '<b>' + marked + ' MARKED</b> FOR ' + t(tk) : 'NO ROW NAMES ' + t(tk)) +
+      '</div>';
+    box.innerHTML = h;
+    meta('thes', String(th.id || '').toUpperCase() + ' | ' + marked + ' MARKED');
   }
 
   /* ---------- 4. PRICE CHART ----------------------------------------- */
@@ -1305,83 +1643,6 @@
     box.innerHTML = h;
   }
 
-  /* ---------- 7. OWNERSHIP ------------------------------------------- */
-  var SEGCOL = ['#33e29a', '#1ecfb0', '#6ea8fe', '#c08cff', '#e0a341'];
-  function segColour(i){ return i < SEGCOL.length ? SEGCOL[i] : '#4a4a4a'; }
-  function drawOwn(box, row, file){
-    var path = sd('shareholders_' + row.ex + '.json');
-    if(readState(path) === 'failed' || !file){
-      box.innerHTML = failBox('SHAREHOLDER FILE', 'shareholders_' + row.ex + '.json not loaded');
-      meta('own', 'FILE NOT READ');
-      return;
-    }
-    var map = file.securities || {};
-    var rec = map[row.ticker] || map[row.sym] || map[rowTicker(row)] || null;
-    if(!rec){
-      box.innerHTML = empBox('NO HOLDER RECORD', Object.keys(map).length + ' ' + row.ex + ' records, not this one');
-      meta('own', 'NO RECORD');
-      return;
-    }
-    var holders = [];
-    ['substantial','promoters','directors','other'].forEach(function(g){
-      (rec[g] || []).forEach(function(x){
-        if(!x) return;
-        var nm = x.name || x.holder || '';
-        if(!nm) return;
-        holders.push({name:nm, holding:numv(x.holding != null ? x.holding : x.shares),
-                      pct:numv(x.pct)});
-      });
-    });
-    var issued = numv(rec.issued);
-    var basis = 'STATED PCT';
-    if(!holders.length){
-      box.innerHTML = empBox('RECORD CARRIES NO HOLDERS', (rec.asOf ? 'AS AT ' + rec.asOf : '') +
-        (issued != null ? ' | ' + fnum(issued, 0) + ' ISSUED' : ''));
-      meta('own', '0 HOLDERS');
-      return;
-    }
-    /* per cent comes from the file when it prints one; when it prints share
-       counts only the width is shares held over issued shares, and the caption
-       says so instead of implying a printed percentage */
-    var anyPct = holders.some(function(x){ return x.pct != null; });
-    if(!anyPct && issued){
-      holders.forEach(function(x){
-        if(x.holding != null) x.pct = x.holding / issued * 100;
-      });
-      basis = 'SHARE OF ISSUED';
-    }
-    holders = holders.filter(function(x){ return x.pct != null && x.pct > 0; })
-                     .sort(function(a, b){ return b.pct - a.pct; });
-    if(!holders.length){
-      box.innerHTML = empBox('NO HOLDING PERCENTAGE', 'the record carries share counts only');
-      meta('own', '0 HOLDERS');
-      return;
-    }
-    var big = holders.filter(function(x){ return x.pct >= 0.5; }).slice(0, 6);
-    var sum = big.reduce(function(a, x){ return a + x.pct; }, 0);
-    var segs = big.slice();
-    if(sum < 99.5) segs.push({name:'OTHER HOLDERS', pct:100 - sum, rest:true});
-
-    var h = '<div class="ofig"><span class="ofv">' + (issued != null ? fnum(issued, 0) : DASH) +
-      '</span><span class="ofl">ISSUED</span></div>';
-    h += '<div class="obar">';
-    segs.forEach(function(s, i){
-      h += '<div class="seg" style="width:' + s.pct.toFixed(2) + '%;background:' +
-        (s.rest ? '#3a3a3a' : segColour(i)) +
-        '" title="' + t(s.name + ' ' + s.pct.toFixed(2) + '%') + '"></div>';
-    });
-    h += '</div><div class="oleg">';
-    segs.slice(0, 3).forEach(function(s, i){
-      h += '<div class="olr"><span class="old" style="background:' +
-        (s.rest ? '#3a3a3a' : segColour(i)) + '"></span>' +
-        '<span class="oln">' + t(s.name) + '</span>' +
-        '<span class="olp">' + s.pct.toFixed(2) + '%</span></div>';
-    });
-    h += '</div>';
-    box.innerHTML = h;
-    meta('own', segs.length + ' SEGMENTS | ' + basis + (rec.asOf ? ' | ' + rec.asOf : ''));
-  }
-
   /* ---------- the build ---------------------------------------------- */
   var GEN = 0, CUR = null;
 
@@ -1412,19 +1673,26 @@
   function build(row){
     var gen = ++GEN;
     CUR = row;
+    G.row = row;
+    G.rec = null;
+    G.selKey = '';
+    G.last = null;
+    RECBY = null;
     PAINT = {};
     PXSTATE = {mode:'none', points:0, bars:0};
     paintHead(row, null);
     document.getElementById('footNote').textContent = '';
+    paintSel();
 
     var ex = row.ex;
     var J = {};
     J.info = getJSON(sd('company_info.json'));
     J.rel = getJSON(sd('relationships_' + ex + '.json'));
+    /* all four boards are read, so a chain can cross an exchange board */
+    J.rell = EXS.map(function(e2){ return getJSON(sd('relationships_' + e2 + '.json')); });
+    J.thes = getJSON(sd('research_theses.json'));
     J.news = NEWS_EX[ex] ? getJSON(sd(ex.toLowerCase() + '_news.json')) : Promise.resolve(null);
     J.ann = ANN_EX[ex] ? getJSON(sd(ex.toLowerCase() + '_announcements.json')) : Promise.resolve(null);
-    J.sh = getJSON(sd('shareholders_' + ex + '.json'));
-    J.fin = readFirst(row, 'income');
     J.an = readFirst(row, 'analytics');
     J.hist = readHistory(row);
     if(ex === 'NSE'){
@@ -1434,13 +1702,23 @@
       J.gov = getJSON(sd('gov_exposure_SA.json'));
     }
 
-    Promise.all([J.info, J.rel, J.news, J.ann, J.sh, J.fin, J.an, J.hist,
+    Promise.all([J.info, J.rel, Promise.all(J.rell), J.thes, J.news, J.ann, J.an, J.hist,
                  J.gov || null, J.laws || null])
     .then(function(R){
       if(gen !== GEN) return;
-      var info = R[0], relFile = R[1], shFile = R[4], fin = R[5], an = R[6], hist = R[7];
+      var info = R[0], relFile = R[1], thesFile = R[3], an = R[6], hist = R[7];
       var govFile = R[8], lawsFile = R[9];
       paintHead(row, info && (info[row.ticker] || info[ex + ':' + row.sym] || info[row.sym] || info[rowTicker(row)]));
+
+      /* what each of the four link files actually returned, kept for the panel
+         to print rather than assumed */
+      EXS.forEach(function(e2){
+        var p = sd('relationships_' + e2 + '.json');
+        REL_ST[e2] = readState(p);
+        RELF[e2] = (FILES[p] && FILES[p].ok && FILES[p].data) || null;
+        REL[e2] = (RELF[e2] && RELF[e2].securities) || {};
+      });
+      RECBY = null;
 
       var relRec = null;
       if(relFile && relFile.securities){
@@ -1453,24 +1731,25 @@
         drawTiles(box, row, an && an.d, hist && hist.d, histSt);
       });
       guardDraw('rel', function(box){ drawRel(box, row, relFile, relRec); });
-      guardDraw('fin', function(box){
-        drawFin(box, row, fin && fin.d, an && an.d, (fin && fin.key) || rowTicker(row));
+      guardDraw('thes', function(box){
+        drawThesis(box, row, thesFile, readState(sd('research_theses.json')));
       });
-      guardDraw('own', function(box){ drawOwn(box, row, shFile); });
       guardDraw('law', function(box){
         drawLaws(box, row, lawsFile, govFile, ex === 'NSE' ? 'KE' : (ex === 'JSE' ? 'SA' : ''));
       });
       guardDraw('news', function(box){ drawNews(box, row); });
       guardDraw('px', function(box){ drawPrice(box, row, hist && hist.d, hist && hist.path, histSt); });
+      paintSel();
 
       var bits = [];
-      if(relFile && relFile.generated) bits.push('REL ' + relFile.generated);
+      if(relFile && relFile.generated) bits.push('LINKS ' + relFile.generated);
+      if(thesFile && thesFile.generated) bits.push('THESIS ' + thesFile.generated);
       if(hist && hist.d && hist.d.realigned_at) bits.push('HIST ' + hist.d.realigned_at);
       document.getElementById('footNote').textContent = nd(bits.join('  '));
     }).catch(function(e){
       if(gen !== GEN) return;
       document.getElementById('b_rel').innerHTML =
-        '<div class="fail"><b>DASHBOARD FAILED</b> ' + t(String((e && e.message) || e)) + '</div>';
+        '<div class="fail"><b>PANEL FAILED</b> ' + t(String((e && e.message) || e)) + '</div>';
     });
   }
 
@@ -1483,6 +1762,7 @@
   }
 
   /* ---------- wiring -------------------------------------------------- */
+  wireGraphControls();
   var inp = document.getElementById('q');
   if(inp){
     inp.addEventListener('input', function(){ drawSug(inp.value); });
@@ -1552,35 +1832,69 @@
     var txt = (document.body.innerText || '').replace(/\s+/g, ' ').trim();
     return txt ? txt.split(' ').length : 0;
   }
+  function selInfo(){
+    var g = G.last, n = null, i;
+    if(g && G.selKey){
+      for(i = 0; i < g.nodes.length; i++){ if(g.nodes[i].key === G.selKey) n = g.nodes[i]; }
+    }
+    if(!n) return null;
+    return {name:n.name, ticker:n.tk || 'UNLISTED', exchange:n.ex || 'NOT IN TERMINAL',
+            hop:n.depth, link:(n.depth === 0 ? 'selected security' : typeLabel(n.types[0])),
+            reason:n.reason || '', source:n.src || '', carriedRecord:!!n.rec};
+  }
   window.__mtPerpState = function(){
     var tiles = Array.prototype.map.call(document.querySelectorAll('#b_strip .tile'), function(el){
       var l = el.querySelector('.tl'), v = el.querySelector('.tv'), s = el.querySelector('.ts');
       return {label: l ? l.textContent : '', value: v ? v.textContent : '', sub: s ? s.textContent : ''};
     });
-    var segs = Array.prototype.map.call(document.querySelectorAll('#b_own .seg'), function(el){
-      return {w: el.style.width, c: el.style.background, t: el.getAttribute('title')};
-    });
     var chips = Array.prototype.map.call(document.querySelectorAll('#b_law .chip'), function(el){
       return {text: el.textContent.trim(), cls: el.className.replace('chip', '').trim()};
     });
+    var g = G.last, hop1 = 0, hop2 = 0, e1 = 0, e2 = 0, cross = 0, crossEx = [];
+    if(g){
+      g.nodes.forEach(function(n){
+        if(n.depth === 1) hop1++;
+        if(n.depth === 2) hop2++;
+        if(n.depth > 0 && n.ex && CUR && n.ex !== CUR.ex){
+          cross++;
+          crossEx.push(n.ex + ':' + (n.tk || '?'));
+        }
+      });
+      g.edges.forEach(function(e){ if(e.depth === 1) e1++; else e2++; });
+    }
+    var sub = document.getElementById('gsub');
+    var wq = document.getElementById('webq');
     return {
       ticker: CUR ? rowTicker(CUR) : '', ex: CUR ? CUR.ex : '', name: CUR ? nd(CUR.name || '') : '',
       tiles: tiles,
-      rel: {nodes: document.querySelectorAll('#b_rel .nd').length,
-            edges: document.querySelectorAll('#b_rel line').length,
-            legend: Array.prototype.map.call(
-              document.querySelectorAll('#b_rel svg text'), function(e){ return e.textContent; })
-              .filter(function(s){ return /^(CUSTOMERS|SUPPLIERS|COMPETITORS|PARTNERS) /.test(s); })},
-      fin: {periods: document.querySelectorAll('#b_fin text[text-anchor="middle"]').length,
-            labels: Array.prototype.map.call(
-              document.querySelectorAll('#b_fin svg text[text-anchor="middle"]'),
-              function(e){ return e.textContent; })},
+      graph: {
+        hopMode: G.hops, cap: G.cap, truncated: g ? g.trunc : 0,
+        nodes: g ? g.nodes.length : 0, edges: g ? g.edges.length : 0,
+        hop1: hop1, hop2: hop2, edgesHop1: e1, edgesHop2: e2,
+        crossExchange: cross, crossList: crossEx,
+        domNodes: document.querySelectorAll('#b_rel .nd').length,
+        domLines: document.querySelectorAll('#b_rel svg line').length,
+        files: EXS.map(function(ex){ return {ex: ex, state: REL_ST[ex] || 'unread'}; }),
+        sub: sub ? sub.textContent : '',
+        types: relTypes().filter(function(tp){ return G.types[tp.k]; })
+                        .map(function(tp){ return tp.k; })
+      },
+      sel: selInfo(),
+      thes: {state: TH.st, theme: TH.theme, marked: TH.marked,
+             rows: document.querySelectorAll('#b_thes .tr').length,
+             hits: document.querySelectorAll('#b_thes .tr.hit').length,
+             text: (document.getElementById('b_thes') || {}).textContent || ''},
+      removed: {revenuePanel: !document.getElementById('c_fin'),
+                revenueBox: !document.getElementById('b_fin'),
+                ownershipPanel: !document.getElementById('c_own'),
+                ownershipBox: !document.getElementById('b_own')},
       px: {mode: PXSTATE.mode, points: PXSTATE.points, bars: PXSTATE.bars},
       news: {cards: document.querySelectorAll('#b_news .ncard').length},
       laws: {chips: chips},
-      own: {segments: segs},
       inputs: document.querySelectorAll('input').length,
+      enabledInputs: document.querySelectorAll('input:not([disabled])').length,
       buttons: document.querySelectorAll('button').length,
+      webq: wq ? {disabled: !!wq.disabled, placeholder: wq.placeholder} : null,
       words: textWords()
     };
   };
