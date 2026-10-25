@@ -444,6 +444,134 @@ a{color:var(--acc);text-decoration:none;}
 
 }
 
+/* ---------- small screens ------------------------------------------------
+
+   Below 821px the page is read on a phone: one column, 16px gutters, nothing
+   wide enough to scroll sideways, and small type raised to a size a phone can
+   actually show. The desktop layout is defined above and is not touched: no
+   rule here matches at 1280px or wider.
+
+   The one structural change is the hero display. On a phone the desk inside
+   the frame is a single stacked column, far taller than the 94vh window the
+   desktop shows, so the frame is given the height of the desk instead of a
+   viewport slice. The height comes from the preview page, which measures
+   itself and posts it (see the script at the foot of this page); the value in
+   .tf-body is the fallback when that message never arrives. The frame stays
+   inert and click-free either way, so the visitor scrolls THIS page and the
+   desk moves past with it. */
+
+@media (max-width:820px){
+
+  .container{max-width:100%;padding:0 16px;}
+
+  /* a jump to a section lands under the sticky nav without its heading hidden */
+  #data,#features,#demo,#history,#coverage,#coverage + *{scroll-margin-top:64px;}
+
+  .hero{padding:44px 0 32px;}
+
+  .hero .eyebrow{font-size:11px;margin-bottom:12px;}
+
+  .hero h1{font-size:clamp(30px,8.4vw,38px);line-height:1.12;margin-bottom:16px;}
+
+  .hero p.sub{font-size:15.5px;margin-bottom:24px;}
+
+  .exch-pick{gap:10px;margin-bottom:26px;align-items:stretch;}
+
+  .exch-pick .lbl{font-size:11px;line-height:1.45;}
+
+  .exch-go{flex:1 1 100%;text-align:center;}
+
+  .hero-stats{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px;padding-top:20px;}
+
+  .stat .n{font-size:22px;}
+
+  .stat .l{font-size:12px;}
+
+  .terminal-frame{width:100%;margin-top:36px;margin-left:0;margin-right:0;
+    border-left:0;border-right:0;border-radius:0;}
+
+  .tf-body{height:2900px;min-height:0;}
+
+  .section{padding:44px 0;}
+
+  .section-head{margin-bottom:26px;}
+
+  .section-head h2{font-size:25px;}
+
+  .section-head p{font-size:15px;}
+
+  .feature{grid-template-columns:1fr;gap:22px;padding:32px 0;}
+
+  .f-text .code{font-size:11px;margin-bottom:8px;}
+
+  .f-text h3{font-size:22px;}
+
+  .f-text p{font-size:14.5px;margin-bottom:14px;}
+
+  .f-text .feats{padding-left:0;}
+
+  .f-text .feats li{font-size:14px;}
+
+  .f-shot,.f-shot.wide{aspect-ratio:auto;height:60vh;min-height:320px;max-height:520px;}
+
+  .f-shot .shot-tag{font-size:11px;}
+
+  .demo{padding:44px 0;}
+
+  .demo-inner{padding:28px 18px;border-radius:8px;}
+
+  .demo-inner h2{font-size:24px;}
+
+  .demo-inner p{font-size:15px;}
+
+  .demo-meta{font-size:11px;line-height:1.6;}
+
+  .usedby{padding:36px 0;}
+
+  .usedby .lbl{font-size:11px;}
+
+  .usedby-row{gap:14px 22px;font-size:12px;}
+
+  .hist{padding:44px 0;}
+
+  .hist-chart{height:250px;}
+
+  .footer{padding:28px 0;font-size:13px;}
+
+  .footer-inner{flex-direction:column;gap:12px;}
+
+  .footer .mono{font-size:11px;line-height:1.9;}
+
+  .auth-box{width:min(400px,94vw);padding:28px 18px 22px;}
+
+  .auth-brand{font-size:13px;}
+
+  .auth-tab{padding:12px 8px;font-size:12px;}
+
+  .auth-form input{font-size:16px;height:46px;}
+
+  .auth-form .btn{padding:13px;font-size:13px;}
+
+  .auth-social .btn{font-size:12px;padding:11px;}
+
+}
+
+@media (max-width:520px){
+
+  .nav-inner{height:52px;gap:8px;}
+
+  .logo{font-size:12px;letter-spacing:.04em;}
+
+  .nav-cta{gap:6px;}
+
+  .nav-cta .btn{padding:7px 10px;font-size:11px;letter-spacing:.02em;}
+
+  .hero h1{font-size:clamp(28px,8.2vw,34px);}
+
+  .f-shot,.f-shot.wide{min-height:280px;}
+
+}
+
 .f-head{margin:0 0 18px;}
 .f-head .f-code{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--acc);text-transform:uppercase;margin-bottom:8px;}
 .f-head h3{font-size:24px;font-weight:700;letter-spacing:-.01em;margin:0 0 6px;color:var(--fg);}
@@ -1345,6 +1473,47 @@ function submitAuth(e){
 // with no search, no buttons and no links inside it, and no window bar above it.
 // The frame keeps inert, tabindex="-1", aria-hidden and pointer-events:none,
 // so it cannot be clicked, focused or tabbed into.
+//
+// ON A PHONE the desk inside that frame is one stacked column, taller than any
+// viewport. Because the frame refuses the pointer on purpose, it cannot be
+// scrolled from the inside: a scroll there would need the very touch the frame
+// is built to ignore. So the frame is given the height of the stacked desk
+// instead. preview.html measures itself and posts {mx:"preview-height",h:n};
+// the frame takes that height and the landing page scroller reveals the whole
+// desk. At 821px and above the message is ignored and the frame keeps the
+// stylesheet's 94vh box.
+(function(){
+  function narrow(){
+    try { return window.matchMedia("(max-width:820px)").matches; } catch(e){ return false; }
+  }
+  function frameBody(){ return document.querySelector(".terminal-frame .tf-body"); }
+  function frameWin(){
+    var ifr = document.querySelector(".terminal-frame .tf-body iframe");
+    try { return ifr ? ifr.contentWindow : null; } catch(e){ return null; }
+  }
+  window.addEventListener("message", function(ev){
+    var d = ev.data;
+    if (!d || d.mx !== "preview-height") return;
+    // only the hero desk may size the hero frame: the eight feature frames
+    // below are single panels in their own 60vh boxes and they are not this
+    // frame's business
+    if (ev.source !== frameWin()) return;
+    var h = Number(d.h);
+    if (!isFinite(h) || h < 200 || h > 8000) return;
+    if (!narrow()) return;
+    var body = frameBody();
+    if (!body) return;
+    body.style.height = Math.round(h) + "px";
+  });
+  var t = null;
+  window.addEventListener("resize", function(){
+    if (t) clearTimeout(t);
+    t = setTimeout(function(){
+      var body = frameBody();
+      if (body && !narrow()) body.style.height = "";
+    }, 150);
+  });
+})();
 </script>
 </body>
 
