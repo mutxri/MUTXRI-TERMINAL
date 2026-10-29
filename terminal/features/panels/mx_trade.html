@@ -103,6 +103,11 @@
       font-family:var(--mono);font-size:11px;letter-spacing:.1em;font-weight:700;cursor:pointer;}
   .go:disabled{background:var(--bg4);color:var(--tx3);cursor:not-allowed;}
   .est{font-family:var(--mono);font-size:11.5px;color:var(--tx2);}
+  .feeNote{
+    grid-column:1 / -1; font:inherit; font-size:9.5px; line-height:1.55;
+    color:var(--tx3); letter-spacing:.02em; margin-top:6px; max-width:100%;
+  }
+  .feeNote b{ color:var(--tx2); font-weight:400; }
   .msg{font-family:var(--mono);font-size:11.5px;margin:6px 0 4px;min-height:16px;line-height:1.5;}
   .msg.err{color:var(--down);} .msg.ok{color:var(--up);}
   .upd{font-family:var(--mono);font-size:10.5px;color:var(--tx3);margin:0 0 6px;}
@@ -235,6 +240,7 @@
       </select>
       <button class="go" id="go" type="button">PLACE</button>
       <span class="est" id="est"></span>
+      <div class="feeNote" id="feeNote"></div>
     </div>
     <div class="msg" id="msg" aria-live="polite"></div>
     <div class="upd" id="upd"></div>
@@ -491,6 +497,47 @@
   function signed(n){ return (n === null || isNaN(n)) ? "-" : (n >= 0 ? "+" : "") + fmt(n); }
   function tone(n){ return (n === null || isNaN(n)) ? "dim" : (n > 0 ? "up" : (n < 0 ? "down" : "")); }
   function num(v){ var n = parseFloat(v); return isFinite(n) ? n : null; }
+
+  // ---------------- TRANSACTION COSTS ----------------
+  // Rates below are the published statutory and maximum ones, not invented.
+  // Commission is a MAXIMUM: a broker may charge less, and several set a flat
+  // minimum, so a very small order can cost more than the percentage shown.
+  // A market with no schedule on file returns null and the ticket says so,
+  // rather than silently pricing the trade at zero cost.
+  var FEEBOOK = {
+    NSE: {
+      label: "NSE Kenya",
+      currency: "KES",
+      tiers: [ {upTo: 100000, commission: 0.0176}, {upTo: Infinity, commission: 0.0151} ],
+      levies: [
+        {label: "NSE transaction levy",  rate: 0.0012},
+        {label: "CMA transaction levy",  rate: 0.0012},
+        {label: "CDSC transaction levy", rate: 0.0008},
+        {label: "CDSC guarantee fund",   rate: 0.0001}
+      ],
+      allIn: "2.1% under KES 100,000, 1.84% above",
+      basis: "CMA maximum all-in. Levy rates per licensed broker schedules, October 2026. Commission is negotiable and some firms set a flat minimum."
+    }
+  };
+  function feesFor(ex, val){
+    var f = FEEBOOK[ex];
+    if(!f || !(val > 0)) return null;
+    var cr = f.tiers[f.tiers.length - 1].commission;
+    for(var i = 0; i < f.tiers.length; i++){ if(val <= f.tiers[i].upTo){ cr = f.tiers[i].commission; break; } }
+    var com = val * cr;
+    var lev = f.levies.map(function(l){ return {label: l.label, rate: l.rate, amt: val * l.rate}; });
+    var levTot = lev.reduce(function(a, x){ return a + x.amt; }, 0);
+    return {schedule: f, commissionRate: cr, commission: com, levies: lev, levyTotal: levTot,
+            total: com + levTot, rate: (com + levTot) / val};
+  }
+  function feeLine(ex){
+    var f = FEEBOOK[ex];
+    if(!f) return "Fees are not modelled for " + ex + " yet. Orders here are priced at the raw fill with no cost added.";
+    return f.label + " fees: commission " + fmt(f.tiers[0].commission * 100) + "% up to " + money(f.tiers[0].upTo) +
+           ", " + fmt(f.tiers[1].commission * 100) + "% above, plus levies totalling " +
+           fmt(f.levies.reduce(function(a, l){ return a + l.rate; }, 0) * 100) + "%. Maximum all-in " + f.allIn + ". " + f.basis;
+  }
+
   function isDate(s){ return /^\d{4}-\d{2}-\d{2}$/.test(s || "") && !isNaN(Date.parse(s)); }
   function say(text, bad){
     $("msg").textContent = text || "";
@@ -673,9 +720,14 @@
   function fill(a, o, px, date){
     var val = o.qty * px, pos = a.positions[o.sym] || {qty: 0, avg: 0};
     var q = pos.qty, avg = pos.avg, n = o.qty;
+    // Costs are worked out once, before the side branch, so BUY, SELL and SHORT
+    // all pay the same schedule. A side that skipped this would debit NaN.
+    var fee = feesFor(EX, val), feeTot = fee ? fee.total : 0;
+    o.fees = fee ? fee.total : null; o.feeDetail = fee || null; o.feeCurrency = cur || "";
     if(o.side === "BUY"){
-      if(val > a.cash + 1e-9) return "not enough cash: " + money(val) + " needed, " + money(a.cash) + " available";
-      a.cash -= val;
+      var need = val + feeTot;
+      if(need > a.cash + 1e-9) return "not enough cash: " + money(need) + " needed including " + money(feeTot) + " in fees, " + money(a.cash) + " available";
+      a.cash -= need;
       if(q < 0){                                  // buying back a short (buy to cover)
         var cover = Math.min(n, -q);
         o.realised = (avg - px) * cover;          // sold at avg, bought back at px
@@ -683,7 +735,7 @@
         q += cover; n -= cover;
       }
       if(n > 0){                                  // opens or adds to a long
-        pos.avg = (avg * q + px * n) / (q + n);
+        pos.avg = (avg * q + px * n + feeTot) / (q + n);
         pos.qty = q + n;
         pos.lastBuy = date;
         a.positions[o.sym] = pos;
@@ -697,14 +749,14 @@
         if(q < 0) return "you are short " + fmt(-q, 0) + " " + o.sym;
         return "you hold " + fmt(q, 0) + " " + o.sym + ", not " + fmt(n, 0);
       }
-      a.cash += val;
-      o.realised = (px - avg) * n;
+      a.cash += val - feeTot;
+      o.realised = (px - avg) * n - feeTot;
       a.realised += o.realised;
       q -= n;
       if(q === 0) delete a.positions[o.sym]; else { pos.qty = q; a.positions[o.sym] = pos; }
     }else{                                        // SHORT: sell shares you do not own
       if(q > 0) return "you are long " + fmt(q, 0) + " " + o.sym;
-      a.cash += val;                              // keep the sale proceeds
+      a.cash += val - feeTot;                     // proceeds less transaction costs
       var shortQ = -q;                            // shares already short (>= 0)
       pos.avg = (avg * shortQ + px * n) / (shortQ + n);
       pos.qty = q - n;
@@ -821,14 +873,14 @@
     var val = o.qty * o.px;
     // BUY pays cash out and adds to the net position; SELL and SHORT both bank the
     // proceeds and cut the net position, so a short leaves it negative.
-    return o.side === "BUY" ? {cash: -val, qty: o.qty} : {cash: val, qty: -o.qty};
+    var f = o.fees || 0; return o.side === "BUY" ? {cash: -(val + f), qty: o.qty} : {cash: val - f, qty: -o.qty};
   }
 
   function deriveSeries(a, bars){
     var fills = (a.orders || []).filter(function(o){
       return o.status === "FILLED" && o.px != null && oDate(o);
     }).map(function(o){
-      return {sym: o.sym, side: o.side, qty: o.qty, px: o.px, d: oDate(o), id: o.id};
+      return {sym: o.sym, side: o.side, qty: o.qty, px: o.px, fees: o.fees || 0, d: oDate(o), id: o.id};
     }).sort(function(x, y){ return x.d < y.d ? -1 : (x.d > y.d ? 1 : x.id - y.id); });
     if(!fills.length) return {series: [], unpriced: [], first: "", last: ""};
     var start = fills[0].d;
@@ -998,7 +1050,7 @@
 
     $("orders").innerHTML = a.orders.length
       ? "<div class='tablewrap'><table><tr><th>WHEN</th><th>SIDE</th><th>SECURITY</th><th>QTY</th><th>TYPE</th><th>STATUS</th>" +
-        "<th>FILL</th><th>VALUE</th><th>REALISED</th><th>SESSION</th></tr>" +
+        "<th>FILL</th><th>VALUE</th><th>FEES</th><th>REALISED</th><th>SESSION</th></tr>" +
         a.orders.slice(0, 60).map(function(o){
           var filled = o.status === "FILLED";
           return "<tr><td>" + esc(new Date(o.done || o.t).toLocaleString()) + "</td>" +
@@ -1007,12 +1059,14 @@
                  "<td><span class='tag " + esc(o.status) + "'" + (o.reason ? " title='" + esc(o.reason) + "'" : "") + ">" +
                  esc(o.status) + "</span></td>" +
                  "<td>" + (filled ? fmt(o.px) : "-") + "</td><td>" + (filled ? fmt(o.qty * o.px) : "-") + "</td>" +
+                 "<td>" + (filled ? (o.fees != null ? fmt(o.fees) : "<span class='dim'>n/a</span>") : "-") + "</td>" +
                  "<td class='" + tone(o.realised) + "'>" + (o.realised != null ? signed(o.realised) : "-") + "</td>" +
                  "<td class='dim'>" + esc(o.close || "") + "</td></tr>";
         }).join("") + "</table></div>"
       : "<div class='empty'>No orders yet.</div>";
 
     $("asof").textContent = listed ? listed + " securities on " + EX : "";
+    try{ $("feeNote").innerHTML = "<b>COSTS SHOWN ARE MAXIMUM PUBLISHED RATES.</b> " + esc(feeLine(EX)); }catch(e){}
     updLine();
     estimate();
   }
@@ -1333,6 +1387,14 @@
                                               : side + " " + fmt(n, 0) + " " + t + " once it trades " + (side === "BUY" ? "at or above " : "at or below ") + fmt(stp) + last;
     else txt = (stp == null || lmt == null) ? "Set a stop and a limit" + last
              : side + " " + fmt(n, 0) + " " + t + " once it trades " + (side === "BUY" ? "at or above " : "at or below ") + fmt(stp) + ", then at " + fmt(lmt) + " or better" + last;
+    if(txt){
+      var basis = type === "LMT" || type === "STPLMT" ? (lmt != null ? lmt : px) : px;
+      var gross = n * basis;
+      var fe = feesFor(EX, gross);
+      txt += fe
+        ? " | fees " + fmt(fe.rate * 100) + "% = " + money(fe.total) + " | all-in " + money(gross + fe.total)
+        : " | fees not modelled for " + EX;
+    }
     $("est").textContent = txt;
   }
 
