@@ -158,7 +158,8 @@
   var Q = new URLSearchParams(location.search);
   var EX = (Q.get("ex") || "NSE").toUpperCase();
   var PRESET = (Q.get("sym") || "").toUpperCase();
-  var FILE = "../../static_data/transcripts_" + EX + ".json";
+  var FILE_LABEL = "static_data/transcripts_" + EX + ".json";  // shown to the reader
+  var FILE = "../../" + FILE_LABEL;                            // actually requested
 
   var $ = function(id){ return document.getElementById(id); };
   var STATE = "loading";      // loading | ok | absent | failed
@@ -222,12 +223,12 @@
 
     if(STATE === "failed"){
       $("turns").innerHTML = emptyBlock("fail", "THE TRANSCRIPT FILE COULD NOT BE READ",
-        "Requested <b>" + esc(FILE) + "</b> and the request failed. That is a read failure, not an empty archive, so nothing is claimed about what is held.");
+        "Requested <b>" + esc(FILE_LABEL) + "</b> and the request failed. That is a read failure, not an empty archive, so nothing is claimed about what is held.");
       return;
     }
     if(STATE === "absent"){
       $("turns").innerHTML = emptyBlock("ok", "NO TRANSCRIPT FILE FOR " + esc(EX),
-        "<b>" + esc(FILE) + "</b> is not on the build. No AGM recordings, quarterly CFO briefings or transcripts are held for this exchange.");
+        "<b>" + esc(FILE_LABEL) + "</b> is not on the build. No AGM recordings, quarterly CFO briefings or transcripts are held for this exchange.");
       return;
     }
     var n = DATA.listedSecurities;
@@ -349,7 +350,7 @@
   function start(){
     $("ex").textContent = EX;
     $("cnt").textContent = "LOADING";
-    $("turns").innerHTML = emptyBlock("ok", "READING " + esc(FILE), "");
+    $("turns").innerHTML = emptyBlock("ok", "READING " + esc(FILE_LABEL), "");
     fetch(FILE + "?cb=" + Date.now(), {cache:"no-store"})
       .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function(d){
