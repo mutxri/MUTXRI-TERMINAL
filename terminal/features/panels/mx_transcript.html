@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MUTXRI TERMINAL - TRANSCRIPT</title>
+<style>
+  :root{
+    --bg:#0b0b0b; --panel:#111213; --panel2:#15171a; --head:#1a1c1f;
+    --line:rgba(255,255,255,0.075); --line2:rgba(255,255,255,0.12);
+    --tx:#f5f5f5; --tx2:#bcbcbc; --tx3:#9e9e9e;
+    --mint:#33e29a; --red:#f87171; --amber:#e0a341;
+    --mono:'Oxygen Mono',Consolas,'Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--tx);font-family:var(--mono);font-size:12px;-webkit-font-smoothing:antialiased}
+  .wrap{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+  header{display:flex;align-items:baseline;gap:14px;padding:9px 14px;border-bottom:1px solid var(--line);background:var(--head);flex:none}
+  header h1{font-size:12px;font-weight:400;letter-spacing:.18em;color:var(--mint)}
+  header .ex{font-size:11px;letter-spacing:.14em;color:var(--tx2)}
+  header .cnt{font-size:10.5px;letter-spacing:.12em;color:var(--tx3);margin-left:auto}
+
+  .bar{display:flex;gap:6px;padding:7px 14px;border-bottom:1px solid var(--line);flex:none;background:var(--panel);flex-wrap:wrap}
+  .bar button{background:transparent;border:1px solid var(--line2);color:var(--tx3);font-family:var(--mono);
+    font-size:9.5px;letter-spacing:.13em;padding:4px 9px;cursor:pointer}
+  .bar button:hover{color:var(--tx2);border-color:rgba(255,255,255,0.22)}
+  .bar button.on{color:var(--mint);border-color:rgba(51,226,154,.5);background:rgba(51,226,154,.07)}
+
+  .body{display:grid;grid-template-columns:278px 1fr;flex:1;min-height:0}
+
+  aside{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--panel)}
+  .srch{padding:8px 10px;border-bottom:1px solid var(--line);flex:none}
+  .srch input{width:100%;background:var(--bg);border:1px solid var(--line2);color:var(--tx);
+    font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none}
+  .srch input:focus{border-color:var(--mint)}
+  .srch input::placeholder{color:var(--tx3)}
+  .list{overflow-y:auto;flex:1;min-height:0}
+  .grp{font-size:9px;letter-spacing:.18em;color:var(--tx3);padding:9px 11px 6px;border-bottom:1px solid var(--line);
+    position:sticky;top:0;background:var(--panel);z-index:1}
+  .ev{padding:9px 11px;border-bottom:1px solid var(--line);cursor:pointer;border-left:2px solid transparent}
+  .ev:hover{background:var(--panel2)}
+  .ev[aria-selected="true"]{background:var(--panel2);border-left-color:var(--mint)}
+  .ev .t1{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .ev .tk{font-size:11.5px;color:var(--tx);letter-spacing:.06em}
+  .ev .pd{font-size:9.5px;color:var(--mint);letter-spacing:.1em}
+  .ev .t2{font-size:10.5px;color:var(--tx2);margin-top:3px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ev .t3{font-size:9.5px;color:var(--tx3);margin-top:4px;letter-spacing:.09em;display:flex;gap:7px;flex-wrap:wrap}
+  .ev .has{color:var(--mint)}
+  .ev .none{color:var(--amber)}
+
+  main{display:flex;flex-direction:column;min-height:0;min-width:0}
+  .ehead{flex:none;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--head)}
+  .ehead .r1{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .ehead .sym{font-size:14px;color:var(--tx);letter-spacing:.06em}
+  .ehead .nm{font-size:11px;color:var(--tx2)}
+  .ehead .kind{font-size:9.5px;letter-spacing:.14em;color:var(--mint);border:1px solid rgba(51,226,154,.4);padding:2px 7px}
+  .ehead .pd{font-size:9.5px;letter-spacing:.14em;color:var(--amber);border:1px solid rgba(224,163,65,.4);padding:2px 7px}
+  .ehead .meta{font-size:10px;color:var(--tx3);margin-top:6px;line-height:1.6}
+  .ehead .meta b{color:var(--tx2);font-weight:400}
+
+  .player{flex:none;padding:8px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;background:var(--panel)}
+  .player audio{height:30px;flex:1;min-width:0;filter:invert(.92) hue-rotate(120deg) saturate(1.2)}
+  .player .na{font-size:10.5px;letter-spacing:.1em;color:var(--amber)}
+
+  .tsearch{flex:none;padding:7px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+  .tsearch input{flex:1;background:var(--bg);border:1px solid var(--line2);color:var(--tx);
+    font-family:var(--mono);font-size:11px;padding:5px 8px;outline:none}
+  .tsearch input:focus{border-color:var(--mint)}
+  .tsearch input::placeholder{color:var(--tx3)}
+  .tsearch .hits{font-size:10px;color:var(--tx3);letter-spacing:.1em;white-space:nowrap}
+
+  .turns{overflow-y:auto;flex:1;min-height:0;padding:4px 0 24px}
+  .turn{display:grid;grid-template-columns:54px 116px 1fr;gap:12px;padding:7px 14px;border-bottom:1px solid rgba(255,255,255,0.035)}
+  .turn:hover{background:var(--panel2)}
+  .turn .ts{font-size:10px;color:var(--tx3);cursor:pointer;letter-spacing:.04em;text-align:right}
+  .turn .ts:hover{color:var(--mint)}
+  .turn .sp{font-size:10px;color:var(--mint);letter-spacing:.08em;text-transform:uppercase;line-height:1.5}
+  .turn .tx{font-size:12px;color:var(--tx2);line-height:1.62}
+  .turn .tx mark{background:rgba(51,226,154,.22);color:var(--tx);padding:0 1px}
+
+  .empty{padding:32px 20px;max-width:660px}
+  .empty .h{font-size:11px;letter-spacing:.16em;color:var(--amber);margin-bottom:10px}
+  .empty .b{font-size:11.5px;color:var(--tx2);line-height:1.66}
+  .empty .b b{color:var(--tx);font-weight:400}
+  .empty.fail .h{color:var(--red)}
+</style>
+</head>
+<body>
+<!--
+  TRANSCRIPT panel. Earnings calls, AGMs and management interviews: the recording
+  plus a timestamped, speaker attributed transcript.
+
+  DATA: static_data/transcripts_<EX>.json
+  {
+    "exchange":"NSE",
+    "listedSecurities":65,
+    "generated":"2026-10-30T01:00:00",
+    "events":[{
+      "id":"SCOM_Q3_2026",
+      "ticker":"SCOM",
+      "name":"Safaricom Plc",
+      "kind":"CFO_QUARTERLY" | "AGM" | "EARNINGS_CALL" | "MGMT_INTERVIEW",
+      "period":"Q3 2026" | "FY2026" | "AGM 2026",
+      "title":"Q3 2026 revenue walkthrough",
+      "date":"2026-10-28",
+      "durationSec":1140,
+      "audio":"media/transcripts/SCOM_Q3_2026.mp3",
+      "source":"MUTXRI recording",
+      "rights":"MUTXRI_OWNED" | "LICENSED" | "PERMISSION_ON_FILE" | "PENDING",
+      "turns":[{"t":14,"speaker":"CFO","text":"..."}]
+    }]
+  }
+
+  WHAT THIS PANEL REFUSES TO DO
+  - No sample events are hard coded. An absent file opens on an absent file.
+  - File absent, request failed, audio without a transcript, and an event with
+    neither are four different states, each printed in its own words.
+  - The rights field is shown, because a third party earnings call is licensed
+    content. Selling access to someone else's recording is not the same as
+    recording your own interview.
+-->
+<div class="wrap">
+  <header>
+    <h1>TRANSCRIPT</h1>
+    <span class="ex" id="ex"></span>
+    <span class="cnt" id="cnt"></span>
+  </header>
+
+  <div class="bar" id="bar">
+    <button type="button" data-k="ALL" class="on">ALL</button>
+    <button type="button" data-k="AGM">AGM</button>
+    <button type="button" data-k="CFO_QUARTERLY">QUARTERLY CFO</button>
+    <button type="button" data-k="EARNINGS_CALL">EARNINGS CALL</button>
+    <button type="button" data-k="MGMT_INTERVIEW">INTERVIEW</button>
+  </div>
+
+  <div class="body">
+    <aside>
+      <div class="srch"><input id="q" type="search" placeholder="filter by ticker, name or period" autocomplete="off" aria-label="Filter events"></div>
+      <div class="list" id="list"></div>
+    </aside>
+
+    <main>
+      <div class="ehead" id="ehead"></div>
+      <div class="player" id="player"></div>
+      <div class="tsearch" id="tsearchWrap" hidden>
+        <input id="tq" type="search" placeholder="search inside this transcript" autocomplete="off" aria-label="Search transcript">
+        <span class="hits" id="hits"></span>
+      </div>
+      <div class="turns" id="turns"></div>
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+  var Q = new URLSearchParams(location.search);
+  var EX = (Q.get("ex") || "NSE").toUpperCase();
+  var PRESET = (Q.get("sym") || "").toUpperCase();
+  var FILE = "../../static_data/transcripts_" + EX + ".json";
+
+  var $ = function(id){ return document.getElementById(id); };
+  var STATE = "loading";      // loading | ok | absent | failed
+  var DATA = {}, EVENTS = [], CURRENT = null;
+  var FILTER = "", TFILTER = "", KFILTER = "ALL";
+
+  var GROUPS = [
+    {k:"AGM",           label:"ANNUAL GENERAL MEETINGS"},
+    {k:"CFO_QUARTERLY", label:"QUARTERLY REVENUE, CFO"},
+    {k:"EARNINGS_CALL", label:"EARNINGS CALLS"},
+    {k:"MGMT_INTERVIEW",label:"MANAGEMENT INTERVIEWS"}
+  ];
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function clock(sec){
+    if(sec == null || isNaN(sec)) return "-";
+    sec = Math.max(0, Math.round(sec));
+    var h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+    var mm = (m<10?"0":"")+m, ss = (s<10?"0":"")+s;
+    return h ? h + ":" + mm + ":" + ss : m + ":" + ss;
+  }
+  function kindLabel(k){
+    return ({AGM:"AGM", CFO_QUARTERLY:"QUARTERLY CFO", EARNINGS_CALL:"EARNINGS CALL",
+             MGMT_INTERVIEW:"INTERVIEW"})[k] || (k || "EVENT");
+  }
+  function rightsLabel(r){
+    return ({MUTXRI_OWNED:"RECORDED BY MUTXRI", LICENSED:"LICENSED",
+             PERMISSION_ON_FILE:"WRITTEN PERMISSION ON FILE", PENDING:"RIGHTS PENDING"})[r] || (r || "RIGHTS NOT STATED");
+  }
+  function audioSrc(a){
+    if(!a) return "";
+    a = String(a);
+    if(/^(https?:)?\/\//.test(a) || a.indexOf("../") === 0 || a.charAt(0) === "/") return a;
+    return "../../" + a;
+  }
+  function emptyBlock(kind, head, body){
+    return '<div class="empty ' + (kind === "fail" ? "fail" : "") + '">' +
+             '<div class="h">' + esc(head) + '</div><div class="b">' + body + '</div></div>';
+  }
+
+  function visible(){
+    var q = FILTER.trim().toUpperCase();
+    return EVENTS.filter(function(e){
+      if(KFILTER !== "ALL" && (e.kind || "") !== KFILTER) return false;
+      if(!q) return true;
+      return (e.ticker||"").toUpperCase().indexOf(q) >= 0 ||
+             (e.name||"").toUpperCase().indexOf(q) >= 0 ||
+             (e.period||"").toUpperCase().indexOf(q) >= 0 ||
+             (e.title||"").toUpperCase().indexOf(q) >= 0;
+    });
+  }
+
+  function renderEmpty(){
+    $("ehead").innerHTML = ""; $("player").innerHTML = "";
+    $("tsearchWrap").hidden = true; $("hits").textContent = "";
+    $("cnt").textContent = "0 EVENTS";
+
+    if(STATE === "failed"){
+      $("turns").innerHTML = emptyBlock("fail", "THE TRANSCRIPT FILE COULD NOT BE READ",
+        "Requested <b>" + esc(FILE) + "</b> and the request failed. That is a read failure, not an empty archive, so nothing is claimed about what is held.");
+      return;
+    }
+    if(STATE === "absent"){
+      $("turns").innerHTML = emptyBlock("ok", "NO TRANSCRIPT FILE FOR " + esc(EX),
+        "<b>" + esc(FILE) + "</b> is not on the build. No AGM recordings, quarterly CFO briefings or transcripts are held for this exchange.");
+      return;
+    }
+    var n = DATA.listedSecurities;
+    $("turns").innerHTML = emptyBlock("ok", "NO AGM OR QUARTERLY BRIEFING ON FILE FOR " + esc(EX),
+      "Nothing is held for the <b>" + (n != null ? n : "0") + "</b> securities on this board. Two routes fill this: " +
+      "<b>a company's own recording, used with written permission</b>, or <b>an interview MUTXRI records itself</b>, which needs no permission at all. " +
+      "Filed earnings call audio is licensed content, so it is never scraped and republished.");
+  }
+
+  function renderList(){
+    var rows = visible();
+    $("cnt").textContent = rows.length + " OF " + EVENTS.length + " EVENTS";
+    if(!EVENTS.length){ $("list").innerHTML = '<div class="grp">NO EVENTS</div>'; return; }
+
+    var out = "";
+    GROUPS.forEach(function(g){
+      var mine = rows.filter(function(e){ return (e.kind || "") === g.k; });
+      if(!mine.length) return;
+      out += '<div class="grp">' + esc(g.label) + " (" + mine.length + ")</div>";
+      out += mine.map(function(e){
+        var sel = (CURRENT && CURRENT.id === e.id) ? ' aria-selected="true"' : ' aria-selected="false"';
+        var dur = e.durationSec ? clock(e.durationSec) : (e.turns && e.turns.length ? e.turns.length + " TURNS" : "NO MEDIA");
+        return '<div class="ev" data-id="' + esc(e.id) + '"' + sel + ' tabindex="0">' +
+                 '<div class="t1"><span class="tk">' + esc(e.ticker || "-") + '</span><span class="pd">' + esc(e.period || "") + '</span></div>' +
+                 '<div class="t2">' + esc(e.title || kindLabel(e.kind)) + '</div>' +
+                 '<div class="t3"><span>' + esc(e.date || "-") + '</span><span>' + esc(dur) + '</span>' +
+                   (e.audio ? '<span class="has">AUDIO</span>' : '<span class="none">NO AUDIO</span>') +
+                   (e.turns && e.turns.length ? '<span class="has">TEXT</span>' : '<span class="none">NO TEXT</span>') +
+                 '</div></div>';
+      }).join("");
+    });
+
+    var other = rows.filter(function(e){ return !GROUPS.some(function(g){ return g.k === (e.kind||""); }); });
+    if(other.length){
+      out += '<div class="grp">OTHER (' + other.length + ')</div>';
+      out += other.map(function(e){
+        var sel = (CURRENT && CURRENT.id === e.id) ? ' aria-selected="true"' : ' aria-selected="false"';
+        return '<div class="ev" data-id="' + esc(e.id) + '"' + sel + ' tabindex="0">' +
+                 '<div class="t1"><span class="tk">' + esc(e.ticker || "-") + '</span><span class="pd">' + esc(e.period || "") + '</span></div>' +
+                 '<div class="t2">' + esc(e.title || kindLabel(e.kind)) + '</div>' +
+                 '<div class="t3"><span>' + esc(kindLabel(e.kind)) + '</span></div></div>';
+      }).join("");
+    }
+
+    $("list").innerHTML = out || '<div class="grp">NO EVENT MATCHES</div>';
+    Array.prototype.forEach.call($("list").querySelectorAll(".ev[data-id]"), function(el){
+      el.onclick = function(){ select(el.getAttribute("data-id")); };
+      el.onkeydown = function(ev){ if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); select(el.getAttribute("data-id")); } };
+    });
+  }
+
+  function select(id){
+    CURRENT = EVENTS.filter(function(e){ return e.id === id; })[0] || null;
+    TFILTER = ""; $("tq").value = "";
+    renderList(); renderHead(); renderTurns();
+  }
+
+  function renderHead(){
+    if(!CURRENT){ $("ehead").innerHTML = ""; return; }
+    var e = CURRENT, turns = (e.turns || []).length;
+    $("ehead").innerHTML =
+      '<div class="r1"><span class="sym">' + esc(e.ticker || "-") + '</span>' +
+        '<span class="nm">' + esc(e.name || "") + '</span>' +
+        '<span class="kind">' + esc(kindLabel(e.kind)) + '</span>' +
+        (e.period ? '<span class="pd">' + esc(e.period) + '</span>' : '') + '</div>' +
+      '<div class="meta">' + esc(e.title || "") + '</div>' +
+      '<div class="meta"><b>' + esc(e.date || "date not stated") + '</b>' +
+        ' | duration <b>' + (e.durationSec ? clock(e.durationSec) : "not stated") + '</b>' +
+        ' | <b>' + turns + '</b> turns' +
+        ' | <b>' + esc(rightsLabel(e.rights)) + '</b>' +
+        (e.source ? ' | source <b>' + esc(e.source) + '</b>' : '') + '</div>';
+
+    $("player").innerHTML = e.audio
+      ? '<audio id="aud" controls preload="metadata" src="' + esc(audioSrc(e.audio)) + '"></audio><span class="hits">' + esc(String(e.audio).split("/").pop()) + '</span>'
+      : '<span class="na">NO RECORDING ON FILE FOR THIS EVENT</span>';
+    $("tsearchWrap").hidden = !(e.turns && e.turns.length);
+  }
+
+  function renderTurns(){
+    if(!CURRENT){ $("turns").innerHTML = ""; return; }
+    var e = CURRENT, turns = e.turns || [];
+
+    if(!turns.length){
+      $("turns").innerHTML = emptyBlock("ok",
+        e.audio ? "TRANSCRIPT NOT YET MADE" : "NOTHING ON FILE FOR THIS EVENT",
+        e.audio
+          ? "The recording is held but has no transcript yet. The two are stored separately, so a missing transcript never implies a missing recording."
+          : "This event has neither a recording nor a transcript. It is listed because the event itself exists, and the panel does not invent either.");
+      $("hits").textContent = ""; return;
+    }
+
+    var q = TFILTER.trim().toUpperCase(), shown = 0;
+    var html = turns.map(function(t){
+      var txt = String(t.text == null ? "" : t.text);
+      var hit = q && txt.toUpperCase().indexOf(q) >= 0;
+      if(q && !hit) return "";
+      shown++;
+      if(hit){
+        var re = new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
+        txt = esc(txt).replace(re, "<mark>$1</mark>");
+      }else{ txt = esc(txt); }
+      return '<div class="turn"><div class="ts" data-t="' + (t.t == null ? "" : t.t) + '">' + clock(t.t) + '</div>' +
+             '<div class="sp">' + esc(t.speaker || "-") + '</div><div class="tx">' + txt + '</div></div>';
+    }).join("");
+
+    $("turns").innerHTML = shown ? html :
+      emptyBlock("ok", "NO TURN MATCHES THAT SEARCH",
+        "Searched " + turns.length + " turns for <b>" + esc(TFILTER) + "</b>.");
+    $("hits").textContent = q ? shown + " / " + turns.length + " TURNS" : turns.length + " TURNS";
+
+    Array.prototype.forEach.call($("turns").querySelectorAll(".ts"), function(el){
+      el.onclick = function(){
+        var a = $("aud"), t = parseFloat(el.getAttribute("data-t"));
+        if(a && isFinite(t)){ try{ a.currentTime = t; a.play(); }catch(err){} }
+      };
+    });
+  }
+
+  function start(){
+    $("ex").textContent = EX;
+    $("cnt").textContent = "LOADING";
+    $("turns").innerHTML = emptyBlock("ok", "READING " + esc(FILE), "");
+    fetch(FILE + "?cb=" + Date.now(), {cache:"no-store"})
+      .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(d){
+        DATA = d || {}; STATE = "ok";
+        EVENTS = DATA.events || [];
+        if(!EVENTS.length){ renderEmpty(); renderList(); return; }
+        var want = PRESET || Q.get("ticker");
+        var hit = want ? EVENTS.filter(function(e){ return (e.ticker||"").toUpperCase() === String(want).toUpperCase(); })[0] : null;
+        CURRENT = hit || EVENTS[0];
+        renderList(); renderHead(); renderTurns();
+      })
+      .catch(function(err){
+        var msg = String((err && err.message) || err);
+        STATE = /HTTP 40[34]|HTTP 410/.test(msg) ? "absent" : "failed";
+        renderEmpty(); renderList();
+      });
+  }
+
+  $("q").oninput = function(){ FILTER = this.value || ""; renderList(); };
+  $("tq").oninput = function(){ TFILTER = this.value || ""; renderTurns(); };
+  Array.prototype.forEach.call($("bar").querySelectorAll("button"), function(b){
+    b.onclick = function(){
+      KFILTER = b.getAttribute("data-k");
+      Array.prototype.forEach.call($("bar").querySelectorAll("button"), function(x){ x.className = ""; });
+      b.className = "on";
+      renderList();
+    };
+  });
+
+  start();
+})();
+</script>
+</body>
+</html>
