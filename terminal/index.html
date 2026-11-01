@@ -579,6 +579,17 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
    the menu is never clipped by that body, and it is absolute (never fixed) so
    the locked mobile stack is untouched. */
 .sw{position:relative;flex:0 0 auto;padding:var(--s2) var(--s4);border-bottom:1px solid var(--line);}
+  /* On the title line: the search now shares the head row, before the close
+     button, so the head reads  TITLE  [search]  X  the way the desk does it.
+     The suggestion panel re-anchors to the box instead of the rail padding. */
+  .wl-head .sw, .eyebrow .sw{flex:1 1 auto;min-width:0;max-width:300px;
+    margin:0 8px 0 12px;padding:0;border-bottom:0}
+  .wl-head .sw-sug, .eyebrow .sw-sug{left:0;right:0;top:calc(100% + 2px)}
+  .wl-head .sw input, .eyebrow .sw input{width:100%;box-sizing:border-box;
+    font-size:10.5px;padding:2px 6px;border-radius:2px;
+    background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
+    font-family:var(--mono);letter-spacing:.04em;outline:none}
+  .wl-head .sw input:focus, .eyebrow .sw input:focus{border-color:var(--acc)}
 .sw input{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--line2);
   color:var(--tx);font-family:var(--mono);font-size:11px;letter-spacing:.04em;
   padding:6px 9px;border-radius:3px;outline:none;}
@@ -1519,15 +1530,14 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
 
     <!-- WATCHLIST -->
     <aside class="rail" id="colWatch">
-      <div class="wl-head" data-drag="watch" title="Drag to move this window"><span class="dgrip">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span><button class="pw-x" type="button" data-winclose="watch" title="Close this window" aria-label="Close WATCHLIST">X</button></div>
-      <!-- search bar: reads the selected exchange's own market file, filters as
-           you type, and picking a row calls openStock() - the same selection a
-           click on a row below makes. -->
-      <div class="sw" id="wlSearch">
+      <div class="wl-head" data-drag="watch" title="Drag to move this window"><span class="dgrip">⠿</span><span id="wlEx">JSE</span><span id="wlState"></span>      <div class="sw" id="wlSearch">
         <input id="wlQ" type="text" autocomplete="off" spellcheck="false"
                placeholder="SEARCH A SECURITY" aria-label="Search the watchlist">
         <div class="sw-sug" id="wlSug"></div>
-      </div>
+      </div><button class="pw-x" type="button" data-winclose="watch" title="Close this window" aria-label="Close WATCHLIST">X</button></div>
+      <!-- search bar: reads the selected exchange's own market file, filters as
+           you type, and picking a row calls openStock() - the same selection a
+           click on a row below makes. -->
       <div class="wl" id="wlList"></div>
     </aside>
 
@@ -1730,16 +1740,11 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
 
     <!-- RIGHT RAIL -->
     <aside class="rail right" id="colInfo">
-      <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market<button class="pw-x" type="button" data-winclose="info" title="Close this window" aria-label="Close MARKET">X</button></div>
-      <!-- search bar: the same one the WATCHLIST window carries. It sits
-           OUTSIDE #rightInfo on purpose: every writer of the market rail
-           replaces that element's contents, so a box inside it would be wiped
-           on the next quote. -->
-      <div class="sw" id="mkSearch">
+      <div class="eyebrow" data-drag="info" title="Drag to move this window"><span class="dgrip">⠿</span>Market<div class="sw" id="mkSearch">
         <input id="mkQ" type="text" autocomplete="off" spellcheck="false"
                placeholder="SEARCH A SECURITY" aria-label="Search the market">
         <div class="sw-sug" id="mkSug"></div>
-      </div>
+      </div><button class="pw-x" type="button" data-winclose="info" title="Close this window" aria-label="Close MARKET">X</button></div>
       <!-- The rail scrolls as ONE column. #rightInfo carries what the writers
            already drew (the quote sheet, the market overview, the filed
            financials pass). #mkInline carries the security sections that belong
