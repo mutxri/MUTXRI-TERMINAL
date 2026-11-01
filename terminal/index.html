@@ -481,7 +481,14 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 /* ONE close control for every window. A user-added panel window (.pwin-hd) and a
    window of the default layout wear the same .pw-x, so the default four get the
    control that already existed rather than a second style invented for them. */
-.pw-x{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:11px;
+  /* the symbol jump sits on the panel title line, after the name and before the
+     close button, which an existing rule already pins to the right edge */
+  .wsym{flex:0 0 128px;min-width:0;background:var(--bg3);border:1px solid var(--line2);
+    color:var(--tx);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;
+    padding:2px 6px;outline:none;border-radius:2px}
+  .wsym::placeholder{color:var(--tx3)}
+  .wsym:focus{border-color:var(--acc)}
+  .pw-x{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:11px;
   line-height:1;padding:0 5px;cursor:pointer;border-radius:2px}
 .pw-x:hover{color:#ff5f56;background:rgba(255,95,86,.14)}
 .wl-head .pw-x,.chat-head .pw-x,.panel-head .pw-x,.eyebrow .pw-x{margin-left:auto}
@@ -1698,6 +1705,7 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
       <div class="panel-head" data-drag="center" title="Drag to move this window">
         <span class="dgrip">⠿</span>
         <nav class="tabs" id="centerTabs"></nav>
+        <input class="wsym" id="centerSym" type="text" placeholder="SYMBOL" autocomplete="off" spellcheck="false" aria-label="Go to a security in this panel">
         <button class="pw-x" type="button" data-winclose="center" title="Close this window" aria-label="Close the panel window">X</button>
         
       </div>
@@ -1713,6 +1721,7 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
       <div class="panel-head" data-drag="pop" title="Drag to move this window">
         <span class="dgrip">&#10287;</span>
         <span class="pop-label" id="popLabel">POPUP</span>
+        <input class="wsym" id="popSym" type="text" placeholder="SYMBOL" autocomplete="off" spellcheck="false" aria-label="Go to a security in this panel">
         <select id="popPick" class="pop-pick" title="Panel shown in this window"></select>
         <button class="pop-close" id="popClose" type="button" title="Close this window">CLOSE</button>
       </div>
@@ -8683,5 +8692,56 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
 })();
 </script>
 
+<!-- SYMBOL JUMP: the field on a panel title line. It is shown only for panels
+     that read ?sym= on load, so it is never a control that does nothing. It
+     keeps the panel other query parameters, including the exchange. -->
+<script>
+(function(){
+  var SUPPORTED = {chart:1, compare:1, corp:1, financials:1, focus:1,
+                   holders:1, perplexity:1, tas:1, trade:1, transcript:1};
+  function panelKey(src){
+    var f = String(src || "").split("?")[0].split("/").pop();
+    return f.replace(/^mx_/, "").replace(/\.html$/, "");
+  }
+  function syncOne(frameId, inputId){
+    var fr = document.getElementById(frameId), inp = document.getElementById(inputId);
+    if(!fr || !inp) return;
+    var ok = !!SUPPORTED[panelKey(fr.getAttribute("src"))];
+    inp.style.display = ok ? "" : "none";
+    if(!ok) inp.value = "";
+  }
+  function syncAll(){ syncOne("stageFrame", "centerSym"); syncOne("popFrame", "popSym"); }
+  function go(frameId, inputId){
+    var fr = document.getElementById(frameId), inp = document.getElementById(inputId);
+    if(!fr || !inp) return;
+    var v = String(inp.value || "").trim().toUpperCase();
+    if(!v) return;
+    var u;
+    try{ u = new URL(fr.getAttribute("src"), location.href); }catch(e){ return; }
+    u.searchParams.set("sym", v);
+    fr.src = u.toString();
+    inp.value = "";
+  }
+  function wire(frameId, inputId){
+    var inp = document.getElementById(inputId);
+    if(!inp) return;
+    inp.addEventListener("keydown", function(ev){
+      if(ev.key === "Enter"){ ev.preventDefault(); go(frameId, inputId); }
+      if(ev.key === "Escape"){ inp.value = ""; inp.blur(); }
+    });
+  }
+  wire("stageFrame", "centerSym");
+  wire("popFrame", "popSym");
+  ["stageFrame", "popFrame"].forEach(function(id){
+    var fr = document.getElementById(id);
+    if(!fr) return;
+    new MutationObserver(syncAll).observe(fr, {attributes:true, attributeFilter:["src"]});
+    fr.addEventListener("load", syncAll);
+  });
+  setInterval(syncAll, 900);
+  if(document.readyState !== "loading") syncAll();
+  else document.addEventListener("DOMContentLoaded", syncAll);
+})();
+</script>
 </body>
 </html>
