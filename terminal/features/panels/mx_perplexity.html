@@ -125,6 +125,28 @@
       flex:0 0 auto;min-width:0;flex-wrap:nowrap}
   .cl{font-size:7.5px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;font-weight:600;
       white-space:nowrap}
+.lawbox{overflow-y:auto;padding:0}
+  .lawrow{display:grid;grid-template-columns:1fr auto;gap:6px;padding:4px 8px;
+    border-bottom:1px solid rgba(255,255,255,0.05);align-items:baseline}
+  .lawrow:last-child{border-bottom:0}
+  .lawrow .lh{display:flex;align-items:baseline;gap:6px;min-width:0}
+  .lawrow .lc{font-size:8px;letter-spacing:.1em;color:var(--tx2);white-space:nowrap}
+  .lawrow .ly{font-size:7.5px;color:var(--tx3)}
+  .lawrow .lm{font-size:7.5px;line-height:1.45;color:var(--tx3);margin-top:2px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .lawrow .dir{font-size:7.5px;letter-spacing:.1em;white-space:nowrap;padding:1px 5px;border:1px solid}
+  .lawrow .dir.neg{color:#f87171;border-color:rgba(248,113,113,.45)}
+  .lawrow .dir.pos{color:#33e29a;border-color:rgba(51,226,154,.45)}
+  .lawrow .dir.mix{color:#e0a341;border-color:rgba(224,163,65,.45)}
+  .lawrow .dir.uns{color:var(--tx3);border-color:rgba(255,255,255,.18)}
+  .lawrow.st-repealed .lc{color:var(--tx3);text-decoration:line-through}
+  /* prose off: a map does not explain itself, and a control that calls nothing
+     is not a control. Both stay in the markup so nothing that writes to them
+     breaks, and neither is drawn. */
+  #claim, #sbar{display:none !important}
+  .lawbasis{font-size:7px;letter-spacing:.06em;color:var(--tx3);padding:5px 8px;line-height:1.5;
+    border-top:1px solid var(--line);background:var(--bg)}
+  .lawempty{font-size:8px;color:var(--tx3);padding:9px 8px;line-height:1.5}
   .cm{margin-left:auto;font-size:7.5px;color:var(--tx3);letter-spacing:.05em;white-space:nowrap;
       overflow:hidden;text-overflow:ellipsis;min-width:0}
   .cb{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
@@ -309,6 +331,10 @@
     <div class="card" id="c_sel">
       <div class="ch"><span class="cl">NODE DETAIL</span><span class="cm" id="m_sel"></span></div>
       <div class="cb" id="b_sel"></div>
+    </div>
+    <div class="card" id="c_law">
+      <div class="ch"><span class="cl">LAWS ON THIS SECURITY</span><span class="cm" id="m_law"></span></div>
+      <div class="cb lawbox" id="b_law"></div>
     </div>
   </div>
 
@@ -1687,8 +1713,10 @@
       (m.dropped ? ' | ' + m.dropped + ' DROPPED' : '');
   }
   function subHTML(m){
-    return 'BOX COLOUR GREEN UP, RED DOWN, BLUE LISTED NO PRICE, GREY FLAT, ORANGE RECORD ONLY | ' +
-      'CAP ' + G.cap + ' NODES | ' + filesLine();
+    /* Emptied on purpose. The node cap and the files read already print in the
+       header meta, so this line only repeated them and then explained the box
+       colours, which is the panel explaining itself rather than showing data. */
+    return '';
   }
 
   /* ---------- 8. pan, zoom, hover, detail -------------------------- */
@@ -1875,8 +1903,74 @@
   }
 
   /* ---------- 9. draw ------------------------------------------- */
+  /* ---------- LAWS ON THIS SECURITY, compact readout ----------
+   Direction comes from the Act operative verb and nothing else: a levy imposed
+   or raised is a cost the company bears, a levy removed or an exemption granted
+   is relief. Where the verb does not settle it the row says NOT STATED rather
+   than guessing. This is not a price view and the panel says so underneath. */
+  function lawDirection(l){
+    var m = String((l && l.mechanism) || '').toLowerCase().replace(/^[\s"'(]+/, '');
+    if(/^(imposes|adds|introduces|increases|raises|charges|extends|requires)\b/.test(m)) return {k:'neg', t:'COST'};
+    /* "Sets" and "Inserts" are only a cost when the object is a rate or a payment.
+       "Sets the permitted methods for selling a shareholding" is not a cost, so
+       the object has to name the charge. */
+    if(/^(sets|inserts)\b[^.]*\b(excise|duty|lev(y|ies)|tax|fee|rate|shall pay|each pay)\b/.test(m)) return {k:'neg', t:'COST'};
+    if(/^(exempts|removes|deletes|reduces|cuts|lowers|abolishes|grants)\b/.test(m)) return {k:'pos', t:'RELIEF'};
+    /* "Repeals" says nothing on its own: repealing a levy is relief, repealing a
+       fund and replacing it with a mandatory contribution is a cost. So it is
+       not treated as relief, and the object of the repeal decides. */
+    if(/^repeals?\b/.test(m)){
+      if(/\b(imposes|requires|statutory|shall pay|contribut|mandatory)\b/.test(m)) return {k:'neg', t:'COST'};
+      return {k:'uns', t:'NOT STATED'};
+    }
+    if(/\b(and requires|as well as|while also)\b/.test(m)) return {k:'mix', t:'MIXED'};
+    return {k:'uns', t:'NOT STATED'};
+  }
+  function renderLaws(row){
+    var box = document.getElementById('b_law'), meta = document.getElementById('m_law');
+    if(!box) return;
+    if(LAW.st === 'failed'){
+      box.innerHTML = '<div class="lawempty">gov_laws_KE.json could not be read, so no Act is claimed against this security.</div>';
+      if(meta) meta.textContent = 'ACT FILE NOT READ';
+      return;
+    }
+    if(!row){
+      box.innerHTML = '<div class="lawempty">Pick a company to see the Acts that name it.</div>';
+      if(meta) meta.textContent = '';
+      return;
+    }
+    var tk = rowTicker(row), sec = String(row.sector || '').toUpperCase(), ex = String(row.ex || '').toUpperCase();
+    var hits = (LAW.list || []).filter(function(l){
+      var lt = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); });
+      var ls = (l.sectors || []).map(function(x){ return String(x).toUpperCase(); });
+      var lex = String(l.exchange || LAW.ex || 'NSE').toUpperCase();
+      if(lt.indexOf(tk) >= 0) return true;
+      if(sec && ls.indexOf(sec) >= 0) return true;
+      if(lt.indexOf('ALL') >= 0 && lex === ex) return true;
+      return false;
+    });
+    hits.sort(function(a, b){ return (Number(b.year) || 0) - (Number(a.year) || 0); });
+    if(meta) meta.textContent = hits.length + ' OF ' + (LAW.list || []).length + ' ACTS';
+    if(!hits.length){
+      box.innerHTML = '<div class="lawempty">No Act on file names this security or its sector.</div>';
+      return;
+    }
+    box.innerHTML = hits.map(function(l){
+      var d = lawDirection(l), st = String(l.status || '').toLowerCase();
+      var mech = String(l.mechanism || '').replace(/\s+/g, ' ').trim();
+      return '<div class="lawrow st-' + esc(st) + '">' +
+               '<div><div class="lh"><span class="lc">' + esc(lawCode(l.id, l.year)) + '</span>' +
+                 '<span class="ly">' + esc(String(l.year || '')) +
+                   (st && st !== 'enacted' ? ' ' + esc(st.toUpperCase()) : '') + '</span></div>' +
+                 '<div class="lm" title="' + esc(mech) + '">' + esc(mech) + '</div></div>' +
+               '<span class="dir ' + d.k + '">' + d.t + '</span></div>';
+    }).join('') +
+    '<div class="lawbasis">DIRECTION IS READ FROM THE OPERATIVE VERB OF THE ACT: A LEVY IMPOSED IS A COST TO THE COMPANY, A LEVY REMOVED IS RELIEF. IT IS NOT A PRICE VIEW.</div>';
+  }
+
   function renderMap(box){
     var m = buildClusters(G.row);
+    try{ renderLaws(G.row); }catch(e){}
     G.model = m;
     trans(m);
     G.tm = m.tm;
