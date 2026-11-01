@@ -92,6 +92,11 @@
   .cal-tk { font-family:var(--mono); font-size:10px; color:var(--acc); min-width:64px; }
   .cal-ev { font-size:11px; color:var(--tx); flex:1; }
   .cal-amt { font-family:var(--mono); font-size:10px; color:var(--tx2); white-space:nowrap; }
+  /* the search sits on the title line, after the panel name and before the
+     source note, so the head reads  PANEL  [search]  source  the way a desk does it */
+  .head .sbox.inhead{flex:0 1 320px;min-width:0}
+  .head .sbox.inhead .search{width:100%;box-sizing:border-box;font-size:10.5px;padding:3px 7px}
+  .head .sbox.inhead .sugg{left:0;right:0;top:calc(100% + 2px)}
 </style>
 </head>
 <body>
@@ -100,16 +105,17 @@
   <div class="head">
     <span class="code">ANNOUNCEMENTS</span>
     <span class="title"><b id="exName">NSE</b> LISTED-COMPANY FILINGS</span>
+    <div class="sbox inhead">
+      <input class="search" id="q" autocomplete="off" spellcheck="false"
+        placeholder="ticker, ISIN or company  (e.g. SCOM, Safaricom)" />
+      <div class="sugg" id="sugg"></div>
+    </div>
     <span class="spacer"></span>
     <span class="src" id="src">nse.co.ke · audited results · AGM · dividends</span>
   </div>
 
   <div class="bar">
-    <div class="sbox">
-      <input class="search" id="q" autocomplete="off" spellcheck="false"
-        placeholder="ticker, ISIN or company  (e.g. SCOM, Safaricom)" />
-      <div class="sugg" id="sugg"></div>
-    </div>
+    
     <select id="yr"><option value="all">ALL YEARS</option></select>
   </div>
   <div class="active" id="active" style="display:none"></div>
