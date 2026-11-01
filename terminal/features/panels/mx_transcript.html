@@ -85,6 +85,12 @@
   .empty .b{font-size:11.5px;color:var(--tx2);line-height:1.66}
   .empty .b b{color:var(--tx);font-weight:400}
   .empty.fail .h{color:var(--red)}
+  .quote{padding:22px 20px;max-width:820px}
+  .quote .qh{font-size:9.5px;letter-spacing:.16em;color:var(--mint);margin-bottom:14px}
+  .quote blockquote{font-size:12.5px;line-height:1.75;color:var(--tx);border-left:2px solid var(--mint);
+    padding-left:16px;margin:0}
+  .quote .qs{font-size:9.5px;letter-spacing:.08em;color:var(--tx3);margin-top:16px;line-height:1.7}
+  .quote .qs b{color:var(--tx2);font-weight:400}
 </style>
 </head>
 <body>
@@ -130,6 +136,7 @@
 
   <div class="bar" id="bar">
     <button type="button" data-k="ALL" class="on">ALL</button>
+    <button type="button" data-k="ANNUAL_REPORT">ANNUAL REPORT</button>
     <button type="button" data-k="AGM">AGM</button>
     <button type="button" data-k="CFO_QUARTERLY">QUARTERLY CFO</button>
     <button type="button" data-k="EARNINGS_CALL">ANNUAL RESULTS</button>
@@ -168,6 +175,7 @@
   var FILTER = "", TFILTER = "", KFILTER = "ALL";
 
   var GROUPS = [
+    {k:"ANNUAL_REPORT", label:"ANNUAL REPORTS, MANAGEMENT ON REVENUE"},
     {k:"AGM",           label:"ANNUAL GENERAL MEETINGS"},
     {k:"CFO_QUARTERLY", label:"QUARTERLY AND INTERIM REVENUE, CFO"},
     {k:"EARNINGS_CALL", label:"ANNUAL RESULTS"},
@@ -187,7 +195,7 @@
     return h ? h + ":" + mm + ":" + ss : m + ":" + ss;
   }
   function kindLabel(k){
-    return ({AGM:"AGM", CFO_QUARTERLY:"QUARTERLY / INTERIM", EARNINGS_CALL:"ANNUAL RESULTS",
+    return ({ANNUAL_REPORT:"ANNUAL REPORT", AGM:"AGM", CFO_QUARTERLY:"QUARTERLY / INTERIM", EARNINGS_CALL:"ANNUAL RESULTS",
              MGMT_INTERVIEW:"INTERVIEW"})[k] || (k || "EVENT");
   }
   function compactMoney(v, ccy){
@@ -274,7 +282,8 @@
                    (reportedFigure(e) ? '<span class="rev">REV ' + esc(reportedFigure(e)) + '</span>' : '') +
                    '<span>' + esc(e.period || e.date || "-") + '</span><span>' + esc(dur) + '</span>' +
                    (e.audio ? '<span class="has">AUDIO</span>' : '<span class="none">NO AUDIO</span>') +
-                   (e.turns && e.turns.length ? '<span class="has">TEXT</span>' : '<span class="none">NO TEXT</span>') +
+                   (e.turns && e.turns.length ? '<span class="has">TEXT</span>'
+                     : (e.quote ? '<span class="has">QUOTE</span>' : '<span class="none">NO TEXT</span>')) +
                  '</div></div>';
       }).join("");
     });
@@ -335,6 +344,17 @@
     if(!CURRENT){ $("turns").innerHTML = ""; return; }
     var e = CURRENT, turns = e.turns || [];
 
+    if(!turns.length && e.quote && e.quote.text){
+      $("turns").innerHTML = '<div class="quote">' +
+        '<div class="qh">MANAGEMENT ON REVENUE, IN THE ANNUAL REPORT\'S OWN WORDS</div>' +
+        '<blockquote>' + esc(e.quote.text) + '</blockquote>' +
+        '<div class="qs">' +
+          (e.quote.page ? 'page <b>' + esc(e.quote.page) + '</b> | ' : '') +
+          'source <b>' + esc(e.quote.file || e.source || "") + '</b> | ' +
+          '<b>QUOTED VERBATIM FROM THE FILED REPORT</b>, not a recording and not a paraphrase' +
+        '</div></div>';
+      $("hits").textContent = ""; return;
+    }
     if(!turns.length){
       var rep = e.reported;
       if(rep && rep.revenue != null){
