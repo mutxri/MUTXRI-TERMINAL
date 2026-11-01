@@ -48,6 +48,7 @@
   .ev .t3{font-size:9.5px;color:var(--tx3);margin-top:4px;letter-spacing:.09em;display:flex;gap:7px;flex-wrap:wrap}
   .ev .has{color:var(--mint)}
   .ev .none{color:var(--amber)}
+  .ev .rev{color:var(--tx);letter-spacing:.04em}
 
   main{display:flex;flex-direction:column;min-height:0;min-width:0}
   .ehead{flex:none;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--head)}
@@ -131,7 +132,7 @@
     <button type="button" data-k="ALL" class="on">ALL</button>
     <button type="button" data-k="AGM">AGM</button>
     <button type="button" data-k="CFO_QUARTERLY">QUARTERLY CFO</button>
-    <button type="button" data-k="EARNINGS_CALL">EARNINGS CALL</button>
+    <button type="button" data-k="EARNINGS_CALL">ANNUAL RESULTS</button>
     <button type="button" data-k="MGMT_INTERVIEW">INTERVIEW</button>
   </div>
 
@@ -168,8 +169,8 @@
 
   var GROUPS = [
     {k:"AGM",           label:"ANNUAL GENERAL MEETINGS"},
-    {k:"CFO_QUARTERLY", label:"QUARTERLY REVENUE, CFO"},
-    {k:"EARNINGS_CALL", label:"EARNINGS CALLS"},
+    {k:"CFO_QUARTERLY", label:"QUARTERLY AND INTERIM REVENUE, CFO"},
+    {k:"EARNINGS_CALL", label:"ANNUAL RESULTS"},
     {k:"MGMT_INTERVIEW",label:"MANAGEMENT INTERVIEWS"}
   ];
 
@@ -186,8 +187,23 @@
     return h ? h + ":" + mm + ":" + ss : m + ":" + ss;
   }
   function kindLabel(k){
-    return ({AGM:"AGM", CFO_QUARTERLY:"QUARTERLY CFO", EARNINGS_CALL:"EARNINGS CALL",
+    return ({AGM:"AGM", CFO_QUARTERLY:"QUARTERLY / INTERIM", EARNINGS_CALL:"ANNUAL RESULTS",
              MGMT_INTERVIEW:"INTERVIEW"})[k] || (k || "EVENT");
+  }
+  function compactMoney(v, ccy){
+    if(v == null || isNaN(v)) return "-";
+    var a = Math.abs(v), s;
+    if(a >= 1e12) s = (v/1e12).toFixed(2) + "tn";
+    else if(a >= 1e9) s = (v/1e9).toFixed(1) + "bn";
+    else if(a >= 1e6) s = (v/1e6).toFixed(1) + "m";
+    else if(a >= 1e3) s = (v/1e3).toFixed(1) + "k";
+    else s = v.toFixed(0);
+    return (ccy ? ccy + " " : "") + s;
+  }
+  function reportedFigure(e){
+    var r = e && e.reported;
+    if(!r || r.revenue == null) return "";
+    return compactMoney(r.revenue, r.currency);
   }
   function rightsLabel(r){
     return ({MUTXRI_OWNED:"RECORDED BY MUTXRI", LICENSED:"LICENSED",
@@ -254,7 +270,9 @@
         return '<div class="ev" data-id="' + esc(e.id) + '"' + sel + ' tabindex="0">' +
                  '<div class="t1"><span class="tk">' + esc(e.ticker || "-") + '</span><span class="pd">' + esc(e.period || "") + '</span></div>' +
                  '<div class="t2">' + esc(e.title || kindLabel(e.kind)) + '</div>' +
-                 '<div class="t3"><span>' + esc(e.date || "-") + '</span><span>' + esc(dur) + '</span>' +
+                 '<div class="t3">' +
+                   (reportedFigure(e) ? '<span class="rev">REV ' + esc(reportedFigure(e)) + '</span>' : '') +
+                   '<span>' + esc(e.period || e.date || "-") + '</span><span>' + esc(dur) + '</span>' +
                    (e.audio ? '<span class="has">AUDIO</span>' : '<span class="none">NO AUDIO</span>') +
                    (e.turns && e.turns.length ? '<span class="has">TEXT</span>' : '<span class="none">NO TEXT</span>') +
                  '</div></div>';
@@ -298,8 +316,14 @@
       '<div class="meta"><b>' + esc(e.date || "date not stated") + '</b>' +
         ' | duration <b>' + (e.durationSec ? clock(e.durationSec) : "not stated") + '</b>' +
         ' | <b>' + turns + '</b> turns' +
-        ' | <b>' + esc(rightsLabel(e.rights)) + '</b>' +
-        (e.source ? ' | source <b>' + esc(e.source) + '</b>' : '') + '</div>';
+        (e.audio || (e.turns && e.turns.length) ? ' | <b>' + esc(rightsLabel(e.rights)) + '</b>' : '') +
+        (e.source ? ' | source <b>' + esc(e.source) + '</b>' : '') + '</div>' +
+      (e.reported && e.reported.revenue != null
+        ? '<div class="meta">reported revenue <b>' + esc(compactMoney(e.reported.revenue, e.reported.currency)) + '</b>' +
+          (e.reported.revenueLabel ? ' as <b>' + esc(e.reported.revenueLabel) + '</b>' : '') +
+          (e.reported.basis ? ' (' + esc(e.reported.basis) + ')' : '') +
+          (e.sourceAsOf ? ' | filing held ' + esc(e.sourceAsOf) : '') + '</div>'
+        : '');
 
     $("player").innerHTML = e.audio
       ? '<audio id="aud" controls preload="metadata" src="' + esc(audioSrc(e.audio)) + '"></audio><span class="hits">' + esc(String(e.audio).split("/").pop()) + '</span>'
@@ -312,11 +336,21 @@
     var e = CURRENT, turns = e.turns || [];
 
     if(!turns.length){
-      $("turns").innerHTML = emptyBlock("ok",
-        e.audio ? "TRANSCRIPT NOT YET MADE" : "NOTHING ON FILE FOR THIS EVENT",
-        e.audio
-          ? "The recording is held but has no transcript yet. The two are stored separately, so a missing transcript never implies a missing recording."
-          : "This event has neither a recording nor a transcript. It is listed because the event itself exists, and the panel does not invent either.");
+      var rep = e.reported;
+      if(rep && rep.revenue != null){
+        $("turns").innerHTML = '<div class="empty"><div class="h">NO RECORDING OR TRANSCRIPT HELD</div>' +
+          '<div class="b">The company reported <b>' + esc(compactMoney(rep.revenue, rep.currency)) + '</b>' +
+          ' of revenue for <b>' + esc(e.period || "this period") + '</b>' +
+          (rep.revenueLabel ? ', taken as <b>' + esc(rep.revenueLabel) + '</b>' : '') +
+          ' from the filed income statement. <b>That figure is the filing, not a quote.</b> ' +
+          'Nobody recorded this period, so there is no audio and no transcript to attach, and none is written here to fill the row.</div></div>';
+      }else{
+        $("turns").innerHTML = emptyBlock("ok",
+          e.audio ? "TRANSCRIPT NOT YET MADE" : "NOTHING ON FILE FOR THIS EVENT",
+          e.audio
+            ? "The recording is held but has no transcript yet. The two are stored separately, so a missing transcript never implies a missing recording."
+            : "This event has neither a recording nor a transcript. It is listed because the event itself exists, and the panel does not invent either.");
+      }
       $("hits").textContent = ""; return;
     }
 
