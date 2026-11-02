@@ -4396,14 +4396,15 @@ window.MTPanelWins = (function(){
             if(r.height > 0 && r.bottom > bottom) bottom = r.bottom;
           }
           if(!bottom) return;
-          // TAKE THE TALLEST CONTENT SEEN, not the shortest. An early pass can run
-          // before the quote has arrived; fitting to that shrank the window past the
-          // text and clipped it ("-0.75" cut off at the bottom). Remembering the
-          // maximum means the window ends where the content ends, whatever order the
-          // panel's data arrives in, and it never clips.
-          fitMax[id] = Math.max(fitMax[id] || 0, Math.ceil(bottom));
-          const want = Math.max(MIN_H, fitMax[id] + 30);          // 22px head + 8px air
-          if(Math.abs(st.h - want) > 16){                          // grow or shrink to fit
+          // CONVERGE ON WHAT IS ON SCREEN NOW, in both directions, on every pass.
+          // A running maximum was wrong: one early pass that measured a tall frame
+          // pinned the window at that height forever, so it grew a grey band under a
+          // short quote card and could never shrink back. A shrink-only rule was wrong
+          // the other way: it clipped the last line. Six passes ending at nine seconds
+          // means the LAST measurement wins, and by then the panel has settled, so the
+          // window ends exactly where its content ends.
+          const want = Math.max(MIN_H, Math.ceil(bottom) + 30);    // 22px head + 8px air
+          if(Math.abs(st.h - want) > 10){
             fitH[id] = want;
             st.h = want;
             place(id);
@@ -4411,7 +4412,7 @@ window.MTPanelWins = (function(){
           }
         }catch(e){}
       }
-      [900, 2000, 3200, 4500, 6500, 9000].forEach(function(ms){
+      [900, 2000, 3200, 4500, 6500, 9000, 12000].forEach(function(ms){
         setTimeout(function(){ if(passes < 8) fitPass(); }, ms);
       });
     });
