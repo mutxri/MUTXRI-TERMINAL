@@ -56,7 +56,7 @@
   ::-webkit-scrollbar{width:0;height:0;}
 
   :root{
-    --bg:#121212;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
     --line:#1a1a1a;--line2:#262626;--tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
     --up:#33e29a;--down:#f87171;--acc:#33e29a;--warn:#e0a340;
     --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
@@ -684,7 +684,8 @@
 
     var h = [];
     h.push("<div class='fx-tkr'>" + esc(tickerOf(row, sym)) + "</div>");
-    if(row.name) h.push("<div class='fx-nm'>" + esc(row.name) + "</div>");
+    // The company name was removed on the owner's instruction (2026-11-03): the card
+    // carries the ticker, the price and the percentage movement, nothing else.
     h.push("<div class='fx-px" + pxCls + "'>" + esc(fmtPx(px)) +
       (row.currency ? "<span class='fx-cur'>" + esc(row.currency) + "</span>" : "") + "</div>");
     if(pct != null){
@@ -693,11 +694,9 @@
     } else {
       h.push("<div class='fx-chg nofig'>change percent not stated</div>");
     }
-    if(level != null && agree){
-      h.push("<div class='fx-abs " + dir + "'>" + (level >= 0 ? "+" : "") + fmtPx(level) + "</div>");
-    } else {
-      h.push("<div class='fx-abs nofig'>change in levels not stated</div>");
-    }
+    // The level change ("+0.00") and its "not stated" placeholder were removed on the
+    // owner's instruction (2026-11-03): the card shows the ticker, the price and the
+    // percentage. The agreement test above still runs, it simply no longer prints.
     $("fxBody").innerHTML = h.join("");
 
     // ---- footer: the as-of stamp first, then anything that qualifies it ----

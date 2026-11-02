@@ -1,61 +1,56 @@
 <!--
-  mx_perplexity.html - PERPLEXITY: one security at the centre of its constellation.
+  mx_perplexity.html - PERPLEXITY: one security at the centre of its relationships.
 
-  The layout is the relationship map the owner asked for, in the manner of a
-  terminal relationship screen:
+  The map is radial, and it draws on load, before any Act is chosen:
 
-    CENTRE         one box: ticker and board on a coloured strip, the company
-                   name, the last price, the percent change, and a sparkline
-                   read from static_data/history/<KEY>.json.
-    CONSTELLATION  twelve small circles on a rough ring around that box, each
-                   with its own title and a count in brackets, each joined to the
-                   centre by one thin line. A radial cluster is drawn as a
-                   starburst: one tiny hub disc at its own centre, a faint
-                   dashed circle at the node radius, and the coloured labelled
-                   boxes standing on that circle, each joined to the hub by a
-                   short spoke. A cluster past ten nodes would use one inner and
-                   one outer ring; the per cluster cap of eight means every
-                   cluster here draws a single ring. Box colour carries meaning,
-                   never decoration.
-    KEPT AS PANELS NEWS, EVENTS and BALANCE SHEET stay framed panels: a list of
-                   headlines and three bars are not radial data, and turning
-                   either into a circle would destroy the reading.
+    CENTRE        a disc holding the ticker, with the company name, the board,
+                  the last price and the percent change beneath it.
+    RING 1        one circle per record that names the centre: customers,
+                  suppliers, competitors, partners, substantial holders and the
+                  Acts that name the security. Radius 5 against the centre's 24,
+                  so the centre reads as five times a leaf.
+    RING 2        one circle per company one recorded link past a ring 1 company,
+                  radius 4. Only drawn out when DEPTH is set to 2 HOPS.
+    LINKS         every link is a quadratic bezier from the edge of one node to
+                  the edge of the next, with an arrowhead marker per link type.
+                  Ring 1 leaves are fed from the centre; ring 2 leaves are fed
+                  from the ring 1 company the record was read from.
 
-  What each cluster reads, and nothing else:
+  Both rings are faint dashed ellipses, labelled RING 1 and RING 2 at the left
+  apex, where a wedge is kept clear so a label can never sit on a node. Nodes are
+  spaced by arc length, so the gap between neighbours is even all the way round.
 
-    INDICES     static_data/ex_<EX>_indices.json
-    PEERS       competitors in static_data/relationships_<EX>.json (all four
-                exchange files are read, so a link can cross a board)
-    CUSTOMERS   the same files, customers
-    SUPPLIERS   the same files, suppliers
-    PARTNERS    the same files, partners
-    2 LINKS     one recorded link past a first link, only when depth 2 is on
-    HOLDERS     static_data/shareholders_<EX>.json where a record exists
-    EXCHANGES   the four boards, the one this security is listed on marked
-    EXECUTIVES  static_data/ceos.json where it names a chief executive
-    BALANCE     static_data/financials/<KEY>__balance.json, three real lines
-    LAWS        static_data/gov_laws_KE.json: the Acts whose own ticker list or
-                own sector list names this security, coloured by status
-    EVENTS      static_data/<ex>_corporate_actions.json, or the announcements
-                file for a board that has no corporate action file
-    NEWS        static_data/<ex>_news.json, the four newest headlines naming it
+  The chip row (CUST, SUPP, COMP, PART, HOLDERS, LAWS) selects a category. The
+  chip names the category and its count at the head of NODE DETAIL, marks that
+  category's leaves with a halo, and lets the rest of the map recede - nothing is
+  filtered off it, so the header counts always describe everything drawn.
+  A category with no record on file says so, plainly, in the same pane.
 
-  A cluster with no record still appears, with a count and the word NONE, so the
-  absence is visible. A cluster whose file could not be read prints the failure
-  instead, so empty and failed are never confused.
+  What each category reads, and nothing else:
 
-  Policy behaviour kept from the previous build: choose an Act and it marks the
-  companies it names directly, the companies one recorded link away, and the
-  companies two links away, and dims the rest. In this layout the marking is the
-  amber ring around a node box inside a cluster, and the Act line above the map
-  counts what it reached.
+    CUSTOMERS   relationships_<EX>.json, the customers array
+    SUPPLIERS   the same file, suppliers
+    COMPETITORS the same file, competitors
+    PARTNERS    the same file, partners
+    HOLDERS     shareholders_<EX>.json, the substantial holder table
+    LAWS        gov_laws_KE.json: the Acts whose own ticker list or own sector
+                list names this security
+    2 LINKS     one recorded link past a ring 1 company, only at depth 2
+
+  All four exchange relationship files are read, so a link can cross a board.
+
+  Policy behaviour kept: choose an Act and it marks the companies it names
+  directly, the companies one recorded link away, and the companies two links
+  away, and dims the rest. The marking is an amber halo around a leaf, and the
+  Act line above the map counts what it reached.
 
   Rules this file keeps:
     * no peer set is generated and nothing is inferred from a sector label on
-      the map: a link is drawn only where a relationship record names it;
-    * all four exchange relationship files are read and their read state is
-      printed;
-    * the node cap is stated on the map and truncation is reported, not hidden;
+      the map: a link is drawn only where a record names it;
+    * a leaf label that would collide is prevented by spacing, and the geometry
+      is measured on every draw;
+    * every population the ring cannot hold is counted as dropped on the header,
+      never silently;
     * every block draws inside a guard, so one broken read blanks one block;
     * pan, zoom, reset, node detail and hover highlighting stay;
     * one line states what this shows and what it does not claim.
@@ -119,8 +114,11 @@
   /* ---------- the map and the detail of the node the reader pinned -------- */
   .grid{flex:1 1 auto;min-height:0;display:grid;gap:1px;background:var(--line2);padding:1px;
         grid-template-columns:minmax(0,1fr) 288px;
-        grid-template-rows:minmax(0,1.35fr) minmax(0,1fr)}
+        grid-template-rows:minmax(0,1fr) auto}
   #c_sel{grid-column:2;grid-row:1 / span 2}
+  /* the map gets every pixel the law list does not need, and the law card
+     keeps its own content height up to a cap so it is never cut in half */
+  #c_law{max-height:min(432px,47vh)}
   .card{background:var(--bg);display:flex;flex-direction:column;min-height:0;min-width:0;
         position:relative}
   .ch{display:flex;align-items:center;gap:8px;padding:3px 8px;border-bottom:1px solid var(--line);
@@ -196,24 +194,27 @@
         letter-spacing:.06em;color:#7a7a7a;text-transform:uppercase;background:rgba(0,0,0,.82);
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gsub b{color:var(--down);font-weight:700}
-  ellipse.ring{fill:none;stroke:#2c2c2c;stroke-width:.9;stroke-dasharray:3 4.2}
-  ellipse.ring.r2{stroke:#212121}
-  text.rl{font-family:var(--mono);font-size:7.4px;letter-spacing:.15em;fill:#6a6a6a}
-  text.rn{font-family:var(--mono);font-size:6.8px;letter-spacing:.06em;fill:#4f4f4f}
-  path.eg{fill:none;stroke-width:1;stroke-opacity:.55}
-  path.eg.h2{stroke-opacity:.4;stroke-dasharray:2.6 2.6}
+  ellipse.ring{fill:none;stroke:#3c3c3c;stroke-width:.9;stroke-dasharray:3.4 4.4}
+  ellipse.ring.r2{stroke:#2b2b2b}
+  text.rl{font-family:var(--mono);font-size:8px;letter-spacing:.15em;fill:#8a8a8a}
+  text.rn{font-family:var(--mono);font-size:7.2px;letter-spacing:.04em;fill:#616161}
+  path.eg{fill:none;stroke-width:1.05;stroke-opacity:.8}
+  path.eg.h2{stroke-opacity:.55;stroke-dasharray:2.6 2.6}
   path.eg.law{stroke-dasharray:3.2 2.4}
   path.eg.hv{stroke-opacity:1;stroke-width:1.5}
   path.eg.dim{stroke-opacity:.09}
   circle.lf{fill:#080808;stroke-width:1.3}
   circle.lf.h2{stroke-width:1.1;fill:#060606}
   g.nd{pointer-events:all;cursor:pointer}
-  g.nd text.nl{font-family:var(--mono);font-size:6.6px;letter-spacing:.04em;fill:#9a9a9a;
+  g.nd text.nl{font-family:var(--mono);font-size:7px;letter-spacing:.03em;fill:#b4b4b4;
                text-anchor:middle}
   g.nd.hv text.nl,g.nd.on text.nl,g.nd.cat-on text.nl{fill:#f0f0f0}
   g.nd.on circle.lf{stroke-width:2.4}
-  g.nd.cat-on circle.lf{stroke-width:2.1}
-  g.nd.dim{opacity:.22}
+  g.nd.cat-on circle.lf{stroke-width:2.2}
+  g.nd.rcd{opacity:.36}
+  g.nd.offn{opacity:.42}
+  circle.ch{fill:none;stroke-width:1.15;stroke-opacity:.9}
+  path.eg.rcd{stroke-opacity:.12}
   circle.hl{fill:none;stroke:#e0a340;stroke-width:1.1}
   circle.hl.hop1{stroke-opacity:.6;stroke-dasharray:2 2}
   circle.hl.hop2{stroke-opacity:.34;stroke-dasharray:1.6 2.4}
@@ -233,6 +234,7 @@
   .chead .cc{font-size:7px;letter-spacing:.06em;color:var(--tx3);margin-left:auto;
              white-space:nowrap}
   .crow{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.055)}
+  .crow.ndoff{opacity:.55}
   .crow .r1{display:flex;gap:6px;align-items:baseline;min-width:0}
   .crow .rnm{font-size:9px;font-family:var(--ui);color:var(--tx);flex:1 1 auto;min-width:0;
              overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -951,6 +953,8 @@
           key:'sh:' + coreName(h.name) + ':' + (h.name || ''), cat:'holders',
           cluster:'holders', hop:1, label:nameCode(h.name), name:nd(h.name || ''),
           code:String((id && id.tk) || ''), ex:(id && id.ex) || '', link:'Holder',
+          tag:(h.holding != null ? fmtBig(h.holding) + ' SH'
+               : (h.pct != null ? Number(h.pct).toFixed(2) + '%' : '')),
           reason:(h.holding != null ? fmtBig(h.holding) + ' shares'
                   : (h.pct != null ? Number(h.pct).toFixed(2) + '% held' : 'holding on file')),
           src:(srec && srec.asOf ? 'as at ' + nd(srec.asOf) : ''),
@@ -979,7 +983,8 @@
         var st = String(l.status || '').toLowerCase();
         laws.items.push({
           key:'law:' + (l.id || laws.items.length), cat:'laws', cluster:'laws', hop:1,
-          label:lawCode(l.id, l.year), name:nd(l.name || l.id || ''),
+          label:lawCode(l.id, l.year), tag:lawCode(l.id, l.year),
+          name:nd(l.name || l.id || ''),
           code:String(l.id || ''), ex:String(l.exchange || LAW.ex || 'NSE').toUpperCase(),
           link:'Act', reason:cut(l.mechanism || '', 240),
           src:(l.source && l.source.name) ? nd(String(l.source.name)) +
@@ -991,15 +996,23 @@
     }
     cats.push(laws);
 
-    /* per category cap, then the ring itself. A capped category keeps its full
-       on-file count, so NODE DETAIL can say how many were held back. */
+    /* every record a category holds is kept, so NODE DETAIL lists all of them;
+       the ring takes what it can carry and the pane marks what is not on it */
     cats.forEach(function(c){
       var lim = CATCAP[c.k] != null ? CATCAP[c.k] : 6;
-      if(c.items.length > lim){
-        c.capped = c.items.length - lim;
-        c.items = c.items.slice(0, lim);
-      }
-      c.items.forEach(function(it){ ring1.push(it); });
+      c.limit = lim;
+      c.items.slice(0, lim).forEach(function(it){ ring1.push(it); });
+    });
+
+    /* two records can carry the same short label across categories: number the
+       repeat so no two leaves on the map read the same */
+    var seenLab = {};
+    cats.forEach(function(c){
+      c.items.forEach(function(it){
+        var lb = String(it.label || '?');
+        if(seenLab[lb]) it.label = (lb + seenLab[lb]).slice(0, 9);
+        seenLab[lb] = (seenLab[lb] || 1) + 1;
+      });
     });
 
     /* ring 2: one recorded link past a first link, only when depth 2 is on */
@@ -1027,6 +1040,13 @@
         }
       }
     }
+
+    /* the second ring shares the same label space */
+    ring2.forEach(function(it){
+      var lb = String(it.label || '?');
+      if(seenLab[lb]) it.label = (lb + seenLab[lb]).slice(0, 9);
+      seenLab[lb] = (seenLab[lb] || 1) + 1;
+    });
 
     var centre = {key:'C:' + ex + ':' + tk, name:nd(row.name || tk), tk:tk, ex:ex,
                   price:rowPrice(row), pct:pctOf(row), sector:row.sector || '',
@@ -1167,7 +1187,7 @@
     var rC = Math.round(Math.min(24, Math.max(13, Math.min(W / 26, H / 13))));
     var lr1 = Math.max(3, rC * 5 / 24), lr2 = Math.max(2.4, rC * 4 / 24);
     var ry2 = Math.max(rC * 2.6, H / 2 - 56);
-    var rx2 = Math.min(W / 2 - 74, Math.max(rC * 3.4, (H / 2 - 60) * 2.3));
+    var rx2 = Math.min(W / 2 - 74, Math.max(rC * 3.4, (H / 2 - 60) * 2.75));
     rx2 = Math.max(rC * 3, rx2);
 
     /* ring 1 grows only as far as its own population needs, and never past the
@@ -1176,7 +1196,7 @@
     if(m.ring1.length){
       var need = m.ring1.length * MIN_GAP / t1.L;
       if(need > 1){
-        var f = Math.min(0.78 / 0.55, need);
+        var f = Math.min(0.86 / 0.55, need * 1.03);
         t1 = ringTab(rx2 * 0.55 * f, ry2 * 0.55 * f, RING_GAP);
       }
     }
@@ -1201,6 +1221,7 @@
       it.y = cy + Math.sin(a) * tab.ry;
       it.r = r;
       it.ring = ring;
+      it.drawn = true;
       it.lx = Math.max(24, Math.min(W - 24, it.x));
       it.ly = it.y + r + 9.2;
       it.lw = labelW(cut(it.label, 10));
@@ -1259,8 +1280,8 @@
     var out = '<defs>';
     MK.forEach(function(tp){
       out += '<marker id="mk-' + tp.k + '" viewBox="0 0 6 6" refX="5.7" refY="3"' +
-        ' markerWidth="5.4" markerHeight="5.4" orient="auto">' +
-        '<path d="M0.4 0.6 L5.7 3 L0.4 5.4 z" fill="' + tp.c + '"/></marker>';
+        ' markerWidth="6.4" markerHeight="6.4" orient="auto">' +
+        '<path d="M0.4 0.5 L5.7 3 L0.4 5.5 z" fill="' + tp.c + '"/></marker>';
     });
     return out + '</defs>';
   }
@@ -1296,7 +1317,8 @@
       '" text-anchor="end">RING 2<tspan class="rn" dx="4">(' + m.ring2.length +
       ')</tspan></text>';
     if(!m.ring2.length){
-      out += '<text class="none" x="' + f1(g.cx) + '" y="' + f1(g.cy + g.ry2 - 7) +
+      var ny = Math.min(g.cy + g.ry2 + 14, g.h - 6);
+      out += '<text class="none" x="' + f1(g.cx) + '" y="' + f1(ny) +
         '" text-anchor="middle">NO 2-LINK NODES ON FILE</text>';
     }
     return out;
@@ -1319,7 +1341,8 @@
     [m.ring1, m.ring2].forEach(function(arr){
       arr.forEach(function(it){
         var cls = 'nd' + (it.st ? ' st-' + it.st : '') +
-          (G.cat && G.cat === it.cat ? ' cat-on' : '') + (it.hop === 2 ? ' h2' : '');
+          (G.cat && G.cat === it.cat ? ' cat-on' : '') + (it.hop === 2 ? ' h2' : '') +
+          (G.law && it.st === 'off' ? ' offn' : '');
         out += '<g class="' + cls + '" data-k="' + t(it.key) + '" data-cl="' + t(it.cat) +
           '" data-st="' + t(it.st || '') + '" data-hop="' + it.hop + '" data-ring="' +
           it.ring + '"><title>' + t(it.name + (it.code ? ' ' + it.code +
@@ -1345,6 +1368,10 @@
     if(px !== DASH) bits.push(px + (c.currency ? ' ' + c.currency : ''));
     if(pc != null) bits.push(fmtPct(pc));
     out += '<g class="ctr" data-k="' + t(c.key) + '">';
+    if(c.st === 'direct' || c.st === 'hop1' || c.st === 'hop2'){
+      out += '<circle class="hl ctr' + (c.st === 'direct' ? '' : ' ' + c.st) +
+        '" cx="' + f1(g.cx) + '" cy="' + f1(g.cy) + '" r="' + f1(g.rC + 5) + '"/>';
+    }
     out += '<circle class="cdc" cx="' + f1(g.cx) + '" cy="' + f1(g.cy) + '" r="' +
       f1(g.rC) + '"/>';
     out += '<text class="ctk" x="' + f1(g.cx) + '" y="' + f1(g.cy + tfs * 0.36) +
@@ -1474,6 +1501,34 @@
       el.classList.remove('dim');
     });
   }
+  /* the chip focus is marked on the drawn svg: selected leaves get a halo in
+     their own colour, the rest recede but stay drawn and stay counted */
+  function applyFocus(svg){
+    if(!svg) return;
+    Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
+      var on = !!G.cat && el.getAttribute('data-cl') === G.cat;
+      if(on) el.classList.add('cat-on'); else el.classList.remove('cat-on');
+      if(G.cat && !on) el.classList.add('rcd'); else el.classList.remove('rcd');
+      var leaf = el.querySelector('circle.lf');
+      var halo = el.querySelector('circle.ch');
+      if(on && leaf && !halo){
+        var ns = 'http://www.w3.org/2000/svg';
+        halo = document.createElementNS(ns, 'circle');
+        halo.setAttribute('class', 'ch');
+        halo.setAttribute('cx', leaf.getAttribute('cx'));
+        halo.setAttribute('cy', leaf.getAttribute('cy'));
+        halo.setAttribute('r', (Number(leaf.getAttribute('r')) + 3.2).toFixed(1));
+        halo.setAttribute('stroke', leaf.getAttribute('stroke'));
+        el.insertBefore(halo, leaf);
+      } else if(!on && halo){
+        halo.parentNode.removeChild(halo);
+      }
+    });
+    Array.prototype.forEach.call(svg.querySelectorAll('path.eg'), function(el){
+      if(G.cat && el.getAttribute('data-t') !== G.cat) el.classList.add('rcd');
+      else el.classList.remove('rcd');
+    });
+  }
   function wireNodes(svg){
     Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
       var key = el.getAttribute('data-k') || '';
@@ -1531,8 +1586,9 @@
       return;
     }
     h += '<div class="srow"><span class="sk">CLUSTER</span><span class="sv wr">' +
-      t(String(n.cluster || '').toUpperCase()) + '</span><span class="sk sk2">' +
-      t(n.link || '') + '</span></div>';
+      t(String(n.cluster || '').toUpperCase()) + '</span>' +
+      (n.link && String(n.link).toUpperCase() !== String(n.cluster || '').toUpperCase()
+        ? '<span class="sk sk2">' + t(n.link) + '</span>' : '') + '</div>';
     if(n.hop){
       h += '<div class="srow"><span class="sk">HOP</span><span class="sv dm">' +
         (n.hop || 1) + '</span></div>';
@@ -1577,10 +1633,11 @@
       box.innerHTML = head + '<div class="emp"><b>NONE ON FILE</b> ' + t(c.emptyMsg) + '</div>';
       return;
     }
-    var h = head;
+    var h = head, onMap = 0;
     c.items.forEach(function(it){
-      var tag = it.code ? (it.code + (it.ex ? ' ' + it.ex : '')) : 'NO TICKER';
-      h += '<div class="crow" data-k="' + t(it.key) + '">' +
+      var tag = it.tag || (it.code ? (it.code + (it.ex ? ' ' + it.ex : '')) : 'NO TICKER');
+      if(it.drawn === true) onMap++;
+      h += '<div class="crow' + (it.drawn === true ? '' : ' ndoff') + '" data-k="' + t(it.key) + '">' +
         '<div class="r1"><span class="rnm" title="' + t(it.name) + '">' + t(it.name) +
         '</span><span class="rtk">' + t(tag) + '</span></div>' +
         '<div class="r2"><span class="rl2">' + t(it.link) + '</span>' +
@@ -1588,9 +1645,9 @@
         '<span class="rsrc" title="' + t(it.src || '') + '">' +
         t(it.src || 'no source on file') + '</span></div></div>';
     });
-    if(c.items.length < c.total){
-      h += '<div class="cnote">' + c.items.length + ' OF ' + c.total +
-        ' SHOWN, THE RING HOLDS ' + c.items.length + '</div>';
+    if(onMap < c.items.length){
+      h += '<div class="cnote">' + onMap + ' OF ' + c.items.length +
+        ' ON MAP, THE RING IS FULL</div>';
     }
     box.innerHTML = h;
   }
@@ -1608,6 +1665,145 @@
   }
   function paintChips(){
     Array.prototype.forEach.call(document.querySelectorAll('#c_type .ft'), function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-t') === G.cat ? 'true' : 'false');
+    });
+  }
+
+  /* ---------- 9. draw ------------------------------------------- */
+  /* ---------- LAWS ON THIS SECURITY, compact readout ----------
+   Direction comes from the Act operative verb and nothing else: a levy imposed
+   or raised is a cost the company bears, a levy removed or an exemption granted
+   is relief. Where the verb does not settle it the row says NOT STATED rather
+   than guessing. This is not a price view and the panel says so underneath. */
+  function lawDirection(l){
+    var m = String((l && l.mechanism) || '').toLowerCase().replace(/^[\s"'(]+/, '');
+    if(/^(imposes|adds|introduces|increases|raises|charges|extends|requires)\b/.test(m)) return {k:'neg', t:'COST'};
+    /* "Sets" and "Inserts" are only a cost when the object is a rate or a payment.
+       "Sets the permitted methods for selling a shareholding" is not a cost, so
+       the object has to name the charge. */
+    if(/^(sets|inserts)\b[^.]*\b(excise|duty|lev(y|ies)|tax|fee|rate|shall pay|each pay)\b/.test(m)) return {k:'neg', t:'COST'};
+    if(/^(exempts|removes|deletes|reduces|cuts|lowers|abolishes|grants)\b/.test(m)) return {k:'pos', t:'RELIEF'};
+    /* "Repeals" says nothing on its own: repealing a levy is relief, repealing a
+       fund and replacing it with a mandatory contribution is a cost. So it is
+       not treated as relief, and the object of the repeal decides. */
+    if(/^repeals?\b/.test(m)){
+      if(/\b(imposes|requires|statutory|shall pay|contribut|mandatory)\b/.test(m)) return {k:'neg', t:'COST'};
+      return {k:'uns', t:'NOT STATED'};
+    }
+    if(/\b(and requires|as well as|while also)\b/.test(m)) return {k:'mix', t:'MIXED'};
+    return {k:'uns', t:'NOT STATED'};
+  }
+  function renderLaws(row){
+    var box = document.getElementById('b_law'), meta = document.getElementById('m_law');
+    if(!box) return;
+    if(LAW.st === 'failed'){
+      box.innerHTML = '<div class="lawempty">gov_laws_KE.json could not be read, so no Act is claimed against this security.</div>';
+      if(meta) meta.textContent = 'ACT FILE NOT READ';
+      return;
+    }
+    if(!row){
+      box.innerHTML = '<div class="lawempty">Pick a company to see the Acts that name it.</div>';
+      if(meta) meta.textContent = '';
+      return;
+    }
+    var hits = lawHits(row);
+    if(meta) meta.textContent = hits.length + ' OF ' + (LAW.list || []).length + ' ACTS';
+    if(!hits.length){
+      box.innerHTML = '<div class="lawempty">No Act on file names this security or its sector.</div>';
+      return;
+    }
+    box.innerHTML = hits.map(function(l){
+      var d = lawDirection(l), st = String(l.status || '').toLowerCase();
+      var mech = String(l.mechanism || '').replace(/\s+/g, ' ').trim();
+      return '<div class="lawrow st-' + esc(st) + '">' +
+               '<div><div class="lh"><span class="lc">' + esc(lawCode(l.id, l.year)) + '</span>' +
+                 '<span class="ly">' + esc(String(l.year || '')) +
+                   (st && st !== 'enacted' ? ' ' + esc(st.toUpperCase()) : '') + '</span></div>' +
+                 '<div class="lm" title="' + esc(mech) + '">' + esc(mech) + '</div></div>' +
+               '<span class="dir ' + d.k + '">' + d.t + '</span></div>';
+    }).join('') +
+    '<div class="lawbasis">DIRECTION IS READ FROM THE OPERATIVE VERB OF THE ACT: A LEVY IMPOSED IS A COST TO THE COMPANY, A LEVY REMOVED IS RELIEF. IT IS NOT A PRICE VIEW.</div>';
+  }
+
+  function renderMap(box){
+    box.innerHTML = '<div class="gwrap"></div><div class="gsub" id="gsub"></div>';
+    var wrap = box.querySelector('.gwrap');
+    /* the model is rebuilt on every pass, so a resize never re-places stale
+       nodes and the header can never disagree with what is on screen */
+    var lastW = 0, lastH = 0;
+    function run(){
+      var r = wrap.getBoundingClientRect();
+      var w = Math.round(r.width || box.clientWidth || 600);
+      var hh = Math.round(r.height || box.clientHeight || 300);
+      if(w < 80 || hh < 80) return;
+      if(w === lastW && hh === lastH) return;
+      lastW = w; lastH = hh;
+      var m = buildRadial(G.row);
+      G.model = m;
+      layoutRadial(m, w, hh);
+      trans(m);
+      G.tm = m.tm;
+      wrap.innerHTML = '<svg class="gsvg" viewBox="0 0 ' + w + ' ' + hh + '" width="' + w +
+        '" height="' + hh + '">' + svgAll(m, w, hh) + '</svg>';
+      var svg = wrap.querySelector('.gsvg');
+      MAP.svg = svg;
+      applyView(svg);
+      wirePan(svg);
+      wireNodes(svg);
+      markNode(svg);
+      applyFocus(svg);
+      meta('rel', headerMeta(m));
+      G.geo = m.geo;
+    }
+    run();
+    PAINT.rel = run;
+    try{ renderLaws(G.row); }catch(e){}
+    paintChips();
+    paintSel();
+    paintAct();
+    /* the law card below settles after this draw, so the map box changes size
+       once more: follow it, or the svg would letterbox a stale viewBox */
+    if(MAP.ro){ MAP.ro.disconnect(); MAP.ro = null; }
+    if(window.ResizeObserver){
+      MAP.ro = new ResizeObserver(function(){ requestAnimationFrame(run); });
+      MAP.ro.observe(wrap);
+    } else {
+      requestAnimationFrame(run);
+    }
+  }
+  function drawRel(box, row, relFile, rec){
+    G.row = row;
+    G.rec = rec;
+    G.model = null;
+    G.tm = null;
+    MAP.k = 1; MAP.x = 0; MAP.y = 0;
+    if(REL_ST[row.ex] === 'failed'){
+      box.innerHTML = failBox('RELATIONSHIPS', 'relationships_' + row.ex +
+        '.json not loaded: ' + readErr(sd('relationships_' + row.ex + '.json')));
+      meta('rel', 'FILE NOT READ');
+      paintSel();
+      paintAct();
+      return;
+    }
+    renderMap(box);
+  }
+  function setHop(n){
+    G.hops = n === 2 ? 2 : 1;
+    Array.prototype.forEach.call(document.querySelectorAll('#c_hop .hp'), function(x){
+      x.setAttribute('aria-pressed', Number(x.getAttribute('data-hop')) === G.hops ? 'true' : 'false');
+    });
+  }
+  function wireGraphControls(){
+    Array.prototype.forEach.call(document.querySelectorAll('#c_hop .hp'), function(b){
+      b.addEventListener('click', function(){
+        setHop(Number(b.getAttribute('data-hop')));
+        redrawGraph();
+      });
+    });
+    /* the chips select a category: they name it in NODE DETAIL and mark its
+       nodes on the map. Nothing is filtered off the map, so the counts in the
+       header always describe everything that is drawn. */
+    Array.prototype.forEach.call(document.querySelectorAll('#c_type .ft'), function(b){
       b.addEventListener('click', function(){
         var k = b.getAttribute('data-t');
         G.cat = (G.cat === k) ? '' : k;
@@ -1615,10 +1811,7 @@
         paintChips();
         if(MAP.svg){
           clearHover(MAP.svg);
-          Array.prototype.forEach.call(MAP.svg.querySelectorAll('g.nd'), function(el){
-            if(G.cat && el.getAttribute('data-cl') === G.cat) el.classList.add('cat-on');
-            else el.classList.remove('cat-on');
-          });
+          applyFocus(MAP.svg);
           markNode(MAP.svg);
         }
         paintSel();
@@ -1934,7 +2127,7 @@
         domHop1: document.querySelectorAll('#b_rel g.nd.st-hop1').length,
         domHop2: document.querySelectorAll('#b_rel g.nd.st-hop2').length,
         domOff: document.querySelectorAll('#b_rel g.nd[data-st="off"]').length,
-        domRings: document.querySelectorAll('#b_rel circle.hl').length
+        domRings: document.querySelectorAll('#b_rel rect.ar').length
       } : null,
       graph: {
         hopMode:G.hops, cap:G.cap, truncated:m ? m.dropped : 0, rings:2,
