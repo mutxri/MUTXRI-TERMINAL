@@ -147,28 +147,30 @@
      black means any extra height in the window is black, never grey. */
   html,body{background:#000 !important}
 
-  /* FILL AND SCALE (owner, 2026-11-03, with his Godel before/after screenshots).
-     Godel's focus panel grows its type when the window is dragged bigger; the content
-     always fills the panel so no empty band appears below it. Sizes are in viewport
-     units with a max so the type stays sane on a very large window. */
-  html,body{height:100%;background:#000 !important}
+  /* THE GODEL CARD, CENTRED AND SCALED (owner, 2026-11-03, from his before/after
+     screenshots). Ticker, price and percentage sit in one centred column that starts
+     immediately under the title line and grows with the window, so shrinking the panel
+     shrinks the type evenly and there is no dead black band under the header. */
+  html,body{height:100%;background:#000 !important;margin:0}
   .fx{height:100%;display:flex;flex-direction:column;min-height:0}
-  #fxBody{flex:1 1 auto;min-height:0;display:flex;padding:0}
-  .fx-fill{flex:1 1 auto;display:flex;align-items:center;justify-content:space-between;
-           gap:6vw;padding:2vh 4vw;background:#000;min-width:0}
-  .fx-fill .fx-tkr{font-size:min(13vh,8vw);line-height:.95;letter-spacing:.01em;
-                   font-weight:400;color:var(--tx)}
-  .fx-fill .fx-side{text-align:right;min-width:0}
-  .fx-fill .fx-px{font-size:min(14vh,9vw);line-height:1;font-weight:400;
+  .fx-bar{flex:0 0 auto;margin:0;padding:3px 8px}
+  #fxBody{flex:1 1 auto;min-height:0;display:flex;padding:0;margin:0}
+  .fx-fill{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;
+           justify-content:flex-start;gap:1.2vh;padding:1.5vh 3vw 0;background:#000;
+           min-width:0;min-height:0}
+  .fx-fill .fx-tkr{font-size:min(15vh,9vw);line-height:.95;letter-spacing:.01em;
+                   font-weight:400;color:var(--tx);text-align:center}
+  .fx-fill .fx-side{display:flex;flex-direction:column;align-items:center;
+                    text-align:center;min-width:0}
+  .fx-fill .fx-px{font-size:min(14vh,8.6vw);line-height:1;font-weight:400;
                   color:var(--tx);font-variant-numeric:tabular-nums}
-  .fx-fill .fx-chg{font-size:min(7vh,4.4vw);line-height:1.1;margin-top:1.2vh;
-                   font-variant-numeric:tabular-nums}
-  .fx-fill .fx-chg .fx-pct-unit{font-size:.72em}
+  .fx-fill .fx-chg{font-size:min(9vh,5.6vw);line-height:1.15;margin-top:.8vh;
+                   font-variant-numeric:tabular-nums;text-align:center}
+  .fx-fill .fx-chg .fx-pct-unit{font-size:.78em}
   .fx-fill .fx-px.up,.fx-fill .fx-chg.up{color:var(--up)}
   .fx-fill .fx-px.down,.fx-fill .fx-chg.down{color:var(--down)}
-  .fx-fill .fx-px{color:var(--up)}
-  .fx-fill .fx-px.down{color:var(--down)}
-  #fxFoot{flex:0 0 auto}
+  .fx-fill .fx-px.nofig,.fx-fill .fx-chg.nofig{color:var(--tx3)}
+  #fxFoot{flex:0 0 auto;display:none}
 </style>
 </head>
 <body>
@@ -763,7 +765,10 @@
     // ends <date>") after the figures, which is bookkeeping about how the quote and
     // the history were reconciled rather than something a reader acts on. Dropped
     // by the owner 2026-11-02. lastBar() stays: the rest of the panel still uses it.
-    $("fxFoot").innerHTML = foot.join(" &middot; ");
+    // THE FOOTER IS EMPTY ON PURPOSE (owner, 2026-11-03: "still have alot of
+    // uncessary information"). It carried a staleness note under the quote; the owner
+    // wants the card to be the ticker, the price and the percentage and nothing else.
+    $("fxFoot").innerHTML = "";
     // TELL THE SHELL HOW TALL THIS PANEL ACTUALLY IS, at the moment it renders.
     // Timed passes in the shell kept measuring before the quote arrived, so the window
     // stayed taller than the card and showed a grey band under it. The panel knows when
