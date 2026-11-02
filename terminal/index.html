@@ -478,6 +478,13 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .pwin-hd .pw-t{color:var(--tx);font-weight:700;letter-spacing:.1em}
 .pwin-hd .pw-sym{color:var(--acc)}
 .pwin-hd .pw-sp{flex:1 1 auto}
+  /* the window-title search: same weight as the other title-line fields, and it
+     shrinks before the panel name does */
+  .pw-q{flex:0 1 170px;min-width:84px;background:var(--bg3);border:1px solid var(--line2);
+        color:var(--tx);font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;
+        padding:1px 5px;height:16px;outline:none;border-radius:2px}
+  .pw-q:focus{border-color:var(--acc)}
+  .pw-q::placeholder{color:var(--tx3)}
 /* ONE close control for every window. A user-added panel window (.pwin-hd) and a
    window of the default layout wear the same .pw-x, so the default four get the
    control that already existed rather than a second style invented for them. */
@@ -4174,6 +4181,72 @@ window.MTPanelWins = (function(){
   }
 
   // ---- DOM ----
+  // ---- search on the window title line -------------------------------------
+  // One input, two jobs. A panel that reads ?sym= jumps to that security; every
+  // other panel filters its own rows. Either way the box does something real, so
+  // it is never a control that types into nothing.
+  const SYM_CAPABLE = {chart:1, compare:1, corp:1, financials:1, focus:1,
+                       holders:1, perplexity:1, tas:1, trade:1, transcript:1};
+  const rowBox = {};                     // id -> the list element the filter hides rows in
+
+  function frameDoc(id){
+    const f = frames[id];
+    try{ return (f && f.contentDocument) ? f.contentDocument : null; }catch(e){ return null; }
+  }
+  // the list to filter: the element holding the most children that share a class.
+  // Measured from the live DOM rather than hardcoded per panel, so every panel
+  // (and every panel restyled later) filters its own rows.
+  function rowContainer(doc){
+    let best = null, bestScore = 0;
+    const all = doc.querySelectorAll('div,ul,ol,tbody,section');
+    for(let i = 0; i < all.length; i++){
+      const el = all[i], kids = el.children;
+      if(kids.length < 3 || kids.length > 3000) continue;
+      const counts = {};
+      for(let k = 0; k < kids.length; k++){
+        const c = (kids[k].className && typeof kids[k].className === 'string')
+                    ? kids[k].className.split(' ')[0] : kids[k].tagName;
+        counts[c] = (counts[c] || 0) + 1;
+      }
+      let n = 0;
+      for(const c in counts) if(counts[c] > n) n = counts[c];
+      if(n < 3) continue;
+      const score = n * 10 + Math.min((el.textContent || '').length, 5000) / 100;
+      if(score > bestScore){ bestScore = score; best = el; }
+    }
+    return best;
+  }
+  function filterDoc(doc, id, q){
+    const ql = String(q || '').toLowerCase();
+    let box = rowBox[id];
+    if(!box || !box.isConnected) box = rowBox[id] = rowContainer(doc);
+    if(!box) return false;
+    const kids = box.children;
+    for(let i = 0; i < kids.length; i++){
+      const k = kids[i];
+      if(!ql){ k.style.display = ''; continue; }
+      const hit = (k.textContent || '').toLowerCase().indexOf(ql) >= 0;
+      k.style.display = hit ? '' : 'none';
+    }
+    return true;
+  }
+  function pwSearch(id, raw, live){
+    const v = String(raw == null ? '' : raw).trim();
+    if(SYM_CAPABLE[id]){
+      // a security jump happens on Enter, never mid-word
+      if(live || !v) return;
+      const f = frames[id];
+      if(!f) return;
+      let u;
+      try{ u = new URL(f.getAttribute('src'), location.href); }catch(e){ return; }
+      u.searchParams.set('sym', v.toUpperCase());
+      f.src = u.toString();
+      return;
+    }
+    const doc = frameDoc(id);
+    if(doc) filterDoc(doc, id, v);
+  }
+
   function ensureNode(id){
     if(nodes[id] || !layer) return;
     const ent = WINS[id];
@@ -4191,13 +4264,31 @@ window.MTPanelWins = (function(){
     sy.className = 'pw-sym';
     const sp = document.createElement('span');
     sp.className = 'pw-sp';
+    // THE SEARCH SITS ON THE WINDOW TITLE LINE, between the panel name and the
+    // close button, in that order:  FOCUS  [search]  X. Every panel window is
+    // built here, so one insert covers all of them. On a panel that reads ?sym=
+    // it jumps to a security; on any other panel it filters that panel's rows.
+    const q = document.createElement('input');
+    q.type = 'text';
+    q.className = 'pw-q';
+    q.placeholder = 'SEARCH';
+    q.setAttribute('autocomplete', 'off');
+    q.setAttribute('spellcheck', 'false');
+    q.setAttribute('aria-label', 'Search this panel');
+    q.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    q.addEventListener('keydown', function(e){
+      e.stopPropagation();                       // never start a window drag
+      if(e.key === 'Escape'){ q.value = ''; pwSearch(id, ''); q.blur(); }
+      if(e.key === 'Enter'){ e.preventDefault(); pwSearch(id, q.value); }
+    });
+    q.addEventListener('input', function(){ pwSearch(id, q.value, true); });
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'pw-x';
     x.textContent = 'X';
     x.title = 'Close this panel window';
     x.addEventListener('click', function(e){ e.stopPropagation(); closeWin(id); });
-    hd.appendChild(t); hd.appendChild(sy); hd.appendChild(sp); hd.appendChild(x);
+    hd.appendChild(t); hd.appendChild(sy); hd.appendChild(sp); hd.appendChild(q); hd.appendChild(x);
     hd.addEventListener('mousedown', function(e){ drag(id, e, 'move'); });
 
     const body = document.createElement('div');
