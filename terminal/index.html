@@ -4230,10 +4230,67 @@ window.MTPanelWins = (function(){
     }
     return true;
   }
+  // ONE SEARCH, NOT TWO (owner, 2026-11-02). The window header carries the search
+  // next to the close button, and the panel inside has its own search of its own.
+  // Both were visible, so every window showed a duplicate. The panel's own search
+  // is the better one - it is wired to that panel's real logic - so the header box
+  // now DRIVES IT and the panel's copy is hidden while it is in a window. Standalone
+  // panel pages keep their own search untouched.
+  const SEARCH_IDS = ['q', 'fxQ', 'chQ', 'mcCsInput'];
+  const HIDE_WRAP = {q: '.sbox, .srch', fxQ: '.fx-sw', chQ: '.ch-sw', mcCsInput: '.mc-cs'};
+
+  function panelSearchInput(doc){
+    if(!doc) return null;
+    for(let i = 0; i < SEARCH_IDS.length; i++){
+      const el = doc.getElementById(SEARCH_IDS[i]);
+      if(el && el.tagName === 'INPUT') return el;
+    }
+    return null;
+  }
+  function headerSearchBox(id){
+    const n = nodes[id];
+    return n ? n.querySelector('.pw-q') : null;
+  }
+  function hideInnerSearch(id){
+    const doc = frameDoc(id);
+    if(!doc) return false;
+    const inner = panelSearchInput(doc);
+    if(inner){
+      // the panel has a search of its own: hide THAT and keep the header box, which
+      // is the one next to the close button
+      const sel = HIDE_WRAP[inner.id];
+      let box = null;
+      try{ box = sel ? inner.closest(sel) : null; }catch(e){ box = null; }
+      (box || inner).style.display = 'none';
+      return true;
+    }
+    // Some panels do not carry a search but DO carry a working ticker control with
+    // its own button and hint: COMPARE's "#inToks" plus its COMPARE button, and the
+    // financials security selector. Hiding those would remove the panel's function,
+    // so the HEADER box is the redundant one there and it steps aside instead.
+    let other = null;
+    try{ other = doc.querySelector('input.tk, input[type="text"], select'); }catch(e){ other = null; }
+    const hb = headerSearchBox(id);
+    if(hb) hb.style.display = other ? 'none' : '';
+    return !!other;
+  }
   function pwSearch(id, raw, live){
     const v = String(raw == null ? '' : raw).trim();
+    const doc = frameDoc(id);
+    const inner = panelSearchInput(doc);
+    if(inner){
+      // hand the keystrokes to the panel's own search, which knows what to do
+      try{
+        inner.value = v;
+        inner.dispatchEvent(new (doc.defaultView.Event)('input', {bubbles: true}));
+        if(!live){
+          inner.dispatchEvent(new (doc.defaultView.KeyboardEvent)('keydown',
+            {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true}));
+        }
+      }catch(e){}
+      return;
+    }
     if(SYM_CAPABLE[id]){
-      // a security jump happens on Enter, never mid-word
       if(live || !v) return;
       const f = frames[id];
       if(!f) return;
@@ -4243,7 +4300,6 @@ window.MTPanelWins = (function(){
       f.src = u.toString();
       return;
     }
-    const doc = frameDoc(id);
     if(doc) filterDoc(doc, id, v);
   }
 
@@ -4297,6 +4353,38 @@ window.MTPanelWins = (function(){
     f.className = 'pw-frame';
     f.setAttribute('title', ent.label + ' panel');
     body.appendChild(f);
+    // FIT THE WINDOW TO ITS CONTENT. FOCUS renders a quote card and nothing else
+    // (see renderBlocks in mx_focus.html, which is empty by the owner's own
+    // instruction), so a tall window left a large empty void under the card. Once
+    // the panel has settled, measure the lowest element that actually carries text
+    // and shrink the window to it. SHRINK ONLY: a panel that uses its height, such
+    // as the heatmap or the chart, keeps every pixel it was given.
+    f.addEventListener('load', function(){
+      setTimeout(function(){
+        try{
+          const doc = f.contentDocument, st = state[id];
+          if(!doc || !st || !st.open) return;
+          hideInnerSearch(id);          // one search per window, not two
+
+          let bottom = 0;
+          const els = doc.querySelectorAll('*');
+          for(let i = 0; i < els.length; i++){
+            const el = els[i];
+            if(el.children.length) continue;                 // leaves only: a wrapper
+            if(!(el.textContent || '').trim()) continue;     // stretching to 100% sits on a wrapper
+            const r = el.getBoundingClientRect();
+            if(r.height > 0 && r.bottom > bottom) bottom = r.bottom;
+          }
+          if(!bottom) return;
+          const want = Math.max(MIN_H, Math.ceil(bottom) + 30);   // 22px head + 8px breathing room
+          if(st.h - want > 20){                                    // only shrink, never grow
+            st.h = want;
+            place(id);
+            save();
+          }
+        }catch(e){}
+      }, 1500);
+    });
 
     sec.appendChild(hd);
     sec.appendChild(body);
