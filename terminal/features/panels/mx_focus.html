@@ -723,15 +723,10 @@
     if(agree === false && px != null && prev != null){
       foot.push("<span class='warn'>chgPct disagrees with price - prevClose, so no level change is shown</span>");
     }
-    var lb = lastBar(hist);
-    if(lb && lb.t && asOf){
-      // the bars date the quote independently: say so when they disagree
-      if(lb.t > asOf.iso){
-        foot.push("later bar <b>" + esc(lb.t) + "</b>");
-      } else if(lb.t < asOf.iso){
-        foot.push("history ends <b>" + esc(lb.t) + "</b>");
-      }
-    }
+    // No bar-date note here. It printed a trailing "later bar <date>" (or "history
+    // ends <date>") after the figures, which is bookkeeping about how the quote and
+    // the history were reconciled rather than something a reader acts on. Dropped
+    // by the owner 2026-11-02. lastBar() stays: the rest of the panel still uses it.
     $("fxFoot").innerHTML = foot.join(" &middot; ");
     renderBlocks(row, sym, hist, hold, ana);
   }

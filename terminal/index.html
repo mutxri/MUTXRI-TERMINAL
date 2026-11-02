@@ -4731,7 +4731,7 @@ async function loadListing(ex){
           return s;
         });
       }catch(e2){ mxFetchFailQuiet('market overlay fail', e2); }
-    $('wlEx').textContent = ex + ' · ' + listing[ex].length;
+    $('wlEx').textContent = ex;   // board name only, no row count (owner, 2026-11-02)
     renderWatchlist($('q').value);
     buildTape(ex);            // tape now shows the new exchange immediately
     primeQuotes(ex);          // then refresh with live quotes
@@ -4919,17 +4919,15 @@ function renderWatchlist(filter){
   const el = $('wlList');
   // A company awaiting listing has no traded price, so it is shown with a status
   // instead of a price and pinned to the top of its board's watchlist, where a
-  // reader sees it without selecting anything first. It is NOT in listing[], so
-  // it is one row MORE than the header's count of the board; the header is
-  // therefore given that row too, or the count and the rows disagree again (NGX
-  // and NSE each carry one or two of them). JSE and EGX carry none, so their
-  // header is untouched.
+  // reader sees it without selecting anything first.
+  //
+  // The header names the board and nothing else. It used to append a listed count
+  // and an awaiting count, which a reader never acts on, and the two numbers had to
+  // be kept in step with the rows or they read as wrong. Dropped by the owner.
   const awaitRows = (typeof awaitingRowsFor === 'function') ? awaitingRowsFor(currentEx, f) : [];
   const awaitHtml = awaitRows.map(awaitRowHTML).join('');
-  if(awaitRows.length && !f){
-    const hd = $('wlEx');
-    if(hd) hd.textContent = currentEx + ' · ' + (list.length || '…') + ' listed + ' + awaitRows.length + ' awaiting';
-  }
+  // the header used to gain a listed count and an awaiting count here; both are gone
+  // (owner, 2026-11-02), so there is nothing left to reconcile against the rows
   const body = rows.map(s => {
     // JSE/EGX: quote from cache; NGX/NSE: EOD data embedded in the listing
     const q = quotes[s.sym] || {};
@@ -5044,7 +5042,7 @@ function switchExchange(ex){
   // remember it: a returning user should never be asked again
   try{ localStorage.setItem('mt_ex', currentEx); }catch(e){}
   renderExchTabs();
-  $('wlEx').textContent = currentEx + ' · ' + ((listing[currentEx] || []).length || '…');
+  $('wlEx').textContent = currentEx;   // board name only, no row count
   // reload the open panel for the new exchange (every panel is ?ex= aware)
   const _cur = $('stageFrame').src;
   $('stageFrame').src = _cur.replace(/([?&])ex=[A-Za-z]+/, '$1ex=' + currentEx);
@@ -5240,7 +5238,7 @@ function renderMarketOverview(ex, asOfGen){
   el.innerHTML =
     '<div style="padding:10px 12px;border-bottom:1px solid var(--line)">' +
       '<div style="color:#7ef0c0;font-weight:700;font-size:13px;letter-spacing:.02em">' + esc(ex) + ' <span style="color:var(--tx3);font-weight:400">· ' + esc(mFull.name || '') + '</span></div>' +
-      '<div style="color:var(--tx3);font-size:10px;padding:2px 0">' + esc(mFull.country || '') + ' · ' + priced.length + ' priced' + (cur ? ' · ' + esc(cur) : '') + (function(){ var a = (window.__MKASOF && window.__MKASOF[ex]) || ''; return a ? ' · EOD ' + esc(a) : ''; })() + '</div>' +
+      '<div style="color:var(--tx3);font-size:10px;padding:2px 0">' + esc(mFull.country || '') + (cur ? ' · ' + esc(cur) : '') + (function(){ var a = (window.__MKASOF && window.__MKASOF[ex]) || ''; return a ? ' · EOD ' + esc(a) : ''; })() + '</div>' +
       '<div style="display:flex;gap:12px;padding:6px 0 2px;font-family:var(--mono);font-size:11px">' +
         '<span style="color:var(--up)">▲ ' + adv + '</span>' +
         '<span style="color:var(--down)">▼ ' + dec + '</span>' +
