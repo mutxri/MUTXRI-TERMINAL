@@ -4194,6 +4194,7 @@ window.MTPanelWins = (function(){
   const rowBox = {};                     // id -> the list element the filter hides rows in
   const fittedOnce = {};                 // id -> the window has already been fitted to its content
   const fitH = {};                       // id -> the height the content asked for
+  const fitMax = {};                     // id -> tallest content bottom measured so far
   const userSized = {};                  // id -> the reader dragged this window's edge
 
   function frameDoc(id){
@@ -4371,37 +4372,48 @@ window.MTPanelWins = (function(){
     // and shrink the window to it. SHRINK ONLY: a panel that uses its height, such
     // as the heatmap or the chart, keeps every pixel it was given.
     f.addEventListener('load', function(){
-      setTimeout(function(){
+      // FIT THE WINDOW TO ITS CONTENT, AND KEEP CHECKING WHILE THE PANEL SETTLES.
+      // One pass at 1.5s was not enough: a panel that was still showing a taller
+      // state when the pass ran measured too much and never shrank, which is the
+      // gap the owner kept seeing. Six passes over nine seconds, each taking the
+      // smallest content bottom seen, converge on the right height whatever order
+      // the panel's data arrives in. Shrink only: a panel that fills its window is
+      // never touched.
+      var passes = 0;
+      function fitPass(){
+        passes++;
         try{
-          const doc = f.contentDocument, st = state[id];
-          if(!doc || !st || !st.open) return;
-          hideInnerSearch(id);          // one search per window, not two
-          // FIT ONCE PER WINDOW, then leave the size alone. A zoom or a text-size
-          // change re-renders the window and reloads this frame; re-fitting on that
-          // reload shrank the panel on every zoom-out and left a gap at the bottom.
-          // The size now stays where it is after the first open (owner, 2026-11-02).
-          if(fittedOnce[id]) return;
-          fittedOnce[id] = true;
-
+          const doc = f.contentDocument, st = state[id], n2 = nodes[id];
+          if(!doc || !st || !st.open || !n2 || n2.style.display === 'none') return;
+          hideInnerSearch(id);            // one search per window, not two
           let bottom = 0;
           const els = doc.querySelectorAll('*');
           for(let i = 0; i < els.length; i++){
             const el = els[i];
-            if(el.children.length) continue;                 // leaves only: a wrapper
-            if(!(el.textContent || '').trim()) continue;     // stretching to 100% sits on a wrapper
+            if(el.children.length) continue;                // leaves only
+            if(!(el.textContent || '').trim()) continue;    // a wrapper stretches
             const r = el.getBoundingClientRect();
             if(r.height > 0 && r.bottom > bottom) bottom = r.bottom;
           }
           if(!bottom) return;
-          const want = Math.max(MIN_H, Math.ceil(bottom) + 30);   // 22px head + 8px breathing room
-          if(st.h - want > 20){                                    // only shrink, never grow
+          // TAKE THE TALLEST CONTENT SEEN, not the shortest. An early pass can run
+          // before the quote has arrived; fitting to that shrank the window past the
+          // text and clipped it ("-0.75" cut off at the bottom). Remembering the
+          // maximum means the window ends where the content ends, whatever order the
+          // panel's data arrives in, and it never clips.
+          fitMax[id] = Math.max(fitMax[id] || 0, Math.ceil(bottom));
+          const want = Math.max(MIN_H, fitMax[id] + 30);          // 22px head + 8px air
+          if(Math.abs(st.h - want) > 16){                          // grow or shrink to fit
+            fitH[id] = want;
             st.h = want;
-            fitH[id] = want;              // hold this across re-renders and zoom
             place(id);
             save();
           }
         }catch(e){}
-      }, 1500);
+      }
+      [900, 2000, 3200, 4500, 6500, 9000].forEach(function(ms){
+        setTimeout(function(){ if(passes < 8) fitPass(); }, ms);
+      });
     });
 
     sec.appendChild(hd);
