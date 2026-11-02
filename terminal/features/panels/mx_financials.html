@@ -22,7 +22,7 @@
   ::-webkit-scrollbar{width:0;height:0;}
 
   :root{
-    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
+    --bg:#121212;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
     --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;--up:#33e29a;--acc:#33e29a;--down:#f87171;--acc2:#1ecfb0;
     --mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
     --ui:Inter,system-ui,sans-serif;
@@ -556,44 +556,14 @@
   function numv(v){ if(v === null || v === undefined || v === "") return null; var n = Number(v); return isNaN(n) ? null : n; }
   function fmtPx2(a){ return Number(a).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
-  // the quote the shell handed over, in the header beside the ticker
+  // NO QUOTE IN THIS HEADER (owner, 2026-11-02): "donts show the stock price on
+  // every panel only show the ticker price in the focus panel take it out in all
+  // other panels". The header keeps the identity - scheme, ticker, company name and
+  // exchange - and the price appears on the FOCUS card only. The security selector,
+  // the period selector and every figure in the statements are untouched.
   function paintQuote(sel){
     var box = document.getElementById("faQuote");
-    if(!box) return;
-    var r = (sel && sel.row) ? sel.row : null;
-    var px = r ? numv(r.price) : null;
-    var pct = r ? numv(r.chgPct) : null;
-    var prev = r ? numv(r.prevClose) : null;
-    var cur = (r && r.currency) || (SEL_LABEL && SEL_LABEL.currency) || "";
-    var h = [];
-    if(r && (r.priceWithheld || r.withhold_reason)){
-      h.push('<span class="k">last</span><span class="v warn">price withheld</span>');
-    } else if(!r && sel && sel.absent){
-      // the shell's listing has no row for this security, which is the same fact
-      // FOCUS and CHART state on their own cards
-      h.push('<span class="k">last</span><span class="v nofig">not in the snapshot</span>');
-    } else if(px == null){
-      h.push('<span class="k">last</span><span class="v nofig">no current quote</span>');
-    } else {
-      var dir = pct == null ? "nofig" : (pct > 0 ? "up" : (pct < 0 ? "down" : "flat"));
-      h.push('<span class="k">last</span><span class="v px ' + dir + '">' + esc(fmtPx2(px)) + '</span>' +
-             (cur ? '<span class="v sm">' + esc(cur) + '</span>' : ''));
-      if(pct == null){
-        h.push('<span class="v nofig">change not stated</span>');
-      } else {
-        h.push('<span class="v ' + dir + '">' + (pct >= 0 ? "+" : "") + pct.toFixed(2) + '%</span>');
-        // the level change is printed only when the row's own percent agrees with
-        // price - prevClose, the same rule the FOCUS card applies
-        if(prev != null && prev !== 0 && Math.abs(((px - prev) / prev * 100) - pct) <= 0.02){
-          var lv = px - prev;
-          h.push('<span class="k">chg</span><span class="v ' + dir + '">' +
-                 (lv >= 0 ? "+" : "") + esc(fmtPx2(lv)) + '</span>');
-        }
-      }
-    }
-    if(r && r.asOf) h.push('<span class="k">as of</span><span class="v sm">' + esc(r.asOf) + '</span>');
-    box.innerHTML = h.join("");
-    box.className = "fa-q on";
+    if(box){ box.innerHTML = ""; box.className = "fa-q"; }
   }
   function paintIdentity(sel){
     var r = (sel && sel.row) ? sel.row : null;

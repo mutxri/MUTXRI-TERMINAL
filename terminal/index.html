@@ -464,7 +464,7 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .pwlayer{position:absolute;left:0;top:0;right:0;bottom:0;z-index:45;display:none;pointer-events:none}
 .pwlayer.on{display:block}
 .pwin{position:absolute;display:flex;flex-direction:column;pointer-events:auto;
-  background:var(--bg2);border:1px solid var(--win-outline,var(--line2));border-radius:3px;
+  background:#121212;border:1px solid var(--win-outline,var(--line2));border-radius:3px;
   box-shadow:0 12px 34px rgba(0,0,0,.62);overflow:hidden;min-width:0;min-height:0}
 /* THE WINDOW IN FRONT IS UNMISTAKABLE: a mint edge, a deeper shadow and a
    lifted title bar, so which panel a click will act on is never a guess. */
@@ -472,8 +472,8 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .pwin-front>.pwin-hd{background:var(--bg4);color:var(--tx)}
 .pwin-front>.pwin-hd .pw-t{color:var(--acc)}
 .pwin-hd{display:flex;align-items:center;gap:6px;height:22px;flex:0 0 22px;padding:0 4px 0 7px;
-  background:var(--bg3);border-bottom:1px solid var(--line2);cursor:grab;
-  font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--tx3);
+  background:#1b1b1b;border-bottom:1px solid var(--line2);cursor:grab;
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--tx2);
   -webkit-user-select:none;user-select:none;white-space:nowrap;overflow:hidden}
 .pwin-hd .pw-t{color:var(--tx);font-weight:700;letter-spacing:.1em}
 .pwin-hd .pw-sym{color:var(--acc)}
@@ -4113,6 +4113,10 @@ window.MTPanelWins = (function(){
     if(!n) return;
     if(!w.open){ n.style.display = 'none'; return; }
     clampWin(id);
+    // a zoom or text-size change re-renders through here; the workspace record would
+    // otherwise restore the pre-fit height and the panel would grow, leaving a gap at
+    // the bottom. The fitted height wins until the reader resizes the window himself.
+    if(fitH[id] && !userSized[id]) w.h = fitH[id];
     n.style.display = '';
     n.style.left = Math.round(w.x) + 'px';
     n.style.top = Math.round(w.y) + 'px';
@@ -4188,6 +4192,9 @@ window.MTPanelWins = (function(){
   const SYM_CAPABLE = {chart:1, compare:1, corp:1, financials:1, focus:1,
                        holders:1, perplexity:1, tas:1, trade:1, transcript:1};
   const rowBox = {};                     // id -> the list element the filter hides rows in
+  const fittedOnce = {};                 // id -> the window has already been fitted to its content
+  const fitH = {};                       // id -> the height the content asked for
+  const userSized = {};                  // id -> the reader dragged this window's edge
 
   function frameDoc(id){
     const f = frames[id];
@@ -4268,8 +4275,12 @@ window.MTPanelWins = (function(){
     // its own button and hint: COMPARE's "#inToks" plus its COMPARE button, and the
     // financials security selector. Hiding those would remove the panel's function,
     // so the HEADER box is the redundant one there and it steps aside instead.
+    // A text field the panel needs (COMPARE's ticker list) is a reason to drop the
+    // header box. A dropdown is NOT: financials' scheme and period selectors and
+    // announcements' year filter are filters, not searches, so the header search
+    // stays and those keep working beside it.
     let other = null;
-    try{ other = doc.querySelector('input.tk, input[type="text"], select'); }catch(e){ other = null; }
+    try{ other = doc.querySelector('input.tk, input[type="text"]'); }catch(e){ other = null; }
     const hb = headerSearchBox(id);
     if(hb) hb.style.display = other ? 'none' : '';
     return !!other;
@@ -4365,6 +4376,12 @@ window.MTPanelWins = (function(){
           const doc = f.contentDocument, st = state[id];
           if(!doc || !st || !st.open) return;
           hideInnerSearch(id);          // one search per window, not two
+          // FIT ONCE PER WINDOW, then leave the size alone. A zoom or a text-size
+          // change re-renders the window and reloads this frame; re-fitting on that
+          // reload shrank the panel on every zoom-out and left a gap at the bottom.
+          // The size now stays where it is after the first open (owner, 2026-11-02).
+          if(fittedOnce[id]) return;
+          fittedOnce[id] = true;
 
           let bottom = 0;
           const els = doc.querySelectorAll('*');
@@ -4379,6 +4396,7 @@ window.MTPanelWins = (function(){
           const want = Math.max(MIN_H, Math.ceil(bottom) + 30);   // 22px head + 8px breathing room
           if(st.h - want > 20){                                    // only shrink, never grow
             st.h = want;
+            fitH[id] = want;              // hold this across re-renders and zoom
             place(id);
             save();
           }
@@ -4391,7 +4409,7 @@ window.MTPanelWins = (function(){
     ['n', 's', 'w', 'e', 'nw', 'ne', 'sw', 'se'].forEach(function(d){
       const h = document.createElement('div');
       h.className = 'pwrs pwrs-' + d;
-      h.addEventListener('mousedown', function(e){ drag(id, e, 'resize', d); });
+      h.addEventListener('mousedown', function(e){ userSized[id] = true; drag(id, e, 'resize', d); });
       sec.appendChild(h);
     });
     sec.addEventListener('mousedown', function(){ raise(id); }, true);

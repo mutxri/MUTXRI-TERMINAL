@@ -74,7 +74,7 @@
   html{color-scheme:dark;scrollbar-width:none;}
   ::-webkit-scrollbar{width:0;height:0;}
   :root{
-    --bg:#000;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
+    --bg:#121212;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
     --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;--up:#33e29a;--acc:#33e29a;--down:#f87171;
     --warn:#e0a340;--blue:#1ecfb0;--violet:#f87171;
     --mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
@@ -1550,7 +1550,10 @@
       }
       var bx = rx + 10, bwid = f.w - 20, nbar = c.items.length;
       var slot = bwid / Math.max(1, nbar);
-      var barW = Math.min(22 * ss, slot - 8);
+      // a cluster with many items in a narrow slot gave "slot - 8" a negative value,
+      // and SVG rejects a negative width (console: "<rect> attribute width: -5.0").
+      // Floor it at 1px so the bar degenerates to a hairline instead of an error.
+      var barW = Math.max(1, Math.min(22 * ss, slot - 8));
       var maxV = 0;
       c.items.forEach(function(it){ maxV = Math.max(maxV, Math.abs(it.value || 0)); });
       var base = ry + f.h - 12 * ss, hMax = Math.max(16, base - (ry + 12));
