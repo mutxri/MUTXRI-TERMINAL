@@ -342,6 +342,19 @@
   #mcEconGrid .mc-card { min-width:0; }
   #mcEconGrid .mc-card .econ-blk,
   #mcEconGrid .mc-card .econ-mini { min-width:0; max-width:100%; }
+
+  /* The country search belongs on the title line, between the panel name and the
+     close, so the head reads  MACRO  [search]  the way every other panel does.
+     The label that used to sit above it is gone: the placeholder says the same
+     thing and costs no width. */
+  .mc-head{display:flex;align-items:center;gap:12px;padding:8px 14px;
+           border-bottom:1px solid var(--line2);flex-wrap:nowrap}
+  .mc-title{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mc-cs.inhead{flex:1 1 220px;min-width:140px;max-width:460px;position:relative;
+                background:transparent;border:0;padding:0}
+  .mc-cs.inhead .mc-cs-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+  .mc-cs.inhead .mc-cs-in{flex:1 1 auto;min-width:0;font-size:10.5px;padding:3px 7px}
+  .mc-cs.inhead .mc-cs-sug{left:0;right:0;top:calc(100% + 2px)}
 </style>
 </head>
 <body>
@@ -349,24 +362,22 @@
 <div class="mc-wrap" id="mc">
   <div class="mc-head">
     <div class="mc-title"><b>MACRO</b> &middot; Inflation, GDP, Rates, FX, Fiscal, Tax, Jobs, Income and Retail</div>
+    <div class="mc-cs inhead">
+      <div class="mc-cs-row">
+        <input id="mcCsInput" class="mc-cs-in" type="text" autocomplete="off" spellcheck="false"
+               placeholder="SEARCH A COUNTRY" aria-label="Search a country" />
+        <span id="mcCsActive" class="mc-cs-active" hidden></span>
+        <button id="mcCsClear" class="mc-cs-clear" type="button" hidden>Clear</button>
+      </div>
+      <div id="mcCsSug" class="mc-cs-sug" hidden></div>
+      <div id="mcCsMsg" class="mc-cs-msg" hidden></div>
+    </div>
     <button class="mc-refresh" id="mcRefresh">Refresh</button>
   </div>
 
   <!-- ===================== COUNTRY SEARCH =====================
        One input above every section. It narrows the whole panel to one
        country; Clear returns every country. Not a tab bar. -->
-  <div class="mc-cs">
-    <div class="mc-cs-row">
-      <label class="mc-cs-lab" for="mcCsInput">Country search</label>
-      <input id="mcCsInput" class="mc-cs-in" type="text" autocomplete="off" spellcheck="false"
-             aria-label="Country search" />
-      <span id="mcCsActive" class="mc-cs-active" hidden></span>
-      <button id="mcCsClear" class="mc-cs-clear" type="button" hidden>Clear</button>
-    </div>
-    <div id="mcCsSug" class="mc-cs-sug" hidden></div>
-    <div id="mcCsMsg" class="mc-cs-msg" hidden></div>
-  </div>
-
   <div class="mc-scroll">
 
   <!-- ===================== INFLATION ===================== -->
