@@ -44,7 +44,7 @@
   .hm-right{display:flex;align-items:center;gap:12px;margin-left:auto;}
   .hm-status{font-family:var(--mono);font-size:10px;color:var(--tx3);display:flex;align-items:center;gap:5px;}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--tx3);display:inline-block;}
-  .dot.eod{background:#e0a341;box-shadow:0 0 6px #e0a341}
+  .dot.eod{background:#e0a340;box-shadow:0 0 6px #e0a340}
   .dot.live{background:var(--up);box-shadow:0 0 6px rgba(51,226,154,.7);animation:pulse 1.6s infinite;}
   .dot.sample{background:#e0a340;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
@@ -1029,12 +1029,12 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       return s;
     }
     if(!IND.missing){
-      if(cpInds.sma) addLine(IND.sma, "#4da6ff", 1);
-      if(cpInds.ema) addLine(IND.ema, "#2ee6a8", 1, 2);
+      if(cpInds.sma) addLine(IND.sma, "#1ecfb0", 1);
+      if(cpInds.ema) addLine(IND.ema, "#33e29a", 1, 2);
       if(cpInds.bb){
-        addLine(IND.bb.upper, "#4da6ff", 1, 2);
+        addLine(IND.bb.upper, "#1ecfb0", 1, 2);
         addLine(IND.bb.middle, "#9a9a9a", 1);
-        addLine(IND.bb.lower, "#4da6ff", 1, 2);
+        addLine(IND.bb.lower, "#1ecfb0", 1, 2);
       }
     }
     // ---- subchart indicators (each in its own pane below the price) ----
@@ -1052,7 +1052,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       vp.setData(vdata);
     }
     if(cpInds.rsi && !IND.missing){
-      var rp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#4da6ff", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, paneIdx++);
+      var rp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#1ecfb0", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, paneIdx++);
       rp.setData(mapped.map(function(b, i){ return {time:b.time, value: IND.rsi[i]}; }).filter(function(p){ return p.value != null && isFinite(p.value); }));
     }
     if(cpInds.macd && !IND.missing){
@@ -1060,9 +1060,9 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       var macdPane = paneIdx++;
       var hp = cpChart.addSeries(LightweightCharts.HistogramSeries, {}, macdPane);
       hp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.hist[i], color: (m.hist[i] != null && m.hist[i] >= 0) ? "rgba(51,226,154,.5)" : "rgba(248,113,113,.5)"}; }).filter(function(p){ return p.value != null && isFinite(p.value); }));
-      var mp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#4da6ff", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, macdPane);
+      var mp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#1ecfb0", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, macdPane);
       mp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.line[i]}; }).filter(function(p){ return p.value != null && isFinite(p.value); }));
-      var sp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#e6a23c", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, macdPane);
+      var sp = cpChart.addSeries(LightweightCharts.LineSeries, {color:"#e0a340", lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}, macdPane);
       sp.setData(mapped.map(function(b, i){ return {time:b.time, value: m.signal[i]}; }).filter(function(p){ return p.value != null && isFinite(p.value); }));
     }
     // give the price pane the most height; share the rest among subcharts

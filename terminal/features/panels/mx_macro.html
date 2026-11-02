@@ -65,7 +65,7 @@
     --bg:#000; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
     --line:#1a1a1a; --line2:#262626;
     --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
-    --up:#33e29a; --down:#ff5c5c; --acc:#33e29a;
+    --up:#33e29a; --down:#f87171; --acc:#33e29a;
     --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
   }
   * { box-sizing:border-box; }
@@ -214,7 +214,7 @@
   .mc-flag { display:inline-block; border:1px solid var(--tx3); border-radius:2px; padding:0 4px;
              margin-left:6px; color:var(--tx3); font-family:var(--mono); font-size:9px;
              letter-spacing:.04em; text-transform:uppercase; vertical-align:1px; }
-  .mc-flag.proj { border-color:#e0a33a; color:#e0a33a; }
+  .mc-flag.proj { border-color:#e0a340; color:#e0a340; }
 
   /* the multi-rate block: Egypt quotes a corridor, not one number */
   .mc-rates { margin:0 0 4px; }
@@ -263,7 +263,7 @@
   table.mc.mtx td .v { font-family:var(--mono); font-size:12px; color:var(--tx);
                        font-variant-numeric:tabular-nums; }
   table.mc.mtx td .v.dim { color:var(--tx2); }
-  svg .pl { fill:#e0a33a; font-family:var(--mono); font-size:8.5px; }
+  svg .pl { fill:#e0a340; font-family:var(--mono); font-size:8.5px; }
   svg .step { fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
   svg .step.projd { stroke-dasharray:4 3; }
   svg circle.proj { stroke-dasharray:2 2; }
@@ -644,12 +644,12 @@ function shortList(arr, max, tail){
   // stay distinct from the other three on black, and to avoid a red-versus-green
   // only split; all four clear the AAA text ratio (7:1) on black.
   var CCOLOR = {
-    KE: "#FFB000", // Kenya        amber
-    NG: "#3FA9F5", // Nigeria      sky blue
-    ZA: "#FF6FB5", // South Africa pink
-    EG: "#B18CFF"  // Egypt        violet
+    KE: "#e0a340", // Kenya        amber
+    NG: "#1ecfb0", // Nigeria      sky blue
+    ZA: "#f87171", // South Africa pink
+    EG: "#33e29a"  // Egypt        violet
   };
-  var SERIES = ["#FFB000", "#3FA9F5", "#FF6FB5", "#B18CFF"];
+  var SERIES = ["#e0a340", "#1ecfb0", "#f87171", "#33e29a"];
   function ccolor(c){
     var k = c && c.iso2 ? String(c.iso2).toUpperCase() : "";
     return CCOLOR[k] || SERIES[0];
@@ -1513,7 +1513,7 @@ function shortList(arr, max, tail){
      2. CURRENCY FLUCTUATIONS AND EXCHANGE RATES
      ================================================================== */
   /* One accent colour per currency, matching the country colour used above */
-  var FXCOL = { KES:"#FFB000", NGN:"#3FA9F5", ZAR:"#FF6FB5", EGP:"#B18CFF", USD:"#9a9a9a", EUR:"#9a9a9a", GBP:"#9a9a9a" };
+  var FXCOL = { KES:"#e0a340", NGN:"#1ecfb0", ZAR:"#f87171", EGP:"#33e29a", USD:"#9a9a9a", EUR:"#9a9a9a", GBP:"#9a9a9a" };
   /* The file now carries an fx_rates block: a per-currency current quote with
      its own as_of, source and fetched_at, the dated series it was computed
      from, the period changes and the volatility. This reads that block. If a
@@ -1528,7 +1528,7 @@ function shortList(arr, max, tail){
     if (!fr){ return fxCardsMatrix(d, lm); }
     return fr.rates.map(function(r){
       var code = txt(r.code) || txt(r.name) || "";
-      var col = FXCOL[String(code).toUpperCase()] || "#B18CFF";
+      var col = FXCOL[String(code).toUpperCase()] || "#33e29a";
       var cur = (r.current && typeof r.current === "object") ? r.current : {};
       var mk = (cur.market && typeof cur.market === "object") ? cur.market : {};
       var v = num(mk.value);
@@ -1593,7 +1593,7 @@ function shortList(arr, max, tail){
       : '<span class="sec">not stated</span>') + '</span>';
     return want.map(function(cu){
       var cell = cells[cu];
-      var col = FXCOL[cu] || "#B18CFF";
+      var col = FXCOL[cu] || "#33e29a";
       var v = cell ? num(cell.rate) : null;
       var has = cell ? (cell.has_rate === undefined ? v != null : (cell.has_rate !== false && v != null)) : false;
       return '<div class="mc-card" data-ccy="' + esc(cu) + '">' +
@@ -1616,7 +1616,7 @@ function shortList(arr, max, tail){
     var rows = fr.rates.map(function(r){
       var ch = (r.changes && typeof r.changes === "object") ? r.changes : {};
       var code = txt(r.code) || "";
-      var col = FXCOL[String(code).toUpperCase()] || "#B18CFF";
+      var col = FXCOL[String(code).toUpperCase()] || "#33e29a";
       var cells = WINS.map(function(w){
         var c = chgCell(ch[w[0]]);
         if (c) any = true;
@@ -1685,7 +1685,7 @@ function shortList(arr, max, tail){
     if (fr){
       fr.rates.forEach(function(r){
         var code = txt(r.code) || "";
-        var col = FXCOL[String(code).toUpperCase()] || "#B18CFF";
+        var col = FXCOL[String(code).toUpperCase()] || "#33e29a";
         var hist = (r.history && typeof r.history === "object") ? r.history : {};
         [["market","market close"],["official","official reference"],["official_nfem","official NFEM"]].forEach(function(hk){
           var h = hist[hk[0]];
@@ -2100,7 +2100,7 @@ function shortList(arr, max, tail){
         carried from another year.
      ================================================================== */
   var ECON_FILE = SD + "macro_economy.json";
-  var ECCOL = { KE:"#FFB000", NG:"#3FA9F5", ZA:"#FF6FB5", EG:"#B18CFF" };
+  var ECCOL = { KE:"#e0a340", NG:"#1ecfb0", ZA:"#f87171", EG:"#33e29a" };
 
   /* a current-price level in a local currency is read at its own scale with
      thousands separators and is never rounded to a headline */
@@ -2367,7 +2367,7 @@ function shortList(arr, max, tail){
     { iso2:"ZA", country:"South Africa", currency:"ZAR", exchange:"JSE" },
     { iso2:"EG", country:"Egypt",        currency:"EGP", exchange:"EGX" }
   ];
-  var CCOL = { KE:"#FFB000", NG:"#3FA9F5", ZA:"#FF6FB5", EG:"#B18CFF" };
+  var CCOL = { KE:"#e0a340", NG:"#1ecfb0", ZA:"#f87171", EG:"#33e29a" };
 
   var input  = document.getElementById("mcCsInput");
   var sugBox = document.getElementById("mcCsSug");
