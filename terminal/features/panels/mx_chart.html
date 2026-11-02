@@ -413,7 +413,12 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
 
   // ---- quote strip (market_<EX>.json, with its own as-of) ---------------------
   function renderQuote(){
+    // NO QUOTE STRIP ON THE CHART (owner, 2026-11-03): "remove the ticker price off
+    // chart panel". The bar keeps the panel name, the exchange and the ticker; the
+    // price is on the FOCUS card only. The element stays so nothing else breaks.
     var box = $("chQuote");
+    if(box){ box.innerHTML = ""; }
+    return;
     if(!SYM){ box.innerHTML = ""; return; }
     // A selection handed over by the shell carries its own row and the board
     // session it was priced at, so the strip is drawn from that row before any

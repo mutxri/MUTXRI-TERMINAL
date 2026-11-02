@@ -118,7 +118,9 @@
 
   /* ---------- the map and the detail of the node the reader pinned -------- */
   .grid{flex:1 1 auto;min-height:0;display:grid;gap:1px;background:var(--line2);padding:1px;
-        grid-template-columns:minmax(0,1fr) 274px}
+        grid-template-columns:minmax(0,1fr) 288px;
+        grid-template-rows:minmax(0,1.35fr) minmax(0,1fr)}
+  #c_sel{grid-column:2;grid-row:1 / span 2}
   .card{background:var(--bg);display:flex;flex-direction:column;min-height:0;min-width:0;
         position:relative}
   .ch{display:flex;align-items:center;gap:8px;padding:3px 8px;border-bottom:1px solid var(--line);
@@ -162,6 +164,8 @@
   button.kn.ft[data-t="suppliers"][aria-pressed="true"]{background:#1ecfb0;border-color:#1ecfb0}
   button.kn.ft[data-t="competitors"][aria-pressed="true"]{background:#f87171;border-color:#f87171}
   button.kn.ft[data-t="partners"][aria-pressed="true"]{background:#e0a340;border-color:#e0a340}
+  button.kn.ft[data-t="holders"][aria-pressed="true"]{background:#8a8a8a;border-color:#8a8a8a}
+  button.kn.ft[data-t="laws"][aria-pressed="true"]{background:#e0a340;border-color:#e0a340}
   button.kn:focus-visible{outline:1px solid var(--acc)}
   button.kn.z{width:18px;padding:2px 0;text-align:center}
   .zk{font-size:7px;color:var(--tx3);letter-spacing:.04em;min-width:27px;text-align:right}
@@ -182,7 +186,9 @@
   .abtr .no{color:var(--warn);font-weight:700;letter-spacing:.06em}
   .abtr .q{color:var(--tx2)}
 
-  /* the constellation */
+  /* the radial map: one centre disc, two dashed ellipse rings with their
+     labels at the left apex, leaf circles on those rings and one quadratic
+     bezier per link, each type with its own arrowhead */
   .gwrap{position:absolute;inset:0;overflow:hidden;user-select:none}
   .gwrap svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   .gwrap svg.drag{cursor:grabbing}
@@ -190,59 +196,58 @@
         letter-spacing:.06em;color:#7a7a7a;text-transform:uppercase;background:rgba(0,0,0,.82);
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gsub b{color:var(--down);font-weight:700}
-  path.cn{fill:none;stroke:#1d1d1d;stroke-width:1}
-  path.cn.hi{stroke:#4a4a4a}
-  /* a radial cluster is a circle: a hub, a faint dashed ring at the node
-     radius, and its boxes on that ring, joined to the hub by short spokes */
-  circle.cring{fill:none;stroke:#282828;stroke-width:.9;stroke-dasharray:2.6 3.4}
-  circle.cring.hi{stroke:#484848}
-  circle.cring.promo{stroke:#4a3810}
-  /* the two text clusters and the bar cluster keep a framed panel: a list of
-     headlines and three bars are not radial data */
-  rect.cb2{fill:#030303;stroke:#1a1a1a;stroke-width:1}
-  rect.cb2.hi{stroke:#3d3d3d}
-  text.ct{font-family:var(--mono);font-size:7.6px;letter-spacing:.13em;font-weight:700;fill:#33e29a}
-  text.ct.promo{fill:#e0a340}
-  text.cc{font-family:var(--mono);font-size:7.2px;letter-spacing:.06em;fill:#6a6a6a}
-  circle.hub{fill:#1b1b1b;stroke:#3a3a3a;stroke-width:.8}
-  circle.hub.promo{fill:#3a2c10;stroke:#8a6a22}
-  line.sp{stroke:#242424;stroke-width:.7}
-  line.sp.promo{stroke:#3a2c10}
+  ellipse.ring{fill:none;stroke:#2c2c2c;stroke-width:.9;stroke-dasharray:3 4.2}
+  ellipse.ring.r2{stroke:#212121}
+  text.rl{font-family:var(--mono);font-size:7.4px;letter-spacing:.15em;fill:#6a6a6a}
+  text.rn{font-family:var(--mono);font-size:6.8px;letter-spacing:.06em;fill:#4f4f4f}
+  path.eg{fill:none;stroke-width:1;stroke-opacity:.55}
+  path.eg.h2{stroke-opacity:.4;stroke-dasharray:2.6 2.6}
+  path.eg.law{stroke-dasharray:3.2 2.4}
+  path.eg.hv{stroke-opacity:1;stroke-width:1.5}
+  path.eg.dim{stroke-opacity:.09}
+  circle.lf{fill:#080808;stroke-width:1.3}
+  circle.lf.h2{stroke-width:1.1;fill:#060606}
   g.nd{pointer-events:all;cursor:pointer}
-  rect.nb{fill:#080808;stroke:#3a3a3a;stroke-width:1}
-  text.nt{font-family:var(--mono);font-size:6.8px;letter-spacing:.03em}
-  g.nd.dim{opacity:.24}
-  g.nd.hv rect.nb{stroke-width:1.8}
-  g.nd.on rect.nb{stroke-width:1.8}
-  rect.ar{fill:none;stroke:#e0a340}
-  rect.ar.d{stroke-width:1.7}
-  rect.ar.h1{stroke-width:1.2;stroke-dasharray:3 2.2}
-  rect.ar.h2{stroke-width:1;stroke-dasharray:1.4 2.2;stroke-opacity:.7}
-  /* the centre box */
-  rect.cbox{fill:#070707;stroke:#2a2a2a;stroke-width:1}
-  rect.chd{fill:#33e29a}
-  rect.chd.dn{fill:#f87171}
-  text.ctk{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.06em}
-  text.cex{font-family:var(--mono);font-size:7px;letter-spacing:.14em;text-anchor:end}
-  text.cnm{font-family:var(--mono);font-size:9px;fill:#e8e8e8}
-  text.cpx{font-family:var(--mono);font-size:15px;font-weight:700;fill:#f2f2f2}
-  text.ccy{font-family:var(--mono);font-size:6.6px;letter-spacing:.12em;fill:#6a6a6a}
-  text.cch{font-family:var(--mono);font-size:8.4px;font-weight:700}
-  text.cas{font-family:var(--mono);font-size:6.4px;letter-spacing:.08em;fill:#5c5c5c}
-  text.cnh{font-family:var(--mono);font-size:6.4px;letter-spacing:.08em;fill:#5c5c5c}
-  polyline.spl{fill:none;stroke-width:1.2}
-  /* text clusters */
-  text.tl{font-family:var(--mono);font-size:6.9px;fill:#a8a8a8}
-  circle.td{stroke:none}
+  g.nd text.nl{font-family:var(--mono);font-size:6.6px;letter-spacing:.04em;fill:#9a9a9a;
+               text-anchor:middle}
+  g.nd.hv text.nl,g.nd.on text.nl,g.nd.cat-on text.nl{fill:#f0f0f0}
+  g.nd.on circle.lf{stroke-width:2.4}
+  g.nd.cat-on circle.lf{stroke-width:2.1}
+  g.nd.dim{opacity:.22}
+  circle.hl{fill:none;stroke:#e0a340;stroke-width:1.1}
+  circle.hl.hop1{stroke-opacity:.6;stroke-dasharray:2 2}
+  circle.hl.hop2{stroke-opacity:.34;stroke-dasharray:1.6 2.4}
+  /* the centre disc */
+  circle.cdc{fill:#070707;stroke:#33e29a;stroke-width:1.4}
+  text.ctk{font-family:var(--mono);font-weight:700;fill:#33e29a;letter-spacing:.06em;
+           text-anchor:middle}
+  text.cnm{font-family:var(--mono);font-size:8.6px;fill:#e8e8e8;text-anchor:middle}
+  text.cpx{font-family:var(--mono);font-size:6.9px;letter-spacing:.06em;fill:#8a8a8a;
+           text-anchor:middle}
   text.none{font-family:var(--mono);font-size:7px;letter-spacing:.14em;fill:#4a4a4a}
   text.notread{font-family:var(--mono);font-size:6.6px;letter-spacing:.04em;fill:#f87171}
-  /* bar cluster */
-  rect.br{stroke:none}
-  text.bl{font-family:var(--mono);font-size:6.2px;letter-spacing:.05em;fill:#7a7a7a}
-  text.bv{font-family:var(--mono);font-size:6.2px;fill:#c8c8c8}
+  /* one category record in NODE DETAIL: name, ticker and board, link, hop, source */
+  .chead{display:flex;align-items:baseline;gap:6px;padding:5px 8px 4px;
+         border-bottom:1px solid var(--line);background:var(--bg2);flex:0 0 auto}
+  .chead b{font-size:8.5px;letter-spacing:.12em;color:#f0f0f0;font-weight:700}
+  .chead .cc{font-size:7px;letter-spacing:.06em;color:var(--tx3);margin-left:auto;
+             white-space:nowrap}
+  .crow{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.055)}
+  .crow .r1{display:flex;gap:6px;align-items:baseline;min-width:0}
+  .crow .rnm{font-size:9px;font-family:var(--ui);color:var(--tx);flex:1 1 auto;min-width:0;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .crow .rtk{font-size:7.2px;letter-spacing:.05em;color:var(--acc);white-space:nowrap}
+  .crow .r2{display:flex;gap:6px;align-items:baseline;margin-top:1px;font-size:6.6px;
+            letter-spacing:.06em;color:var(--tx3);min-width:0}
+  .crow .rl2{color:var(--tx2);white-space:nowrap}
+  .crow .rh{color:var(--warn);white-space:nowrap}
+  .crow .rsrc{flex:1 1 auto;min-width:0;text-align:right;overflow:hidden;
+              text-overflow:ellipsis;white-space:nowrap}
+  .cnote{font-size:6.8px;letter-spacing:.06em;color:var(--tx3);padding:3px 8px 5px;
+         border-top:1px solid var(--line)}
 
   /* the selected node, short rows, no paragraphs */
-  #b_sel{padding:5px 8px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+  #b_sel{padding:5px 8px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
   .srow{display:flex;gap:6px;align-items:baseline;min-width:0;line-height:1.25}
   .sk{flex:0 0 52px;font-size:7px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase}
   .sv{flex:1 1 auto;min-width:0;font-size:9px;color:var(--tx);overflow:hidden;
@@ -309,10 +314,12 @@
         </div>
         <div class="cgrp" id="c_type">
           <span class="cl2">LINKS</span>
-          <button class="kn ft" type="button" data-t="customers" aria-pressed="true">CUST</button>
-          <button class="kn ft" type="button" data-t="suppliers" aria-pressed="true">SUPP</button>
-          <button class="kn ft" type="button" data-t="competitors" aria-pressed="true">COMP</button>
-          <button class="kn ft" type="button" data-t="partners" aria-pressed="true">PART</button>
+          <button class="kn ft" type="button" data-t="customers" aria-pressed="false">CUST</button>
+          <button class="kn ft" type="button" data-t="suppliers" aria-pressed="false">SUPP</button>
+          <button class="kn ft" type="button" data-t="competitors" aria-pressed="false">COMP</button>
+          <button class="kn ft" type="button" data-t="partners" aria-pressed="false">PART</button>
+          <button class="kn ft" type="button" data-t="holders" aria-pressed="false">HOLDERS</button>
+          <button class="kn ft" type="button" data-t="laws" aria-pressed="false">LAWS</button>
         </div>
         <div class="cgrp" id="c_view">
           <span class="cl2">VIEW</span>
@@ -699,8 +706,9 @@
               news:[], newsSt:'unread', newsErr:'',
               ceos:{}, ceosSt:'unread', ceosErr:'', ceosSrc:{},
               bal:null, balSt:'unread', spark:null, sparkSt:'unread'};
-  var G = {hops:1, types:{customers:true, suppliers:true, competitors:true, partners:true},
-           cap:60, selKey:'', model:null, row:null, rec:null, law:null, tm:null, geo:null};
+  var G = {hops:1, types:{customers:true, suppliers:true, competitors:true, partners:true,
+                          holders:true, laws:true},
+           cap:60, selKey:'', cat:'', model:null, row:null, rec:null, law:null, tm:null, geo:null};
 
   function relTypes(){
     return [
@@ -815,11 +823,25 @@
     return GREY;
   }
 
-  /* ---------- 3. the clusters ---------------------------------------- */
-  var CL_SEED = {indices:270, exchanges:300, competitors:330, peers:330, customers:0,
-                 suppliers:30, hop2:75, partners:60, holders:90, balance:120, execs:150,
-                 laws:180, events:210, news:240};
+  /* ---------- 3. the six categories the map and the chips read -------- */
+  /* Every leaf on this map is one record read from disk: the four relationship
+     categories out of relationships_<EX>.json, HOLDERS out of
+     shareholders_<EX>.json, LAWS out of gov_laws_KE.json. A category with no
+     record still keeps its chip and still says so in NODE DETAIL. */
+  var CATS = [
+    {k:'customers',  n:'CUSTOMERS',  c:UP,   one:'customer record'},
+    {k:'suppliers',  n:'SUPPLIERS',  c:BLUE, one:'supplier record'},
+    {k:'competitors',n:'COMPETITORS',c:DN,   one:'competitor record'},
+    {k:'partners',   n:'PARTNERS',   c:AMB,  one:'partner record'},
+    {k:'holders',    n:'HOLDERS',    c:GREY, one:'substantial holder record'},
+    {k:'laws',       n:'LAWS',       c:AMB,  one:'Act'}
+  ];
+  var CATCAP = {customers:6, suppliers:6, competitors:6, partners:6, holders:6, laws:6, hop2:8};
 
+  function catDef(k){
+    for(var i = 0; i < CATS.length; i++){ if(CATS[i].k === k) return CATS[i]; }
+    return {k:k, n:String(k || '').toUpperCase(), c:GREY, one:'record'};
+  }
   function codeOf(label, name){
     var s = String(label || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if(s) return s.length > 7 ? s.slice(0, 7) : s;
@@ -847,80 +869,39 @@
     if(!ini) ini = s.slice(0, 3);
     return (ini + yr).slice(0, 7);
   }
-  function newCluster(key, title, kind, opt){
-    return {key:key, title:title, kind:kind, items:[], total:0, shown:0, state:'ok', err:'',
-            seed:CL_SEED[key] != null ? CL_SEED[key] : 0, tip:'',
-            promo:!!(opt && opt.promo), file:(opt && opt.file) || '',
-            hub:(opt && opt.hub) || ''};
+  /* the Acts whose own ticker list, sector list or ALL marker names this
+     security. One function, so the map chip and the LAWS list below can never
+     disagree about which Acts apply. */
+  function lawHits(row){
+    if(!row || LAW.st === 'failed') return [];
+    var tk = rowTicker(row), sec = String(row.sector || '').toUpperCase();
+    var ex = String(row.ex || '').toUpperCase();
+    var hits = (LAW.list || []).filter(function(l){
+      var lt = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); });
+      var ls = (l.sectors || []).map(function(x){ return String(x).toUpperCase(); });
+      var lex = String(l.exchange || LAW.ex || 'NSE').toUpperCase();
+      if(lt.indexOf(tk) >= 0) return true;
+      if(sec && ls.indexOf(sec) >= 0) return true;
+      if(lt.indexOf('ALL') >= 0 && lex === ex) return true;
+      return false;
+    });
+    hits.sort(function(a, b){ return (Number(b.year) || 0) - (Number(a.year) || 0); });
+    return hits;
   }
 
-  function newsHit(title, tk, name){
-    var tl = ' ' + String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
-    var t = String(tk || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    if(t.length >= 2 && tl.indexOf(' ' + t + ' ') >= 0) return true;
-    var w0 = String(name || '').toLowerCase().split(/\s+/)[0] || '';
-    w0 = w0.replace(/[^a-z0-9-]/g, '');
-    if(w0.length < 4) return false;
-    var alts = [w0, w0.replace(/-/g, ' '), w0.replace(/-/g, '')];
-    for(var i = 0; i < alts.length; i++){
-      if(!alts[i]) continue;
-      if(tl.indexOf(' ' + alts[i] + ' ') >= 0) return true;
-      if(alts[i].length >= 6 && tl.indexOf(alts[i]) >= 0) return true;
-    }
-    return false;
-  }
-  function buildClusters(row){
-    var ex = row.ex, tk = rowTicker(row), out = [], map = {};
-    var core = coreName(row.name);
-    var sym = String(row.sym || tk || '');
+  function buildRadial(row){
+    var ex = row.ex, tk = rowTicker(row), sym = String(row.sym || tk || '');
+    var nm = nd(String(row.name || tk));
+    var cats = [], ring1 = [], ring2 = [], dropped = 0;
 
-    function add(c){ out.push(c); map[c.key] = c; }
-
-    /* LAWS first: it is the cluster the owner asked for and it must never be
-       the one the node cap eats */
-    var laws = newCluster('laws', 'LAWS', 'radial', {promo:true, file:'gov_laws_KE.json'});
-    if(LAW.st === 'failed'){
-      laws.state = 'fail';
-      laws.err = LAW.err || 'gov_laws_KE.json not loaded';
-    } else {
-      var sec = String(row.sector || '').toUpperCase();
-      var hits = LAW.list.filter(function(l){
-        var lt = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); });
-        var ls = (l.sectors || []).map(function(x){ return String(x).toUpperCase(); });
-        var lex = String(l.exchange || LAW.ex || 'NSE').toUpperCase();
-        if(lt.indexOf(tk) >= 0) return true;
-        if(sec && ls.indexOf(sec) >= 0) return true;
-        if(lt.indexOf('ALL') >= 0 && lex === String(ex).toUpperCase()) return true;
-        return false;
-      });
-      laws.total = LAW.list.length;
-      laws.tip = hits.length + ' of ' + LAW.list.length +
-        ' Acts name this security or its sector, in ' + 'gov_laws_KE.json';
-      hits.sort(function(a, b){ return (Number(b.year) || 0) - (Number(a.year) || 0); });
-      hits.forEach(function(l){
-        var st = String(l.status || '').toLowerCase();
-        var col = st === 'enacted' ? UP : (st === 'repealed' ? DN : AMB);
-        laws.items.push({
-          key:'law:' + (l.id || laws.items.length), cluster:'laws',
-          label:lawCode(l.id, l.year), name:nd(l.name || l.id || ''),
-          code:String(l.id || ''), link:'Act',
-          reason:cut(l.mechanism || '', 240),
-          src:(l.source && l.source.name) ? nd(String(l.source.name)) +
-              (l.source.retrieved ? ' ' + l.source.retrieved : '') : '',
-          colour:col, co:false
-        });
-      });
-    }
-    add(laws);
-
-    /* the four relationship clusters, then the second link ring */
+    /* the four relationship categories, from this security's own record */
     relTypes().forEach(function(tp){
-      var c = newCluster(tp.k, tp.n, 'radial', {hub:tk});
-      c.relType = tp.k;
-      c.file = 'relationships_' + ex + '.json';
+      var file = 'relationships_' + ex + '.json';
+      var c = {k:tp.k, n:tp.full, c:tp.c, file:file, state:'ok', err:'', total:0,
+               items:[], drawn:0, capped:0, emptyMsg:''};
       if(REL_ST[ex] === 'failed'){
         c.state = 'fail';
-        c.err = readErr(sd(c.file));
+        c.err = readErr(sd(file));
       } else {
         var list = (G.rec && G.rec[tp.k]) || [];
         c.total = list.length;
@@ -929,89 +910,25 @@
           if(!id) return;
           if(id.ex && id.ex === ex && String(id.tk) === String(tk)) return;
           c.items.push({
-            key:'rel:' + tp.k + ':' + id.key, cluster:tp.k,
+            key:'rel:' + tp.k + ':' + id.key, cat:tp.k, cluster:tp.k, hop:1,
             label:codeOf(id.tk, id.name), name:nd(id.name || (e && e.name) || ''),
-            code:String(id.tk || ''), link:typeLabel(tp.k),
+            code:String(id.tk || ''), ex:id.ex || '', link:typeLabel(tp.k),
             reason:nd(String((e && (e.role || e.note)) || '')), src:srcLabel(e),
-            colour:colourOfRow(id.row), co:true, ex:id.ex, tk:id.tk, listed:id.listed,
-            sector:id.sector || '', rec:id.rec, hop:1
+            colour:colourOfRow(id.row), co:true, listed:!!id.listed,
+            sector:id.sector || '', rec:id.rec, mk:tp.k, x:null
           });
         });
+        c.emptyMsg = 'no ' + catDef(tp.k).one + ' for ' + nm + ' in ' + file;
       }
-      add(c);
+      cats.push(c);
     });
 
-    var hop2 = newCluster('hop2', '2 LINKS', 'radial', {hub:tk});
-    hop2.relType = 'hop2';
-    hop2.file = 'relationships_<EX>.json';
-    if(G.hops > 1 && G.rec){
-      var parents = [], seen = {};
-      relTypes().forEach(function(tp){
-        (map[tp.k] ? map[tp.k].items : []).forEach(function(it){ if(it.rec) parents.push(it); });
-      });
-      parents.forEach(function(p){
-        linkList(p.rec).forEach(function(link){
-          var id = identOf(link.e && link.e.name);
-          if(!id) return;
-          if(id.ex && id.ex === ex && String(id.tk) === String(tk)) return;
-          if(seen[id.key]) return;
-          seen[id.key] = 1;
-          hop2.items.push({
-            key:'h2:' + id.key, cluster:'hop2', label:codeOf(id.tk, id.name),
-            name:nd(id.name || ''), code:String(id.tk || ''),
-            link:typeLabel(link.type), reason:'one recorded link from ' + nd(p.name),
-            src:srcLabel(link.e), colour:colourOfRow(id.row), co:true, ex:id.ex, tk:id.tk,
-            listed:id.listed, sector:id.sector || '', rec:id.rec, hop:2, parent:p.key
-          });
-        });
-      });
-      hop2.total = hop2.items.length;
-    }
-    if(hop2.items.length) add(hop2);
-
-    /* INDICES */
-    var ins = newCluster('indices', 'INDICES', 'radial', {file:'ex_' + ex + '_indices.json'});
-    if(DATA.idxSt === 'failed'){
-      ins.state = 'fail'; ins.err = DATA.idxErr;
-    } else {
-      var arr = DATA.idx || [];
-      ins.total = arr.length;
-      arr.forEach(function(r){
-        var pc = pctOf(r), lvl = numv(r.price);
-        var chg = (typeof r.change === 'string') ? r.change : (isNum(r.change) ? String(r.change) : '');
-        ins.items.push({
-          key:'idx:' + String(r.ticker || ''), cluster:'indices',
-          label:codeOf(String(r.ticker || '').replace('^', ''), r.name),
-          name:nd(r.name || r.ticker || ''), code:String(r.ticker || ''), link:'Index',
-          reason:(lvl == null ? 'no level on file' : 'level ' + fmtP(lvl)) +
-                 (chg ? ' | ' + nd(chg) : ''),
-          src:nd(String(r.asOf || '')),
-          colour:(lvl == null ? BLUE : (pc == null ? GREY : (pc > 0 ? UP : (pc < 0 ? DN : GREY)))),
-          co:false
-        });
-      });
-    }
-    add(ins);
-
-    /* EXCHANGES: the four boards, the one this security sits on marked */
-    var exc = newCluster('exchanges', 'EXCHANGES', 'radial', {file:'market_<EX>.json'});
-    exc.total = EXS.length;
-    EXS.forEach(function(e2){
-      var on = e2 === ex, rows = MKT[e2] || [];
-      exc.items.push({
-        key:'ex:' + e2, cluster:'exchanges', label:e2, name:e2 + ' board', code:e2,
-        link:'Board',
-        reason:on ? 'this security is listed here' : 'another board the terminal reads',
-        src:rows.length + ' securities on file',
-        colour:on ? UP : (rows.length ? GREY : ORANGE), co:false
-      });
-    });
-    add(exc);
-
-    /* HOLDERS */
-    var hol = newCluster('holders', 'HOLDERS', 'radial', {file:'shareholders_' + ex + '.json'});
+    /* HOLDERS: the substantial holder record for this security */
+    var hold = {k:'holders', n:'HOLDERS', c:GREY, file:'shareholders_' + ex + '.json',
+                state:'ok', err:'', total:0, items:[], drawn:0, capped:0, emptyMsg:''};
     if(DATA.shSt[ex] === 'failed'){
-      hol.state = 'fail'; hol.err = DATA.shErr[ex];
+      hold.state = 'fail';
+      hold.err = DATA.shErr[ex];
     } else {
       var sh = DATA.sh[ex] || {};
       var srec = sh[tk] || sh[sym] || null;
@@ -1022,178 +939,117 @@
           srec = alt[tk] || null;
         });
       }
-      var holders = (srec && srec.substantial) || [];
-      hol.total = holders.length;
-      holders.forEach(function(h){
+      var hs = (srec && srec.substantial) || [];
+      hold.total = hs.length;
+      hold.emptyMsg = srec
+        ? 'the holder record for ' + tk + ' names no substantial holder' +
+          (srec.asOf ? ' (as at ' + nd(srec.asOf) + ')' : '')
+        : 'no holder record for ' + tk + ' in shareholders_' + ex + '.json';
+      hs.forEach(function(h){
         var id = identOf(h.name);
-        hol.items.push({
-          key:'sh:' + coreName(h.name) + ':' + (h.name || ''), cluster:'holders',
-          label:nameCode(h.name), name:nd(h.name || ''), code:'', link:'Holder',
+        hold.items.push({
+          key:'sh:' + coreName(h.name) + ':' + (h.name || ''), cat:'holders',
+          cluster:'holders', hop:1, label:nameCode(h.name), name:nd(h.name || ''),
+          code:String((id && id.tk) || ''), ex:(id && id.ex) || '', link:'Holder',
           reason:(h.holding != null ? fmtBig(h.holding) + ' shares'
                   : (h.pct != null ? Number(h.pct).toFixed(2) + '% held' : 'holding on file')),
           src:(srec && srec.asOf ? 'as at ' + nd(srec.asOf) : ''),
-          colour:id && id.listed ? colourOfRow(id.row) : ORANGE, co:false
+          colour:(id && id.listed ? colourOfRow(id.row) : GREY), co:false,
+          listed:!!(id && id.listed), rec:null, sector:(id && id.sector) || '',
+          mk:'holders', x:null
         });
       });
     }
-    add(hol);
+    cats.push(hold);
 
-    /* BALANCE SHEET: three real lines, drawn as bars */
-    var bal = newCluster('balance', 'BALANCE SHEET', 'bars',
-                         {file:'financials/<KEY>__balance.json'});
-    if(!DATA.bal){
-      bal.state = 'empty';
-      bal.err = 'financials/' + sym + '__balance.json not on file';
+    /* LAWS: only the Acts that name this security, its sector or ALL issuers */
+    var laws = {k:'laws', n:'LAWS', c:AMB, file:'gov_laws_KE.json', state:'ok', err:'',
+                total:0, items:[], drawn:0, capped:0, emptyMsg:''};
+    if(LAW.st === 'failed'){
+      laws.state = 'fail';
+      laws.err = LAW.err || 'gov_laws_KE.json not loaded';
     } else {
-      var b = DATA.bal, per = (b.periods && b.periods[0]) || '';
-      function line(want){
-        var ws = want.map(function(x){ return x.toLowerCase(); });
-        for(var i = 0; i < (b.rows || []).length; i++){
-          if(ws.indexOf(String(b.rows[i].label || '').toLowerCase()) >= 0) return b.rows[i];
-        }
-        return null;
-      }
-      var a1 = line(['Total assets']);
-      var l1 = line(['Total liabilities']);
-      var e1 = line(['Total equity', 'Total shareholders equity', 'Shareholders equity']);
-      [[a1, 'ASSETS', UP], [l1, 'LIAB', DN], [e1, 'EQUITY', BLUE]].forEach(function(x){
-        if(!x[0]) return;
-        bal.items.push({
-          key:'bal:' + x[1], cluster:'balance', label:x[1],
-          name:x[1] + ' ' + (x[0].label || ''), code:'', link:'Balance sheet',
-          reason:fmtBig(x[0].values[0]) + ' ' + nd(String(b.currency || '')) +
-                 ' at ' + nd(String(per)),
-          src:nd(String(b.source || '')), colour:x[2], value:numv(x[0].values[0]), co:false
-        });
-      });
-      bal.total = bal.items.length;
-    }
-    add(bal);
-
-    /* EXECUTIVES: only what ceos.json names */
-    var exe = newCluster('execs', 'EXECUTIVES', 'radial', {file:'ceos.json'});
-    if(DATA.ceosSt === 'failed'){
-      exe.state = 'fail'; exe.err = DATA.ceosErr || 'ceos.json not loaded';
-    } else {
-      var nm = (DATA.ceos || {})[tk] || (DATA.ceos || {})[sym] || '';
-      exe.total = nm ? 1 : 0;
-      if(nm){
-        var sr = (DATA.ceosSrc || {})[tk] || (DATA.ceosSrc || {})[sym] || null;
-        exe.items.push({
-          key:'ex1:' + nm, cluster:'execs', label:codeOf('', nm), name:nd(String(nm)),
-          code:'', link:'Executive',
-          reason:nd(String((sr && sr.title) || 'chief executive') + ' named on file'),
-          src:sr ? nd(String(sr.source || '')) : 'ceos.json', colour:GREY, co:false
-        });
-      }
-    }
-    add(exe);
-
-    /* EVENTS */
-    var ev = newCluster('events', 'EVENTS', 'text', {file:DATA.caFile || 'corporate actions'});
-    if(DATA.caSt === 'failed'){
-      ev.state = 'fail'; ev.err = DATA.caErr;
-    } else {
-      var rows2 = DATA.ca || [];
-      ev.total = rows2.length;
-      rows2.forEach(function(r){
-        var lbl = String(r.text || r.kind || '');
-        var when = String(r.date || '');
-        var kind = String(r.kind || '').toUpperCase();
-        ev.items.push({
-          key:'ev:' + when + ':' + lbl.slice(0, 24), cluster:'events',
-          label:cut(lbl, 44), name:nd(lbl), code:'', link:'Corporate action',
-          reason:nd(kind + ' | ' + when), src:nd(String(r.src || '')),
-          colour:(kind.indexOf('DIVIDEND') >= 0 ? UP : (kind.indexOf('AGM') >= 0 ? BLUE : GREY)),
-          meta:cut(when, 12), co:false
+      var hits = lawHits(row);
+      var sec = String(row.sector || '').toUpperCase();
+      laws.total = hits.length;
+      laws.ofTotal = (LAW.list || []).length;
+      laws.emptyMsg = 'no Act in gov_laws_KE.json names ' + tk +
+        (sec ? ' or the ' + sec + ' sector' : '');
+      hits.forEach(function(l){
+        var st = String(l.status || '').toLowerCase();
+        laws.items.push({
+          key:'law:' + (l.id || laws.items.length), cat:'laws', cluster:'laws', hop:1,
+          label:lawCode(l.id, l.year), name:nd(l.name || l.id || ''),
+          code:String(l.id || ''), ex:String(l.exchange || LAW.ex || 'NSE').toUpperCase(),
+          link:'Act', reason:cut(l.mechanism || '', 240),
+          src:(l.source && l.source.name) ? nd(String(l.source.name)) +
+              (l.source.retrieved ? ' ' + l.source.retrieved : '') : '',
+          colour:(st === 'enacted' ? UP : (st === 'repealed' ? DN : AMB)),
+          co:false, listed:false, rec:null, sector:'', mk:'laws', x:null
         });
       });
     }
-    add(ev);
+    cats.push(laws);
 
-    /* NEWS */
-    var nw = newCluster('news', 'NEWS', 'text', {file:ex.toLowerCase() + '_news.json'});
-    if(DATA.newsSt === 'failed'){
-      nw.state = 'fail'; nw.err = DATA.newsErr;
-    } else {
-      var toks = core.split(' ').filter(function(w){ return w.length >= 4; });
-      var news = (DATA.news || []).filter(function(n){
-        return newsHit(n.title, tk, row.name);
-      });
-      news.sort(function(a, b){ return (Number(b.ts) || 0) - (Number(a.ts) || 0); });
-      nw.total = news.length;
-      news.forEach(function(n){
-        nw.items.push({
-          key:'nw:' + String(n.id || n.title || '').slice(0, 30), cluster:'news',
-          label:cut(n.title, 46), name:nd(n.title || ''), code:'', link:'Headline',
-          reason:nd(String(n.publisher || '') + ' | ' + String(n.date || '')),
-          src:nd(String(n.url || '')), colour:GREY, meta:cut(String(n.date || ''), 10), co:false
-        });
-      });
-    }
-    add(nw);
-
-    /* two nominees can share a six letter code: number the repeats inside a
-       cluster so no two boxes carry the same label */
-    out.forEach(function(c){
-      var seen = {};
-      c.items.forEach(function(it){
-        var lb = String(it.label || '?');
-        if(seen[lb]){
-          seen[lb] += 1;
-          it.label = (lb + seen[lb]).slice(0, 9);
-        } else {
-          seen[lb] = 1;
-        }
-      });
-    });
-
-    /* caps: per cluster, then the total, and the total is stated on the map */
-    var CAPS = {indices:8, exchanges:4, peers:8, customers:8, suppliers:8, partners:8,
-                hop2:8, holders:8, balance:3, execs:2, laws:8, events:4, news:4};
-    var used = 0, dropped = 0;
-    out.forEach(function(c){
-      var lim = CAPS[c.key] != null ? CAPS[c.key] : 6;
+    /* per category cap, then the ring itself. A capped category keeps its full
+       on-file count, so NODE DETAIL can say how many were held back. */
+    cats.forEach(function(c){
+      var lim = CATCAP[c.k] != null ? CATCAP[c.k] : 6;
       if(c.items.length > lim){
-        dropped += c.items.length - lim;
+        c.capped = c.items.length - lim;
         c.items = c.items.slice(0, lim);
       }
-      c.shown = c.items.length;
+      c.items.forEach(function(it){ ring1.push(it); });
     });
-    out.slice().sort(function(a, b){ return (b.promo ? 1 : 0) - (a.promo ? 1 : 0); })
-      .forEach(function(c){
-        var room = Math.max(0, G.cap - used);
-        if(c.shown > room){
-          dropped += c.shown - room;
-          c.items = c.items.slice(0, room);
-          c.shown = c.items.length;
+
+    /* ring 2: one recorded link past a first link, only when depth 2 is on */
+    if(G.hops > 1){
+      var seen = {};
+      ring1.forEach(function(it){ seen[it.key] = 1; });
+      for(var i = 0; i < ring1.length && ring2.length < CATCAP.hop2; i++){
+        var p = ring1[i];
+        if(!p.rec) continue;
+        var links = linkList(p.rec);
+        for(var j = 0; j < links.length && ring2.length < CATCAP.hop2; j++){
+          var id = identOf(links[j].e && links[j].e.name);
+          if(!id) continue;
+          if(id.ex === ex && String(id.tk) === String(tk)) continue;
+          if(seen[id.key]) continue;
+          seen[id.key] = 1;
+          ring2.push({
+            key:'h2:' + id.key, cat:'hop2', cluster:'hop2', hop:2, parent:p.key,
+            label:codeOf(id.tk, id.name), name:nd(id.name || ''), code:String(id.tk || ''),
+            ex:id.ex || '', link:typeLabel(links[j].type),
+            reason:'one recorded link from ' + nd(p.name), src:srcLabel(links[j].e),
+            colour:colourOfRow(id.row), co:true, listed:!!id.listed,
+            sector:id.sector || '', rec:id.rec, mk:links[j].type, x:null
+          });
         }
-        used += c.shown;
-      });
-    out.sort(function(a, b){ return a.seed - b.seed; });
+      }
+    }
 
     var centre = {key:'C:' + ex + ':' + tk, name:nd(row.name || tk), tk:tk, ex:ex,
                   price:rowPrice(row), pct:pctOf(row), sector:row.sector || '',
                   asOf:String(row.asOf || ''), currency:String(row.currency || ''),
-                  prev:numv(row.prevClose), co:true, listed:true, rec:G.rec};
-    return {row:row, ex:ex, tk:tk, centre:centre, clusters:out, dropped:dropped,
-            spark:DATA.spark, nodes:[], edges:[], tm:null};
+                  prev:numv(row.prevClose), co:true, listed:true, rec:G.rec, cat:'centre'};
+    return {row:row, ex:ex, tk:tk, centre:centre, cats:cats, ring1:ring1, ring2:ring2,
+            dropped:dropped, capped:0, spark:DATA.spark, nodes:[], edges:[], tm:null, geo:null};
   }
 
   /* ---------- 4. reach: direct, one link, two links ------------------- */
   function modelNodes(m){
     var n = [m.centre];
-    m.clusters.forEach(function(c){ c.items.forEach(function(it){ n.push(it); }); });
+    m.ring1.forEach(function(it){ n.push(it); });
+    m.ring2.forEach(function(it){ n.push(it); });
     return n;
   }
   function modelEdges(m){
     var e = [];
-    m.clusters.forEach(function(c){
-      c.items.forEach(function(it){
-        if(!it.co) return;
-        if(it.hop === 2 && it.parent) e.push({a:it.parent, b:it.key, type:it.link});
-        else e.push({a:m.centre.key, b:it.key, type:it.link});
-      });
+    m.ring1.forEach(function(it){
+      e.push({a:m.centre.key, b:it.key, type:it.link, mk:it.mk, hop:1});
+    });
+    m.ring2.forEach(function(it){
+      e.push({a:it.parent || m.centre.key, b:it.key, type:it.link, mk:it.mk, hop:2});
     });
     return e;
   }
@@ -1267,436 +1123,242 @@
   }
 
   /* ---------- 5. geometry ------------------------------------------- */
-  /* Sizes shrink with the viewport so twelve clusters and one centre box fit at
-     1100 as well as at 1600. Every cluster is laid out as a CIRCLE: the radial
-     ones are circles by construction (hub, ring, boxes on the ring), and the
-     three the owner kept as panels are inscribed in one, so a single rule
-     covers all twelve. Placement is a seed on an ellipse plus a separation
-     pass; if any two circles still touch, the whole set is scaled down and
-     placed again, so an overlap is never shipped. */
-  function nodeBoxW(c, s){
-    var fs = 6.8 * s, w = Math.max(24, 30 * s);
-    c.items.forEach(function(it){
-      w = Math.max(w, Math.round(String(it.label || '?').length * fs * 0.62 + 7));
-    });
-    return Math.round(w);
+  /* One centre disc and two concentric dashed ellipses. A node sits at an equal
+     arc length from its neighbours, and a wedge either side of the left apex is
+     left empty so the RING 1 / RING 2 labels can never sit on a node. */
+  var MIN_GAP = 47, RING_GAP = 0.40;
+
+  function ringTab(rx, ry, gapHalf){
+    var N = 720, cum = [0], L = 0, i;
+    var a0 = Math.PI + gapHalf, a1 = Math.PI * 3 - gapHalf;
+    var px = Math.cos(a0) * rx, py = Math.sin(a0) * ry;
+    for(i = 1; i <= N; i++){
+      var a = a0 + (a1 - a0) * i / N;
+      var x = Math.cos(a) * rx, y = Math.sin(a) * ry;
+      L += Math.sqrt((x - px) * (x - px) + (y - py) * (y - py));
+      cum.push(L);
+      px = x; py = y;
+    }
+    return {rx:rx, ry:ry, a0:a0, a1:a1, N:N, L:L, cum:cum};
   }
-  /* one ring while a cluster is small; past ten nodes a single inner ring and a
-     single outer ring, so the circle never becomes a dense wall of boxes */
-  function ringPlan(n, s, boxW, boxH){
-    var minR = Math.max(24 * s, boxW * 0.5 + 9 * s);
-    function chordR(cnt){
-      if(cnt <= 1) return 0;
-      return (boxW + Math.max(5 * s, 6)) / (2 * Math.sin(Math.PI / cnt));
+  function tabAngle(tab, s){
+    var lo = 1, hi = tab.N, mid;
+    s = Math.max(0, Math.min(tab.L, s));
+    while(lo < hi){
+      mid = (lo + hi) >> 1;
+      if(tab.cum[mid] < s) lo = mid + 1; else hi = mid;
     }
-    if(n <= 10){
-      var r0 = n <= 1 ? minR : Math.max(minR, chordR(n));
-      return [{r:r0, n:n}];
-    }
-    var inner = Math.ceil(n * 0.42), outer = n - inner;
-    var r1 = Math.max(minR, chordR(inner));
-    var r2 = Math.max(r1 + boxH + 12 * s, chordR(outer), r1 * 1.7);
-    return [{r:r1, n:inner}, {r:r2, n:outer}];
+    var i0 = Math.max(1, lo - 1);
+    var seg = tab.cum[lo] - tab.cum[i0];
+    var u = seg > 0 ? (s - tab.cum[i0]) / seg : 0;
+    return tab.a0 + (tab.a1 - tab.a0) * (i0 + u) / tab.N;
   }
-  function footOf(c, s){
-    if(c.kind === 'text'){
-      var nt = Math.max(1, c.items.length);
-      var w1 = Math.round(152 * s), h1 = Math.round((20 + nt * 12) * s + 6);
-      return {kind:'text', w:w1, h:h1, R:Math.sqrt(w1 * w1 + h1 * h1) / 2 + 1, rings:[]};
-    }
-    if(c.kind === 'bars'){
-      var w2 = Math.round(140 * s), h2 = Math.round(92 * s);
-      return {kind:'bars', w:w2, h:h2, R:Math.sqrt(w2 * w2 + h2 * h2) / 2 + 1, rings:[]};
-    }
-    var boxH = Math.max(9, Math.round(12 * s));
-    var boxW = nodeBoxW(c, s);
-    var rings = ringPlan(Math.max(0, c.items.length), s, boxW, boxH);
-    var rmax = 0;
-    rings.forEach(function(rg){ rmax = Math.max(rmax, rg.r); });
-    var body = rmax + boxH / 2 + 3 * s;
-    /* the title sits above the circle, inside the footprint, so a title can
-       never run into a neighbour even when the ring is small */
-    return {kind:'radial', boxW:boxW, boxH:boxH, fs:6.8 * s, rings:rings,
-            body:body, R:body + Math.max(10 * s, 9)};
-  }
-  function onBox(b, x, y){
-    return {x:Math.max(b.x, Math.min(b.x + b.w, x)),
-            y:Math.max(b.y, Math.min(b.y + b.h, y))};
-  }
-  function relaxCircles(nodes, cbox, W, areaH, topPad, gap){
-    var i, j, it, a, b, dx, dy, d, need, push, ux, uy;
-    for(it = 0; it < 420; it++){
-      var moved = false;
-      for(i = 0; i < nodes.length; i++){
-        for(j = i + 1; j < nodes.length; j++){
-          a = nodes[i]; b = nodes[j];
-          dx = b.x - a.x; dy = b.y - a.y;
-          d = Math.sqrt(dx * dx + dy * dy);
-          need = a.R + b.R + gap;
-          if(d < need){
-            if(d < 0.01){ ux = 1; uy = 0; } else { ux = dx / d; uy = dy / d; }
-            /* the amber LAWS cluster is pinned at nine o'clock, so it holds its
-               place and the rest of the ring moves around it */
-            if(a.pin && b.pin) continue;
-            if(a.pin){
-              b.x += ux * (need - d + 0.5); b.y += uy * (need - d + 0.5);
-            } else if(b.pin){
-              a.x -= ux * (need - d + 0.5); a.y -= uy * (need - d + 0.5);
-            } else {
-              push = (need - d) / 2 + 0.5;
-              a.x -= ux * push; a.y -= uy * push;
-              b.x += ux * push; b.y += uy * push;
-            }
-            moved = true;
-          }
-        }
-      }
-      nodes.forEach(function(p){
-        var q = onBox(cbox, p.x, p.y);
-        dx = p.x - q.x; dy = p.y - q.y;
-        d = Math.sqrt(dx * dx + dy * dy);
-        if(d < p.R + gap){
-          if(d < 0.01){
-            /* the centre landed inside the box: leave by the nearest side */
-            if(p.y < cbox.y) p.y = cbox.y - p.R - gap;
-            else if(p.y > cbox.y + cbox.h) p.y = cbox.y + cbox.h + p.R + gap;
-            else if(p.x < cbox.x) p.x = cbox.x - p.R - gap;
-            else p.x = cbox.x + cbox.w + p.R + gap;
-          } else {
-            p.x += (dx / d) * (p.R + gap - d);
-            p.y += (dy / d) * (p.R + gap - d);
-          }
-          moved = true;
-        }
-        var nx = Math.max(p.R + 3, Math.min(W - p.R - 3, p.x));
-        var ny = Math.max(topPad + 2 + p.R, Math.min(topPad + areaH - 4 - p.R, p.y));
-        if(nx !== p.x || ny !== p.y){ p.x = nx; p.y = ny; moved = true; }
-      });
-      if(!moved) break;
-    }
-  }
-  function overlaps(nodes, cbox, W, areaH, topPad){
-    var out = [], i, j, a, b, dx, dy, d, q;
-    for(i = 0; i < nodes.length; i++){
-      a = nodes[i];
-      if(a.x - a.R < 2 || a.x + a.R > W - 2 ||
-         a.y - a.R < topPad + 1 || a.y + a.R > topPad + areaH - 3){
-        out.push(a.key + '|OUT');
-      }
-      q = onBox(cbox, a.x, a.y);
-      dx = a.x - q.x; dy = a.y - q.y;
-      d = Math.sqrt(dx * dx + dy * dy);
-      if(d < a.R - 0.01) out.push(a.key + '|CENTRE');
-      for(j = i + 1; j < nodes.length; j++){
-        b = nodes[j];
-        dx = b.x - a.x; dy = b.y - a.y;
-        d = Math.sqrt(dx * dx + dy * dy);
-        if(d < a.R + b.R - 0.01) out.push(a.key + '|' + b.key);
-      }
-    }
+  function ringSlots(tab, n){
+    var out = [], i;
+    for(i = 0; i < n; i++) out.push(tabAngle(tab, tab.L * (i + 0.5) / n));
     return out;
   }
-  function minGapCircles(nodes, cbox){
-    var mg = 1e9, mc = 1e9, i, j, a, b, dx, dy, d, q;
-    function r1(v){ return Math.round(v * 10) / 10; }
-    for(i = 0; i < nodes.length; i++){
-      a = nodes[i];
-      q = onBox(cbox, a.x, a.y);
-      dx = a.x - q.x; dy = a.y - q.y;
-      d = Math.sqrt(dx * dx + dy * dy) - a.R;
-      if(d < mc) mc = d;
-      for(j = i + 1; j < nodes.length; j++){
-        b = nodes[j];
-        dx = b.x - a.x; dy = b.y - a.y;
-        d = Math.sqrt(dx * dx + dy * dy) - a.R - b.R;
-        if(d < mg) mg = d;
+  function labelW(s){ return String(s || '').length * 3.95 + 2; }
+
+  function layoutRadial(m, W, H){
+    var cx = W / 2, cy = H / 2;
+    /* the centre reads at 5x the hop 1 leaf, and holds that ratio until the
+       window is genuinely too small to carry it */
+    var rC = Math.round(Math.min(24, Math.max(13, Math.min(W / 26, H / 13))));
+    var lr1 = Math.max(3, rC * 5 / 24), lr2 = Math.max(2.4, rC * 4 / 24);
+    var ry2 = Math.max(rC * 2.6, H / 2 - 56);
+    var rx2 = Math.min(W / 2 - 74, Math.max(rC * 3.4, (H / 2 - 60) * 2.3));
+    rx2 = Math.max(rC * 3, rx2);
+
+    /* ring 1 grows only as far as its own population needs, and never past the
+       inner edge of ring 2 */
+    var t1 = ringTab(rx2 * 0.55, ry2 * 0.55, RING_GAP);
+    if(m.ring1.length){
+      var need = m.ring1.length * MIN_GAP / t1.L;
+      if(need > 1){
+        var f = Math.min(0.78 / 0.55, need);
+        t1 = ringTab(rx2 * 0.55 * f, ry2 * 0.55 * f, RING_GAP);
       }
     }
-    return {pairs:(mg === 1e9 ? 0 : r1(mg)), centre:(mc === 1e9 ? 0 : r1(mc))};
-  }
-  function layoutMap(m, W, H){
-    var s0 = Math.min(W / 1090, (H - 30) / 530);
-    s0 = Math.max(0.55, Math.min(1.25, s0));
-    var topPad = 8, subH = 20;
-    var areaH = Math.max(150, H - subH - topPad);
-    var cx = W / 2, cy = topPad + areaH / 2;
-    var s = s0, nodes = [], cbox = null, ov = [], tries = 0, gap = 0;
-    for(tries = 0; tries < 18; tries++){
-      s = s0 * Math.pow(0.945, tries);
-      var CW = Math.round(208 * s), CH = Math.round(106 * s);
-      cbox = {x:Math.round(cx - CW / 2), y:Math.round(cy - CH / 2), w:CW, h:CH};
-      nodes = m.clusters.map(function(c){
-        var f = footOf(c, s);
-        return {key:c.key, c:c, f:f, R:f.R, w:f.w || 0, h:f.h || 0, x:cx, y:cy, s:s,
-                pin:!!c.promo};
-      });
-      var rmax = 0;
-      nodes.forEach(function(b){ rmax = Math.max(rmax, b.R); });
-      var arx = Math.max(40, (W / 2 - 12 - rmax) * 0.93);
-      var ary = Math.max(36, (areaH / 2 - 14 - rmax) * 0.93);
-      nodes.forEach(function(b){
-        var a = (b.c.seed || 0) * Math.PI / 180;
-        b.x = cx + Math.cos(a) * arx;
-        b.y = cy + Math.sin(a) * ary;
-      });
-      gap = Math.max(5, 10 * s);
-      relaxCircles(nodes, cbox, W, areaH, topPad, gap);
-      ov = overlaps(nodes, cbox, W, areaH, topPad);
-      if(!ov.length) break;
+    var t2 = ringTab(rx2, ry2, RING_GAP);
+
+    /* a ring draws the population it can carry and the rest is counted as
+       dropped, on the header, never silently */
+    var cap1 = Math.max(1, Math.floor(t1.L / MIN_GAP));
+    if(m.ring1.length > cap1){
+      m.dropped += m.ring1.length - cap1;
+      m.ring1 = m.ring1.slice(0, cap1);
     }
-    var mg = minGapCircles(nodes, cbox);
-    m.geo = {w:W, h:H, s:s, cbox:cbox, boxes:nodes, overlaps:ov,
-             areaH:areaH, topPad:topPad, subH:subH, tries:tries + 1,
-             minGap:mg.pairs, minGapCentre:mg.centre, gap:Math.round(gap * 10) / 10};
-    return m.geo;
+    var cap2 = Math.max(1, Math.floor(t2.L / MIN_GAP));
+    if(m.ring2.length > cap2){
+      m.dropped += m.ring2.length - cap2;
+      m.ring2 = m.ring2.slice(0, cap2);
+    }
+
+    var a1 = ringSlots(t1, m.ring1.length), a2 = ringSlots(t2, m.ring2.length);
+    function place(it, tab, a, r, ring){
+      it.x = cx + Math.cos(a) * tab.rx;
+      it.y = cy + Math.sin(a) * tab.ry;
+      it.r = r;
+      it.ring = ring;
+      it.lx = Math.max(24, Math.min(W - 24, it.x));
+      it.ly = it.y + r + 9.2;
+      it.lw = labelW(cut(it.label, 10));
+    }
+    m.ring1.forEach(function(it, i){ place(it, t1, a1[i], lr1, 1); });
+    m.ring2.forEach(function(it, i){ place(it, t2, a2[i], lr2, 2); });
+    m.cats.forEach(function(c){
+      c.drawn = 0;
+      c.items.forEach(function(it){ if(it.x != null) c.drawn++; });
+    });
+
+    var g = {w:W, h:H, cx:cx, cy:cy, rC:rC, leaf1:lr1, leaf2:lr2,
+             rx1:t1.rx, ry1:t1.ry, rx2:rx2, ry2:ry2, gap:RING_GAP,
+             n1:m.ring1.length, n2:m.ring2.length, rings:2,
+             clashes:0, outside:0, labelBox:[]};
+
+    /* measure what was drawn: a label may not sit on another label or on
+       another node, and nothing may leave the viewBox */
+    var labs = [], all = m.ring1.concat(m.ring2), i, j;
+    all.forEach(function(it){
+      labs.push({k:it.key, x:it.lx - it.lw / 2, y:it.ly - 7.6, w:it.lw, h:8.6});
+    });
+    labs.forEach(function(a){
+      if(a.x < 0 || a.x + a.w > W || a.y < 0 || a.y + a.h > H) g.outside++;
+      for(i = 0; i < all.length; i++){
+        var c2 = all[i];
+        if(c2.key === a.k) continue;
+        var qx = Math.max(a.x, Math.min(a.x + a.w, c2.x));
+        var qy = Math.max(a.y, Math.min(a.y + a.h, c2.y));
+        if((qx - c2.x) * (qx - c2.x) + (qy - c2.y) * (qy - c2.y) < c2.r * c2.r) g.clashes++;
+      }
+      for(j = 0; j < labs.length; j++){
+        if(labs[j] === a) continue;
+        var b = labs[j];
+        if(!(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y)){
+          if(labs.indexOf(a) < j) g.clashes++;
+        }
+      }
+    });
+    g.labelBox = labs;
+    m.geo = g;
+    return g;
   }
 
   /* ---------- 6. drawing ------------------------------------------- */
-  function connPath(a, b){
-    var ax = a.x + a.w / 2, ay = a.y + a.h / 2;
-    var bx = b.x + b.w / 2, by = b.y + b.h / 2;
-    var dx = bx - ax, dy = by - ay;
-    var t1 = 0, t2 = 1;
-    if(dx !== 0 || dy !== 0){
-      var tx = dx === 0 ? 1e9 : (a.w / 2) / Math.abs(dx);
-      var ty = dy === 0 ? 1e9 : (a.h / 2) / Math.abs(dy);
-      t1 = Math.min(tx, ty);
-      var ux = dx === 0 ? 1e9 : (b.w / 2) / Math.abs(dx);
-      var uy = dy === 0 ? 1e9 : (b.h / 2) / Math.abs(dy);
-      t2 = 1 - Math.min(ux, uy);
-    }
-    return [ax + dx * t1, ay + dy * t1, ax + dx * t2, ay + dy * t2];
+  /* one arrowhead per link type, in the type colour, so a link can be read
+     without a legend */
+  var MK = [{k:'customers', c:UP}, {k:'suppliers', c:BLUE}, {k:'competitors', c:DN},
+            {k:'partners', c:AMB}, {k:'holders', c:GREY}, {k:'laws', c:AMB}];
+  function f1(v){ return (Math.round(v * 10) / 10).toFixed(1); }
+  function mkOf(k){
+    for(var i = 0; i < MK.length; i++){ if(MK[i].k === k) return MK[i]; }
+    return MK[0];
   }
-  /* one thin line from the centre box out to a cluster hub, leaving the box at
-     its edge and ending on the hub itself */
-  function hubPath(cbox, hx, hy){
-    var ax = cbox.x + cbox.w / 2, ay = cbox.y + cbox.h / 2;
-    var dx = hx - ax, dy = hy - ay, t1 = 0;
-    if(dx !== 0 || dy !== 0){
-      var tx = dx === 0 ? 1e9 : (cbox.w / 2) / Math.abs(dx);
-      var ty = dy === 0 ? 1e9 : (cbox.h / 2) / Math.abs(dy);
-      t1 = Math.min(tx, ty);
-    }
-    return [ax + dx * t1, ay + dy * t1, hx, hy];
+  function defsSVG(){
+    var out = '<defs>';
+    MK.forEach(function(tp){
+      out += '<marker id="mk-' + tp.k + '" viewBox="0 0 6 6" refX="5.7" refY="3"' +
+        ' markerWidth="5.4" markerHeight="5.4" orient="auto">' +
+        '<path d="M0.4 0.6 L5.7 3 L0.4 5.4 z" fill="' + tp.c + '"/></marker>';
+    });
+    return out + '</defs>';
   }
-  function nodeHTML(it, x, y, w, h, fs){
-    var cls = 'nd' + (it.st ? ' st-' + it.st : '');
-    var op = (it.st === 'off') ? .3 : ((it.st === 'hop2') ? .62 : 1);
-    var lbl = String(it.label || '?');
-    var bw = Math.max(w, Math.round(lbl.length * fs * 0.62 + 7));
-    var hh = Math.round(h);
-    var out = '<g class="' + cls + '" data-k="' + t(it.key) + '" data-cl="' + t(it.cluster || '') +
-      '" data-st="' + t(it.st || '') + '" data-co="' + (it.co ? 1 : 0) + '"' +
-      (it.st === 'off' || it.st === 'hop2' ? ' opacity="' + op + '"' : '') + '>' +
-      '<title>' + t(it.name + (it.code ? ' ' + it.code : '') +
-        (it.reason ? ' | ' + it.reason : '')) + '</title>' +
-      '<rect class="nb" x="' + (x - bw / 2).toFixed(1) + '" y="' + (y - hh / 2).toFixed(1) +
-      '" width="' + bw + '" height="' + hh + '" rx="1.5" stroke="' + it.colour + '"/>';
-    if(it.st === 'direct' || it.st === 'hop1' || it.st === 'hop2'){
-      out += '<rect class="ar ' + (it.st === 'direct' ? 'd' : (it.st === 'hop1' ? 'h1' : 'h2')) +
-        '" x="' + (x - bw / 2 - 2).toFixed(1) + '" y="' + (y - hh / 2 - 2).toFixed(1) +
-        '" width="' + (bw + 4) + '" height="' + (hh + 4) + '" rx="2"/>';
+  function nodePos(m, key){
+    if(key === m.centre.key) return {x:m.geo.cx, y:m.geo.cy, r:m.geo.rC + 3};
+    var all = m.ring1.concat(m.ring2);
+    for(var i = 0; i < all.length; i++){
+      if(all[i].key === key) return {x:all[i].x, y:all[i].y, r:all[i].r + 5};
     }
-    out += '<text class="nt" x="' + x.toFixed(1) + '" y="' + (y + fs * 0.36).toFixed(1) +
-      '" text-anchor="middle" fill="' + it.colour + '">' + t(lbl) + '</text></g>';
-    return out;
+    return null;
   }
-  function clusterHead(c, x, ty, anchor){
-    return '<text class="ct' + (c.promo ? ' promo' : '') + '" x="' + x.toFixed(1) + '" y="' +
-      ty.toFixed(1) + '"' + (anchor ? ' text-anchor="' + anchor + '"' : '') + '>' +
-      t(c.title) + '<tspan class="cc" dx="3">(' + c.shown + '/' + (c.total || 0) +
+  /* a quadratic bezier from the edge of one node to the edge of the next, bowed
+     off the straight line so two links never read as one */
+  function bez(a, b, bow){
+    var dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = dx / d, uy = dy / d;
+    var x1 = a.x + ux * a.r, y1 = a.y + uy * a.r;
+    var x2 = b.x - ux * b.r, y2 = b.y - uy * b.r;
+    var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    return 'M' + f1(x1) + ' ' + f1(y1) + ' Q' + f1(mx - uy * d * bow) + ' ' +
+      f1(my + ux * d * bow) + ' ' + f1(x2) + ' ' + f1(y2);
+  }
+  function ringsSVG(m){
+    var g = m.geo, out = '';
+    out += '<ellipse class="ring r2" cx="' + f1(g.cx) + '" cy="' + f1(g.cy) + '" rx="' +
+      f1(g.rx2) + '" ry="' + f1(g.ry2) + '"/>';
+    out += '<ellipse class="ring r1" cx="' + f1(g.cx) + '" cy="' + f1(g.cy) + '" rx="' +
+      f1(g.rx1) + '" ry="' + f1(g.ry1) + '"/>';
+    out += '<text class="rl" x="' + f1(g.cx - g.rx1 - 12) + '" y="' + f1(g.cy + 2.6) +
+      '" text-anchor="end">RING 1<tspan class="rn" dx="4">(' + m.ring1.length +
       ')</tspan></text>';
-  }
-  function clusterSVG(m, b, s){
-    var c = b.c, f = b.f, ss = b.s || s;
-    var cx = b.x, cy = b.y;
-    var out = '<g class="clgrp" data-cl="' + t(c.key) + '" data-kind="' + t(c.kind) + '">' +
-      '<title>' + t(c.tip || (c.title + ' ' + c.shown + ' of ' + (c.total || 0) +
-        ' drawn from ' + (c.file || 'the record'))) + '</title>';
-
-    /* the two text clusters and the bar cluster stay framed panels: a headline
-       list and three bars are not radial data */
-    if(f.kind === 'text' || f.kind === 'bars'){
-      var rx = Math.round(cx - f.w / 2), ry = Math.round(cy - f.h / 2);
-      out += clusterHead(c, rx, ry - 4.5, '');
-      out += '<rect class="cb2" x="' + rx + '" y="' + ry + '" width="' + f.w +
-        '" height="' + f.h + '" rx="2"/>';
-      if(c.state === 'fail'){
-        out += '<text class="notread" x="' + (rx + 8) + '" y="' + (ry + 17).toFixed(1) +
-          '">FILE NOT READ</text>';
-        out += '<text class="notread" x="' + (rx + 8) + '" y="' + (ry + 29).toFixed(1) + '">' +
-          t(cut(c.err || 'no detail', 30)) + '</text>';
-        return out + '</g>';
-      }
-      if(!c.shown){
-        out += '<text class="none" x="' + cx.toFixed(1) + '" y="' + (cy + 3).toFixed(1) +
-          '" text-anchor="middle">NONE</text>';
-        return out + '</g>';
-      }
-      if(f.kind === 'text'){
-        var ty2 = ry + 11 * ss, lim = Math.max(10, Math.floor((f.w - 20) / (6.9 * ss * 0.60)));
-        c.items.forEach(function(it){
-          out += '<g class="nd" data-k="' + t(it.key) + '" data-cl="' + t(c.key) + '" data-st="' +
-            t(it.st || '') + '" data-co="0"><title>' + t(it.name + ' | ' + it.reason) + '</title>' +
-            '<rect x="' + (rx + 4) + '" y="' + (ty2 - 7 * ss).toFixed(1) + '" width="' +
-            (f.w - 8) + '" height="' + (11 * ss).toFixed(1) + '" fill="transparent"/>' +
-            '<circle class="td" cx="' + (rx + 8) + '" cy="' + (ty2 - 2 * ss).toFixed(1) +
-            '" r="1.8" fill="' + it.colour + '"/>' +
-            '<text class="tl" x="' + (rx + 13) + '" y="' + ty2.toFixed(1) + '">' +
-            t(cut(it.label, lim)) + '</text></g>';
-          ty2 += 12 * ss;
-        });
-        return out + '</g>';
-      }
-      var bx = rx + 10, bwid = f.w - 20, nbar = c.items.length;
-      var slot = bwid / Math.max(1, nbar);
-      // a cluster with many items in a narrow slot gave "slot - 8" a negative value,
-      // and SVG rejects a negative width (console: "<rect> attribute width: -5.0").
-      // Floor it at 1px so the bar degenerates to a hairline instead of an error.
-      var barW = Math.max(1, Math.min(22 * ss, slot - 8));
-      var maxV = 0;
-      c.items.forEach(function(it){ maxV = Math.max(maxV, Math.abs(it.value || 0)); });
-      var base = ry + f.h - 12 * ss, hMax = Math.max(16, base - (ry + 12));
-      c.items.forEach(function(it, i){
-        var hgt = maxV > 0 ? Math.max(2, Math.round(Math.abs(it.value || 0) / maxV * hMax)) : 2;
-        var x = bx + slot * i + (slot - barW) / 2;
-        out += '<g class="nd" data-k="' + t(it.key) + '" data-cl="' + t(c.key) + '" data-co="0">' +
-          '<title>' + t(it.name + ' | ' + it.reason) + '</title>' +
-          '<rect class="br" x="' + x.toFixed(1) + '" y="' + (base - hgt) + '" width="' +
-          barW.toFixed(1) + '" height="' + hgt + '" fill="' + it.colour + '" opacity=".8"/>' +
-          '<text class="bv" x="' + (x + barW / 2).toFixed(1) + '" y="' + (base - hgt - 3) +
-          '" text-anchor="middle">' + t(fmtBig(it.value)) + '</text>' +
-          '<text class="bl" x="' + (x + barW / 2).toFixed(1) + '" y="' + (base + 8 * ss).toFixed(1) +
-          '" text-anchor="middle">' + t(it.label) + '</text></g>';
-      });
-      return out + '</g>';
+    out += '<text class="rl" x="' + f1(g.cx - g.rx2 - 12) + '" y="' + f1(g.cy + 2.6) +
+      '" text-anchor="end">RING 2<tspan class="rn" dx="4">(' + m.ring2.length +
+      ')</tspan></text>';
+    if(!m.ring2.length){
+      out += '<text class="none" x="' + f1(g.cx) + '" y="' + f1(g.cy + g.ry2 - 7) +
+        '" text-anchor="middle">NO 2-LINK NODES ON FILE</text>';
     }
-
-    /* radial: one hub at the cluster centre, a faint dashed ring at the node
-       radius, each node box on that ring, and a spoke from the hub to the box.
-       A cluster past ten nodes gets one inner ring and one outer ring. */
-    out += clusterHead(c, cx, cy - f.R + Math.max(9 * ss, 8), 'middle');
-    f.rings.forEach(function(rg){
-      out += '<circle class="cring' + (c.promo ? ' promo' : '') + '" cx="' + cx.toFixed(1) +
-        '" cy="' + cy.toFixed(1) + '" r="' + rg.r.toFixed(1) + '"/>';
-    });
-    var hubR = Math.max(2.6, 3.6 * ss);
-    if(c.state === 'fail'){
-      out += '<circle class="hub' + (c.promo ? ' promo' : '') + '" cx="' + cx.toFixed(1) +
-        '" cy="' + cy.toFixed(1) + '" r="' + hubR.toFixed(1) + '"/>';
-      out += '<text class="notread" x="' + cx.toFixed(1) + '" y="' + (cy + hubR + 10).toFixed(1) +
-        '" text-anchor="middle">FILE NOT READ</text>';
-      out += '<text class="notread" x="' + cx.toFixed(1) + '" y="' + (cy + hubR + 20).toFixed(1) +
-        '" text-anchor="middle">' + t(cut(c.err || 'no detail', 24)) + '</text>';
-      return out + '</g>';
-    }
-
-    var placed = [], nn = c.items.length;
-    if(f.rings.length === 1){
-      var r0 = f.rings[0].r;
-      c.items.forEach(function(it, i){
-        var ang = nn === 1 ? -Math.PI / 2 : (-Math.PI / 2 + (Math.PI * 2 / nn) * i);
-        placed.push({it:it, x:cx + Math.cos(ang) * r0, y:cy + Math.sin(ang) * r0});
-      });
-    } else {
-      var k = 0;
-      f.rings.forEach(function(rg, ri){
-        var cnt = Math.min(rg.n, nn - k);
-        if(cnt <= 0) return;
-        var off = ri === 0 ? Math.PI / Math.max(1, f.rings[f.rings.length - 1].n) : 0;
-        for(var i = 0; i < cnt; i++){
-          var ang = -Math.PI / 2 + (Math.PI * 2 / cnt) * i + off;
-          placed.push({it:c.items[k], x:cx + Math.cos(ang) * rg.r,
-                       y:cy + Math.sin(ang) * rg.r});
-          k++;
-        }
-      });
-    }
-    placed.forEach(function(p){
-      out += '<line class="sp' + (c.promo ? ' promo' : '') + '" x1="' + cx.toFixed(1) +
-        '" y1="' + cy.toFixed(1) + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) + '"/>';
-    });
-    out += '<circle class="hub' + (c.promo ? ' promo' : '') + '" cx="' + cx.toFixed(1) +
-      '" cy="' + cy.toFixed(1) + '" r="' + hubR.toFixed(1) + '"/>';
-    if(!nn){
-      out += '<text class="none" x="' + cx.toFixed(1) + '" y="' + (cy + hubR + 11).toFixed(1) +
-        '" text-anchor="middle">NONE</text>';
-      return out + '</g>';
-    }
-    placed.forEach(function(p){
-      out += nodeHTML(p.it, p.x, p.y, f.boxW, f.boxH, f.fs);
-    });
-    return out + '</g>';
-  }
-
-  function sparkSVG(m, x, y, w, h){
-    var d = m.spark;
-    var bars = (d && d.bars) || null;
-    if(!bars || !bars.length){
-      return '<text class="cnh" x="' + x + '" y="' + (y + h / 2 + 3) +
-        '">NO PRICE HISTORY ON FILE</text>';
-    }
-    var closes = bars.slice(-30).map(function(b){
-      return numv(b.c != null ? b.c : b.close);
-    }).filter(function(v){ return v != null; });
-    if(closes.length < 2) return '';
-    var lo = Math.min.apply(null, closes), hi = Math.max.apply(null, closes);
-    var rng = (hi - lo) || 1;
-    var pts = closes.map(function(v, i){
-      var px = x + (w * i / (closes.length - 1));
-      var py = y + h - ((v - lo) / rng) * h;
-      return px.toFixed(1) + ',' + py.toFixed(1);
-    }).join(' ');
-    var up = closes[closes.length - 1] >= closes[0];
-    return '<polyline class="spl" points="' + pts + '" stroke="' + (up ? UP : DN) + '"/>';
-  }
-  function centreSVG(m, s){
-    var c = m.centre, g = m.geo.cbox, pc = c.pct;
-    var strip = (pc == null || pc >= 0) ? '' : ' dn';
-    var hdr = (pc == null || pc >= 0) ? '#04120c' : '#2a0808';
-    var out = '<g class="ctr" data-k="' + t(c.key) + '">';
-    out += '<rect class="cbox" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="' +
-      g.h + '" rx="2"/>';
-    out += '<rect class="chd' + strip + '" x="' + g.x + '" y="' + g.y + '" width="' + g.w +
-      '" height="' + Math.round(15 * s) + '" rx="2"/>';
-    out += '<text class="ctk" x="' + (g.x + 7) + '" y="' + (g.y + 11.2 * s).toFixed(1) +
-      '" fill="' + hdr + '">' + t(c.tk) + '</text>';
-    out += '<text class="cex" x="' + (g.x + g.w - 7) + '" y="' + (g.y + 10.8 * s).toFixed(1) +
-      '" fill="' + hdr + '">' + t(c.ex) + '</text>';
-    out += '<text class="cnm" x="' + (g.x + 7) + '" y="' + (g.y + 27 * s).toFixed(1) + '">' +
-      t(cut(c.name, 36)) + '</text>';
-    var py = g.y + 44 * s;
-    out += '<text class="cpx" x="' + (g.x + 7) + '" y="' + py.toFixed(1) + '">' +
-      t(fmtP(c.price)) + '</text>';
-    out += '<text class="ccy" x="' + (g.x + 9 + String(fmtP(c.price)).length * 8.4 * s).toFixed(1) +
-      '" y="' + py.toFixed(1) + '">' + t(c.currency || '') + '</text>';
-    out += '<text class="cch" x="' + (g.x + g.w - 7) + '" y="' + (py - 1).toFixed(1) +
-      '" text-anchor="end" fill="' +
-      (pc == null ? GREY : (pc > 0 ? UP : (pc < 0 ? DN : GREY))) + '">' + t(fmtPct(pc)) +
-      '</text>';
-    out += sparkSVG(m, g.x + 7, g.y + 50 * s, g.w - 14, 20 * s);
-    out += '<text class="cas" x="' + (g.x + 7) + '" y="' + (g.y + g.h - 6) + '">' +
-      t((c.prev != null ? 'PREV ' + fmtP(c.prev) + '  ' : '') +
-        (c.asOf ? 'AS OF ' + c.asOf : '')) + '</text>';
-    out += '</g>';
     return out;
+  }
+  function edgesSVG(m){
+    var out = '';
+    m.edges.forEach(function(e){
+      var a = nodePos(m, e.a), b = nodePos(m, e.b);
+      if(!a || !b) return;
+      var tp = mkOf(e.mk);
+      var cls = 'eg' + (e.hop === 2 ? ' h2' : '') + (e.mk === 'laws' ? ' law' : '');
+      out += '<path class="' + cls + '" data-t="' + t(e.mk) + '" data-a="' + t(e.a) +
+        '" data-b="' + t(e.b) + '" d="' + bez(a, b, e.hop === 2 ? 0.15 : 0.1) +
+        '" stroke="' + tp.c + '" marker-end="url(#mk-' + tp.k + ')"/>';
+    });
+    return out;
+  }
+  function leavesSVG(m){
+    var out = '';
+    [m.ring1, m.ring2].forEach(function(arr){
+      arr.forEach(function(it){
+        var cls = 'nd' + (it.st ? ' st-' + it.st : '') +
+          (G.cat && G.cat === it.cat ? ' cat-on' : '') + (it.hop === 2 ? ' h2' : '');
+        out += '<g class="' + cls + '" data-k="' + t(it.key) + '" data-cl="' + t(it.cat) +
+          '" data-st="' + t(it.st || '') + '" data-hop="' + it.hop + '" data-ring="' +
+          it.ring + '"><title>' + t(it.name + (it.code ? ' ' + it.code +
+          (it.ex ? ' ' + it.ex : '') : '') + ' | ' + it.link + ' | HOP ' + it.hop +
+          (it.src ? ' | ' + it.src : '')) + '</title>';
+        if(it.st === 'direct' || it.st === 'hop1' || it.st === 'hop2'){
+          out += '<circle class="hl ' + it.st + '" cx="' + f1(it.x) + '" cy="' + f1(it.y) +
+            '" r="' + f1(it.r + 3.6) + '"/>';
+        }
+        out += '<circle class="lf' + (it.hop === 2 ? ' h2' : '') + '" cx="' + f1(it.x) +
+          '" cy="' + f1(it.y) + '" r="' + f1(it.r) + '" stroke="' + it.colour + '"/>' +
+          '<text class="nl" x="' + f1(it.lx) + '" y="' + f1(it.ly) + '">' +
+          t(cut(it.label, 10)) + '</text></g>';
+      });
+    });
+    return out;
+  }
+  function centreSVG(m){
+    var g = m.geo, c = m.centre, pc = c.pct, out = '';
+    var tfs = Math.max(7.4, Math.min(12, 40 / (Math.max(3, String(c.tk).length) * 0.62)));
+    var px = fmtP(c.price), bits = [];
+    if(c.ex) bits.push(c.ex);
+    if(px !== DASH) bits.push(px + (c.currency ? ' ' + c.currency : ''));
+    if(pc != null) bits.push(fmtPct(pc));
+    out += '<g class="ctr" data-k="' + t(c.key) + '">';
+    out += '<circle class="cdc" cx="' + f1(g.cx) + '" cy="' + f1(g.cy) + '" r="' +
+      f1(g.rC) + '"/>';
+    out += '<text class="ctk" x="' + f1(g.cx) + '" y="' + f1(g.cy + tfs * 0.36) +
+      '" style="font-size:' + (Math.round(tfs * 10) / 10) + 'px">' + t(String(c.tk)) +
+      '</text>';
+    out += '<text class="cnm" x="' + f1(g.cx) + '" y="' + f1(g.cy + g.rC + 13.5) + '">' +
+      t(cut(c.name, 44)) + '</text>';
+    out += '<text class="cpx" x="' + f1(g.cx) + '" y="' + f1(g.cy + g.rC + 24) + '">' +
+      t(bits.join('  ')) + '</text>';
+    return out + '</g>';
   }
   function svgAll(m, W, H){
-    var s = m.geo.s, out = '<g class="gv">';
-    m.geo.boxes.forEach(function(b){
-      var ex = b.x, ey = b.y;
-      if(b.f && (b.f.kind === 'text' || b.f.kind === 'bars')){
-        var pb = {x:b.x - b.w / 2, y:b.y - b.h / 2, w:b.w, h:b.h};
-        var pp = connPath(m.geo.cbox, pb);
-        ex = pp[2]; ey = pp[3];
-      }
-      var p = hubPath(m.geo.cbox, ex, ey);
-      out += '<path class="cn" data-cl="' + t(b.key) + '" d="M' + p[0].toFixed(1) + ' ' +
-        p[1].toFixed(1) + ' L' + p[2].toFixed(1) + ' ' + p[3].toFixed(1) + '"/>';
-    });
-    m.geo.boxes.forEach(function(b){ out += clusterSVG(m, b, s); });
-    out += centreSVG(m, s);
-    return out + '</g>';
+    return defsSVG() + '<g class="gv">' + ringsSVG(m) + edgesSVG(m) + leavesSVG(m) +
+      centreSVG(m) + '</g>';
   }
 
   /* ---------- 7. header and footer lines --------------------------- */
@@ -1707,13 +1369,12 @@
       (bad.length ? ' | <b>' + bad.join(' ') + ' NOT READ</b>' : '');
   }
   function nodeCount(m){
-    var n = 0;
-    m.clusters.forEach(function(c){ n += c.items.length; });
-    return n;
+    return (m.ring1 ? m.ring1.length : 0) + (m.ring2 ? m.ring2.length : 0);
   }
   function headerMeta(m){
-    return m.clusters.length + ' CLUSTERS | ' + nodeCount(m) + ' NODES | CAP ' + G.cap +
-      (m.dropped ? ' | ' + m.dropped + ' DROPPED' : '');
+    return '2 RINGS | ' + nodeCount(m) + ' NODES | ' + (m.edges ? m.edges.length : 0) +
+      ' EDGES | RING 1 ' + (m.ring1 ? m.ring1.length : 0) + ' RING 2 ' +
+      (m.ring2 ? m.ring2.length : 0) + (m.dropped ? ' | ' + m.dropped + ' DROPPED' : '');
   }
   function subHTML(m){
     /* Emptied on purpose. The node cap and the files read already print in the
@@ -1790,44 +1451,34 @@
   }
   function markNode(svg){
     if(!svg) return;
-    Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
-      if(el.getAttribute('data-k') === G.selKey) el.classList.add('on');
+    Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
+      if(G.selKey && el.getAttribute('data-k') === G.selKey) el.classList.add('on');
       else el.classList.remove('on');
     });
   }
-  /* hover lifts the cluster the node belongs to and lets the rest recede */
-  function hoverNode(svg, key, cl){
+  /* hover lifts the node and the link it sits on, and lets the rest recede */
+  function hoverNode(svg, key){
     Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
-      var same = el.getAttribute('data-k') === key;
-      var sib = cl && el.getAttribute('data-cl') === cl;
-      el.classList.toggle('hv', same);
-      el.classList.toggle('dim', !same && !sib);
+      if(el.getAttribute('data-k') === key) el.classList.add('hv');
+      else el.classList.add('dim');
     });
-    Array.prototype.forEach.call(svg.querySelectorAll('path.cn'), function(el){
-      el.classList.toggle('hi', !!cl && el.getAttribute('data-cl') === cl);
-    });
-    Array.prototype.forEach.call(svg.querySelectorAll('circle.cring, rect.cb2'), function(el){
-      var grp = el.parentNode;
-      el.classList.toggle('hi', !!cl && grp && grp.getAttribute('data-cl') === cl);
+    Array.prototype.forEach.call(svg.querySelectorAll('path.eg'), function(el){
+      if(el.getAttribute('data-a') === key || el.getAttribute('data-b') === key)
+        el.classList.add('hv');
+      else el.classList.add('dim');
     });
   }
   function clearHover(svg){
-    Array.prototype.forEach.call(svg.querySelectorAll('g.nd'), function(el){
-      el.classList.remove('dim');
+    Array.prototype.forEach.call(svg.querySelectorAll('g.nd, path.eg'), function(el){
       el.classList.remove('hv');
-    });
-    Array.prototype.forEach.call(svg.querySelectorAll('path.cn'), function(el){
-      el.classList.remove('hi');
-    });
-    Array.prototype.forEach.call(svg.querySelectorAll('circle.cring, rect.cb2'), function(el){
-      el.classList.remove('hi');
+      el.classList.remove('dim');
     });
   }
   function wireNodes(svg){
     Array.prototype.forEach.call(svg.querySelectorAll('.nd'), function(el){
       var key = el.getAttribute('data-k') || '';
       var cl = el.getAttribute('data-cl') || '';
-      el.addEventListener('mouseenter', function(){ hoverNode(svg, key, cl); });
+      el.addEventListener('mouseenter', function(){ hoverNode(svg, key); });
       el.addEventListener('mouseleave', function(){ clearHover(svg); });
       el.addEventListener('click', function(ev){
         if(MAP.moved) return;
@@ -1842,10 +1493,8 @@
     var m = G.model;
     if(!m || !key) return null;
     if(m.centre.key === key) return m.centre;
-    for(var i = 0; i < m.clusters.length; i++){
-      var c = m.clusters[i];
-      for(var j = 0; j < c.items.length; j++) if(c.items[j].key === key) return c.items[j];
-    }
+    var all = m.ring1.concat(m.ring2);
+    for(var i = 0; i < all.length; i++){ if(all[i].key === key) return all[i]; }
     return null;
   }
   function actBasis(n){
@@ -1859,15 +1508,9 @@
     if(n.st === 'hop2') return 'HOP 2, ONE LINK FURTHER, DIMMER';
     return 'NOT REACHED BY THIS ACT';
   }
-  function paintSel(){
-    var box = document.getElementById('b_sel');
-    if(!box) return;
-    var n = findNode(G.selKey);
-    if(!n){
-      box.innerHTML = '<div class="emp"><b>NO NODE PINNED</b> click a node or a line on the map</div>';
-      meta('sel', DASH);
-      return;
-    }
+  /* one pinned node: name, code, board, cluster, hop, the Act's verdict, the
+     recorded note and the source it was read from */
+  function nodePane(box, n){
     var isC = String(n.key || '').indexOf('C:') === 0;
     var h = '';
     h += '<div class="srow"><span class="sk">NAME</span><span class="sv clip" title="' +
@@ -1879,6 +1522,8 @@
         ' ' + t(n.currency || '') + '</span><span class="sk sk2">' + t(fmtPct(n.pct)) + '</span></div>';
       h += '<div class="srow"><span class="sk">SECTOR</span><span class="sv dm">' +
         t(n.sector || DASH) + '</span></div>';
+      h += '<div class="srow"><span class="sk">AS OF</span><span class="sv dm">' +
+        t(n.asOf || DASH) + '</span></div>';
       h += '<div class="srow"><span class="sk">RECORD</span><span class="sv dm">' +
         recCount(n.rec) + ' LINKS ON FILE</span></div>';
       box.innerHTML = h;
@@ -1888,163 +1533,95 @@
     h += '<div class="srow"><span class="sk">CLUSTER</span><span class="sv wr">' +
       t(String(n.cluster || '').toUpperCase()) + '</span><span class="sk sk2">' +
       t(n.link || '') + '</span></div>';
-    if(n.co){
+    if(n.hop){
       h += '<div class="srow"><span class="sk">HOP</span><span class="sv dm">' +
         (n.hop || 1) + '</span></div>';
-      if(G.law){
-        h += '<div class="srow"><span class="sk">ACT</span><span class="sv ' +
-          (n.st === 'direct' ? 'wr' : 'dm') + '" title="' + t(actBasis(n)) + '">' +
-          t(actBasis(n)) + '</span></div>';
-      }
+    }
+    if(G.law && n.co){
+      h += '<div class="srow"><span class="sk">ACT</span><span class="sv ' +
+        (n.st === 'direct' ? 'wr' : 'dm') + '" title="' + t(actBasis(n)) + '">' +
+        t(actBasis(n)) + '</span></div>';
     }
     h += '<div class="srow"><span class="sk">NOTE</span><span class="sv clip" title="' +
       t(n.reason || '') + '">' + t(n.reason || 'none recorded') + '</span></div>';
     h += '<div class="srow"><span class="sk">SOURCE</span><span class="sv dm" title="' +
       t(n.src || '') + '">' + t(n.src || DASH) + '</span></div>';
     box.innerHTML = h;
-    meta('sel', String(n.cluster || '').toUpperCase() + (n.co ? ' | HOP ' + (n.hop || 1) : ''));
+    meta('sel', String(n.cluster || '').toUpperCase() + (n.hop ? ' | HOP ' + n.hop : ''));
   }
 
-  /* ---------- 9. draw ------------------------------------------- */
-  /* ---------- LAWS ON THIS SECURITY, compact readout ----------
-   Direction comes from the Act operative verb and nothing else: a levy imposed
-   or raised is a cost the company bears, a levy removed or an exemption granted
-   is relief. Where the verb does not settle it the row says NOT STATED rather
-   than guessing. This is not a price view and the panel says so underneath. */
-  function lawDirection(l){
-    var m = String((l && l.mechanism) || '').toLowerCase().replace(/^[\s"'(]+/, '');
-    if(/^(imposes|adds|introduces|increases|raises|charges|extends|requires)\b/.test(m)) return {k:'neg', t:'COST'};
-    /* "Sets" and "Inserts" are only a cost when the object is a rate or a payment.
-       "Sets the permitted methods for selling a shareholding" is not a cost, so
-       the object has to name the charge. */
-    if(/^(sets|inserts)\b[^.]*\b(excise|duty|lev(y|ies)|tax|fee|rate|shall pay|each pay)\b/.test(m)) return {k:'neg', t:'COST'};
-    if(/^(exempts|removes|deletes|reduces|cuts|lowers|abolishes|grants)\b/.test(m)) return {k:'pos', t:'RELIEF'};
-    /* "Repeals" says nothing on its own: repealing a levy is relief, repealing a
-       fund and replacing it with a mandatory contribution is a cost. So it is
-       not treated as relief, and the object of the repeal decides. */
-    if(/^repeals?\b/.test(m)){
-      if(/\b(imposes|requires|statutory|shall pay|contribut|mandatory)\b/.test(m)) return {k:'neg', t:'COST'};
-      return {k:'uns', t:'NOT STATED'};
+  /* one category from the chip row: a heading with the count, then a compact
+     record per row carrying name, ticker and board where they are known, the
+     link type, the hop and the source. A category with nothing behind it says
+     so here rather than leaving the pane blank. */
+  function catPane(box, k){
+    var m = G.model, c = null;
+    if(m){ m.cats.forEach(function(x){ if(x.k === k) c = x; }); }
+    if(!c){
+      box.innerHTML = '<div class="emp"><b>NO CATEGORY</b> ' + t(String(k || '').toUpperCase()) +
+        ' is not on this map</div>';
+      meta('sel', String(k || '').toUpperCase());
+      return;
     }
-    if(/\b(and requires|as well as|while also)\b/.test(m)) return {k:'mix', t:'MIXED'};
-    return {k:'uns', t:'NOT STATED'};
+    var count = c.state === 'fail' ? 'FILE NOT READ'
+      : (c.total + (c.k === 'laws' ? ' OF ' + (c.ofTotal || 0) + ' ACTS' : ' ON FILE'));
+    var head = '<div class="chead"><b>' + t(c.n) + '</b><span class="cc">' + t(count) +
+      '</span></div>';
+    meta('sel', c.n + ' | ' + count);
+    if(c.state === 'fail'){
+      box.innerHTML = head + '<div class="fail"><b>FILE NOT READ</b> ' + t(c.file) + ': ' +
+        t(c.err || 'not loaded') + '</div>';
+      return;
+    }
+    if(!c.items.length){
+      box.innerHTML = head + '<div class="emp"><b>NONE ON FILE</b> ' + t(c.emptyMsg) + '</div>';
+      return;
+    }
+    var h = head;
+    c.items.forEach(function(it){
+      var tag = it.code ? (it.code + (it.ex ? ' ' + it.ex : '')) : 'NO TICKER';
+      h += '<div class="crow" data-k="' + t(it.key) + '">' +
+        '<div class="r1"><span class="rnm" title="' + t(it.name) + '">' + t(it.name) +
+        '</span><span class="rtk">' + t(tag) + '</span></div>' +
+        '<div class="r2"><span class="rl2">' + t(it.link) + '</span>' +
+        '<span class="rh">HOP ' + it.hop + '</span>' +
+        '<span class="rsrc" title="' + t(it.src || '') + '">' +
+        t(it.src || 'no source on file') + '</span></div></div>';
+    });
+    if(c.items.length < c.total){
+      h += '<div class="cnote">' + c.items.length + ' OF ' + c.total +
+        ' SHOWN, THE RING HOLDS ' + c.items.length + '</div>';
+    }
+    box.innerHTML = h;
   }
-  function renderLaws(row){
-    var box = document.getElementById('b_law'), meta = document.getElementById('m_law');
+
+  function paintSel(){
+    var box = document.getElementById('b_sel');
     if(!box) return;
-    if(LAW.st === 'failed'){
-      box.innerHTML = '<div class="lawempty">gov_laws_KE.json could not be read, so no Act is claimed against this security.</div>';
-      if(meta) meta.textContent = 'ACT FILE NOT READ';
-      return;
-    }
-    if(!row){
-      box.innerHTML = '<div class="lawempty">Pick a company to see the Acts that name it.</div>';
-      if(meta) meta.textContent = '';
-      return;
-    }
-    var tk = rowTicker(row), sec = String(row.sector || '').toUpperCase(), ex = String(row.ex || '').toUpperCase();
-    var hits = (LAW.list || []).filter(function(l){
-      var lt = (l.tickers || []).map(function(x){ return String(x).toUpperCase(); });
-      var ls = (l.sectors || []).map(function(x){ return String(x).toUpperCase(); });
-      var lex = String(l.exchange || LAW.ex || 'NSE').toUpperCase();
-      if(lt.indexOf(tk) >= 0) return true;
-      if(sec && ls.indexOf(sec) >= 0) return true;
-      if(lt.indexOf('ALL') >= 0 && lex === ex) return true;
-      return false;
-    });
-    hits.sort(function(a, b){ return (Number(b.year) || 0) - (Number(a.year) || 0); });
-    if(meta) meta.textContent = hits.length + ' OF ' + (LAW.list || []).length + ' ACTS';
-    if(!hits.length){
-      box.innerHTML = '<div class="lawempty">No Act on file names this security or its sector.</div>';
-      return;
-    }
-    box.innerHTML = hits.map(function(l){
-      var d = lawDirection(l), st = String(l.status || '').toLowerCase();
-      var mech = String(l.mechanism || '').replace(/\s+/g, ' ').trim();
-      return '<div class="lawrow st-' + esc(st) + '">' +
-               '<div><div class="lh"><span class="lc">' + esc(lawCode(l.id, l.year)) + '</span>' +
-                 '<span class="ly">' + esc(String(l.year || '')) +
-                   (st && st !== 'enacted' ? ' ' + esc(st.toUpperCase()) : '') + '</span></div>' +
-                 '<div class="lm" title="' + esc(mech) + '">' + esc(mech) + '</div></div>' +
-               '<span class="dir ' + d.k + '">' + d.t + '</span></div>';
-    }).join('') +
-    '<div class="lawbasis">DIRECTION IS READ FROM THE OPERATIVE VERB OF THE ACT: A LEVY IMPOSED IS A COST TO THE COMPANY, A LEVY REMOVED IS RELIEF. IT IS NOT A PRICE VIEW.</div>';
+    var n = findNode(G.selKey);
+    if(n){ nodePane(box, n); return; }
+    if(G.cat){ catPane(box, G.cat); return; }
+    if(G.model && G.model.centre){ nodePane(box, G.model.centre); return; }
+    box.innerHTML = '<div class="emp"><b>NO MAP</b> this security has no relationship ' +
+      'record to draw</div>';
+    meta('sel', DASH);
   }
-
-  function renderMap(box){
-    var m = buildClusters(G.row);
-    try{ renderLaws(G.row); }catch(e){}
-    G.model = m;
-    trans(m);
-    G.tm = m.tm;
-    box.innerHTML = '<div class="gwrap"></div><div class="gsub" id="gsub">' + subHTML(m) +
-      '</div>';
-    var wrap = box.querySelector('.gwrap');
-    function run(){
-      var r = wrap.getBoundingClientRect();
-      var w = Math.round(r.width || box.clientWidth || 600);
-      var hh = Math.round(r.height || box.clientHeight || 300);
-      if(w < 80 || hh < 80) return;
-      layoutMap(m, w, hh);
-      wrap.innerHTML = '<svg class="gsvg" viewBox="0 0 ' + w + ' ' + hh + '" width="' + w +
-        '" height="' + hh + '">' + svgAll(m, w, hh) + '</svg>';
-      var svg = wrap.querySelector('.gsvg');
-      MAP.svg = svg;
-      applyView(svg);
-      wirePan(svg);
-      wireNodes(svg);
-      markNode(svg);
-      var cm = document.getElementById('m_rel');
-      if(cm) cm.textContent = nd(headerMeta(m));
-      var gs = document.getElementById('gsub');
-      if(gs) gs.innerHTML = subHTML(m);
-      G.geo = m.geo;
-    }
-    run();
-    PAINT.rel = run;
-    meta('rel', headerMeta(m));
-    paintSel();
-    paintAct();
-  }
-  function drawRel(box, row, relFile, rec){
-    G.row = row;
-    G.rec = rec;
-    G.selKey = '';
-    G.model = null;
-    G.tm = null;
-    MAP.k = 1; MAP.x = 0; MAP.y = 0;
-    if(REL_ST[row.ex] === 'failed'){
-      box.innerHTML = failBox('RELATIONSHIPS', 'relationships_' + row.ex +
-        '.json not loaded: ' + readErr(sd('relationships_' + row.ex + '.json')));
-      meta('rel', 'FILE NOT READ');
-      paintSel();
-      paintAct();
-      return;
-    }
-    renderMap(box);
-  }
-  function setHop(n){
-    G.hops = n === 2 ? 2 : 1;
-    Array.prototype.forEach.call(document.querySelectorAll('#c_hop .hp'), function(x){
-      x.setAttribute('aria-pressed', Number(x.getAttribute('data-hop')) === G.hops ? 'true' : 'false');
-    });
-  }
-  function wireGraphControls(){
-    Array.prototype.forEach.call(document.querySelectorAll('#c_hop .hp'), function(b){
-      b.addEventListener('click', function(){
-        setHop(Number(b.getAttribute('data-hop')));
-        redrawGraph();
-      });
-    });
+  function paintChips(){
     Array.prototype.forEach.call(document.querySelectorAll('#c_type .ft'), function(b){
       b.addEventListener('click', function(){
         var k = b.getAttribute('data-t');
-        var on = G.types[k];
-        var live = relTypes().filter(function(tp){ return G.types[tp.k]; }).length;
-        if(on && live <= 1) return;
-        G.types[k] = !on;
-        b.setAttribute('aria-pressed', G.types[k] ? 'true' : 'false');
-        redrawGraph();
+        G.cat = (G.cat === k) ? '' : k;
+        G.selKey = '';
+        paintChips();
+        if(MAP.svg){
+          clearHover(MAP.svg);
+          Array.prototype.forEach.call(MAP.svg.querySelectorAll('g.nd'), function(el){
+            if(G.cat && el.getAttribute('data-cl') === G.cat) el.classList.add('cat-on');
+            else el.classList.remove('cat-on');
+          });
+          markNode(MAP.svg);
+        }
+        paintSel();
       });
     });
     var zo = document.getElementById('zout');
@@ -2290,9 +1867,8 @@
   }
   function clusterDump(m){
     if(!m) return [];
-    return m.clusters.map(function(c){
-      return {key:c.key, title:c.title, kind:c.kind, state:c.state,
-              shown:c.shown, total:(c.total || 0),
+    return m.cats.map(function(c){
+      return {key:c.k, title:c.n, state:c.state, shown:c.drawn, total:(c.total || 0),
               nodes:c.items.map(function(it){
                 return {label:it.label, code:it.code || '', name:it.name,
                         colour:it.colour, st:it.st || '', hop:it.hop || 0, co:!!it.co};
@@ -2316,24 +1892,15 @@
     var sub = document.getElementById('gsub'), wq = document.getElementById('webq');
     var claim = document.getElementById('claim'), ab = document.getElementById('actbar');
     var geo = (m && m.geo) ? {
-      w:m.geo.w, h:m.geo.h, scale:Math.round(m.geo.s * 1000) / 1000, tries:m.geo.tries,
-      overlaps:m.geo.overlaps, minGap:m.geo.minGap, minGapCentre:m.geo.minGapCentre,
-      circleGap:m.geo.gap, centre:m.geo.cbox,
-      boxes:m.geo.boxes.map(function(b){
-        return {key:b.key, title:b.c.title, kind:b.c.kind,
-                x:Math.round((b.x - b.R) * 10) / 10, y:Math.round((b.y - b.R) * 10) / 10,
-                w:Math.round(2 * b.R * 10) / 10, h:Math.round(2 * b.R * 10) / 10};
-      }),
-      circles:m.geo.boxes.map(function(b){
-        return {key:b.key, title:b.c.title, kind:b.c.kind,
-                cx:Math.round(b.x * 10) / 10, cy:Math.round(b.y * 10) / 10,
-                R:Math.round(b.R * 10) / 10,
-                hub:{x:Math.round(b.x * 10) / 10, y:Math.round(b.y * 10) / 10},
-                rings:(b.f.rings || []).map(function(rg){
-                  return {r:Math.round(rg.r * 10) / 10, nodes:rg.n};
-                }),
-                nodes:b.c.items.length, promo:!!b.c.promo, seed:b.c.seed};
-      })
+      w:m.geo.w, h:m.geo.h, rings:m.geo.rings,
+      centre:{x:Math.round(m.geo.cx * 10) / 10, y:Math.round(m.geo.cy * 10) / 10,
+              r:m.geo.rC},
+      ring1:{rx:Math.round(m.geo.rx1 * 10) / 10, ry:Math.round(m.geo.ry1 * 10) / 10,
+             nodes:m.geo.n1, leaf:Math.round(m.geo.leaf1 * 10) / 10},
+      ring2:{rx:Math.round(m.geo.rx2 * 10) / 10, ry:Math.round(m.geo.ry2 * 10) / 10,
+             nodes:m.geo.n2, leaf:Math.round(m.geo.leaf2 * 10) / 10},
+      labelClashes:m.geo.clashes, outside:m.geo.outside,
+      apexGap:Math.round(m.geo.gap * 1000) / 1000
     } : null;
     return {
       ticker: CUR ? rowTicker(CUR) : '', ex: CUR ? CUR.ex : '',
@@ -2367,26 +1934,27 @@
         domHop1: document.querySelectorAll('#b_rel g.nd.st-hop1').length,
         domHop2: document.querySelectorAll('#b_rel g.nd.st-hop2').length,
         domOff: document.querySelectorAll('#b_rel g.nd[data-st="off"]').length,
-        domRings: document.querySelectorAll('#b_rel rect.ar').length
+        domRings: document.querySelectorAll('#b_rel circle.hl').length
       } : null,
       graph: {
-        hopMode:G.hops, cap:G.cap, truncated:m ? m.dropped : 0,
-        clusters:m ? m.clusters.length : 0, nodes:m ? nodeCount(m) : 0,
-        edges:m ? m.edges.length : 0,
+        hopMode:G.hops, cap:G.cap, truncated:m ? m.dropped : 0, rings:2,
+        ring1:m ? m.ring1.length : 0, ring2:m ? m.ring2.length : 0,
+        nodes:m ? nodeCount(m) : 0, edges:m && m.edges ? m.edges.length : 0,
         domNodes: document.querySelectorAll('#b_rel g.nd').length,
-        domClusters: document.querySelectorAll('#b_rel .clgrp').length,
-        domConnectors: document.querySelectorAll('#b_rel path.cn').length,
-        domHubs: document.querySelectorAll('#b_rel circle.hub').length,
-        domDashedRings: document.querySelectorAll('#b_rel circle.cring').length,
-        domSpokes: document.querySelectorAll('#b_rel line.sp').length,
-        domFrames: document.querySelectorAll('#b_rel rect.cb2').length,
-        domNodeBoxes: document.querySelectorAll('#b_rel rect.nb').length,
+        domLeaves: document.querySelectorAll('#b_rel circle.lf').length,
+        domEdges: document.querySelectorAll('#b_rel path.eg').length,
+        domArrows: document.querySelectorAll('#b_rel path.eg[marker-end]').length,
+        domRings: document.querySelectorAll('#b_rel ellipse.ring').length,
+        domRingLabels: document.querySelectorAll('#b_rel text.rl').length,
+        domCentre: document.querySelectorAll('#b_rel circle.cdc').length,
+        domMarkers: document.querySelectorAll('#b_rel marker').length,
+        domLeafLabels: document.querySelectorAll('#b_rel text.nl').length,
+        category:G.cat,
         zoom:{k:Math.round(MAP.k * 1000) / 1000, x:Math.round(MAP.x), y:Math.round(MAP.y)},
         pinned:G.selKey,
         files:EXS.map(function(ex){ return {ex:ex, state:REL_ST[ex] || 'unread'}; }),
         sub: sub ? sub.textContent : '',
-        types: relTypes().filter(function(tp){ return G.types[tp.k]; })
-          .map(function(tp){ return tp.k; })
+        types: CATS.map(function(c){ return c.k; })
       },
       geo: geo,
       sel: selInfo(),

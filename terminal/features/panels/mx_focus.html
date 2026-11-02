@@ -723,16 +723,38 @@
         foot.push("<span class='warn'>" + behindToday + " days before today</span>");
       }
     } else {
-      foot.push("<span class='warn'>as-of date not stated, so it is not treated as current</span>");
+      // removed (owner, 2026-11-03): an explanation of policy, not a figure
     }
-    if(agree === false && px != null && prev != null){
-      foot.push("<span class='warn'>chgPct disagrees with price - prevClose, so no level change is shown</span>");
-    }
+    // The "chgPct disagrees with price - prevClose, so no level change is shown" line
+    // was removed on the owner's instruction (2026-11-03). It explained how the panel
+    // rationalises its own figures; the panel prints figures, not explanations. The
+    // rule it described still applies: the level change is only printed when the row's
+    // own percent agrees with price minus previous close.
+    if(false && agree === false){}
     // No bar-date note here. It printed a trailing "later bar <date>" (or "history
     // ends <date>") after the figures, which is bookkeeping about how the quote and
     // the history were reconciled rather than something a reader acts on. Dropped
     // by the owner 2026-11-02. lastBar() stays: the rest of the panel still uses it.
     $("fxFoot").innerHTML = foot.join(" &middot; ");
+    // TELL THE SHELL HOW TALL THIS PANEL ACTUALLY IS, at the moment it renders.
+    // Timed passes in the shell kept measuring before the quote arrived, so the window
+    // stayed taller than the card and showed a grey band under it. The panel knows when
+    // it has drawn, so it reports the height of its own content and the shell sizes the
+    // window to it. Harmless when the panel is opened on its own.
+    try{
+      var _b = 0;
+      var _all = document.body.querySelectorAll("*");
+      for(var _i = 0; _i < _all.length; _i++){
+        var _el = _all[_i];
+        if(_el.children.length) continue;
+        if(!(_el.textContent || "").trim()) continue;
+        var _r = _el.getBoundingClientRect();
+        if(_r.height > 0 && _r.bottom > _b) _b = _r.bottom;
+      }
+      if(_b > 0 && window.parent && window.parent !== window){
+        window.parent.postMessage({mtPanelContent: Math.ceil(_b)}, "*");
+      }
+    }catch(e){}
     renderBlocks(row, sym, hist, hold, ana);
   }
 

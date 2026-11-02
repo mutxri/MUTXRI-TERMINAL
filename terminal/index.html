@@ -4286,6 +4286,31 @@ window.MTPanelWins = (function(){
     if(hb) hb.style.display = other ? 'none' : '';
     return !!other;
   }
+  // A PANEL THAT KNOWS ITS OWN HEIGHT SIZES ITS WINDOW. Timed passes measured before
+  // the quote arrived, so the window stayed taller than the card and grew a grey band
+  // underneath. The panel now posts the height of its content the moment it renders,
+  // and the window is set to it here. This is the authoritative signal; the timed
+  // passes stay only as a fallback for panels that do not post.
+  window.addEventListener('message', function(ev){
+    const d = ev && ev.data;
+    if(!d || typeof d.mtPanelContent !== 'number') return;
+    const h = d.mtPanelContent;
+    if(!(h > 40)) return;
+    Object.keys(frames).forEach(function(id){
+      const f = frames[id];
+      if(!f || f.contentWindow !== ev.source) return;
+      const st = state[id];
+      if(!st || !st.open || userSized[id]) return;
+      const want = Math.max(MIN_H, Math.ceil(h) + 30);   // 22px head + 8px air
+      if(Math.abs(st.h - want) > 8){
+        fitH[id] = want;
+        st.h = want;
+        place(id);
+        save();
+      }
+    });
+  });
+
   function pwSearch(id, raw, live){
     const v = String(raw == null ? '' : raw).trim();
     const doc = frameDoc(id);
@@ -5177,10 +5202,9 @@ function renderWatchlist(filter){
         <span class="sym">${esc(sym)}</span>
         <span class="nm">${esc(s.name||'')}</span>
       </span>
-      <span class="wl-price">
-        <span class="pr">${pr}${hasPrice ? ' <small style="color:var(--tx3)">' + esc(cur) + '</small>' : ''}</span>
-        <span class="chg ${cls}">${sign}</span>
-      </span>
+      <!-- NO PRICE ON A WATCHLIST ROW (owner, 2026-11-03): "remove the ticker price
+           off chart panel and watchlist panel". The row is the ticker and the company
+           name; the price appears on the FOCUS card only. -->
     </div>`;
   }).join('');
   el.innerHTML = (awaitHtml + body) ||
