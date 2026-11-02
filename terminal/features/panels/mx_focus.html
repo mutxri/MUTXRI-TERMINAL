@@ -140,6 +140,35 @@
     .fx-np{font-size:24px;}
     .fx-ks{grid-template-columns:repeat(2,1fr);} .fx-blk{padding:10px 14px 12px;}
   }
+
+  /* THE IFRAME CANVAS IS BLACK. The panel's html and body were transparent, so the
+     iframe painted its own dark default canvas below the content and that is the grey
+     band the owner kept seeing inside a black window. Painting the document itself
+     black means any extra height in the window is black, never grey. */
+  html,body{background:#000 !important}
+
+  /* FILL AND SCALE (owner, 2026-11-03, with his Godel before/after screenshots).
+     Godel's focus panel grows its type when the window is dragged bigger; the content
+     always fills the panel so no empty band appears below it. Sizes are in viewport
+     units with a max so the type stays sane on a very large window. */
+  html,body{height:100%;background:#000 !important}
+  .fx{height:100%;display:flex;flex-direction:column;min-height:0}
+  #fxBody{flex:1 1 auto;min-height:0;display:flex;padding:0}
+  .fx-fill{flex:1 1 auto;display:flex;align-items:center;justify-content:space-between;
+           gap:6vw;padding:2vh 4vw;background:#000;min-width:0}
+  .fx-fill .fx-tkr{font-size:min(13vh,8vw);line-height:.95;letter-spacing:.01em;
+                   font-weight:400;color:var(--tx)}
+  .fx-fill .fx-side{text-align:right;min-width:0}
+  .fx-fill .fx-px{font-size:min(14vh,9vw);line-height:1;font-weight:400;
+                  color:var(--tx);font-variant-numeric:tabular-nums}
+  .fx-fill .fx-chg{font-size:min(7vh,4.4vw);line-height:1.1;margin-top:1.2vh;
+                   font-variant-numeric:tabular-nums}
+  .fx-fill .fx-chg .fx-pct-unit{font-size:.72em}
+  .fx-fill .fx-px.up,.fx-fill .fx-chg.up{color:var(--up)}
+  .fx-fill .fx-px.down,.fx-fill .fx-chg.down{color:var(--down)}
+  .fx-fill .fx-px{color:var(--up)}
+  .fx-fill .fx-px.down{color:var(--down)}
+  #fxFoot{flex:0 0 auto}
 </style>
 </head>
 <body>
@@ -683,17 +712,17 @@
     $("fxSecTxt").textContent = tickerOf(row, sym) + " " + EX;
 
     var h = [];
-    h.push("<div class='fx-tkr'>" + esc(tickerOf(row, sym)) + "</div>");
-    // The company name was removed on the owner's instruction (2026-11-03): the card
-    // carries the ticker, the price and the percentage movement, nothing else.
-    h.push("<div class='fx-px" + pxCls + "'>" + esc(fmtPx(px)) +
-      (row.currency ? "<span class='fx-cur'>" + esc(row.currency) + "</span>" : "") + "</div>");
-    if(pct != null){
-      h.push("<div class='fx-chg " + dir + "'>" + (pct >= 0 ? "+" : "") + pct.toFixed(2) +
-        "<span class='fx-pct-unit'>%</span></div>");
-    } else {
-      h.push("<div class='fx-chg nofig'>change percent not stated</div>");
-    }
+    // THE CARD FILLS THE WINDOW AND SCALES WITH IT, the way the Godel focus panel does.
+    // Ticker on the left, price and percentage on the right, both sized in viewport
+    // units so they grow when the reader drags the window bigger. Nothing sits under
+    // the content, so there is no band of any colour to see.
+    h.push("<div class='fx-fill'><div class='fx-tkr'>" + esc(tickerOf(row, sym)) + "</div>" +
+      "<div class='fx-side'><div class='fx-px" + pxCls + "'>" + esc(fmtPx(px)) + "</div>" +
+      (pct != null
+        ? "<div class='fx-chg " + dir + "'>" + (pct >= 0 ? "+" : "") + pct.toFixed(2) +
+          "<span class='fx-pct-unit'>%</span></div>"
+        : "<div class='fx-chg nofig'>change percent not stated</div>") +
+      "</div></div>");
     // The level change ("+0.00") and its "not stated" placeholder were removed on the
     // owner's instruction (2026-11-03): the card shows the ticker, the price and the
     // percentage. The agreement test above still runs, it simply no longer prints.
