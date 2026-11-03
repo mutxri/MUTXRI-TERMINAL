@@ -906,6 +906,16 @@ html{scrollbar-width:none;}
                        font-family:var(--mono);font-size:14px;font-weight:700;color:var(--acc)}
   .qhead .qhead-txt{flex:1 1 auto;min-width:0}
   .qhead .qhead-px{flex:0 0 auto;text-align:right}
+
+
+  .mkrc-h{padding:8px 16px 3px;border-top:1px solid var(--line);color:var(--tx3);
+          font-size:10px;letter-spacing:.1em;font-weight:700}
+  .mkrc-n{color:var(--acc);font-family:var(--mono);font-weight:400;margin-left:4px}
+  .mkrc-r{display:flex;justify-content:space-between;gap:8px;padding:2px 16px;
+          font-size:10px;color:var(--tx2)}
+  .mkrc-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mkrc-t{color:var(--acc);font-family:var(--mono);flex:0 0 auto}
+  .mkrc-e{padding:2px 16px 4px;font-size:10px;color:var(--tx3);font-style:italic}
 </style>
 <script>
 /* apply saved theme + accent before paint to avoid a flash */
@@ -7329,7 +7339,14 @@ function renderMarketStatic(rec, info){
       html += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(String(h))}</span><span style="color:var(--acc);font-family:var(--mono)">${esc(String(s))}</span></div>`;
     });
   }
+  // RELATIONSHIPS IN THE MARKET SHEET (owner, 2026-11-03: the market panel must carry
+  // customers, suppliers, competitors and partners). It reads the same
+  // relationships_<EX>.json the perplexity panel reads, so the two can never disagree.
+  // A category the issuer does not disclose prints a stated empty line rather than
+  // vanishing, because an absent section and an empty one are different facts.
+  html += '<div id="mkRelBox"></div>';
   $('rightInfo').innerHTML = html;
+  mkPaintRel(rec, i);
   // The sections that belong to this window and to this security: holders from
   // shareholders_<EX>.json, the valuation multiples with their withheld reasons
   // from analytics/<KEY>.json, the price history from history/<KEY>.json, and the
@@ -9055,6 +9072,50 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
   if(document.readyState !== "loading") syncAll();
   else document.addEventListener("DOMContentLoaded", syncAll);
 })();
+  function mkPaintRel(rec, i){
+    const box = $('mkRelBox'); if(!box) return;
+    const tk = String(rec.ticker || (typeof sym0 === 'function' ? sym0(rec) : '') || '').toUpperCase();
+    const ex = String(rec.exchange || (typeof currentEx !== 'undefined' ? currentEx : '') || '').toUpperCase();
+    if(!tk || !ex){ box.innerHTML = ''; return; }
+    const url = 'static_data/relationships_' + ex + '.json';
+    fetch(url, {cache:'no-store'})
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if(!box.isConnected) return;
+        const secs = (d && d.securities) || {};
+        const sec = secs[tk] || secs[tk.replace(/\./g,'_')] || null;
+        const CATS = [['CUSTOMERS','customers'],['SUPPLIERS','suppliers'],
+                      ['COMPETITORS','competitors'],['PARTNERS','partners']];
+        let h = '';
+        if(!sec){
+          h = '<div class="mkrc-h">RELATIONSHIPS</div>' +
+              '<div class="mkrc-e">none on file for ' + esc(tk) + '</div>';
+        } else {
+          CATS.forEach(function(pair){
+            const label = pair[0], key = pair[1];
+            const all = sec[key] || [];
+            h += '<div class="mkrc-h">' + label +
+                 ' <span class="mkrc-n">' + all.length + '</span></div>';
+            if(!all.length){
+              h += '<div class="mkrc-e">not disclosed by the issuer</div>';
+              return;
+            }
+            all.slice(0, 6).forEach(function(e){
+              const nm = e.name || '';
+              const t = e.ticker ? '<span class="mkrc-t">' + esc(e.ticker) + '</span>' : '';
+              h += '<div class="mkrc-r"><span class="mkrc-nm">' + esc(nm) + '</span>' + t + '</div>';
+            });
+            if(all.length > 6){
+              h += '<div class="mkrc-e">+' + (all.length - 6) + ' more</div>';
+            }
+          });
+        }
+        box.innerHTML = h;
+      })
+      .catch(function(){ if(box.isConnected) box.innerHTML = ''; });
+  }
+
+
 </script>
 </body>
 </html>
