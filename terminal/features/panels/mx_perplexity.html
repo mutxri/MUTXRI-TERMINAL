@@ -319,6 +319,7 @@
           <button class="kn ft" type="button" data-t="customers" aria-pressed="false">CUST</button>
           <button class="kn ft" type="button" data-t="suppliers" aria-pressed="false">SUPP</button>
           <button class="kn ft" type="button" data-t="competitors" aria-pressed="false">COMP</button>
+          <button class="kn ft" type="button" data-t="peers" aria-pressed="false" title="same-sector listings on the same board - peers, not competitors">PEER</button>
           <button class="kn ft" type="button" data-t="partners" aria-pressed="false">PART</button>
           <button class="kn ft" type="button" data-t="holders" aria-pressed="false">HOLDERS</button>
           <button class="kn ft" type="button" data-t="laws" aria-pressed="false">LAWS</button>
@@ -708,13 +709,14 @@
               news:[], newsSt:'unread', newsErr:'',
               ceos:{}, ceosSt:'unread', ceosErr:'', ceosSrc:{},
               bal:null, balSt:'unread', spark:null, sparkSt:'unread'};
-  var G = {hops:1, types:{customers:true, suppliers:true, competitors:true, partners:true,
+  var G = {hops:1, types:{customers:true, suppliers:true, competitors:true, peers:true, partners:true,
                           holders:true, laws:true},
            cap:60, selKey:'', cat:'', model:null, row:null, rec:null, law:null, tm:null, geo:null};
 
   function relTypes(){
     return [
-      {k:'competitors', c:DN, n:'PEERS', full:'COMPETITORS'},
+      {k:'competitors', c:DN, n:'COMP', full:'COMPETITORS'},
+      {k:'peers', c:GREY, n:'PEER', full:'SECTOR PEERS'},
       {k:'customers', c:UP, n:'CUSTOMERS', full:'CUSTOMERS'},
       {k:'suppliers', c:BLUE, n:'SUPPLIERS', full:'SUPPLIERS'},
       {k:'partners', c:AMB, n:'PARTNERS', full:'PARTNERS'}
@@ -786,7 +788,12 @@
   function linkList(rec){
     var out = [];
     activeTypes().forEach(function(tp){
-      (rec[tp.k] || []).forEach(function(e){ out.push({e:e, type:tp.k}); });
+      var arr = rec[tp.k] || [];
+      // A sector peer is not a competitor. The competitors array carries both, so the
+      // split happens here on the peer flag rather than trusting the array name.
+      if(tp.k === 'competitors'){ arr = arr.filter(function(e){ return !e.peer; }); }
+      if(tp.k === 'peers'){ arr = (rec.competitors || []).filter(function(e){ return !!e.peer; }); }
+      arr.forEach(function(e){ out.push({e:e, type:tp.k}); });
     });
     return out;
   }
@@ -834,11 +841,12 @@
     {k:'customers',  n:'CUSTOMERS',  c:UP,   one:'customer record'},
     {k:'suppliers',  n:'SUPPLIERS',  c:BLUE, one:'supplier record'},
     {k:'competitors',n:'COMPETITORS',c:DN,   one:'competitor record'},
+    {k:'peers',      n:'PEERS',      c:GREY, one:'sector peer'},
     {k:'partners',   n:'PARTNERS',   c:AMB,  one:'partner record'},
     {k:'holders',    n:'HOLDERS',    c:GREY, one:'substantial holder record'},
     {k:'laws',       n:'LAWS',       c:AMB,  one:'Act'}
   ];
-  var CATCAP = {customers:6, suppliers:6, competitors:6, partners:6, holders:6, laws:6, hop2:8};
+  var CATCAP = {customers:6, suppliers:6, competitors:6, peers:6, partners:6, holders:6, laws:6, hop2:8};
 
   function catDef(k){
     for(var i = 0; i < CATS.length; i++){ if(CATS[i].k === k) return CATS[i]; }
