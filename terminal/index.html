@@ -9132,6 +9132,68 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
     if(b0) b0.innerHTML = '';        // never show the last security's rows under this one
     mkRelMount();
   }
+  // WATCHDOG: THE BOX KEEPS BEING DESTROYED BY OTHER RENDERERS. #rightInfo is rewritten
+  // by the quote sheet, by the full-metrics pass and by the awaiting-rows branch, and a
+  // MutationObserver on the original host node dies the moment that node is replaced -
+  // which left NMG and SCOM with no relationships box at all while EQTY kept one. A
+  // watchdog keyed on the ticker actually displayed re-mounts and repaints regardless of
+  // which renderer last won, so no security can end up with an empty column.
+  function mkPaintRelByTicker(tk, ex){
+    const box = document.getElementById('mkRelBox');
+    if(!box || !tk) return;
+    const url = 'static_data/relationships_' + ex + '.json';
+    const seq = (mkPaintRelByTicker._s = (mkPaintRelByTicker._s || 0) + 1);
+    fetch(url, {cache:'no-store'})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(seq !== (mkPaintRelByTicker._s || 0)) return;
+        const b = document.getElementById('mkRelBox');
+        if(!b || b.dataset.tk !== tk) return;
+        const secs = (d && d.securities) || {};
+        const sec = secs[tk] || secs[tk.replace(/\./g,'_')] || null;
+        let h = '';
+        const draw = function(label, arr, empty){
+          h += '<div class="mkrc-h">' + label + ' <span class="mkrc-n">' + arr.length + '</span></div>';
+          if(!arr.length){ h += '<div class="mkrc-e">' + empty + '</div>'; return; }
+          arr.slice(0,6).forEach(function(e){
+            const t = e.ticker ? '<span class="mkrc-t">' + esc(e.ticker) + '</span>' : '';
+            h += '<div class="mkrc-r"><span class="mkrc-nm">' + esc(e.name || '') + '</span>' + t + '</div>';
+          });
+          if(arr.length > 6) h += '<div class="mkrc-e">+' + (arr.length-6) + ' more</div>';
+        };
+        if(!sec){
+          h = '<div class="mkrc-h">RELATIONSHIPS</div><div class="mkrc-e">none on file for ' + esc(tk) + '</div>';
+        } else {
+          const comps = sec.competitors || [];
+          draw('CUSTOMERS', sec.customers || [], 'not disclosed by the issuer');
+          draw('SUPPLIERS', sec.suppliers || [], 'not disclosed by the issuer');
+          draw('COMPETITORS', comps.filter(function(e){
+                 return e.competitor === true || (e.competitor === undefined && !e.peer); }),
+               'no competitor named by the issuer or its regulator');
+          draw('PEERS', comps.filter(function(e){ return e.peer === true; }),
+               'no sector peer on this board');
+          draw('PARTNERS', sec.partners || [], 'not disclosed by the issuer');
+        }
+        b.innerHTML = h;
+      })['catch'](function(){});
+  }
+  setInterval(function(){
+    try{
+      const host = $('rightInfo'); if(!host) return;
+      const q = host.querySelector('.qsym'); if(!q) return;
+      const tk = String(q.textContent || '').toUpperCase().trim();
+      const ex = String((typeof currentEx !== 'undefined' ? currentEx : '') || '').toUpperCase();
+      if(!tk || !ex) return;
+      let box = document.getElementById('mkRelBox');
+      if(!box || !box.isConnected){
+        box = document.createElement('div');
+        box.id = 'mkRelBox';
+        host.appendChild(box);
+        box.dataset.tk = '';
+      }
+      if(box.dataset.tk !== tk){ box.dataset.tk = tk; box.innerHTML = ''; mkPaintRelByTicker(tk, ex); }
+    }catch(e){}
+  }, 700);
   function mkPaintRelInner(rec, i){
     const box = $('mkRelBox'); if(!box) return;
     const tk = String(rec.ticker || (typeof sym0 === 'function' ? sym0(rec) : '') || '').toUpperCase();
