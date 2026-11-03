@@ -9072,7 +9072,42 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
   if(document.readyState !== "loading") syncAll();
   else document.addEventListener("DOMContentLoaded", syncAll);
 })();
+  // #rightInfo IS REWRITTEN BY MORE THAN ONE RENDERER. The quote sheet draws it, then a
+  // second pass (full metrics) assigns innerHTML again and the relationships box was being
+  // wiped - which is why EQTY came back with no box at all while KQ kept its one. The
+  // context is remembered here and a MutationObserver re-mounts the box after ANY rewrite,
+  // so the section cannot be lost depending on which renderer finishes last.
+  let __relCtx = null;
+  let __relObs = null;
+  function mkRelMount(){
+    const host = $('rightInfo');
+    if(!host || !__relCtx) return;
+    let box = document.getElementById('mkRelBox');
+    if(!box){
+      box = document.createElement('div');
+      box.id = 'mkRelBox';
+      host.appendChild(box);
+    }
+    mkPaintRelInner(__relCtx.rec, __relCtx.i);
+    if(__relObs) return;
+    __relObs = new MutationObserver(function(){
+      if(!__relCtx) return;
+      const h = $('rightInfo');
+      if(!h) return;
+      if(!document.getElementById('mkRelBox')){
+        const b = document.createElement('div');
+        b.id = 'mkRelBox';
+        h.appendChild(b);
+        mkPaintRelInner(__relCtx.rec, __relCtx.i);
+      }
+    });
+    __relObs.observe(host, {childList:true});
+  }
   function mkPaintRel(rec, i){
+    __relCtx = {rec: rec, i: i};
+    mkRelMount();
+  }
+  function mkPaintRelInner(rec, i){
     const box = $('mkRelBox'); if(!box) return;
     const tk = String(rec.ticker || (typeof sym0 === 'function' ? sym0(rec) : '') || '').toUpperCase();
     const ex = String(rec.exchange || (typeof currentEx !== 'undefined' ? currentEx : '') || '').toUpperCase();
