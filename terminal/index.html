@@ -895,6 +895,17 @@ html{scrollbar-width:none;}
 .view-info .rail{display:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
 
+
+  /* MARKET SHEET LOGO (owner, 2026-11-03: "the market panel should show the logo of
+     the stocks like in godel des"). Logo on the left, ticker and name beside it, price
+     and change on the right, exactly the arrangement of the Godel description panel. */
+  .qhead{display:flex;align-items:center;gap:9px}
+  .qhead .mk-logo{flex:0 0 auto;width:32px;height:32px;border-radius:4px;
+                  background:var(--bg3);object-fit:contain;padding:3px}
+  .qhead .mk-logo-mono{display:flex;align-items:center;justify-content:center;
+                       font-family:var(--mono);font-size:14px;font-weight:700;color:var(--acc)}
+  .qhead .qhead-txt{flex:1 1 auto;min-width:0}
+  .qhead .qhead-px{flex:0 0 auto;text-align:right}
 </style>
 <script>
 /* apply saved theme + accent before paint to avoid a flash */
@@ -7221,12 +7232,37 @@ function renderMarketStatic(rec, info){
       return m ? m[1] : s;
     }).filter(Boolean).join(', ');
   };
+  // COMPANY LOGO IN THE MARKET SHEET, the way the Godel description panel carries
+  // one. It uses the same LOGO_MAP the watchlist rows use, so the two never disagree,
+  // and falls back to the ticker's initial rather than a broken image.
+  const mkLogoSrc = function(tk){
+    const raw = LOGO_MAP[tk] || LOGO_MAP[String(tk || '').toUpperCase()] || '';
+    if(!raw) return '';
+    if(/^https?:\/\//i.test(raw)) return raw;
+    const dom = String(raw).replace(/^www\./, '');
+    return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(dom) + '&sz=64';
+  };
+  const mkLogo = (function(tk){
+    const src = mkLogoSrc(tk);
+    const initial = esc(String(tk || '?').slice(0, 1));
+    if(!src) return '<span class="mk-logo mk-logo-mono">' + initial + '</span>';
+    return '<img class="mk-logo" loading="lazy" src="' + esc(src) + '" alt="" ' +
+           'onerror="this.outerHTML=\'<span class=&quot;mk-logo mk-logo-mono&quot;>' + initial + '</span>\'" ' +
+           'onload="if(this.naturalWidth<=16&&this.naturalHeight<=16)this.outerHTML=\'<span class=&quot;mk-logo mk-logo-mono&quot;>' + initial + '</span>\'">';
+  })(rec.ticker || sym0(rec));
   let html = `
     <div class="qhead">
+      ${mkLogo}
+      <div class="qhead-txt">
+        <div class="qsym">${esc(rec.ticker || sym0(rec))}</div>
+        <div class="qname">${esc(rec.name||i.name||'')}</div>
+      </div>
       <div class="qsym">${esc(rec.ticker || sym0(rec))}</div>
       <div class="qname">${esc(rec.name||i.name||'')}</div>
-      <div class="qpx">${px} <span style="font-size:11px;color:var(--tx3)">${esc(rec.currency||'')}</span></div>
-      <div class="qchg ${cls}">${chgTxt}</div>
+      <div class="qhead-px">
+        <div class="qpx">${px} <span style="font-size:11px;color:var(--tx3)">${esc(rec.currency||'')}</span></div>
+        <div class="qchg ${cls}">${chgTxt}</div>
+      </div>
     </div>
     <div class="qgrid">
       ${row('DATA AS OF', rec.asOf || (window.__MKASOF && window.__MKASOF[currentEx]) || dash)}
