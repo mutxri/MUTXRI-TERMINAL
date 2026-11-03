@@ -6821,6 +6821,15 @@ function mkRelCatBlock(rec, file, cat, label, ex, sym){
   h += '</div>';
   return h;
 }
+function mkRelListBlock(list, label, ex, sym, emptyText){
+  var h = '<div class="mki-sub mki-grp">' + esc(label) + '</div>';
+  if(list && list.length){
+    list.forEach(function(e){ h += mkRelEntity(e); });
+    return h;
+  }
+  h += '<div class="mki-out">' + esc(emptyText + ' for ' + sym + '.') + '</div>';
+  return h;
+}
 function mkRelationsSection(sym, ex, relFile, mktRow){
   var TITLE = 'CUSTOMERS, SUPPLIERS, COMPETITORS, PARTNERS';
   if(!relFile || !relFile.securities){
@@ -6839,7 +6848,18 @@ function mkRelationsSection(sym, ex, relFile, mktRow){
   // own ISSUER-STATED or LEAD TO VERIFY tag, so a sentence explaining the tags
   // and a count of them restates what the reader is already looking at.
   var body = '';
-  MK_REL_CATS.forEach(function(c){ body += mkRelCatBlock(rec, relFile, c[0], c[1], ex, sym); });
+  // A SECTOR PEER IS NOT A COMPETITOR (owner, 2026-11-03: "they are peers not
+  // competitors fix that error"). Records carry a peer flag set where they were built;
+  // those print under PEERS and only named rivals print under COMPETITORS, so the two
+  // are never mixed into one competitive set.
+  MK_REL_CATS.forEach(function(c){
+    if(c[0] !== 'competitors'){ body += mkRelCatBlock(rec, relFile, c[0], c[1], ex, sym); return; }
+    var allC = (rec && Array.isArray(rec.competitors)) ? rec.competitors : [];
+    body += mkRelListBlock(allC.filter(function(e){ return !e.peer; }), 'COMPETITORS', ex, sym,
+                           'No competitor named by the issuer or its regulator');
+    body += mkRelListBlock(allC.filter(function(e){ return e.peer; }), 'PEERS', ex, sym,
+                           'No sector peer on this board');
+  });
   var disc = Array.isArray(rec.disclosures) ? rec.disclosures : [];
   if(disc.length){
     body += '<div class="mki-sub mki-grp">DISCLOSURES</div>';
@@ -9113,10 +9133,22 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
     const ex = String(rec.exchange || (typeof currentEx !== 'undefined' ? currentEx : '') || '').toUpperCase();
     if(!tk || !ex){ box.innerHTML = ''; return; }
     const url = 'static_data/relationships_' + ex + '.json';
+    // OUT-OF-ORDER RESPONSES MUST BE DISCARDED. Clicking KQ then SCOM quickly left the
+    // sheet showing KQ's counterparties under SCOM's ticker, because the slower first
+    // fetch resolved last and painted over the newer one. Each paint takes a sequence
+    // number and only the newest one is allowed to write.
+    const seq = (mkPaintRelInner._seq = (mkPaintRelInner._seq || 0) + 1);
     fetch(url, {cache:'no-store'})
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if(!box.isConnected) return;
+        if(seq !== (mkPaintRelInner._seq || 0)) return;
+        const nowTk = String((function(){
+          const h = $('rightInfo');
+          const el = h && h.querySelector('.qsym');
+          return el ? el.textContent : '';
+        })() || '').toUpperCase().trim();
+        if(nowTk && nowTk !== tk) return;   // the sheet has moved on to another security
         const secs = (d && d.securities) || {};
         const sec = secs[tk] || secs[tk.replace(/\./g,'_')] || null;
         // PEERS ARE NOT COMPETITORS. Listing two issuers in the same sector on the same
