@@ -5208,7 +5208,13 @@ function renderWatchlist(filter){
     const sym = stockTicker(s);
     const volTxt = vol != null ? (Number(String(vol).replace(/,/g,'')).toLocaleString() || String(vol)) : '';
     // logo: official domain -> favicon service (or direct image URL); monogram fallback (no broken images)
-    const rawLogo = LOGO_MAP[s.sym] || LOGO_MAP[s.ticker] || LOGO_MAP[sym] || '';
+    // same suffix problem as the market sheet: logos.json keys JSE as NPN.JO and EGX
+    // as AALR.CA, so try those forms before falling back to a monogram
+    const _lsuf = ({JSE:'.JO', EGX:'.CA'})[String(currentEx||'').toUpperCase()] || '';
+    const rawLogo = LOGO_MAP[s.sym] || LOGO_MAP[s.ticker] || LOGO_MAP[sym] ||
+                    LOGO_MAP[String(sym).toUpperCase() + _lsuf] ||
+                    LOGO_MAP[String(sym).toUpperCase() + '.JO'] ||
+                    LOGO_MAP[String(sym).toUpperCase() + '.CA'] || '';
     const isUrl = /^https?:\/\//i.test(rawLogo);
     const dom = rawLogo.replace(/^www\./, '');
     const logoSrc = isUrl ? rawLogo : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64`;
@@ -7235,15 +7241,36 @@ function renderMarketStatic(rec, info){
   // COMPANY LOGO IN THE MARKET SHEET, the way the Godel description panel carries
   // one. It uses the same LOGO_MAP the watchlist rows use, so the two never disagree,
   // and falls back to the ticker's initial rather than a broken image.
-  const mkLogoSrc = function(tk){
-    const raw = LOGO_MAP[tk] || LOGO_MAP[String(tk || '').toUpperCase()] || '';
-    if(!raw) return '';
-    if(/^https?:\/\//i.test(raw)) return raw;
-    const dom = String(raw).replace(/^www\./, '');
-    return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(dom) + '&sz=64';
+  // LOGO LOOKUP HAS TO TRY THE EXCHANGE-SUFFIXED KEY. logos.json is keyed with a
+  // market suffix for three of the four boards - NPN.JO on Johannesburg, AALR.CA on
+  // Cairo - so a bare-ticker lookup missed every one of those rows and the sheet fell
+  // back to a monogram. JSE had 361 mappings on file and showed almost none of them.
+  // The templates are ordered most specific first, and a local file is preferred over
+  // a third-party favicon.
+  const LOGO_SUFFIX = {JSE: '.JO', EGX: '.CA', NGX: '', NSE: ''};
+  const LOGO_FILE_SUFFIX = {JSE: '_JO', EGX: '_CA', NGX: '', NSE: ''};
+  const mkLogoSrc = function(tk, ex){
+    const t = String(tk || '').toUpperCase().trim();
+    if(!t) return '';
+    const exKey = String(ex || (typeof currentEx !== 'undefined' ? currentEx : '') || '').toUpperCase();
+    const sufs = [LOGO_SUFFIX[exKey] || '', '.JO', '.CA', ''];
+    const keys = [];
+    sufs.forEach(function(sfx){ keys.push(t + sfx); });
+    keys.push(t.replace(/\./g, '_'));
+    for(let i = 0; i < keys.length; i++){
+      const raw = LOGO_MAP[keys[i]];
+      if(raw) {
+        if(/^https?:\/\//i.test(raw)) return raw;
+        const dom = String(raw).replace(/^www\./, '');
+        return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(dom) + '&sz=64';
+      }
+    }
+    // no map entry: try the local file named for the convention, then give up
+    const fsfx = LOGO_FILE_SUFFIX[exKey] || '';
+    return 'static_data/logos_img/' + encodeURIComponent(t + fsfx) + '.png';
   };
   const mkLogo = (function(tk){
-    const src = mkLogoSrc(tk);
+    const src = mkLogoSrc(tk, rec.exchange || (i && i.exchange) || (typeof currentEx !== 'undefined' ? currentEx : ''));
     const initial = esc(String(tk || '?').slice(0, 1));
     if(!src) return '<span class="mk-logo mk-logo-mono">' + initial + '</span>';
     return '<img class="mk-logo" loading="lazy" src="' + esc(src) + '" alt="" ' +
