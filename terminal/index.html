@@ -9119,20 +9119,32 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
         if(!box.isConnected) return;
         const secs = (d && d.securities) || {};
         const sec = secs[tk] || secs[tk.replace(/\./g,'_')] || null;
+        // PEERS ARE NOT COMPETITORS. Listing two issuers in the same sector on the same
+        // board makes them stock-market peers, not firms fighting for the same customers -
+        // Homeboyz Entertainment and Longhorn Publishers share a sector tag and share no
+        // customers at all. Records carrying peer:true are shown under PEERS, and only
+        // records that name a firm as a competitor appear under COMPETITORS.
+        const comps = sec.competitors || [];
+        const realComps = comps.filter(function(e){ return !e.peer; });
+        const peerOnly  = comps.filter(function(e){ return e.peer; });
         const CATS = [['CUSTOMERS','customers'],['SUPPLIERS','suppliers'],
-                      ['COMPETITORS','competitors'],['PARTNERS','partners']];
+                      ['COMPETITORS', realComps],['PEERS', peerOnly],['PARTNERS','partners']];
         let h = '';
         if(!sec){
           h = '<div class="mkrc-h">RELATIONSHIPS</div>' +
               '<div class="mkrc-e">none on file for ' + esc(tk) + '</div>';
         } else {
           CATS.forEach(function(pair){
-            const label = pair[0], key = pair[1];
-            const all = sec[key] || [];
+            const label = pair[0];
+            const all = Array.isArray(pair[1]) ? pair[1] : (sec[pair[1]] || []);
             h += '<div class="mkrc-h">' + label +
                  ' <span class="mkrc-n">' + all.length + '</span></div>';
             if(!all.length){
-              h += '<div class="mkrc-e">not disclosed by the issuer</div>';
+              h += '<div class="mkrc-e">' +
+                   (label === 'COMPETITORS'
+                     ? 'none named; sector peers are listed below'
+                     : (label === 'PEERS' ? 'no same-sector peers on this board'
+                        : 'not disclosed by the issuer')) + '</div>';
               return;
             }
             all.slice(0, 6).forEach(function(e){
