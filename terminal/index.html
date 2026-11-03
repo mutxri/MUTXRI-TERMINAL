@@ -6855,9 +6855,12 @@ function mkRelationsSection(sym, ex, relFile, mktRow){
   MK_REL_CATS.forEach(function(c){
     if(c[0] !== 'competitors'){ body += mkRelCatBlock(rec, relFile, c[0], c[1], ex, sym); return; }
     var allC = (rec && Array.isArray(rec.competitors)) ? rec.competitors : [];
-    body += mkRelListBlock(allC.filter(function(e){ return !e.peer; }), 'COMPETITORS', ex, sym,
+    // flags are independent: a record may be both a peer and a competitor
+    body += mkRelListBlock(allC.filter(function(e){
+              return e.competitor === true || (e.competitor === undefined && !e.peer); }),
+                           'COMPETITORS', ex, sym,
                            'No competitor named by the issuer or its regulator');
-    body += mkRelListBlock(allC.filter(function(e){ return e.peer; }), 'PEERS', ex, sym,
+    body += mkRelListBlock(allC.filter(function(e){ return e.peer === true; }), 'PEERS', ex, sym,
                            'No sector peer on this board');
   });
   var disc = Array.isArray(rec.disclosures) ? rec.disclosures : [];
@@ -9125,6 +9128,8 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
   }
   function mkPaintRel(rec, i){
     __relCtx = {rec: rec, i: i};
+    const b0 = document.getElementById('mkRelBox');
+    if(b0) b0.innerHTML = '';        // never show the last security's rows under this one
     mkRelMount();
   }
   function mkPaintRelInner(rec, i){
@@ -9148,7 +9153,10 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
           const el = h && h.querySelector('.qsym');
           return el ? el.textContent : '';
         })() || '').toUpperCase().trim();
-        if(nowTk && nowTk !== tk) return;   // the sheet has moved on to another security
+        // THE SHEET HAS MOVED ON. Bailing out silently left the PREVIOUS security's
+        // counterparties on screen under the new ticker - NMG's one competitor and three
+        // peers were showing under LIMT and KPLC. Clear the box and let the newer paint win.
+        if(nowTk && nowTk !== tk){ box.innerHTML = ''; return; }
         const secs = (d && d.securities) || {};
         const sec = secs[tk] || secs[tk.replace(/\./g,'_')] || null;
         // PEERS ARE NOT COMPETITORS. Listing two issuers in the same sector on the same
@@ -9157,8 +9165,13 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
         // customers at all. Records carrying peer:true are shown under PEERS, and only
         // records that name a firm as a competitor appear under COMPETITORS.
         const comps = sec.competitors || [];
-        const realComps = comps.filter(function(e){ return !e.peer; });
-        const peerOnly  = comps.filter(function(e){ return e.peer; });
+        // AN ENTITY CAN BE BOTH A PEER AND A COMPETITOR (owner, 2026-11-03). Limuru Tea
+        // and Sasini are listed on the same board in the same sector AND fight for the
+        // same tea buyers, so a record carries two independent flags and can appear under
+        // both headings. Treating them as mutually exclusive hid real competition.
+        const realComps = comps.filter(function(e){
+          return e.competitor === true || (e.competitor === undefined && !e.peer); });
+        const peerOnly  = comps.filter(function(e){ return e.peer === true; });
         const CATS = [['CUSTOMERS','customers'],['SUPPLIERS','suppliers'],
                       ['COMPETITORS', realComps],['PEERS', peerOnly],['PARTNERS','partners']];
         let h = '';
