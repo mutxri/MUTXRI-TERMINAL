@@ -155,26 +155,37 @@
   .fx{height:100%;display:flex;flex-direction:column;min-height:0}
   .fx-bar{flex:0 0 auto;margin:0;padding:3px 8px}
   #fxBody{flex:1 1 auto;min-height:0;display:flex;padding:0;margin:0}
-  .fx-fill{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;
-           justify-content:space-evenly;gap:0;padding:0 3vw;background:#000;
+  /* THE CARD HAS TWO ORIENTATIONS, exactly as the owner's two Godel references show
+     (2026-11-03): short and wide puts the ticker on the LEFT with the price and the
+     percentage stacked on the RIGHT; stretch the panel downwards and the same three
+     figures rotate into a centred vertical column. The switch is keyed on the panel's
+     own aspect ratio, which inside an iframe is the viewport, so no script is needed
+     and it flips the instant the window is dragged. */
+  .fx-fill{flex:1 1 auto;display:flex;flex-direction:row;align-items:center;
+           justify-content:space-between;gap:2vw;padding:0 4vw;background:#000;
            min-width:0;min-height:0}
-  /* THE THREE FIGURES FILL THE PANEL VERTICALLY (owner, 2026-11-03: "the ticker and
-     prices should be vertical when users stretch downwards ... vertical by default").
-     space-evenly distributes ticker, price and percentage down the full height, and the
-     type is sized from the panel height with a generous width cap, so dragging the
-     window taller grows the figures instead of leaving black underneath. */
-  .fx-fill .fx-tkr{font-size:min(24vh,19vw);line-height:.92;letter-spacing:.01em;
-                   font-weight:400;color:var(--tx);text-align:center}
-  .fx-fill .fx-side{display:flex;flex-direction:column;align-items:center;
-                    text-align:center;min-width:0;gap:1vh}
-  .fx-fill .fx-px{font-size:min(21vh,17vw);line-height:1;font-weight:400;
+  .fx-fill .fx-tkr{font-size:min(30vh,11vw);line-height:.95;letter-spacing:.01em;
+                   font-weight:400;color:var(--tx);text-align:left;min-width:0}
+  .fx-fill .fx-side{display:flex;flex-direction:column;align-items:flex-end;
+                    text-align:right;min-width:0;gap:.5vh}
+  .fx-fill .fx-px{font-size:min(26vh,10vw);line-height:1;font-weight:400;
                   color:var(--tx);font-variant-numeric:tabular-nums}
-  .fx-fill .fx-chg{font-size:min(13vh,10vw);line-height:1.1;
-                   font-variant-numeric:tabular-nums;text-align:center}
+  .fx-fill .fx-chg{font-size:min(16vh,6vw);line-height:1.1;
+                   font-variant-numeric:tabular-nums;text-align:right}
   .fx-fill .fx-chg .fx-pct-unit{font-size:.78em}
   .fx-fill .fx-px.up,.fx-fill .fx-chg.up{color:var(--up)}
   .fx-fill .fx-px.down,.fx-fill .fx-chg.down{color:var(--down)}
   .fx-fill .fx-px.nofig,.fx-fill .fx-chg.nofig{color:var(--tx3)}
+
+  /* STRETCHED DOWNWARDS: taller than wide becomes the vertical column */
+  @media (max-aspect-ratio: 1/1){
+    .fx-fill{flex-direction:column;align-items:center;justify-content:space-evenly;
+             gap:0;padding:0 3vw}
+    .fx-fill .fx-tkr{font-size:min(24vh,19vw);text-align:center}
+    .fx-fill .fx-side{align-items:center;text-align:center;gap:1.2vh}
+    .fx-fill .fx-px{font-size:min(21vh,17vw)}
+    .fx-fill .fx-chg{font-size:min(13vh,10vw);text-align:center}
+  }
   #fxFoot{flex:0 0 auto;display:none}
 </style>
 </head>
