@@ -1383,6 +1383,30 @@ function switchAuth(mode){
     pwd.placeholder = isLogin ? "Your password" : "At least 8 characters";
     pwd.setAttribute("autocomplete", isLogin ? "current-password" : "new-password");
   }
+  // ACCOUNTS ARE CREATED WITH GOOGLE. The terminal refuses any session that did not
+  // come through Google, so a password registration here produced a user who signed up
+  // successfully and was then turned away at the door. New registrations therefore go
+  // through the Google button only. EXISTING password accounts keep the login form, so
+  // nobody who already has one loses access while migrating.
+  var aForm = document.getElementById("authForm");
+  var aOr = document.querySelector(".auth-or");
+  if(aForm) aForm.style.display = isLogin ? "" : "none";
+  if(aOr) aOr.style.display = isLogin ? "" : "none";
+  var gOnly = document.getElementById("authGoogleOnly");
+  if(!gOnly){
+    var host = document.getElementById("authMsg");
+    if(host && host.parentNode){
+      gOnly = document.createElement("div");
+      gOnly.id = "authGoogleOnly";
+      gOnly.className = "auth-note";
+      gOnly.style.marginTop = "14px";
+      gOnly.style.lineHeight = "1.55";
+      gOnly.textContent = "New accounts are created with Google. Use the button above.";
+      host.parentNode.insertBefore(gOnly, host.nextSibling);
+    }
+  }
+  if(gOnly) gOnly.style.display = isLogin ? "none" : "";
+
   var btn = document.getElementById("authSubmit");
   if(btn) btn.textContent = isLogin ? "LOGIN" : "REGISTER";
   var note = document.getElementById("authNote");
