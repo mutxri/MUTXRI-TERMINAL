@@ -649,8 +649,13 @@ def me(token):
         return {"ok": False, "error": "Session expired"}
     u = _find_user(s["email"])
     owner = _is_owner(s["email"])
+    # 'provider' lets the client confirm WHICH door the session came through. Sign-in
+    # is Google-only, so a session minted by email + password has to be visible as such
+    # rather than looking identical to a Google one.
+    prov = ((u or {}).get("oauth") or "email")
     return {"ok": True, "email": s["email"], "name": (u or {}).get("name", ""),
             "username": (u or {}).get("username", ""), "owner": owner,
+            "provider": str(prov).lower(),
             "access": "lifetime" if owner else "standard",
             "idle_seconds": None if owner else IDLE_SECONDS}
 
