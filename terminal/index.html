@@ -1061,8 +1061,12 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   var AUTH_API = allowedApi(window.AUTH_API) || allowedApi(new URLSearchParams(location.search).get("api")) || "https://mutxri-terminal.onrender.com";
   var gate = document.getElementById("authGate");
   var q = new URLSearchParams(location.search);
-  // landing previews (view= modes) and embedded iframes are not gated
-  if(q.get("view") || window.self !== window.top){
+  // ONLY EMBEDDED FRAMES ARE PREVIEWS. The ?view= test used to be an OR, so any
+  // visitor could append ?view=anything to a top-level /terminal/ URL and the gate
+  // was removed for them - a sign-in wall that anyone could step around by typing.
+  // The landing page's previews are iframes, so window.self !== window.top is the only
+  // condition that actually identifies one.
+  if(window.self !== window.top){
     if(gate) gate.remove();
     var __embedded = window.self !== window.top;
     // THE SIGN IN CONTROL HAS TO WORK HERE TOO. The chat window still carries it
@@ -1145,6 +1149,8 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   // that has no session for the reader.
   window.__mtGuest = false;
   function guest(){
+    // REACHED ONLY FROM EMBEDDED PREVIEWS NOW. Every gated path calls show(), so a
+    // top-level visit cannot end up here without a session.
     window.__mtGuest = true;
     hide();                       // the terminal itself, not a card in front of it
     try{ syncGuestChip(); }catch(e){}
@@ -1198,10 +1204,11 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   function tok(){ try{ return localStorage.getItem("mt_token") || ""; }catch(e){ return ""; } }
   function check(){
     var t = tok();
-    // NO SESSION AT ALL: this is a guest, and a guest gets the terminal. There
-    // is nothing to verify and nothing to block - the gate opens only from the
-    // control that offers it.
-    if(!t){ guest(); return; }
+    // NO SESSION MEANS THE GATE. The terminal used to open for a visitor with no
+    // token ("a guest gets the terminal"), which made sign-in advisory: the only
+    // thing refusing a stranger was the backend, and everything on screen was
+    // readable without an account. Access now requires a confirmed session.
+    if(!t){ window.__mtGuest = false; show(); return; }
     // A token hides the gate straight away rather than parking a returning user
     // on a sign-in screen while a cold Render instance wakes up.
     hide();
@@ -1213,7 +1220,8 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
       // An unanswered check is not proof of anything, so the reader is let in as
       // a guest with their token untouched: the card keeps the reason, and the
       // next load verifies again.
-      guest();
+      window.__mtGuest = false;
+      show();
       msg("Could not verify the session. Sign in to continue.");
     }, 12000);
     fetch(AUTH_API + "/api/auth/me", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token: t})})
@@ -1234,11 +1242,13 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
         }catch(e){}
         try{ if(window.__renderAcct) window.__renderAcct(); }catch(e){}
         try{ if(window.__renderAccount) window.__renderAccount(); }catch(e){}
-      } else { guest(); msg("Session expired. Sign in to continue."); } })
+      } else { window.__mtGuest = false; show(); msg("Session expired. Sign in to continue."); } })
       .catch(function(){
         if(settled) return;
         settled = true; clearTimeout(timer);
-        guest(); msg("Could not reach the sign-in server. Check your connection and try again.");
+        window.__mtGuest = false;
+        show();
+        msg("Could not reach the sign-in server. Check your connection and try again.");
       });
   }
   window.gateSubmit = function(){
