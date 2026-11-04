@@ -1302,7 +1302,7 @@ function openAuth(mode){
   if(__SIGNED_IN){ location.href = "terminal/"; return; }
   __verifySession(function(ok){ if(ok) location.href = "terminal/"; });
 
-  switchAuth(mode || "login");
+  switchAuth(mode || "signup");
 
   // remember the address from last time so returning users only type a password
   try{
@@ -1401,11 +1401,16 @@ function switchAuth(mode){
       gOnly.className = "auth-note";
       gOnly.style.marginTop = "14px";
       gOnly.style.lineHeight = "1.55";
-      gOnly.textContent = "New accounts are created with Google. Use the button above.";
+      gOnly.textContent = "Sign up above with Google. Your MUTXRI account is created the first time you continue.";
       host.parentNode.insertBefore(gOnly, host.nextSibling);
     }
   }
   if(gOnly) gOnly.style.display = isLogin ? "none" : "";
+
+  var social = document.querySelector(".auth-social button");
+  if(social){
+    social.innerHTML = '<span>G</span> ' + (isLogin ? "SIGN IN WITH GOOGLE" : "SIGN UP WITH GOOGLE");
+  }
 
   var btn = document.getElementById("authSubmit");
   if(btn) btn.textContent = isLogin ? "LOGIN" : "REGISTER";
