@@ -768,4 +768,37 @@ def handle_auth(path, q):
         return set_name((q.get("token") or [""])[0], (q.get("name") or [""])[0])
     if action == "me":
         return me((q.get("token") or [""])[0])
+    # SIGN-IN COUNTS. Every signup/login/oauth exchange has been recorded for a while,
+    # but no route read it back, so "how many people are signing in" had no answer.
+    # admin_overview() and the sign-in rows both already existed - they were simply
+    # never reachable. Both require ADMIN_KEY or a live owner session: the counts
+    # cover distinct email addresses, which is not public data.
+    if action in ("admin", "overview"):
+        return admin_overview((q.get("key") or [""])[0], (q.get("token") or [""])[0])
+    if action == "stats":
+        # HOW MANY PEOPLE ARE SIGNING IN. Every signup, password login and oauth
+        # exchange already writes a row through _record_signin, but no route ever read
+        # those rows back, so the question had no answer. Counts come from the same
+        # recent_signins() feed admin_overview uses, the sanctioned reader.
+        if not _admin_ok((q.get("key") or [""])[0], (q.get("token") or [""])[0]):
+            return {"ok": False, "error": "Unauthorized"}
+        rows = recent_signins(1000)
+        by_day = {}
+        by_provider = {}
+        accounts = set()
+        for r in rows:
+            ts = r.get("ts") or 0
+            try:
+                d = time.strftime("%Y-%m-%d", time.gmtime(int(ts)))
+            except Exception:
+                d = "unknown"
+            by_day[d] = by_day.get(d, 0) + 1
+            pv = (r.get("provider") or "email")
+            by_provider[pv] = by_provider.get(pv, 0) + 1
+            e = (r.get("email") or "").lower()
+            if e:
+                accounts.add(e)
+        return {"ok": True, "total": len(rows), "accounts": len(accounts),
+                "by_day": dict(sorted(by_day.items())), "by_provider": by_provider,
+                "recent": rows[:25]}
     return {"ok": False, "error": "Unknown auth action"}
