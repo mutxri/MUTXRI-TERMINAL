@@ -67,6 +67,9 @@
   .player .na{font-size:10.5px;letter-spacing:.1em;color:var(--amber)}
 
   .tsearch{flex:none;padding:7px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+  /* a display rule beats the hidden attribute, so the search box stayed visible on
+     events that have no transcript to search */
+  .tsearch[hidden]{display:none}
   .tsearch input{flex:1;background:var(--bg);border:1px solid var(--line2);color:var(--tx);
     font-family:var(--mono);font-size:11px;padding:5px 8px;outline:none}
   .tsearch input:focus{border-color:var(--mint)}
@@ -82,6 +85,9 @@
   .turn .tx{font-size:12px;color:var(--tx2);line-height:1.62}
   .turn .tx mark{background:rgba(51,226,154,.22);color:var(--tx);padding:0 1px}
 
+  .kvv{display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:9px;letter-spacing:.06em}
+  .kvv span{color:var(--tx3);letter-spacing:.14em}
+  .kvv b{color:#e6e6e6;font-weight:500}
   .empty{padding:32px 20px;max-width:660px}
   .empty .h{font-size:11px;letter-spacing:.16em;color:var(--amber);margin-bottom:10px}
   .empty .b{font-size:11.5px;color:var(--tx2);line-height:1.66}
@@ -277,16 +283,20 @@
       out += '<div class="grp">' + esc(g.label) + " (" + mine.length + ")</div>";
       out += mine.map(function(e){
         var sel = (CURRENT && CURRENT.id === e.id) ? ' aria-selected="true"' : ' aria-selected="false"';
-        var dur = e.durationSec ? clock(e.durationSec) : (e.turns && e.turns.length ? e.turns.length + " TURNS" : "NO MEDIA");
+        /* POSITIVE MARKERS ONLY. 'NO AUDIO' and 'NO TEXT' printed on nearly every row
+           told the reader nothing the row did not already say, and the period is
+           printed once, not twice. */
+        var dur = e.durationSec ? clock(e.durationSec)
+                : (e.turns && e.turns.length ? e.turns.length + " TURNS" : "");
         return '<div class="ev" data-id="' + esc(e.id) + '"' + sel + ' tabindex="0">' +
                  '<div class="t1"><span class="tk">' + esc(e.ticker || "-") + '</span><span class="pd">' + esc(e.period || "") + '</span></div>' +
-                 '<div class="t2">' + esc(e.title || kindLabel(e.kind)) + '</div>' +
+                 '<div class="t2">' + esc(String(e.title || kindLabel(e.kind)).split(" \u00b7 ")[0]) + '</div>' +
                  '<div class="t3">' +
                    (reportedFigure(e) ? '<span class="rev">REV ' + esc(reportedFigure(e)) + '</span>' : '') +
-                   '<span>' + esc(e.period || e.date || "-") + '</span><span>' + esc(dur) + '</span>' +
-                   (e.audio ? '<span class="has">AUDIO</span>' : '<span class="none">NO AUDIO</span>') +
-                   (e.turns && e.turns.length ? '<span class="has">TEXT</span>'
-                     : (e.quote ? '<span class="has">QUOTE</span>' : '<span class="none">NO TEXT</span>')) +
+                   (e.date ? '<span>' + esc(e.date) + '</span>' : '') +
+                   (dur ? '<span>' + esc(dur) + '</span>' : '') +
+                   (e.audio ? '<span class="has">AUDIO</span>' : '') +
+                   (e.turns && e.turns.length ? '<span class="has">TEXT</span>' : '') +
                  '</div></div>';
       }).join("");
     });
@@ -298,7 +308,7 @@
         var sel = (CURRENT && CURRENT.id === e.id) ? ' aria-selected="true"' : ' aria-selected="false"';
         return '<div class="ev" data-id="' + esc(e.id) + '"' + sel + ' tabindex="0">' +
                  '<div class="t1"><span class="tk">' + esc(e.ticker || "-") + '</span><span class="pd">' + esc(e.period || "") + '</span></div>' +
-                 '<div class="t2">' + esc(e.title || kindLabel(e.kind)) + '</div>' +
+                 '<div class="t2">' + esc(String(e.title || kindLabel(e.kind)).split(" \u00b7 ")[0]) + '</div>' +
                  '<div class="t3"><span>' + esc(kindLabel(e.kind)) + '</span></div></div>';
       }).join("");
     }
@@ -324,12 +334,16 @@
         '<span class="nm">' + esc(e.name || "") + '</span>' +
         '<span class="kind">' + esc(kindLabel(e.kind)) + '</span>' +
         (e.period ? '<span class="pd">' + esc(e.period) + '</span>' : '') + '</div>' +
-      '<div class="meta">' + esc(e.title || "") + '</div>' +
-      '<div class="meta"><b>' + esc(e.date || "date not stated") + '</b>' +
-        ' | duration <b>' + (e.durationSec ? clock(e.durationSec) : "not stated") + '</b>' +
-        ' | <b>' + turns + '</b> turns' +
-        (e.audio || (e.turns && e.turns.length) ? ' | <b>' + esc(rightsLabel(e.rights)) + '</b>' : '') +
-        (e.source ? ' | source <b>' + esc(e.source) + '</b>' : '') + '</div>' +
+      /* ONLY WHAT EXISTS. 'date not stated', 'duration not stated' and '0 turns' on
+         every event were three ways of printing nothing, and the label line repeated
+         the name and kind the header already carries. */
+      '<div class="meta">' + [
+        e.date ? esc(e.date) : '',
+        e.durationSec ? clock(e.durationSec) : '',
+        turns ? turns + ' turns' : '',
+        (e.audio || turns) ? esc(rightsLabel(e.rights)) : '',
+        e.source ? 'source ' + esc(String(e.source).split('/').pop()) : ''
+      ].filter(Boolean).map(function(x){ return '<b>' + x + '</b>'; }).join(' | ') + '</div>' +
       (e.reported && e.reported.revenue != null
         ? '<div class="meta">reported revenue <b>' + esc(compactMoney(e.reported.revenue, e.reported.currency)) + '</b>' +
           (e.reported.revenueLabel ? ' as <b>' + esc(e.reported.revenueLabel) + '</b>' : '') +
@@ -339,7 +353,7 @@
 
     $("player").innerHTML = e.audio
       ? '<audio id="aud" controls preload="metadata" src="' + esc(audioSrc(e.audio)) + '"></audio><span class="hits">' + esc(String(e.audio).split("/").pop()) + '</span>'
-      : '<span class="na">NO RECORDING ON FILE FOR THIS EVENT</span>';
+      : '<span class="na">NO RECORDING</span>';
     $("tsearchWrap").hidden = !(e.turns && e.turns.length);
   }
 
@@ -348,31 +362,26 @@
     var e = CURRENT, turns = e.turns || [];
 
     if(!turns.length && e.quote && e.quote.text){
-      $("turns").innerHTML = '<div class="quote">' +
-        '<div class="qh">MANAGEMENT ON REVENUE, IN THE ANNUAL REPORT\'S OWN WORDS</div>' +
-        '<blockquote>' + esc(e.quote.text) + '</blockquote>' +
-        '<div class="qs">' +
-          (e.quote.page ? 'page <b>' + esc(e.quote.page) + '</b> | ' : '') +
-          'source <b>' + esc(e.quote.file || e.source || "") + '</b> | ' +
-          '<b>QUOTED VERBATIM FROM THE FILED REPORT</b>, not a recording and not a paraphrase' +
-        '</div></div>';
+      /* The filed report's sentence is NOT reproduced here. What stays is where to
+         find it: the page and the document. */
+      $("turns").innerHTML = '<div class="empty"><div class="h">NO TRANSCRIPT</div>' +
+        (e.quote.page ? '<div class="kvv"><span>IN THE FILING</span><b>p.' +
+          esc(e.quote.page) + '</b></div>' : '') + '</div>';
       $("hits").textContent = ""; return;
     }
     if(!turns.length){
       var rep = e.reported;
       if(rep && rep.revenue != null){
-        $("turns").innerHTML = '<div class="empty"><div class="h">NO RECORDING OR TRANSCRIPT HELD</div>' +
-          '<div class="b">The company reported <b>' + esc(compactMoney(rep.revenue, rep.currency)) + '</b>' +
-          ' of revenue for <b>' + esc(e.period || "this period") + '</b>' +
-          (rep.revenueLabel ? ', taken as <b>' + esc(rep.revenueLabel) + '</b>' : '') +
-          ' from the filed income statement. <b>That figure is the filing, not a quote.</b> ' +
-          'Nobody recorded this period, so there is no audio and no transcript to attach, and none is written here to fill the row.</div></div>';
+        /* the figure is data and stays; the sentence explaining what a filing is does not */
+        $("turns").innerHTML = '<div class="empty"><div class="h">NO TRANSCRIPT</div>' +
+          '<div class="kvv"><span>REPORTED REVENUE</span><b>' +
+          esc(compactMoney(rep.revenue, rep.currency)) + '</b></div>' +
+          '<div class="kvv"><span>PERIOD</span><b>' + esc(e.period || "-") + '</b></div>' +
+          (rep.revenueLabel ? '<div class="kvv"><span>AS FILED</span><b>' + esc(rep.revenueLabel) + '</b></div>' : '') +
+          '</div>';
       }else{
-        $("turns").innerHTML = emptyBlock("ok",
-          e.audio ? "TRANSCRIPT NOT YET MADE" : "NOTHING ON FILE FOR THIS EVENT",
-          e.audio
-            ? "The recording is held but has no transcript yet. The two are stored separately, so a missing transcript never implies a missing recording."
-            : "This event has neither a recording nor a transcript. It is listed because the event itself exists, and the panel does not invent either.");
+        $("turns").innerHTML = '<div class="empty"><div class="h">' +
+          (e.audio ? "NO TRANSCRIPT" : "NO RECORDING OR TRANSCRIPT") + '</div></div>';
       }
       $("hits").textContent = ""; return;
     }
