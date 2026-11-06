@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - FX (Cross-Rate Matrix + Converter) panel.
+  Cross rates across KES/NGN/ZAR/EGP/USD/EUR/GBP, triangulated via USD.
+  Standalone-viewable: reads static_data/fx.json (real cross rates) when /api/fx is not reachable.
+  Vanilla JS, exact Godel tokens, no build step.
+
+  INTEGRATE: lift .fx-* markup into a right-panel tab (FX), lift <script>,
+  wire the FX command to window.showFx(). The /api/fx endpoint, when live, should
+  return {currencies, matrix, note}; otherwise the static snapshot is used and the
+  foot says so. No sample rates are shipped.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - FX</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
+     each panel is its own document, so the app's scrollbar CSS cannot reach in
+     here and every panel has to say this for itself. */
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
+  :root {
+    --bg:#121212; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
+    --line:#1a1a1a; --line2:#262626;
+    --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
+    --up:#33e29a; --acc:#33e29a;
+    --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:transparent; color:var(--tx); font-family:var(--ui); font-size:13px; padding:0; }
+  .fx-wrap { border:0; border-radius:0; background:transparent; max-width:none; margin:0; }
+  .fx-head { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--line2); }
+  .fx-title { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
+  .fx-title b { color:var(--acc); font-weight:700; }
+  .fx-refresh { background:transparent; border:1px solid var(--line2); border-radius:2px; color:var(--tx2); font-family:var(--mono); font-size:11px; padding:4px 10px; cursor:pointer; }
+  .fx-refresh:hover { border-color:var(--acc); color:var(--acc); }
+
+  .fx-conv { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; padding:12px 14px; border-bottom:1px solid var(--line); }
+  .fx-field { display:flex; flex-direction:column; gap:3px; }
+  .fx-field label { font-size:9px; text-transform:uppercase; letter-spacing:.06em; color:var(--tx3); }
+  .fx-field input, .fx-field select { background:var(--bg4); border:1px solid var(--line2); border-radius:2px; color:var(--tx); font-family:var(--mono); font-size:12px; padding:6px 8px; outline:none; }
+  .fx-field input:focus, .fx-field select:focus { border-color:var(--acc); }
+  .fx-field input { width:110px; }
+  .fx-result { margin-left:auto; text-align:right; }
+  .fx-result .val { font-family:var(--mono); font-size:18px; color:var(--acc); font-variant-numeric:tabular-nums; }
+  .fx-result .sub { font-family:var(--mono); font-size:10px; color:var(--tx3); }
+
+  .fx-tablewrap { overflow-x:auto; }
+  table.fx { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
+  table.fx th, table.fx td { padding:6px 9px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); }
+  table.fx thead th { color:var(--tx3); font-weight:400; font-size:10px; border-bottom:1px solid var(--line2); position:sticky; top:0; background:var(--bg2); }
+  table.fx td.rowh, table.fx th.rowh { text-align:left; color:var(--tx); font-weight:700; }
+  table.fx td.diag { color:var(--tx3); }
+  table.fx td.na { color:var(--tx3); }
+  .fx-foot { padding:8px 14px; border-top:1px solid var(--line); color:var(--tx3); font-family:var(--mono); font-size:10px; }
+</style>
+</head>
+<body>
+
+<div class="fx-wrap" id="fx">
+  <div class="fx-head">
+    <div class="fx-title"><b>FX</b> · Cross Rates &amp; Converter</div>
+    <button class="fx-refresh" id="fxRefresh">Refresh</button>
+  </div>
+
+  <div class="fx-conv">
+    <div class="fx-field"><label>Amount</label><input id="fxAmt" type="number" step="any" value="100" /></div>
+    <div class="fx-field"><label>From</label><select id="fxFrom"></select></div>
+    <div class="fx-field"><label>To</label><select id="fxTo"></select></div>
+    <div class="fx-result"><div class="val" id="fxOut">-</div><div class="sub" id="fxRate">-</div></div>
+  </div>
+
+  <div class="fx-tablewrap">
+    <table class="fx" id="fxTable"><thead><tr id="fxHead"></tr></thead><tbody id="fxBody"></tbody></table>
+  </div>
+  <div class="fx-foot" id="fxFoot">-</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var FX_ENDPOINT = "/api/fx";
+
+  var CCY = [["KES","Kenyan Shilling"],["NGN","Nigerian Naira"],["ZAR","South African Rand"],
+             ["EGP","Egyptian Pound"],["USD","US Dollar"],["EUR","Euro"],["GBP","British Pound"]];
+
+  var usdRates = {};   // current source rates
+  var fxAsOf = "";     // as-of date carried by the snapshot
+  function $(id){ return document.getElementById(id); }
+
+  function rate(frm, to) {
+    var a = usdRates[frm], b = usdRates[to];
+    if (a == null || b == null || a === 0) return null;
+    if (frm === to) return 1.0;
+    return b / a;
+  }
+
+  function fmt(v) {
+    if (v == null) return "-";
+    // adaptive precision: big numbers few decimals, small many
+    var abs = Math.abs(v);
+    var dp = abs >= 100 ? 2 : abs >= 1 ? 4 : 6;
+    return Number(v).toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  }
+
+  function renderMatrix() {
+    var codes = CCY.map(function (c) { return c[0]; });
+    $("fxHead").innerHTML = '<th class="rowh">1 unit =</th>' +
+      codes.map(function (c) { return "<th>" + c + "</th>"; }).join("");
+    $("fxBody").innerHTML = codes.map(function (frm) {
+      var cells = codes.map(function (to) {
+        if (frm === to) return '<td class="diag">1</td>';
+        var r = rate(frm, to);
+        return r == null ? '<td class="na">-</td>' : "<td>" + fmt(r) + "</td>";
+      }).join("");
+      return '<tr><td class="rowh">' + frm + "</td>" + cells + "</tr>";
+    }).join("");
+  }
+
+  function renderConvert() {
+    var amt = parseFloat($("fxAmt").value);
+    var frm = $("fxFrom").value, to = $("fxTo").value;
+    var r = rate(frm, to);
+    if (r == null || isNaN(amt)) {
+      $("fxOut").textContent = "-";
+      $("fxRate").textContent = "rate unavailable";
+      return;
+    }
+    $("fxOut").textContent = fmt(amt * r) + " " + to;
+    $("fxRate").textContent = "1 " + frm + " = " + fmt(r) + " " + to;
+  }
+
+  function fillSelects() {
+    var opts = CCY.map(function (c) { return '<option value="' + c[0] + '">' + c[0] + " · " + c[1] + "</option>"; }).join("");
+    $("fxFrom").innerHTML = opts; $("fxTo").innerHTML = opts;
+    $("fxFrom").value = "USD"; $("fxTo").value = "KES";
+  }
+
+  function refreshAll() { renderMatrix(); renderConvert(); }
+
+  // Reconstruct usdRates from the matrix's USD row if provided, else expect a
+  // rates map. Support both shapes gracefully. Returns true only if at least
+  // one real rate was read, so the caller can fall through to the next source.
+  function applyFx(data) {
+    usdRates = {};
+    fxAsOf = String((data && (data.as_of || (data.matrix_provenance && data.matrix_provenance.as_of) ||
+              (data.matrix && data.matrix[0] && data.matrix[0].as_of))) || "").slice(0, 10);
+    if (data && data.usd_rates) { usdRates = data.usd_rates; }
+    else if (data && data.matrix) {
+      var usdRow = data.matrix.filter(function (r) { return r.base === "USD"; })[0];
+      usdRates = { USD: 1.0 };
+      if (usdRow) (usdRow.cells || []).forEach(function (c) { if (c.rate != null) usdRates[c.to] = c.rate; });
+    }
+    return Object.keys(usdRates).length > 0;
+  }
+
+  function load() {
+    $("fxFoot").textContent = "loading…";
+    fetch(FX_ENDPOINT)
+      .then(function (r) { if (!r.ok) throw new Error("no endpoint"); return r.json(); })
+      .then(function (data) {
+        if (!applyFx(data)) throw new Error("no rates");
+        $("fxFoot").textContent = "live" + (fxAsOf ? " - " + fxAsOf : "");
+        refreshAll();
+      })
+      .catch(function () { loadStatic(); });
+  }
+
+  // The served origin has no /api backend; the real cross rates ship as
+  // static_data/fx.json (same {currencies,matrix,note} shape). Read that before
+  // giving up, and never invent a rate.
+  function loadStatic() {
+    fetch("../../static_data/fx.json")
+      .then(function (r) { if (!r.ok) throw new Error("no snapshot"); return r.json(); })
+      .then(function (data) {
+        if (!applyFx(data)) throw new Error("no rates");
+        $("fxFoot").textContent = "snapshot" + (fxAsOf ? " - " + fxAsOf : "");
+        refreshAll();
+      })
+      .catch(function () {
+        usdRates = {};
+        $("fxFoot").textContent = "not available";
+        refreshAll();
+      });
+  }
+
+  window.showFx = function () { var el = $("fx"); if (el) el.scrollIntoView({ behavior:"smooth" }); };
+
+  function init() {
+    fillSelects();
+    ["fxAmt","fxFrom","fxTo"].forEach(function (id) {
+      $(id).addEventListener("input", renderConvert);
+      $(id).addEventListener("change", renderConvert);
+    });
+    $("fxRefresh").addEventListener("click", load);
+    load();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - CORP (Corporate Actions) panel.
+  Dividends, book closures, index levels, gainers/losers/movers. Vanilla JS, Godel palette.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - CORP</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<style>
+  /* the terminal is black; the OS scrollbar is not. Thin, dark, no arrows -
+     each panel is its own document, so the app's scrollbar CSS cannot reach in
+     here and every panel has to say this for itself. */
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
+  :root{
+    --bg:#121212;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--acc2:#1ecfb0;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:transparent;color:var(--tx);font-family:var(--ui);font-size:13px;padding:0}
+  .wrap{max-width:none;margin:0;border:0;background:transparent;border-radius:0;padding:14px}
+  .head{display:flex;align-items:center;gap:10px;padding:8px 4px 12px;border-bottom:1px solid var(--line2)}
+  .code{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.1em;border:1px solid var(--line2);padding:2px 6px;border-radius:2px}
+  .title{font-family:var(--mono);font-size:12px;color:var(--tx2);letter-spacing:.06em}
+  .title b{color:var(--acc)}
+  .spacer{flex:1}
+  .src{font-family:var(--mono);font-size:9px;color:var(--tx3)}
+  .sec{margin-top:14px;font-family:var(--mono);font-size:10px;color:var(--acc);letter-spacing:.12em;text-transform:uppercase}
+  .act{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:10px 12px;margin-top:8px}
+  .act .row1{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .act .tkr{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--acc)}
+  .act .kind{font-family:var(--mono);font-size:9px;letter-spacing:.06em;padding:1px 6px;border-radius:2px;border:1px solid var(--line2);color:var(--tx2)}
+  .act .kind.pay{color:var(--up);border-color:var(--up)}
+  .act .kind.closure{color:#e0a340;border-color:#e0a340}
+  .act .amt{font-family:var(--mono);font-size:11px;color:var(--tx);margin-left:auto}
+  .act .txt{font-size:11.5px;color:var(--tx2);margin-top:6px;line-height:1.5}
+  .act .dt{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:4px}
+  .idx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px}
+  .stat{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:9px 12px}
+  .stat .n{font-family:var(--mono);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em}
+  .stat .v{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--tx);margin-top:3px}
+  .stat .c{font-family:var(--mono);font-size:10px;margin-top:2px}
+  .mini-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:8px}
+  .mini{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:9px 12px}
+  .mini .n{font-family:var(--mono);font-size:10px;color:var(--acc);font-weight:700}
+  .mini .v{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--tx);margin-top:3px}
+  .mini .c{font-family:var(--mono);font-size:10px;margin-top:2px}
+  .mini .m{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:2px}
+  .idx{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:10px 12px}
+  .idx .n{font-family:var(--mono);font-size:10px;color:var(--tx3)}
+  .idx .v{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--tx);margin-top:3px}
+  .idx .c{font-family:var(--mono);font-size:11px;margin-top:2px}
+  .c.up{color:var(--up)} .c.down{color:var(--down)}
+  .empty{padding:30px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:11px}
+  /* ----- relationship section (additive; nothing above depends on these) ----- */
+  .rel-head{margin-top:18px;padding-top:12px;border-top:1px solid var(--line2)}
+  .rel-note{font-family:var(--mono);font-size:9.5px;color:var(--tx3);line-height:1.6;margin-top:6px}
+  .rel-cat{margin-top:12px;border:1px solid var(--line);border-radius:4px;background:var(--bg2)}
+  .rel-cat > h3{margin:0;padding:8px 12px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--acc);border-bottom:1px solid var(--line);display:flex;
+    align-items:baseline;justify-content:space-between;gap:8px;font-weight:700}
+  .rel-cat > h3 .n{color:var(--tx3);font-weight:400;letter-spacing:0}
+  .rel-tbl{width:100%;border-collapse:collapse;font-size:11px}
+  .rel-tbl th{text-align:left;color:var(--tx3);font-weight:400;font-size:9px;text-transform:uppercase;
+    letter-spacing:.05em;padding:5px 10px;border-bottom:1px solid var(--line)}
+  .rel-tbl td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  .rel-tbl tr:last-child td{border-bottom:0}
+  .rel-nm{color:var(--tx);font-weight:600}
+  .rel-role{color:var(--tx2);font-size:10.5px;line-height:1.5}
+  .rel-q{color:var(--tx3);font-family:var(--mono);font-size:9.5px;line-height:1.55;margin-top:3px}
+  .rel-src{font-family:var(--mono);font-size:9.5px;color:var(--tx3);overflow-wrap:anywhere}
+  .rel-src a{color:var(--acc2);text-decoration:none}
+  .rel-none{padding:12px;color:var(--tx3);font-family:var(--mono);font-size:10.5px;line-height:1.65}
+  .rel-none b{color:#e0a340;font-weight:600}
+  .rel-rules{margin-top:14px;padding:10px 12px;border:1px solid var(--line);border-radius:4px;
+    background:var(--bg2);font-family:var(--mono);font-size:9.5px;color:var(--tx3);line-height:1.7}
+  .rel-hd{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-family:var(--mono);font-size:10px;
+    color:var(--tx2);margin-top:8px}
+  .rel-hd .v{color:var(--tx);font-weight:600}
+  .rel-hold{font-family:var(--mono);font-size:10.5px;padding:5px 12px;display:flex;
+    justify-content:space-between;gap:10px;border-bottom:1px solid var(--line)}
+  .rel-hold:last-child{border-bottom:0}
+  .rel-hold .s{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <span class="code">CORP</span>
+    <span class="title">MARKET OVERVIEW <b id="exTitle">· NSE</b></span>
+    <span class="spacer"></span>
+    <span class="src" id="src">NSE</span>
+  </div>
+  <div class="sec">Indices</div>
+  <div class="idx-grid" id="idxGrid"><div class="empty">loading…</div></div>
+  <div class="sec" id="statsSec" style="display:none">Market Stats</div>
+  <div class="stats-grid" id="statsGrid"></div>
+  <div class="sec">Top Gainers</div>
+  <div class="mini-grid" id="gainGrid"><div class="empty">loading…</div></div>
+  <div class="sec">Top Losers</div>
+  <div class="mini-grid" id="loseGrid"><div class="empty">loading…</div></div>
+  <div class="sec">Top Movers</div>
+  <div class="mini-grid" id="moveGrid"><div class="empty">loading…</div></div>
+
+  <!-- ADDITIVE: per-security business relationships. Reads ?ex=&sym= exactly as
+       the other panels do, and reads the same shareholders_<EX>.json the HOLDERS
+       panel reads for top holders. Nothing above this line is altered by it. -->
+  <div class="rel-head">
+    <div class="sec" style="margin-top:0">Customers, Suppliers, Competitors, Partners</div>
+  </div>
+  <div id="relBody"><div class="empty">loading…</div></div>
+</div>
+<script>
+(function(){
+  "use strict";
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function num(v){ var n = Number(String(v).replace(/,/g,"").trim()); return isNaN(n) ? null : n; }
+  function loadIdx(){
+    fetch("../../static_data/ex_" + CUR + "_indices.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(list){
+        var el = document.getElementById("idxGrid");
+        if(!list || !list.length){ el.innerHTML = '<div class="empty">no index data</div>'; return; }
+        el.innerHTML = list.map(function(i){
+          var up = String(i.changePct||"").indexOf("-") !== 0;
+          var pv = i.price != null ? num(i.price) : null;
+          return '<div class="idx">' +
+            '<div class="n">' + esc(i.name) + '</div>' +
+            '<div class="v">' + (pv != null ? pv.toLocaleString(undefined,{maximumFractionDigits:2}) : '<span style="font-size:12px;font-weight:600;color:var(--tx3)">level not available</span>') + '</div>' +
+            '<div class="c ' + (up ? "up" : "down") + '">' + (i.changePct != null ? esc(i.changePct) : (pv != null && i.change ? esc(i.change) : "")) + '</div></div>';
+        }).join("");
+      })
+      .catch(function(){ document.getElementById("idxGrid").innerHTML = '<div class="empty">no index data</div>'; });
+  }
+  function loadSummary(){
+    fetch("../../static_data/ex_" + CUR + "_summary.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(s){
+        function renderMini(elId, list, showVol){
+          var el = document.getElementById(elId);
+          if(!list || !list.length){ el.innerHTML = '<div class="empty">no data</div>'; return; }
+          el.innerHTML = list.map(function(x){
+            var up = String(x.changePct||"").indexOf("-") !== 0;
+            return '<div class="mini">' +
+              '<div class="n">' + esc(x.ticker) + '</div>' +
+              '<div class="v">' + esc(x.price != null ? Number(x.price).toLocaleString(undefined,{maximumFractionDigits:2}) : "") + '</div>' +
+              '<div class="c ' + (up ? "up" : "down") + '">' + esc(x.changePct != null ? Number(x.changePct).toFixed(2) + "%" : "") + '</div>' +
+              (showVol && x.volume ? '<div class="m">vol ' + esc(x.volume) + '</div>' : '') +
+              (x.marketCap ? '<div class="m">mkt ' + esc(x.marketCap) + '</div>' : '') +
+              '</div>';
+          }).join("");
+        }
+        renderMini("gainGrid", s.topGainers, false);
+        renderMini("loseGrid", s.topLosers, false);
+        renderMini("moveGrid", s.topMovers, true);
+      })
+      .catch(function(){
+        document.getElementById("gainGrid").innerHTML = '<div class="empty">no data</div>';
+        document.getElementById("loseGrid").innerHTML = '<div class="empty">no data</div>';
+        document.getElementById("moveGrid").innerHTML = '<div class="empty">no data</div>';
+      });
+  }
+  var CUR = "NSE";
+  try{ var _q = new URLSearchParams(window.location.search); if(_q.get("ex")) CUR = _q.get("ex").toUpperCase(); }catch(e){}
+  document.getElementById("exTitle").textContent = "\u00b7 " + CUR;
+  document.getElementById("src").textContent = CUR;
+  function loadStats(){
+    if(CUR !== "NSE"){ document.getElementById("statsSec").style.display = "none"; return; }
+    fetch("../../static_data/nse_market_stats.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(list){
+        if(!list || !list.length) return;
+        document.getElementById("statsSec").style.display = "";
+        // Every row is dated by the NSE's own "Statistics As of <date>" stamp
+        // (refresh_nse_market_stats.py). Print the session beside the heading so a
+        // level is never read without the day it belongs to; a file whose rows
+        // carry no date is labelled as such rather than passed off as current.
+        var asOf = "";
+        for(var i=0;i<list.length;i++){ if(list[i] && list[i].asOf){ asOf = list[i].asOf; break; } }
+        document.getElementById("statsSec").innerHTML = "Market Stats" +
+          ' <span style="color:var(--tx3);letter-spacing:.02em">' +
+          (asOf ? "as at " + esc(asOf) : "date not on file") + '</span>';
+        document.getElementById("statsGrid").innerHTML = list.map(function(s){
+          var up = String(s.change || "").indexOf("-") !== 0;
+          var chgTxt = s.change && s.change !== "0.00" && s.change !== "0" ? s.change : "";
+          return '<div class="stat">' +
+            '<div class="n">' + esc(s.label) + '</div>' +
+            '<div class="v">' + esc(s.value) + '</div>' +
+            (chgTxt ? '<div class="c ' + (up ? "up" : "down") + '">' + esc(chgTxt) + '</div>' : '') +
+            '</div>';
+        }).join("");
+      })
+      .catch(function(){});
+  }
+  loadIdx();
+  loadSummary();
+  loadStats();
+})();
+</script>
+
+<!-- ============================================================================
+     ADDITIVE relationship block. Separate IIFE, separate <script> element: it
+     cannot affect the market blocks above. It reads ?ex= and ?sym= from the
+     shell exactly as mx_holders.html does, reads static_data/relationships_<EX>.json
+     for customers / suppliers / competitors / partners and the SAME
+     static_data/shareholders_<EX>.json the HOLDERS panel reads for top holders.
+
+     Rules this block implements:
+       - every entity prints with the document and page it came from, and the
+         fiscal year the document covers;
+       - a category with no named entity prints "not disclosed in the sources
+         read", and prints the issuer's own sentence when the filing states that
+         it names none, rather than an empty table;
+       - a security with no record at all prints the coverage counts, so an
+         absent record reads as missing evidence and not as an empty company.
+     ============================================================================ -->
+<script>
+(function(){
+  "use strict";
+  var Q = new URLSearchParams(location.search);
+  var EX = (Q.get("ex") || "NGX").toUpperCase();
+  var SYM = (Q.get("sym") || Q.get("symbol") || "").toUpperCase();
+  var VALID = { NGX:1, NSE:1, JSE:1, EGX:1 };
+  var LABEL = { NGX:"NGX Lagos", NSE:"NSE Nairobi", JSE:"JSE Johannesburg", EGX:"EGX Cairo" };
+  var CATS = [
+    ["customers",   "Customers"],
+    ["suppliers",   "Suppliers"],
+    ["competitors", "Competitors"],
+    ["partners",    "Partners"]
+  ];
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]; }); }
+  function pct(v){ return v == null ? "-" :
+    Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4}) + "%"; }
+  function num(v){ return v == null ? "-" : Number(v).toLocaleString(undefined,{maximumFractionDigits:0}); }
+
+  // a source prints as the file it came from and the page inside it, and links to
+  // that file so the printed words can be checked without leaving the terminal
+  function srcHtml(src){
+    if(!src || !src.file) return '<span class="rel-src">-</span>';
+    var path = "../../static_data/" + src.file;
+    var txt = esc(src.file) + (src.page ? " p." + esc(src.page) : "");
+    return '<span class="rel-src"><a href="' + esc(path) + (src.page ? "#page=" + esc(src.page) : "") +
+      '" target="_blank" rel="noopener">' + txt + "</a></span>";
+  }
+
+  // resolve the key the file is stored under: exact, then without the .JO suffix
+  // a JSE row carries, then by ticker / code / sym
+  function findRec(file, sym){
+    if(!file || !sym) return null;
+    var s = file.securities || {};
+    if(s[sym]) return s[sym];
+    var base = sym.replace(/\.(JO|L|N)$/, "");
+    if(s[base]) return s[base];
+    var hit = null;
+    Object.keys(s).forEach(function(k){
+      if(hit) return;
+      var r = s[k] || {};
+      var cand = [r.key, r.ticker, r.sym, k].filter(Boolean).map(function(x){
+        return String(x).toUpperCase().replace(/\.(JO|L|N)$/, ""); });
+      if(cand.indexOf(base) >= 0) hit = r;
+    });
+    return hit;
+  }
+
+  function catBlock(file, rec, field, title){
+    var list = (rec && rec[field]) || [];
+    var disc = null;
+    if(rec && rec.disclosures){
+      rec.disclosures.forEach(function(d){ if(d && d.category === field) disc = d; });
+    }
+    var h = '<div class="rel-cat"><h3>' + esc(title) +
+      '<span class="n">' + (list.length ? list.length + " named" : "none named") + "</span></h3>";
+
+    if(list.length){
+      h += '<table class="rel-tbl"><thead><tr><th>Entity</th><th>Relationship as stated</th>' +
+           '<th>Source</th><th>FY</th></tr></thead><tbody>';
+      list.forEach(function(e){
+        h += "<tr><td>" +
+          '<div class="rel-nm">' + esc(e.name) + "</div>" +
+          (e.statedBy ? '<div class="rel-q">stated by the ' +
+            (e.statedBy === "issuer" ? "issuer" : esc(e.statedBy)) + "</div>" : "") +
+          "</td><td>" +
+          '<div class="rel-role">' + esc(e.role || "-") + "</div>" +
+          (e.quote ? '<div class="rel-q">&ldquo;' + esc(e.quote) + '&rdquo;</div>' : "") +
+          "</td><td>" + srcHtml(e.source) + "</td>" +
+          "<td>" + esc(e.fiscalYear || (e.periodEnd || "").slice(0,4) || "-") + "</td></tr>";
+      });
+      h += "</tbody></table>";
+    } else if(disc){
+      h += '<div class="rel-none"><b>No entity named</b> in the documents read. The issuer states: ' +
+        '<div class="rel-q" style="margin-top:5px">&ldquo;' + esc(disc.quote) + '&rdquo;</div>' +
+        '<div style="margin-top:5px">' + srcHtml(disc.source) +
+        (disc.fiscalYear ? ' <span class="rel-q">FY' + esc(disc.fiscalYear) + "</span>" : "") + "</div>" +
+        (disc.note ? '<div style="margin-top:5px">' + esc(disc.note) + "</div>" : "") + "</div>";
+    } else {
+      h += '<div class="rel-none">Not disclosed in the sources read. ' +
+        "No document held for this security names a " + esc(title.toLowerCase().replace(/s$/,"")) +
+        ", and nothing is shown rather than a generated one.</div>";
+    }
+    return h + "</div>";
+  }
+
+  function holdersBlock(shFile, shRec){
+    var h = '<div class="rel-cat"><h3>Top holders' +
+      '<span class="n">read from shareholders_' + esc(EX) + ".json</span></h3>";
+    if(!shRec){
+      var cov = (shFile && shFile.coverage) || {};
+      h += '<div class="rel-none"><b>No shareholder information published</b> for this security in the ' +
+        "terminal's sources. Coverage on " + esc(LABEL[EX] || EX) + ": <b>" +
+        (cov.securitiesWithRecord || 0) + "</b> of <b>" + (cov.securitiesListed || 0) +
+        "</b> listed securities carry a sourced shareholding record; <b>" +
+        (cov.noShareholderInformationPublished || 0) + "</b> do not.</div></div>";
+      return h;
+    }
+    var rows = []
+      .concat([["Substantial holders (5% and above)", shRec.substantial]])
+      .concat([["Promoters and close relatives", shRec.promoters]])
+      .concat([["Other influential holdings", shRec.other]])
+      .concat([["Directors (direct and indirect)", shRec.directors]]);
+    var any = false;
+    rows.forEach(function(pair){
+      var cap = pair[0], list = pair[1];
+      if(!list || !list.length) return;
+      any = true;
+      h += '<div class="rel-none" style="padding:7px 12px 2px;color:var(--tx3);text-transform:uppercase;' +
+        'letter-spacing:.06em;font-size:9px">' + esc(cap) + " (" + list.length + ")</div>";
+      list.forEach(function(r){
+        h += '<div class="rel-hold"><span>' + esc(r.name) +
+          (r.holding != null ? ' <span class="s" style="color:var(--tx3)">' + num(r.holding) + "</span>" : "") +
+          "</span><span>" + esc(pct(r.pct)) + "</span></div>";
+      });
+    });
+    var m = [];
+    if(shRec.asOf) m.push("as of " + esc(shRec.asOf));
+    if(shRec.source) m.push(esc(shRec.source.file ? (shRec.source.file + (shRec.source.page ? " p." + shRec.source.page : "")) : (shRec.source.url || "-")));
+    if(m.length) h += '<div class="rel-none" style="padding:8px 12px;font-size:9.5px">' + m.join(" &nbsp;&middot;&nbsp; ") + "</div>";
+    if(!any) h += '<div class="rel-none">A record exists for this security but the source printed no holder table.</div>';
+    return h + "</div>";
+  }
+
+  function render(relFile, shFile){
+    var body = $("relBody");
+    if(!VALID[EX]) EX = "NGX";
+    var rec = findRec(relFile, SYM);
+    var shRec = findRec(shFile, SYM);
+    var cov = (relFile && relFile.coverage) || {};
+    var title = (rec && rec.name) || (SYM || "(no security selected)");
+
+    var head = '<div class="rel-hd">' +
+      '<span>Security</span><span class="v">' + esc(title) + "</span>" +
+      "<span>Exchange</span><span class=\"v\">" + esc(LABEL[EX] || EX) + "</span>" +
+      "<span>Relationship records on this exchange</span><span class=\"v\">" +
+        (cov.securitiesWithSourcedEntity || 0) + " of " + (cov.securitiesListed || 0) +
+        " listed carry a sourced entity</span>" +
+      "<span>Documented from</span><span class=\"v\">" + (cov.documentsRead || 0) + " filings read</span>" +
+      "</div>";
+
+    var h = head;
+    if(rec && rec.documents && rec.documents.length){
+      h += '<div class="rel-note">Documents read for this security: ' +
+        rec.documents.map(function(d){
+          return esc(d.file) + " p." + esc(d.page) + " (" + esc(d.kind || "filing") +
+            (d.periodEnd ? ", period to " + esc(d.periodEnd) : "") +
+            (d.basis ? ' <span style="color:var(--tx2)">[document reads: ' + esc(d.basis) + "]</span>" : "") + ")";
+        }).join("<br>") + "</div>";
+    }
+    CATS.forEach(function(c){ h += catBlock(relFile, rec, c[0], c[1]); });
+    h += holdersBlock(shFile, shRec);
+
+    body.innerHTML = h;
+  }
+
+  function fail(msg){
+    $("relBody").innerHTML = '<div class="rel-none">' + esc(msg) +
+      " Nothing is shown rather than a fabricated relationship.</div>";
+  }
+
+  function load(){
+    if(!VALID[EX]) EX = "NGX";
+    Promise.all([
+      fetch("../../static_data/relationships_" + EX + ".json", { cache:"no-store" })
+        .then(function(r){ if(!r.ok) throw new Error("no relationships file"); return r.json(); })
+        .catch(function(){ return null; }),
+      fetch("../../static_data/shareholders_" + EX + ".json", { cache:"no-store" })
+        .then(function(r){ if(!r.ok) throw new Error("no shareholders file"); return r.json(); })
+        .catch(function(){ return null; })
+    ]).then(function(res){
+      if(!res[0] && !res[1]){ fail("No relationship or shareholder file for " + (LABEL[EX] || EX) + "."); return; }
+      render(res[0], res[1]);
+    }).catch(function(e){
+      fail("Could not read the relationship file for " + (LABEL[EX] || EX) + ": " + e.message);
+    });
+  }
+
+  window.showRelationships = function(symbol){ if(symbol) SYM = String(symbol).toUpperCase(); load(); };
+  window.showEcosystem = window.showRelationships;
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", load);
+  else load();
+})();
+</script>
+</body>
+</html>

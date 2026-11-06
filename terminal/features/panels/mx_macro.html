@@ -1,0 +1,2647 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - MACRO panel: annual consumer price inflation, plus GDP,
+  GDP growth and GDP per capita, per country.
+
+  Source: World Bank Open Data. Inflation is FP.CPI.TOTL.ZG. The GDP block is
+  NY.GDP.MKTP.CD (GDP, current US$), NY.GDP.MKTP.KD.ZG (GDP growth, annual %)
+  and NY.GDP.PCAP.CD (GDP per capita, current US$). Values are reproduced
+  exactly as published. These are ANNUAL series, not a live monthly print, and
+  the panel says so: presenting an annual average as a current rate would be a
+  wrong number. A year with no published value shows n/a; it is never filled.
+
+  LAYOUT (2026-10-08). The panel used to print every published year as an
+  inline chip: a 20-year GDP series is 60 chips per country, so the wall of
+  numbers WAS the panel. It is now built on an information hierarchy taken from
+  a financial publication's data page (headline figure, then a small-multiple
+  chart, then a real aligned table):
+    1. AT A GLANCE - one card per country carrying the latest published value
+       and the change against the prior published year.
+    2. SERIES SHAPE - a small-multiple sparkline per country. Each card has its
+       OWN y-scale, so a series that ran to the mid-30s (Egypt) does not flatten
+       one that stayed near 3 percent (South Africa) on a shared axis.
+    3. FULL SERIES - real aligned tables, not chips. The inflation matrix is
+       short (6 published years) so it stays open. Each GDP country's 20-year
+       history sits behind a disclosure, collapsed by default, so every
+       published value stays reachable without crowding the default view.
+
+  Built by build_macro.py -> static_data/macro.json. Vanilla JS, Godel tokens,
+  no build step.
+
+  ADDED 2026-10-12, four further sections under the same scroll-through column, each
+  reading its own file and each carrying its own source and as-of date on screen:
+    Interest rates and monetary policy      <- static_data/macro_rates.json
+    Currency and exchange rates             <- static_data/fx.json
+    Fiscal policy and sovereign debt        <- the sovereign debt file
+    Taxation, six headings, four countries  <- static_data/macro_tax.json
+  ADDED 2026-10-13, a fifth section in the same column:
+    Unemployment, income and retail         <- static_data/macro_economy.json
+  It carries the unemployment rate under every basis the file has (an ILO modelled
+  estimate, an ILOSTAT national estimate and the national statistics office's own
+  release are three different measures and are printed as three labelled figures,
+  never merged), national income as GDP and GNI at current prices in the country's
+  own currency with the year, and retail sales with their base period and whether
+  the measure is volume or value. A series a country does not publish prints an
+  explicit not-published sentence with the reason rather than a blank.
+  A figure the file does not carry is printed as an explicit not-available state with
+  the reason; it is never a zero and never a zero-length bar. A period the source
+  marks as a projection carries the word projected in the label the reader sees.
+  The Inflation and GDP sections above are unchanged.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - Macro</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* each panel is its own document, so it states the dark scrollbar itself */
+  html{color-scheme:dark;scrollbar-width:none;height:100%;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
+  :root {
+    --bg:#121212; --bg2:#0a0a0a; --bg3:#141414; --bg4:#1f1f1f;
+    --line:#1a1a1a; --line2:#262626;
+    --tx:#f0f0f0; --tx2:#9a9a9a; --tx3:#6a6a6a;
+    --up:#33e29a; --down:#f87171; --acc:#33e29a;
+    --mono:'Oxygen Mono', ui-monospace, monospace; --ui:'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:transparent; padding:0; color:var(--tx); font-family:var(--ui); font-size:13px; height:100%; overflow:hidden; }
+  /* The panel fills the frame the shell hands its iframe and scrolls its own
+     content, so the last line on the page (the caption and the source block) is
+     never cut by the frame edge and no block is stranded below an invisible
+     fold. The title bar stays pinned; everything under it lives in .mc-scroll. */
+  .mc-wrap { border:0; border-radius:0; background:transparent; margin:0; max-width:none;
+             height:100%; display:flex; flex-direction:column; }
+  .mc-wrap > .mc-head { flex:0 0 auto; }
+  .mc-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden;
+               scrollbar-width:thin; scrollbar-color:#333 transparent; }
+  /* a slim scrollbar on the content region only, so a long panel reads as
+     content that scrolls rather than as data that is cut. */
+  .mc-scroll::-webkit-scrollbar { width:10px; height:0; }
+  .mc-scroll::-webkit-scrollbar-thumb { background:#333; border-radius:5px; }
+  .mc-scroll::-webkit-scrollbar-track { background:transparent; }
+  .mc-head { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--line2); }
+  .mc-title { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
+  .mc-title b { color:var(--acc); font-weight:700; }
+  .mc-refresh { background:transparent; border:1px solid var(--line2); border-radius:2px; color:var(--tx2); font-family:var(--mono); font-size:11px; padding:4px 10px; cursor:pointer; }
+  .mc-refresh:hover { border-color:var(--acc); color:var(--acc); }
+
+  .mc-lead { padding:12px 14px 4px; color:var(--tx2); font-size:12px; line-height:1.55; }
+  .mc-lead b { color:var(--tx); }
+
+  /* the country-to-colour key, stated once, so a reader can track a country
+     across the cards, the tables and both sections at a glance */
+  .mc-key { display:flex; gap:16px; flex-wrap:wrap; padding:10px 14px 2px; font-family:var(--mono); font-size:10px; }
+  .mc-key span { display:flex; align-items:center; }
+  .mc-key i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
+
+  /* section and block headings */
+  .mc-block-h { padding:14px 14px 4px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
+  .mc-block-h b { color:var(--acc); font-weight:700; }
+  .mc-hint { padding:2px 14px 4px; color:var(--tx3); font-family:var(--mono); font-size:10px; line-height:1.6; }
+
+  /* ---- small multiples: one card per country, each its own chart and scale ---- */
+  .mc-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:10px; padding:6px 14px 4px; }
+  @media (max-width:560px){ .mc-grid { grid-template-columns:1fr; } }
+  .mc-card { border:1px solid var(--line2); border-radius:3px; background:var(--bg2); padding:9px 11px 5px; }
+  .mc-card.cur { border-color:#3a3a3a; background:var(--bg3); }
+  .mc-card .cname { display:flex; align-items:center; justify-content:space-between; }
+  .mc-card .cname .nm { display:flex; align-items:center; font-weight:600; font-size:12px; }
+  .mc-card .cname .cdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; }
+  .mc-card .cname .exch { font-family:var(--mono); font-size:10px; color:var(--tx3); }
+  .mc-card .big { font-family:var(--mono); font-size:22px; line-height:1.15; font-variant-numeric:tabular-nums; margin:3px 0 0; }
+  .mc-card .big .yr { font-family:var(--mono); font-size:10px; color:var(--tx3); margin-left:7px; }
+  .mc-card .sub { font-family:var(--mono); font-size:10px; color:var(--tx3); margin:1px 0 3px; }
+  .mc-card .sub .d.up { color:var(--up); }
+  .mc-card .sub .d.down { color:var(--down); }
+  .mc-card .sph svg { display:block; width:100%; height:auto; }
+  svg .ax { fill:var(--tx3); font-family:var(--mono); font-size:8.5px; }
+  svg .gl { stroke:var(--line); stroke-width:1; }
+
+  /* ---- tables: real column alignment, generous row height ---- */
+  .mc-tablewrap { overflow-x:auto; scrollbar-width:thin; scrollbar-color:#333 transparent; margin:2px 0 0; }
+  .mc-tablewrap::-webkit-scrollbar { height:8px; }
+  .mc-tablewrap::-webkit-scrollbar-thumb { background:#333; border-radius:4px; }
+  .mc-tablewrap::-webkit-scrollbar-track { background:transparent; }
+  table.mc { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; font-variant-numeric:tabular-nums; }
+  table.mc th, table.mc td { padding:8px 9px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); }
+  table.mc thead th { color:var(--tx3); font-weight:400; font-size:10px; border-bottom:1px solid var(--line2); text-transform:uppercase; letter-spacing:.06em; white-space:normal; }
+  table.mc th.l, table.mc td.l { text-align:left; }
+  table.mc td.country { color:var(--tx); font-family:var(--ui); font-weight:600; font-size:12px; border-left:3px solid transparent; }
+  table.mc thead th:first-child { border-left:3px solid transparent; }
+  table.mc td.country i.cdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle; }
+  table.mc td.code { color:var(--tx3); }
+  table.mc td.gdp { color:var(--tx); font-size:12px; }
+  table.mc td.y { color:var(--tx2); }
+  table.mc th.cur { color:var(--acc); }
+  table.mc tr.cur { background:var(--bg3); }
+  table.mc tr.cur td.country { color:var(--acc); }
+  /* the inflation matrix: rows are years, columns are countries, so the year is
+     the row header and every value keeps its year beside it. */
+  table.mc.mtx thead th { text-transform:none; letter-spacing:.02em; }
+
+  /* ---- disclosure: the long series, one click away, collapsed by default ---- */
+  details.mc-dis { border-top:1px solid var(--line); }
+  details.mc-dis:last-of-type { border-bottom:1px solid var(--line2); }
+  details.mc-dis > summary { cursor:pointer; list-style:none; padding:10px 14px; font-family:var(--mono); font-size:11px; color:var(--tx2);
+                             display:flex; align-items:center; justify-content:space-between; }
+  details.mc-dis > summary::-webkit-details-marker { display:none; }
+  details.mc-dis > summary:hover { color:var(--acc); }
+  details.mc-dis > summary .sfx { display:flex; align-items:center; }
+  details.mc-dis > summary .cdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; }
+  details.mc-dis > summary .caret { color:var(--tx3); font-size:10px; transition:transform .12s ease; }
+  details.mc-dis[open] > summary .caret { transform:rotate(90deg); }
+  details.mc-dis .mc-tablewrap { padding:0 14px 12px; }
+
+  .mc-note { padding:10px 14px; color:var(--tx3); font-family:var(--mono); font-size:10px; line-height:1.7; border-top:1px solid var(--line); }
+  .mc-note a { color:var(--acc); }
+  .mc-sec { border-top:2px solid var(--line2); margin-top:8px; }
+  .mc-sec-h { padding:12px 14px 2px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx2); }
+  .mc-sec-h b { color:var(--acc); font-weight:700; }
+  .nodata { padding:10px 14px; color:var(--tx3); font-family:var(--mono); font-size:10px; }
+  /* at phone width the widest table (country, GDP level, growth, per capita) is
+     tightened so it fits the frame instead of needing a horizontal drag; if a
+     table still cannot fit, .mc-tablewrap keeps its scrollbar so nothing clips. */
+  @media (max-width:520px){
+    table.mc { font-size:10px; }
+    table.mc th, table.mc td { padding:6px 6px; }
+    table.mc td.country { font-size:11px; }
+  }
+
+  /* ==================================================================
+     ADDED 2026-10-12: interest rates and monetary policy, currency and
+     exchange rates, fiscal policy and sovereign debt, and the
+     six-heading tax matrix.
+
+     Every figure these four sections print comes from a JSON file under
+     static_data/ and is drawn with its own source and as-of date on
+     screen. A figure the file does not supply prints an explicit
+     not-available state WITH ITS REASON: it is never printed as 0 and
+     never drawn as a zero-length bar. A period the source marks as a
+     projection is labelled with the word projected, in the label the
+     reader actually sees.
+
+     There is no tab bar in any of this. The four sections stack in the
+     same scroll-through column as Inflation and GDP, so at phone width
+     the panel remains one column that scrolls.
+     ================================================================== */
+  .mc-sec.mc-new { border-top:2px solid var(--line2); }
+
+  /* a not-available state: a stated gap with its reason, never a zero */
+  .mc-na { margin:2px 14px 10px; border:1px solid var(--line2); border-left:3px solid var(--tx3);
+           border-radius:3px; background:var(--bg2); padding:9px 11px; }
+  .mc-na > b { display:block; color:var(--tx2); font-size:11px; letter-spacing:.06em;
+               text-transform:uppercase; font-weight:600; margin-bottom:3px; }
+  .mc-na > .why { display:block; color:var(--tx3); font-family:var(--mono); font-size:10px;
+                  line-height:1.65; white-space:normal; }
+  .mc-na code, .mc-why code, .mc-src code { font-family:var(--mono); font-size:10px; color:var(--tx2);
+           background:var(--bg3); padding:1px 4px; border-radius:2px; }
+  .mc-why { display:block; color:var(--tx3); font-family:var(--mono); font-size:10px;
+            line-height:1.65; padding:2px 0 4px; white-space:normal; }
+  .mc-cellna { color:var(--tx3); font-family:var(--mono); font-size:10px; font-style:italic;
+               white-space:normal; }
+  .mc-cellna .why { display:block; font-style:normal; font-size:9.5px; line-height:1.5;
+                    color:var(--tx3); max-width:230px; }
+  /* every printed figure carries this line: its source, and its as-of date */
+  .mc-src { display:block; color:var(--tx3); font-family:var(--mono); font-size:9.5px;
+            line-height:1.55; white-space:normal; }
+  .mc-src a { color:var(--acc); text-decoration:none; }
+  .mc-src .sec { color:var(--tx3); }
+  .mc-flag { display:inline-block; border:1px solid var(--tx3); border-radius:2px; padding:0 4px;
+             margin-left:6px; color:var(--tx3); font-family:var(--mono); font-size:9px;
+             letter-spacing:.04em; text-transform:uppercase; vertical-align:1px; }
+  .mc-flag.proj { border-color:#e0a340; color:#e0a340; }
+
+  /* the multi-rate block: Egypt quotes a corridor, not one number */
+  .mc-rates { margin:0 0 4px; }
+  .mc-rate { display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+             padding:5px 0; border-bottom:1px solid var(--line); }
+  .mc-rate:last-child { border-bottom:0; }
+  .mc-rate .rn { color:var(--tx2); font-size:11px; line-height:1.35; }
+  .mc-rate .rv { font-family:var(--mono); font-size:15px; font-variant-numeric:tabular-nums;
+                 white-space:nowrap; }
+  .mc-rate .rv .u { font-size:10px; color:var(--tx3); margin-left:2px; }
+  .mc-rate .rv .tv { font-size:11px; color:var(--tx2); font-family:var(--ui); white-space:normal; }
+
+  /* a source URL or a long figure label must break rather than force its
+     card wider than the frame: only these new blocks carry such tokens */
+  .mc-src, .mc-note, .mc-hint, .mc-na > .why, .mc-cellna .why, .mc-rate .rn,
+  .mc-card .sub, .mc-taxh, .mc-taxstruct,
+  #mcRateDecHost table.mc td, #mcTaxHost table.mc td,
+  #mcFxChangeHost table.mc td, #mcFiscalTableHost table.mc td { overflow-wrap:anywhere; }
+
+  /* the new tables carry prose (a decision sentence, a source URL, a tax
+     headline), so their cells wrap inside the frame instead of forcing the
+     whole column wider than the panel and being clipped */
+  #mcRateDecHost table.mc td, #mcRateDecHost table.mc th,
+  #mcTaxHost table.mc td, #mcTaxHost table.mc th,
+  #mcFxChangeHost table.mc td, #mcFxChangeHost table.mc th,
+  #mcFxMatrixHost table.mc td, #mcFxMatrixHost table.mc th,
+  #mcFiscalTableHost table.mc td, #mcFiscalTableHost table.mc th { white-space:normal; }
+  #mcTaxHost table.mc td.hd, #mcRateDecHost table.mc td.hd { word-break:break-word; }
+
+  /* the tax macro cell: a headline, a progressive band ladder, or a rate */
+  .mc-taxh { color:var(--tx); font-size:11px; line-height:1.4; margin-bottom:3px; white-space:normal; }
+  .mc-taxstruct { color:var(--tx2); font-size:10px; line-height:1.45; margin-bottom:3px; white-space:normal; }
+  .mc-taxrate { margin-bottom:3px; }
+  ul.mc-bands { list-style:none; margin:0 0 3px; padding:0; }
+  ul.mc-bands li { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--line); padding:2px 0; }
+  ul.mc-bands li:last-child { border-bottom:0; }
+  ul.mc-bands .bnd { color:var(--tx2); font-size:10px; white-space:normal; }
+  ul.mc-bands .brt { color:var(--tx); font-family:var(--mono); font-size:11px; white-space:nowrap; }
+
+  /* the tax matrix reads as one object: heading down, country across */
+  table.mc.mtx td, table.mc.mtx th { vertical-align:top; }
+  table.mc.mtx td.hd { color:var(--tx); font-family:var(--ui); font-weight:600; font-size:11.5px;
+                       white-space:normal; min-width:104px; text-align:left; }
+  table.mc.mtx td.hd .hk { display:block; color:var(--tx3); font-family:var(--mono); font-size:9px;
+                           font-weight:400; letter-spacing:.03em; }
+  table.mc.mtx td .v { font-family:var(--mono); font-size:12px; color:var(--tx);
+                       font-variant-numeric:tabular-nums; }
+  table.mc.mtx td .v.dim { color:var(--tx2); }
+  svg .pl { fill:#e0a340; font-family:var(--mono); font-size:8.5px; }
+  svg .step { fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+  svg .step.projd { stroke-dasharray:4 3; }
+  svg circle.proj { stroke-dasharray:2 2; }
+  @media (max-width:520px){
+    .mc-rate .rv { font-size:14px; }
+    table.mc.mtx { font-size:10px; }
+    table.mc.mtx td.hd { min-width:92px; font-size:11px; }
+  }
+<style>
+  /* ==================================================================
+     COUNTRY SEARCH, added 2026-10-12.
+
+     One input above every section. It narrows the whole panel to one
+     country, and clearing it returns the panel to every country. It is a
+     single text field with a suggestion list, not a tab bar: no tab
+     roles, no tab strip, and at phone width it stays one field above the
+     same single scroll-through column.
+     ================================================================== */
+  .mc-cs { flex:0 0 auto; position:relative; background:var(--bg2); border-bottom:1px solid var(--line2); padding:9px 14px 10px; }
+  .mc-cs-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .mc-cs-lab { font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--tx3); }
+  .mc-cs-in { flex:1 1 240px; min-width:170px; background:var(--bg3); border:1px solid var(--line2); border-radius:2px;
+              color:var(--tx); font-family:var(--mono); font-size:12px; padding:6px 9px; outline:none; }
+  .mc-cs-in:focus { border-color:var(--acc); }
+  .mc-cs-in::placeholder { color:var(--tx3); }
+  .mc-cs-clear { background:transparent; border:1px solid var(--acc); border-radius:2px; color:var(--acc);
+                 font-family:var(--mono); font-size:11px; padding:5px 9px; cursor:pointer; }
+  .mc-cs-clear:hover { background:var(--bg4); }
+  .mc-cs-active { border:1px solid var(--acc); border-radius:2px; padding:3px 9px; color:var(--acc);
+                  font-family:var(--mono); font-size:11.5px; letter-spacing:.02em; }
+  .mc-cs-active .cc { color:var(--tx2); }
+  .mc-cs-sug { position:absolute; left:14px; right:14px; top:100%; z-index:30; background:var(--bg3);
+               border:1px solid var(--line2); border-radius:0 0 3px 3px; max-height:240px; overflow-y:auto;
+               scrollbar-width:thin; scrollbar-color:#333 transparent; }
+  .mc-cs-sug[hidden] { display:none; }
+  .mc-cs-opt { display:flex; align-items:baseline; justify-content:space-between; gap:10px; width:100%;
+               background:transparent; border:0; border-bottom:1px solid var(--line); color:var(--tx);
+               font-family:var(--ui); font-size:12px; text-align:left; padding:8px 11px; cursor:pointer; }
+  .mc-cs-opt:last-child { border-bottom:0; }
+  .mc-cs-opt:hover, .mc-cs-opt:focus { background:var(--bg4); outline:none; }
+  .mc-cs-opt .nm { display:flex; align-items:center; }
+  .mc-cs-opt .cdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; }
+  .mc-cs-opt .cds { font-family:var(--mono); font-size:10px; color:var(--tx3); }
+  .mc-cs-msg { margin-top:8px; border:1px solid var(--line2); border-left:3px solid var(--acc); border-radius:2px;
+               background:var(--bg3); padding:7px 10px; color:var(--tx2); font-family:var(--mono); font-size:10.5px;
+               line-height:1.65; overflow-wrap:anywhere; }
+  .mc-cs-msg b { color:var(--tx); }
+  .mc-cs-msg[hidden] { display:none; }
+  @media (max-width:520px){
+    .mc-cs { padding:8px 10px 9px; }
+    .mc-cs-in { flex:1 1 100%; min-width:0; }
+    .mc-cs-sug { left:10px; right:10px; }
+  }
+  /* one country selected means one card per section: cap the card so a single
+     wide chart does not stretch across the whole frame. Scoped to the selected
+     state, so the all-country view is not affected. */
+  body.mc-cs-on .mc-grid { grid-template-columns:repeat(auto-fit, minmax(300px, 420px)); justify-content:start; }
+
+  /* ---- unemployment, national income and retail sales (added 2026-10-13) ----
+     One card per country holding three labelled sub-blocks, so the three
+     indicators read together for that country and each figure keeps its own
+     period, unit, basis and source. Nothing here changes the narrow-width
+     behaviour: the card grid collapses to one column at 560px and the small
+     year table scrolls sideways rather than clipping a column. */
+  .econ-blk { border-top:1px solid var(--line); padding-top:7px; margin-top:8px; }
+  .econ-blk:first-of-type { border-top:0; margin-top:2px; padding-top:0; }
+  .econ-blk-h { font-family:var(--mono); font-size:9.5px; letter-spacing:.07em; text-transform:uppercase;
+                color:var(--tx3); margin:1px 0 4px; }
+  .econ-mini { margin-top:6px; }
+  .econ-mini table.mc { width:100%; }
+  .econ-mini table.mc th, .econ-mini table.mc td { font-size:10px; padding:2px 6px; white-space:nowrap; }
+  /* A grid item defaults to min-width:auto, so the mini year table inside the
+     card would widen the track and push the card past the frame at 390px.
+     min-width:0 lets the card shrink and keeps the table on its own sideways
+     scroll, which is what a narrow, locked scroll-through stack needs. */
+  #mcEconGrid .mc-card { min-width:0; }
+  #mcEconGrid .mc-card .econ-blk,
+  #mcEconGrid .mc-card .econ-mini { min-width:0; max-width:100%; }
+
+  /* The country search belongs on the title line, between the panel name and the
+     close, so the head reads  MACRO  [search]  the way every other panel does.
+     The label that used to sit above it is gone: the placeholder says the same
+     thing and costs no width. */
+  .mc-head{display:flex;align-items:center;gap:12px;padding:8px 14px;
+           border-bottom:1px solid var(--line2);flex-wrap:nowrap}
+  .mc-title{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mc-cs.inhead{flex:1 1 220px;min-width:140px;max-width:460px;position:relative;
+                background:transparent;border:0;padding:0}
+  .mc-cs.inhead .mc-cs-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+  .mc-cs.inhead .mc-cs-in{flex:1 1 auto;min-width:0;font-size:10.5px;padding:3px 7px}
+  .mc-cs.inhead .mc-cs-sug{left:0;right:0;top:calc(100% + 2px)}
+</style>
+</head>
+<body>
+
+<div class="mc-wrap" id="mc">
+  <div class="mc-head">
+    <div class="mc-title"><b>MACRO</b> &middot; Inflation, GDP, Rates, FX, Fiscal, Tax, Jobs, Income and Retail</div>
+    <div class="mc-cs inhead">
+      <div class="mc-cs-row">
+        <input id="mcCsInput" class="mc-cs-in" type="text" autocomplete="off" spellcheck="false"
+               placeholder="SEARCH A COUNTRY" aria-label="Search a country" />
+        <span id="mcCsActive" class="mc-cs-active" hidden></span>
+        <button id="mcCsClear" class="mc-cs-clear" type="button" hidden>Clear</button>
+      </div>
+      <div id="mcCsSug" class="mc-cs-sug" hidden></div>
+      <div id="mcCsMsg" class="mc-cs-msg" hidden></div>
+    </div>
+    <button class="mc-refresh" id="mcRefresh">Refresh</button>
+  </div>
+
+  <!-- ===================== COUNTRY SEARCH =====================
+       One input above every section. It narrows the whole panel to one
+       country; Clear returns every country. Not a tab bar. -->
+  <div class="mc-scroll">
+
+  <!-- ===================== INFLATION ===================== -->
+  <div class="mc-lead">Consumer price inflation, <b>annual average in percent</b>.</div>
+
+  <div class="mc-key" id="mcKey"></div>
+
+  <div class="mc-block-h"><b>Inflation</b> &middot; latest by country</div>
+  <div class="mc-grid" id="mcInflGrid">
+    <div class="nodata">Loading&hellip;</div>
+  </div>
+
+  <div class="mc-block-h"><b>All published years</b> &middot; annual average, %</div>
+  <div id="mcInflTableHost"></div>
+  <div class="mc-note" id="mcNote">&nbsp;</div>
+
+  <!-- ===================== GDP ===================== -->
+  <div class="mc-sec">
+    <div class="mc-sec-h"><b>GDP</b> &middot; level, growth and per capita by country</div>
+
+    <div class="mc-lead">Gross domestic product: <b>the level in current US dollars</b>, annual growth
+      and <b>GDP per person</b>.</div>
+
+    <div class="mc-block-h"><b>At a glance</b> &middot; latest published year</div>
+    <div class="mc-tablewrap">
+      <table class="mc">
+        <thead>
+          <tr>
+            <th class="l">Country</th>
+            <th class="l">Exch</th>
+            <th>Year</th>
+            <th>GDP (US$)</th>
+            <th>Growth</th>
+            <th>Per capita (US$)</th>
+          </tr>
+        </thead>
+        <tbody id="mcGdpTableBody">
+          <tr><td class="l" colspan="6" style="color:var(--tx3)">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mc-block-h"><b>Per capita</b> &middot; 2006 onward</div>
+    <div class="mc-grid" id="mcGdpGrid"></div>
+
+    <div class="mc-block-h"><b>Full history</b> &middot; every published year, by country</div>
+    <div id="mcGdpHist"></div>
+
+    <div class="mc-note" id="mcGdpNote">&nbsp;</div>
+  </div>
+
+  <!-- ==================================================================
+       INTEREST RATES AND MONETARY POLICY
+       Reads static_data/macro_rates.json. Per country: the policy rate
+       under the name the central bank itself uses, the decision and the
+       stance with the meeting date the source reports, and the published
+       path as a step chart. A country that runs a corridor shows every
+       rate it publishes rather than one merged number.
+       ================================================================== -->
+  <div class="mc-sec mc-new" id="mcRateSec">
+    <div class="mc-sec-h"><b>Interest rates</b> &middot; monetary policy by country</div>
+    <div class="mc-lead">Policy rates, each under the name its central bank uses.</div>
+    <div class="mc-block-h"><b>Policy rates</b> &middot; latest published, by country</div>
+    <div class="mc-grid" id="mcRateGrid"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-block-h"><b>Decision and stance</b></div>
+    <div id="mcRateDecHost"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-block-h"><b>Policy path</b> &middot; published rate history</div>
+    <div id="mcRateHistHost"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-note" id="mcRateNote">Loading&hellip;</div>
+  </div>
+
+  <!-- ==================================================================
+       CURRENCY FLUCTUATIONS AND EXCHANGE RATES
+       Reads static_data/fx.json. That file carries an fx_rates block: a
+       current quote per currency with its own as_of, source and fetched_at,
+       the dated series the changes and the volatility were computed from,
+       the period changes, and the cross rates. The panel prints the quote
+       time and the source the file supplies, the official reference where
+       the file carries one and the file's own stated reason where it does
+       not, and draws the dated series per currency.
+       ================================================================== -->
+  <div class="mc-sec mc-new" id="mcFxSec">
+    <div class="mc-sec-h"><b>Currency</b> &middot; exchange rates against the US dollar</div>
+    <div class="mc-lead">Local currency units one US dollar buys, with the quote time and the source.</div>
+    <div class="mc-block-h"><b>Spot</b> &middot; local currency units per US dollar</div>
+    <div class="mc-grid" id="mcFxGrid"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-block-h"><b>Period changes</b> &middot; movement over 1 day, 1 month and 1 year</div>
+    <div id="mcFxChangeHost"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-block-h"><b>Rate series</b> &middot; the published path per currency</div>
+    <div id="mcFxSeriesHost"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-block-h"><b>Cross rates</b> &middot; every pair the source file publishes</div>
+    <div id="mcFxMatrixHost"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-note" id="mcFxNote">Loading&hellip;</div>
+  </div>
+
+  <!-- ==================================================================
+       FISCAL POLICY AND SOVEREIGN DEBT
+       Reads the sovereign debt file produced alongside this panel. Per
+       country: the debt ratio with its year, the fiscal balance with its
+       year, and the trajectory as a chart. A period the source marks as a
+       projection is labelled projected in the label the reader sees: the
+       axis label, the table label, the point title and the on-chart note
+       all carry the word, and the projected segment is drawn dashed.
+       ================================================================== -->
+  <div class="mc-sec mc-new" id="mcFiscalSec">
+    <div class="mc-sec-h"><b>Fiscal</b> &middot; sovereign debt and the fiscal balance</div>
+    <div class="mc-lead">General government debt and the fiscal balance, each with the year the
+      source reports it for.</div>
+    <div class="mc-block-h"><b>At a glance</b> &middot; latest reported year, by country</div>
+    <div id="mcFiscalTableHost"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-block-h"><b>Trajectory</b> &middot; one chart per country, its own scale</div>
+    <div class="mc-grid" id="mcFiscalGrid"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-note" id="mcFiscalNote">Loading&hellip;</div>
+  </div>
+
+  <!-- ==================================================================
+       TAXATION
+       Reads static_data/macro_tax.json. Six headings across four
+       countries, as one matrix: heading down, country across. Every cell
+       prints the rate, the as-of year and the source. A cell the source
+       file does not carry says so and gives the reason: it is never a
+       dash, because a dash reads as a zero.
+       ================================================================== -->
+  <div class="mc-sec mc-new" id="mcTaxSec">
+    <div class="mc-sec-h"><b>Taxation</b> &middot; six headings across four countries</div>
+    <div class="mc-lead">Tax rates: the six headings by the four countries, with the year and the source.</div>
+    <div id="mcTaxHost"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-note" id="mcTaxNote">Loading&hellip;</div>
+  </div>
+
+  <!-- ==================================================================
+       UNEMPLOYMENT RATE, NATIONAL INCOME AND RETAIL SALES
+       Reads static_data/macro_economy.json. Per country:
+         - the unemployment rate under every basis the file carries. An ILO
+           modelled estimate, an ILOSTAT national estimate and the national
+           statistics office's own release are three different measures and
+           are printed as three labelled figures, never merged into one;
+         - national income as GDP and GNI at current prices in the country's
+           own currency, named as such, nominal, with the year;
+         - retail sales as the index or growth rate with its base period and
+           with the field stating whether it is volume or value.
+       A series a country does not publish prints an explicit not-published
+       sentence with the reason the file gives. It is never a zero, never a
+       dash and never a figure carried from another year.
+       ================================================================== -->
+  <div class="mc-sec mc-new" id="mcEconSec">
+    <div class="mc-sec-h"><b>Unemployment, income and retail</b> &middot; per country</div>
+    <div class="mc-lead">Unemployment, national income and retail sales, each with its own basis,
+      period and source.</div>
+    <div class="mc-block-h"><b>At a glance</b> &middot; all three indicators</div>
+    <div id="mcEconTableHost"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-block-h"><b>By country</b> &middot; period, unit, basis and source</div>
+    <div class="mc-grid" id="mcEconGrid"><div class="nodata">Loading&hellip;</div></div>
+    <div class="mc-note" id="mcEconNote">Loading&hellip;</div>
+  </div>
+  </div><!-- /mc-scroll -->
+</div>
+
+<script>
+/* ==================================================================
+   ONE SOURCE LINE PER BLOCK. This sits outside both halves of the panel
+   because both of them print one.
+
+   A reader wants the figure, the period it covers and where it came
+   from. The provenance narrative (which endpoint a file was built from,
+   how a series was derived, what was not interpolated, why one file is
+   a sibling of another) is documentation for whoever maintains the
+   pipeline, not a thing to put on screen, so none of it is drawn here.
+   Each block prints one short muted line: the source, and the period.
+   ================================================================== */
+function mxsEsc(s){
+  return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c];
+  });
+}
+function mxsTxt(v){
+  if (v == null) return null;
+  var t = String(v).replace(/\s+/g, " ").trim();
+  return t ? t : null;
+}
+function mxsNum(v){
+  if (v == null) return null;
+  if (typeof v === "number") return isFinite(v) ? v : null;
+  var t = String(v).replace(/[\s,]/g, "").replace(/%$/, "");
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+  var n = parseFloat(t);
+  return isFinite(n) ? n : null;
+}
+/* the one line itself: the source name, and the period it covers */
+function srcOne(name, period, url){
+  var nm = mxsTxt(name);
+  if (!nm) return "";
+  var label = nm + (period ? " - " + period : "");
+  return '<span class="mc-src">' + (url
+    ? '<a href="' + mxsEsc(url) + '" target="_blank" rel="noopener">' + mxsEsc(label) + '</a>'
+    : mxsEsc(label)) + '</span>';
+}
+/* the calendar day inside a timestamp, for a figure that moves daily */
+function dayIn(v){
+  var s = mxsTxt(v);
+  if (!s) return "";
+  var m = /(\d{4}-\d{2}-\d{2})/.exec(s);
+  if (m) return m[1];
+  m = /(\d{4}-\d{2})/.exec(s);
+  return m ? m[1] : s.slice(0, 10);
+}
+/* the latest published year across a set of rows, so the line names the
+   period the figures actually cover rather than the day they were fetched */
+function latestYear(rows, keys){
+  var best = null;
+  (rows || []).forEach(function(r){
+    (keys || []).forEach(function(k){
+      var v = mxsNum(r && r[k]);
+      if (v != null && v >= 1900 && v <= 2200 && (best == null || v > best)) best = v;
+    });
+  });
+  return best == null ? "" : String(Math.round(best));
+}
+/* a source name shortened to the name a market uses, so one line stays a
+   line: an acronym in brackets wins, and the machinery that carried the
+   figure (a dataset suffix, a list of indicator codes, the API that
+   served it) is dropped */
+function srcShort(s){
+  var v = mxsTxt(s);
+  if (!v) return "";
+  v = v.replace(/,?\s*via the [^,;]+API\.?/i, "").replace(/\s+database\b/i, "").trim();
+  var head = String(v.split(",")[0]).split(/\s+-\s+/)[0].replace(/\s+$/, "").trim();
+  var lead = /^(IMF|ILOSTAT|ILO|WHO|EU|UNCTAD|UN)\b/.exec(head);
+  var acr = /\(([A-Z]{2,8})\)/.exec(head);
+  if (acr) return (lead ? lead[1] + " " : "") + acr[1];
+  if (/^Statistics South Africa/i.test(head)) return "StatsSA";
+  if (/^World Bank/i.test(head)) return "World Bank";
+  if (head.length > 30) return head.split(/\s+/).slice(0, 2).join(" ");
+  return head;
+}
+function shortList(arr, max, tail){
+  var out = [], seen = {};
+  (arr || []).forEach(function(s){
+    var n = srcShort(s);
+    if (!n || seen[n.toLowerCase()]) return;
+    seen[n.toLowerCase()] = 1;
+    out.push(n);
+  });
+  if (out.length > max) return out.slice(0, max).join(", ") + (tail || "");
+  return out.join(", ");
+}
+
+(function(){
+  // The served site is static: /api/macro does not exist on Pages, so read the
+  // published snapshot the build ships directly, with no doomed API call first.
+  var FALLBACK = "../../static_data/macro.json";
+  var ex = "JSE";
+  try {
+    var m = /[?&]ex=([A-Za-z]+)/.exec(location.search);
+    if (m) ex = m[1].toUpperCase();
+  } catch(e){}
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+    });
+  }
+
+  // Formatting is byte-for-byte the panel's existing formatting: inflation and
+  // growth to two decimals, the GDP level in whole US dollars, per capita to
+  // two decimals, exactly as before. A missing value prints n/a, never 0.
+  function pct(v){ return (typeof v === "number") ? v.toFixed(2) + "%" : "n/a"; }
+  function money0(v){ return (typeof v === "number") ? "$" + Math.round(v).toLocaleString("en-US") : "n/a"; }
+  function money2(v){ return (typeof v === "number") ? "$" + v.toLocaleString("en-US",
+    {minimumFractionDigits:2, maximumFractionDigits:2}) : "n/a"; }
+
+  // One accent colour per country, so the same country reads as the same colour
+  // in its card, its table row, its chart and its label. Keyed by ISO2. Each is
+  // chosen to sit beside the mint house accent (#33e29a) without clashing, to
+  // stay distinct from the other three on black, and to avoid a red-versus-green
+  // only split; all four clear the AAA text ratio (7:1) on black.
+  var CCOLOR = {
+    KE: "#e0a340", // Kenya        amber
+    NG: "#1ecfb0", // Nigeria      sky blue
+    ZA: "#f87171", // South Africa pink
+    EG: "#33e29a"  // Egypt        violet
+  };
+  var SERIES = ["#e0a340", "#1ecfb0", "#f87171", "#33e29a"];
+  function ccolor(c){
+    var k = c && c.iso2 ? String(c.iso2).toUpperCase() : "";
+    return CCOLOR[k] || SERIES[0];
+  }
+
+  // ---- small-multiple sparkline --------------------------------------------
+  // ONE series, its OWN y-scale: the top and bottom gridlines are that series'
+  // published maximum and minimum, labelled with those exact published values,
+  // so a country is never flattened by another country's range. Each point
+  // carries a "year: value" title so the exact figure is on hover.
+  function sparkline(pts, col, fmt, aria){
+    if (!pts || pts.length < 2){
+      return '<div class="nodata" style="padding:6px 0">Too few published years to chart.</div>';
+    }
+    var W = 360, H = 108, L = 60, R = 16, T = 12, B = 22;
+    var iw = W - L - R, ih = H - T - B;
+    var vals = pts.map(function(p){ return p.value; });
+    var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+    var flat = (mx === mn);
+    var lo = flat ? mn - 1 : mn, hi = flat ? mx + 1 : mx;
+    var x = function(i){ return L + (pts.length === 1 ? iw / 2 : iw * i / (pts.length - 1)); };
+    var y = function(v){ return T + ih - ih * (v - lo) / (hi - lo); };
+
+    var s = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(aria) + '">'];
+    s.push('<line class="gl" x1="' + L + '" y1="' + y(mx).toFixed(1) + '" x2="' + (W - R) + '" y2="' + y(mx).toFixed(1) + '"/>');
+    s.push('<line class="gl" x1="' + L + '" y1="' + y(mn).toFixed(1) + '" x2="' + (W - R) + '" y2="' + y(mn).toFixed(1) + '"/>');
+    s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y(mx) + 3).toFixed(1) + '" text-anchor="end">' + esc(fmt(mx)) + '</text>');
+    s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y(mn) + 3).toFixed(1) + '" text-anchor="end">' + esc(fmt(mn)) + '</text>');
+
+    var ptsStr = pts.map(function(p, i){ return x(i).toFixed(1) + "," + y(p.value).toFixed(1); }).join(" ");
+    var base = y(mn).toFixed(1);
+    s.push('<polyline fill="' + col + '" fill-opacity="0.10" stroke="none" points="' +
+      x(0).toFixed(1) + "," + base + " " + ptsStr + " " + x(pts.length - 1).toFixed(1) + "," + base + '"/>');
+    s.push('<polyline fill="none" stroke="' + col + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="' + ptsStr + '"/>');
+    pts.forEach(function(p, i){
+      s.push('<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.value).toFixed(1) + '" r="2.6" fill="' + col + '">' +
+        '<title>' + esc(p.year) + ": " + esc(fmt(p.value)) + '</title></circle>');
+    });
+
+    // x labels: every year when the series is short, otherwise first, middle, last
+    var idxs = (pts.length <= 8) ? pts.map(function(_, i){ return i; }) : [0, Math.round((pts.length - 1) / 2), pts.length - 1];
+    idxs.forEach(function(i){
+      var anc = (i === 0) ? "start" : (i === pts.length - 1 ? "end" : "middle");
+      s.push('<text class="ax" x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + anc + '">' + esc(pts[i].year) + '</text>');
+    });
+    s.push('</svg>');
+    return s.join("");
+  }
+
+  function inflCard(c){
+    var col = ccolor(c);
+    var h = (c.history || []).slice().sort(function(a, b){ return a.year - b.year; });
+    var hasD = (typeof c.inflation === "number" && typeof c.inflation_prior === "number");
+    var dd = hasD ? (c.inflation - c.inflation_prior) : null;
+    var dcls = (dd === null) ? "" : (dd <= 0 ? "up" : "down");
+    var dstr = (dd === null) ? "n/a" : ((dd > 0 ? "+" : "") + dd.toFixed(2) + "pp");
+    var prev = (typeof c.inflation_prior === "number") ? pct(c.inflation_prior) : "n/a";
+    var cur = (String(c.exchange).toUpperCase() === ex) ? " cur" : "";
+    return '<div class="mc-card' + cur + '">' +
+      '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+        '<span style="color:' + col + '">' + esc(c.country) + '</span></span>' +
+        '<span class="exch">' + esc(c.exchange) + '</span></div>' +
+      '<div class="big" style="color:' + col + '">' + pct(c.inflation) +
+        '<span class="yr">' + esc(c.inflation_year) + '</span></div>' +
+      '<div class="sub">vs ' + esc(c.inflation_prior_year) + " " + prev +
+        ' <span class="d ' + dcls + '">' + dstr + '</span></div>' +
+      '<div class="sph">' + sparkline(h, col, pct, esc(c.country) + " annual consumer price inflation") + '</div>' +
+      '</div>';
+  }
+
+  // The full inflation series as an aligned matrix: rows are years, columns are
+  // the four countries. Six published years fit without a disclosure, so this is
+  // the readable home of the whole inflation history.
+  function inflMatrix(rows){
+    var years = {}, list = [];
+    rows.forEach(function(c){
+      (c.history || []).forEach(function(h){ if (!years[h.year]){ years[h.year] = 1; list.push(h.year); } });
+    });
+    list.sort(function(a, b){ return b - a; });
+    var head = '<tr><th class="l">Year</th>' + rows.map(function(c){
+      var isCur = (String(c.exchange).toUpperCase() === ex);
+      return '<th class="' + (isCur ? "cur" : "") + '">' + esc(c.country) + '</th>';
+    }).join("") + '</tr>';
+    var body = list.map(function(y){
+      return '<tr><td class="l y">' + esc(y) + '</td>' + rows.map(function(c){
+        var v = null;
+        (c.history || []).forEach(function(h){ if (h.year === y) v = h.value; });
+        return '<td' + (typeof v === "number" ? ' data-v="' + v + '"' : '') + ' style="color:' + ccolor(c) + '">' + pct(v) + '</td>';
+      }).join("") + '</tr>';
+    }).join("");
+    return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+  }
+
+  // ---- GDP -----------------------------------------------------------------
+  function gdpCard(c){
+    var col = ccolor(c);
+    var h = (c.history || []).filter(function(x){ return typeof x.gdp_per_capita === "number"; })
+      .slice().sort(function(a, b){ return a.year - b.year; });
+    var pts = h.map(function(x){ return { year: x.year, value: x.gdp_per_capita }; });
+    var cur = (String(c.exchange).toUpperCase() === ex) ? " cur" : "";
+    return '<div class="mc-card' + cur + '">' +
+      '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+        '<span style="color:' + col + '">' + esc(c.country) + '</span></span>' +
+        '<span class="exch">' + esc(c.exchange) + '</span></div>' +
+      '<div class="big" style="color:' + col + '">' + money2(c.gdp_per_capita) +
+        '<span class="yr">' + esc(c.gdp_per_capita_year == null ? "n/a" : c.gdp_per_capita_year) + '</span></div>' +
+      '<div class="sub">GDP ' + money0(c.gdp) + ' &middot; growth <span class="d">' + pct(c.gdp_growth) + '</span></div>' +
+      '<div class="sph">' + sparkline(pts, col, money2, esc(c.country) + " GDP per capita, current US dollars") + '</div>' +
+      '</div>';
+  }
+
+  // The long series as a real aligned table behind a disclosure: every published
+  // year with its level, growth and per capita. One table per country.
+  function gdpHistory(c){
+    var col = ccolor(c);
+    var h = (c.history || []).slice().sort(function(a, b){ return b.year - a.year; });
+    if (!h.length) return "";
+    var ys = h.map(function(x){ return x.year; });
+    var span = Math.min.apply(null, ys) + "-" + Math.max.apply(null, ys);
+    var body = h.map(function(x){
+      return '<tr><td class="l y">' + esc(x.year) + '</td>' +
+        '<td data-v="' + x.gdp + '">' + money0(x.gdp) + '</td>' +
+        '<td data-v="' + x.gdp_growth + '">' + pct(x.gdp_growth) + '</td>' +
+        '<td data-v="' + x.gdp_per_capita + '">' + money2(x.gdp_per_capita) + '</td></tr>';
+    }).join("");
+    return '<details class="mc-dis"><summary>' +
+      '<span class="sfx"><i class="cdot" style="background:' + col + '"></i>' +
+        '<span style="color:' + col + '">' + esc(c.country) + '</span>' +
+        ' &middot; ' + h.length + ' published years (' + span + ')</span>' +
+      '<span class="caret">&gt;</span></summary>' +
+      '<div class="mc-tablewrap"><table class="mc"><thead><tr>' +
+        '<th class="l">Year</th><th>GDP (US$)</th><th>Growth (%)</th><th>Per capita (US$)</th>' +
+      '</tr></thead><tbody>' + body + '</tbody></table></div></details>';
+  }
+
+  function render(d){
+    var rows = (d && d.countries) || [];
+    var grid = document.getElementById("mcInflGrid");
+    if (!rows.length){
+      grid.innerHTML = '<div class="nodata">Inflation data is not available.</div>';
+      document.getElementById("mcInflTableHost").innerHTML = "";
+      document.getElementById("mcNote").innerHTML = "&nbsp;";
+      renderGdp(d && d.gdp);
+      return;
+    }
+    document.getElementById("mcKey").innerHTML = rows.map(function(c){
+      var col = ccolor(c);
+      return '<span style="color:' + col + '"><i style="background:' + col + '"></i>' + esc(c.country) + '</span>';
+    }).join("");
+    grid.innerHTML = rows.map(inflCard).join("");
+    document.getElementById("mcInflTableHost").innerHTML = inflMatrix(rows);
+    /* one line: the source, and the period the figures cover */
+    document.getElementById("mcNote").innerHTML =
+      srcOne(d.source || "World Bank Open Data", latestYear(rows, ["inflation_year"]), d.source_url);
+    renderGdp(d.gdp);
+  }
+
+  function renderGdp(g){
+    var body = document.getElementById("mcGdpTableBody");
+    var note = document.getElementById("mcGdpNote");
+    var grid = document.getElementById("mcGdpGrid");
+    var hist = document.getElementById("mcGdpHist");
+    if (!g || !g.countries || !g.countries.length){
+      body.innerHTML = '<tr><td class="l" colspan="6" style="color:var(--tx3)">No GDP data available.</td></tr>';
+      note.innerHTML = "&nbsp;"; grid.innerHTML = ""; hist.innerHTML = "";
+      return;
+    }
+    body.innerHTML = g.countries.map(function(c){
+      var col = ccolor(c);
+      var cur = (String(c.exchange).toUpperCase() === ex) ? "cur" : "";
+      return '<tr class="' + cur + '">' +
+        '<td class="l country" style="border-left-color:' + col + '">' +
+          '<i class="cdot" style="background:' + col + '"></i><span style="color:' + col + '">' + esc(c.country) + '</span></td>' +
+        '<td class="l code">' + esc(c.exchange) + '</td>' +
+        '<td class="code">' + esc(c.gdp_year == null ? "n/a" : c.gdp_year) + '</td>' +
+        '<td class="gdp" style="color:' + col + '">' + money0(c.gdp) + '</td>' +
+        '<td class="gdp">' + pct(c.gdp_growth) + '</td>' +
+        '<td class="gdp">' + money2(c.gdp_per_capita) + '</td></tr>';
+    }).join("");
+    grid.innerHTML = g.countries.map(gdpCard).join("");
+    hist.innerHTML = g.countries.map(gdpHistory).join("");
+
+    var ys = [];
+    g.countries.forEach(function(c){ (c.history || []).forEach(function(h){ ys.push(h.year); }); });
+    var span = ys.length ? (Math.min.apply(null, ys) + " to " + Math.max.apply(null, ys)) : "";
+    var ind = g.indicators || {};
+    var codes = ["gdp", "gdp_growth", "gdp_per_capita"].map(function(k){
+      if (!ind[k]) return "";
+      return '<br>' + esc(k.replace(/_/g, " ")) + ": " + esc(ind[k].code) +
+        " (" + esc(ind[k].name) + ", " + esc(ind[k].unit) + ")" +
+        (ind[k].source_last_updated ? " &middot; series last updated " + esc(ind[k].source_last_updated) : "");
+    }).join("");
+    note.innerHTML = srcOne(g.source || "World Bank Open Data",
+      latestYear(g.countries, ["gdp_year","gdp_growth_year","gdp_per_capita_year"]), g.source_url);
+  }
+
+  function load(){
+    fetch(FALLBACK, { cache: "default" })
+      .then(function(r){ if (!r.ok) throw new Error("no snapshot"); return r.json(); })
+      .then(render)
+      .catch(function(){
+        document.getElementById("mcInflGrid").innerHTML =
+          '<div class="nodata">Macro data is not available.</div>';
+        document.getElementById("mcInflTableHost").innerHTML = "";
+        document.getElementById("mcGdpTableBody").innerHTML =
+          '<tr><td class="l" colspan="6" style="color:var(--tx3)">GDP data is not available.</td></tr>';
+        document.getElementById("mcGdpGrid").innerHTML = "";
+        document.getElementById("mcGdpHist").innerHTML = "";
+      });
+  }
+
+  document.getElementById("mcRefresh").addEventListener("click", load);
+  load();
+})();
+</script>
+<script>
+/* ==================================================================
+   MACRO panel, sections added 2026-10-12:
+     Interest rates and monetary policy    <- static_data/macro_rates.json
+     Currency and exchange rates           <- static_data/fx.json
+     Fiscal policy and sovereign debt      <- the sovereign debt file
+     Taxation, six headings four countries <- static_data/macro_tax.json
+
+   Rules this block holds to, because they outrank finishing:
+     - nothing is hardcoded: every figure on screen is read from a file,
+       and every figure prints the source and the as-of date the file
+       supplies;
+     - an absent value is rendered as an explicit not-available state WITH
+       THE REASON (usually the name of the file or field that is absent).
+       It is never rendered as 0, and never as a zero-length bar;
+     - zero and absent are different facts and are rendered differently;
+     - any period the source marks as a projection carries the word
+       projected in the label the reader sees, and its segment is dashed;
+     - the file's own provenance is printed, including where a figure is a
+       derived or secondary figure rather than a primary observation.
+
+   No tab bar: these sections are siblings of Inflation and GDP inside the
+   same .mc-scroll column.
+   ================================================================== */
+(function(){
+  "use strict";
+
+  var SD = "../../static_data/";
+  var RATES_FILE = SD + "macro_rates.json";
+  var FX_FILE    = SD + "fx.json";
+  var TAX_FILE   = SD + "macro_tax.json";
+  /* The fiscal file is produced alongside this panel and its name was not
+     fixed when this panel was built, so the plausible names are probed in
+     order and the first one that exists is used. If none exists the panel
+     names every path it tried rather than guessing at a figure. */
+  var FISCAL_FILES = [
+    SD + "macro_fiscal.json",
+    SD + "sovereign_debt.json",
+    SD + "fiscal.json",
+    SD + "macro_debt.json",
+    SD + "debt.json"
+  ];
+  var RETRIEVED = new Date().toISOString().replace("T", " ").slice(0, 19) + "Z";
+
+  var CANON = [
+    { iso2:"KE", country:"Kenya",        currency:"KES" },
+    { iso2:"NG", country:"Nigeria",      currency:"NGN" },
+    { iso2:"ZA", country:"South Africa", currency:"ZAR" },
+    { iso2:"EG", country:"Egypt",        currency:"EGP" }
+  ];
+
+  /* The country an element belongs to, so the country search can show only
+     that country. Read from the element's own source object; never guessed
+     from a figure. Returns "" when the object names no country, in which
+     case the element is left untagged and is never hidden by mistake. */
+  var NAME_ISO = { "kenya":"KE", "nigeria":"NG", "south africa":"ZA", "egypt":"EG" };
+  function isoOf(c){
+    var v = txt(first(c || {}, ["iso2","code","iso","country_code"]));
+    if (v && /^[A-Za-z]{2}$/.test(String(v))) return String(v).toUpperCase();
+    var nm = txt(first(c || {}, ["country","name"]));
+    if (nm && NAME_ISO[String(nm).toLowerCase()]) return NAME_ISO[String(nm).toLowerCase()];
+    return "";
+  }
+
+  /* ---------------- small helpers ---------------- */
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[c];
+    });
+  }
+  function txt(v){
+    if (v == null) return null;
+    var t = String(v).replace(/\s+/g, " ").trim();
+    return t ? t : null;
+  }
+  function num(v){
+    if (v == null) return null;
+    if (typeof v === "number") return isFinite(v) ? v : null;
+    var t = String(v).replace(/[\s,]/g, "").replace(/%$/, "");
+    if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+    var n = parseFloat(t);
+    return isFinite(n) ? n : null;
+  }
+  /* One short clause, or nothing. A figure needs its period, unit, basis and
+     source name; it does not need a paragraph about how it was derived, why a
+     source was chosen, or why a source could not be reached. */
+  var NOUSE_MARK = /(not machine-readable|did not respond|does not respond|times out|timed out|no longer serves|bot wall|radware|HTTP 4|HTTP 5|could not be (read|fetched|located|transcribed|confirmed)|could be read|not readable|image-only|to this build)/i;
+  function parensEven(s){
+    var d = 0;
+    for (var i = 0; i < s.length; i++){
+      if (s.charAt(i) === "(") d++;
+      else if (s.charAt(i) === ")") d--;
+    }
+    return d === 0;
+  }
+  function brief(v){
+    var s = txt(v);
+    if (!s) return "";
+    if (NOUSE_MARK.test(s)) return "";
+    var s1 = s.split(/\.\s+(?=[A-Z(])/)[0];
+    if (s1.indexOf("; ") >= 0){
+      var cut = s1.split("; ")[0];
+      if (parensEven(cut)) s1 = cut;
+    }
+    s1 = s1.replace(/^[\s.,;:]+/, "").replace(/[\s.,;:]+$/, "");
+    s1 = s1.replace(/\s*\(fetched [^)]*\)/gi, "").replace(/\s*\(retrieved [^)]*\)/gi, "").replace(/\s+$/, "");
+    if (s1.length > 240){
+      s1 = s1.slice(0, 240);
+      s1 = s1.slice(0, s1.lastIndexOf(" "));
+    }
+    return s1;
+  }
+  function first(o, keys){
+    for (var i = 0; i < keys.length; i++){
+      var k = keys[i];
+      if (o && o[k] != null && o[k] !== "") return o[k];
+    }
+    return null;
+  }
+  function truthy(v){
+    if (v === true || v === 1) return true;
+    return /^(1|true|yes|y|p|proj|project|projected|forecast|forecasts|est|estimate|estimated|prelim|preliminary)$/i
+      .test(String(v == null ? "" : v).trim());
+  }
+  /* A point is a projection when the file says so, under any of the field
+     names a producer might reasonably use. The label the reader sees then
+     carries the word projected, because printing a projection as a
+     reported result is the most serious misreading this panel can make. */
+  var PROJ_KEYS = ["projected","is_projection","isProjected","is_projected","projection",
+                   "forecast","is_forecast","isForecast","estimate","is_estimate","prelim","is_prelim"];
+  function isProjected(p){
+    if (!p || typeof p !== "object") return false;
+    for (var i = 0; i < PROJ_KEYS.length; i++){
+      if (p[PROJ_KEYS[i]] != null && truthy(p[PROJ_KEYS[i]])) return true;
+    }
+    var st = txt(p.status) || txt(p.type) || txt(p.basis) || txt(p.kind) || txt(p.nature) || txt(p.note) || "";
+    if (/proj|forecast|estimat|prelim/i.test(st)) return true;
+    return false;
+  }
+  function periodLabel(p, keys){
+    var lab = txt(first(p || {}, keys || ["year","date","period","as_of","label","fy"]));
+    var base = lab ? lab.replace(/\s*[pP]$/, "") : "period not stated";
+    return isProjected(p) ? base + " projected" : base;
+  }
+  var PROJ_TAG = '<span class="mc-flag proj" data-projected="1">projected</span>';
+  function hasProjected(pts){
+    for (var i = 0; i < pts.length; i++){ if (pts[i].projected) return true; }
+    return false;
+  }
+  function trimZeros(s){
+    if (String(s).indexOf(".") < 0) return String(s);
+    return String(s).replace(/0+$/, "").replace(/\.$/, "");
+  }
+  function fmtNum(v){
+    if (v == null || !isFinite(v)) return "n/a";
+    if (Math.abs(v - Math.round(v)) < 1e-9) return String(Math.round(v));
+    return v.toFixed(2);
+  }
+  /* a field name from a file, turned into the words a reader can read; the
+     words come from the file's own key, never from this panel's guess */
+  function humanKey(k){
+    return String(k == null ? "" : k).replace(/_/g, " ").replace(/\s+/g, " ").trim()
+      .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }
+  /* one dated period change, with the sign and the direction word the file
+     itself gives, so a movement is never printed without either */
+  function chgCell(ch){
+    if (!ch || typeof ch !== "object") return null;
+    var pc = num(ch.pct_change);
+    if (pc == null) return null;
+    return { pct: pc, cls: pc > 0 ? "up" : (pc < 0 ? "down" : ""),
+             txt: (pc > 0 ? "+" : "") + pc.toFixed(2) + "%",
+             from: txt(ch.from_date), to: txt(ch.to_date), dir: txt(ch.local_currency) };
+  }
+  /* fx history points are stored as [date, value] pairs; this turns them into
+     the point objects the chart reads, without changing a single value */
+  function fxSeriesPts(points){
+    if (!Array.isArray(points)) return [];
+    var rows = [];
+    points.forEach(function(p){
+      if (Array.isArray(p)) rows.push({ date: p[0], value: p[1] });
+      else if (p && typeof p === "object")
+        rows.push({ date: first(p, ["date","as_of","day","period","label"]),
+                    value: num(first(p, ["value","rate","close"])) });
+    });
+    return seriesPts(rows, ["value"], ["date","as_of","day","period","label"]);
+  }
+  /* a country history is either one value per date (a plain policy path) or
+     several named rate columns per date (a corridor history). Both are read:
+     the corridor yields one series per named rate rather than a merged number */
+  function rateSeriesFromHistory(hist){
+    var out = [];
+    if (!Array.isArray(hist) || !hist.length) return out;
+    var single = seriesPts(hist, RATE_VAL_KEYS, RATE_ASOF_KEYS);
+    if (single.length >= 2){ return [{ name: null, pts: single, unit: null }]; }
+    var cols = [];
+    hist.forEach(function(p){
+      if (!p || typeof p !== "object") return;
+      Object.keys(p).forEach(function(k){ if (typeof p[k] === "number" && cols.indexOf(k) < 0) cols.push(k); });
+    });
+    cols.forEach(function(k){
+      var sub = hist.map(function(p){ return { date: p.date, value: p[k] }; });
+      var pts = seriesPts(sub, ["value"], RATE_ASOF_KEYS);
+      if (pts.length >= 2) out.push({ name: humanKey(k), pts: pts, unit: null });
+    });
+    return out;
+  }
+  function fxNum(v){
+    if (v == null || !isFinite(v)) return "n/a";
+    if (v === 0) return "0";
+    if (Math.abs(v) >= 1) return trimZeros(v.toFixed(4));
+    var p = v.toPrecision(6);
+    return String(p).indexOf("e") >= 0 ? trimZeros(v.toFixed(10)) : trimZeros(p);
+  }
+  /* every printed figure gets this line: its source and its as-of date, or
+     an explicit statement that the file does not carry them */
+  function srcLine(src, asof, note, srcUrl){
+    var s = 'Source: ';
+    if (src){
+      s += srcUrl ? '<a href="' + esc(srcUrl) + '" target="_blank" rel="noopener">' + esc(src) + '</a>'
+                  : esc(src);
+    } else {
+      s += '<span class="sec">not stated in source file</span>';
+    }
+    s += ' &middot; as of ' + (asof ? esc(asof) : '<span class="sec">not stated in source file</span>');
+    if (note) s += ' &middot; ' + esc(note);
+    return '<span class="mc-src">' + s + '</span>';
+  }
+  function secSrcLine(src, asof, note){
+    var s = 'Source: ' + (src ? esc(src) : '<span class="sec">not stated in source file</span>');
+    s += ' &middot; as of ' + (asof ? esc(asof) : '<span class="sec">not stated in source file</span>');
+    if (note) s += ' &middot; ' + esc(note);
+    return s;
+  }
+  /* An absent figure gets one short honest state. There is no sentence about
+     the file, the field or the source beside it. */
+  function naCell(){
+    return '<span class="mc-cellna">not available</span>';
+  }
+  function naBlock(title){
+    return '<div class="mc-na"><b>' + esc(title) + '</b></div>';
+  }
+  function unitPct(u){ return u != null && /^(%|percent|per cent|pct|percentage)$/i.test(u); }
+  function fmtRate(v, unit){
+    var s = v.toFixed(2);
+    if (unit == null) return esc(s);
+    if (unitPct(unit)) return esc(s) + '<span class="u">%</span>';
+    return esc(s) + ' <span class="u">' + esc(unit) + '</span>';
+  }
+  function sortKey(p){
+    var y = num(first(p || {}, ["year","fy"]));
+    if (y != null) return y;
+    var d = txt(first(p || {}, ["date","as_of","period"]));
+    if (d){
+      var m = /^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?/.exec(d);
+      if (m) return parseInt(m[1], 10) + (m[2] ? parseInt(m[2], 10) / 100 : 0) + (m[3] ? parseInt(m[3], 10) / 10000 : 0);
+    }
+    return null;
+  }
+  function seriesPts(arr, vkeys, lkeys){
+    var out = [], i = 0;
+    (arr || []).forEach(function(p){
+      if (!p || typeof p !== "object") return;
+      var v = num(first(p, vkeys || ["value","rate","percent","level"]));
+      if (v == null) return;
+      var sk = sortKey(p);
+      out.push({ label: periodLabel(p, lkeys), value: v, projected: isProjected(p),
+                 k: (sk == null ? i : sk), i: i });
+      i++;
+    });
+    if (out.length > 1 && out.every(function(o){ return o.k != null; })){
+      out.sort(function(a, b){ return a.k - b.k; });
+    }
+    return out;
+  }
+
+  /* ---------------- fetch, with the failure named ---------------- */
+  function loadFile(path){
+    return fetch(path, { cache: "no-store" }).then(function(r){
+      var lm = null;
+      try { lm = r.headers ? r.headers.get("Last-Modified") : null; } catch(e){}
+      if (!r.ok) return { ok:false, path:path, status:r.status, lm:lm };
+      return r.json().then(function(j){
+        return { ok:true, path:path, json:j, lm:lm };
+      }, function(){
+        return { ok:false, path:path, status:r.status, parse:true, lm:lm };
+      });
+    }, function(){
+      return { ok:false, path:path, status:0 };
+    });
+  }
+
+  /* ---------------- chart: line or step, with a dashed projected run ------ */
+  function pathChart(pts, col, fmt, aria, mode){
+    if (!pts || pts.length < 2){
+      return '<div class="nodata" style="padding:6px 0">Fewer than two published points to chart.</div>';
+    }
+    var W = 360, H = 134, L = 62, R = 18, T = 16, B = 40;
+    var iw = W - L - R, ih = H - T - B;
+    var vals = pts.map(function(p){ return p.value; });
+    var dMn = Math.min.apply(null, vals), dMx = Math.max.apply(null, vals);
+    var mn = dMn, mx = dMx;
+    if (mx === mn){ mx += 1; mn -= 1; }
+    var pad = (mx - mn) * 0.08; mn -= pad; mx += pad;
+    var x = function(i){ return L + iw * i / (pts.length - 1); };
+    var y = function(v){ return T + ih - ih * (v - mn) / (mx - mn); };
+
+    var s = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(aria) + '">'];
+    /* the two gridlines sit on the published maximum and minimum and are
+       labelled with those exact values, so the chart reads against a scale
+       rather than as an unlabelled squiggle */
+    s.push('<line class="gl" x1="' + L + '" y1="' + y(dMx).toFixed(1) + '" x2="' + (W - R) + '" y2="' + y(dMx).toFixed(1) + '"/>');
+    s.push('<line class="gl" x1="' + L + '" y1="' + y(dMn).toFixed(1) + '" x2="' + (W - R) + '" y2="' + y(dMn).toFixed(1) + '"/>');
+    s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y(dMx) + 3).toFixed(1) + '" text-anchor="end">' + esc(fmt(dMx)) + '</text>');
+    s.push('<text class="ax" x="' + (L - 6) + '" y="' + (y(dMn) + 3).toFixed(1) + '" text-anchor="end">' + esc(fmt(dMn)) + '</text>');
+    s.push('<line class="gl" x1="' + L + '" y1="' + (T + ih).toFixed(1) + '" x2="' + (W - R) + '" y2="' + (T + ih).toFixed(1) + '"/>');
+
+    function segD(a, b){
+      var d, i;
+      if (mode === "step"){
+        d = 'M ' + x(a).toFixed(1) + ' ' + y(pts[a].value).toFixed(1);
+        for (i = a + 1; i <= b; i++){
+          d += ' L ' + x(i).toFixed(1) + ' ' + y(pts[i - 1].value).toFixed(1);
+          d += ' L ' + x(i).toFixed(1) + ' ' + y(pts[i].value).toFixed(1);
+        }
+        return d;
+      }
+      d = '';
+      for (i = a; i <= b; i++){
+        d += (i === a ? 'M ' : ' L ') + x(i).toFixed(1) + ' ' + y(pts[i].value).toFixed(1);
+      }
+      return d;
+    }
+    var firstProj = -1;
+    for (var q = 0; q < pts.length; q++){ if (pts[q].projected){ firstProj = q; break; } }
+    if (firstProj > 0){
+      s.push('<path class="step" stroke="' + col + '" d="' + segD(0, firstProj - 1) + '"/>');
+      s.push('<path class="step projd" stroke="' + col + '" d="' + segD(firstProj - 1, pts.length - 1) + '"/>');
+    } else {
+      s.push('<path class="step" stroke="' + col + '" d="' + segD(0, pts.length - 1) + '"/>');
+    }
+    /* on a long series the per-point markers are thinned so the drawn line
+       stays readable; the line itself uses every published point */
+    var mkStep = pts.length > 120 ? Math.ceil(pts.length / 120) : 1;
+    pts.forEach(function(p, i){
+      if (mkStep > 1 && i % mkStep !== 0 && i !== pts.length - 1) return;
+      s.push('<circle class="' + (p.projected ? "proj" : "") + '" cx="' + x(i).toFixed(1) + '" cy="' + y(p.value).toFixed(1) +
+        '" r="2.8" fill="' + (p.projected ? "none" : col) + '" stroke="' + col + '">' +
+        '<title>' + esc(p.label) + ': ' + esc(fmt(p.value)) + '</title></circle>');
+    });
+    /* Ticks: the two ends, the middle on a longer series, and always the
+       first period the source marks as a projection, so a projected period is
+       labelled on the axis and is never left looking like a reported one. Its
+       label stacks the word projected on its own row, and successive projected
+       ticks alternate rows, so two adjacent projected labels cannot collide. */
+    var idxSet = [0, pts.length - 1];
+    if (pts.length > 4) idxSet.push(Math.round((pts.length - 1) / 2));
+    if (firstProj >= 0) idxSet.push(firstProj);
+    var idxs = idxSet.filter(function(v, i2, a){ return v >= 0 && v < pts.length && a.indexOf(v) === i2; })
+                     .sort(function(a, b){ return a - b; });
+    while (idxs.length > 4){
+      idxs.splice(idxs.length - 2, 1);
+    }
+    if (firstProj >= 0 && idxs.indexOf(firstProj) < 0){
+      idxs.splice(idxs.length - 1, 0, firstProj);
+      idxs.sort(function(a, b){ return a - b; });
+    }
+    var projRow = 0;
+    idxs.forEach(function(i){
+      var anc = (i === 0) ? "start" : (i === pts.length - 1 ? "end" : "middle");
+      var yy = H - 28;
+      if (pts[i].projected){
+        var rowY = yy + 12 + (projRow % 2) * 12;
+        projRow++;
+        s.push('<text class="ax" x="' + x(i).toFixed(1) + '" y="' + yy + '" text-anchor="' + anc + '">' +
+          esc(pts[i].label.replace(/\s+projected$/, "")) +
+          '<tspan class="pl" x="' + x(i).toFixed(1) + '" y="' + rowY + '">projected</tspan></text>');
+      } else {
+        s.push('<text class="ax" x="' + x(i).toFixed(1) + '" y="' + yy + '" text-anchor="' + anc + '">' +
+          esc(pts[i].label) + '</text>');
+      }
+    });
+    if (firstProj >= 0){
+      var px = x(firstProj);
+      var anc2 = (firstProj === 0 || px < 60) ? "start" : (px > W - R - 50 ? "end" : "middle");
+      s.push('<text class="pl" x="' + px.toFixed(1) + '" y="' + (T - 5) + '" text-anchor="' + anc2 + '">projected</text>');
+    }
+    s.push('</svg>');
+    return s.join("");
+  }
+
+  /* ==================================================================
+     1. INTEREST RATES AND MONETARY POLICY
+     ================================================================== */
+  var RATE_NAME_KEYS = ["name","label","title","rate_name","name_of_rate"];
+  var RATE_VAL_KEYS  = ["value","rate","percent","level","policy_rate"];
+  var RATE_ASOF_KEYS = ["as_of","asof","date","effective_date","effective","decision_date","announced"];
+  var RATE_SRC_KEYS  = ["source","primary_source","publisher","authority"];
+  var RATE_HIST_KEYS = ["history","series","path","rate_history"];
+  /* a corridor is not one number: these names are how a producer is likely
+     to spell the second, third and fourth rate a country publishes */
+  var CORRIDOR_KEYS = ["lower","upper","floor","ceiling","bottom","top",
+                       "corridor_lower","corridor_upper","corridor_low","corridor_high",
+                       "overnight_lending","overnight_deposit","lending_rate","deposit_rate",
+                       "deposit_facility","lending_facility","discount_rate","discount_window",
+                       "minimum_bid","max_bid"];
+  function corridorEntries(o){
+    var out = [];
+    CORRIDOR_KEYS.forEach(function(k){
+      if (!o || o[k] == null) return;
+      var v = o[k];
+      if (v && typeof v === "object"){
+        var val = num(first(v, RATE_VAL_KEYS));
+        if (val == null) return;
+        out.push({ name: first(v, RATE_NAME_KEYS) || k, value: val,
+                   as_of: first(v, RATE_ASOF_KEYS), source: first(v, RATE_SRC_KEYS),
+                   unit: first(v, ["unit","units"]) });
+      } else if (num(v) != null){
+        out.push({ name: k, value: v });
+      }
+    });
+    return out;
+  }
+  function rateEntries(c){
+    var out = [];
+    /* The file's own shape: the headline policy rate is one object under
+       policy_rate, and every further rate the bank publishes sits in a
+       facilities block. A corridor is not one number: when policy_rate carries
+       a `rates` object with each leg named, every leg is shown rather than one
+       merged figure. */
+    var pr = (c && c.policy_rate && typeof c.policy_rate === "object") ? c.policy_rate : null;
+    if (pr){
+      if (pr.rates && typeof pr.rates === "object" && !Array.isArray(pr.rates)){
+        Object.keys(pr.rates).forEach(function(k){
+          if (pr.rates[k] == null || pr.rates[k] === "") return;
+          out.push({ name: humanKey(k), value: pr.rates[k],
+                     as_of: first(pr, RATE_ASOF_KEYS), unit: first(pr, ["unit"]),
+                     source: first(pr, ["source","publisher"]) || null,
+                     source_url: first(pr, ["source_url","url"]) });
+        });
+      } else if (num(first(pr, RATE_VAL_KEYS)) != null){
+        out.push(pr);
+      }
+    }
+    var fac = (c && c.facilities && typeof c.facilities === "object") ? c.facilities : null;
+    if (fac){
+      Object.keys(fac).forEach(function(k){
+        var v = fac[k];
+        /* a facility's value is sometimes a number and sometimes a stated
+           structure (a corridor in basis points, a reserve-ratio ladder); both
+           are read here, so a stated structure is never dropped or called absent */
+        if (v && typeof v === "object" && first(v, RATE_VAL_KEYS) != null){
+          var o = {}, q;
+          for (q in v){ if (Object.prototype.hasOwnProperty.call(v, q)) o[q] = v[q]; }
+          if (first(o, RATE_NAME_KEYS) == null) o.name = k;
+          out.push(o);
+        } else if (v != null && v !== ""){
+          out.push({ name: k, value: v });
+        }
+      });
+    }
+    /* then any other shape a producer might use, so an older or differently
+       spelled file still resolves */
+    var raw = first(c, ["rates","policy_rates","rate_list","rates_corridor","corridor"]);
+    if (Array.isArray(raw)){
+      out = out.concat(raw);
+    } else if (raw && typeof raw === "object"){
+      if (first(raw, RATE_VAL_KEYS) != null){ out = out.concat([raw]); }
+      else {
+        Object.keys(raw).forEach(function(k){
+          var v = raw[k];
+          if (v && typeof v === "object" && first(v, RATE_VAL_KEYS) != null){
+            var o = {}, q;
+            for (q in v){ if (Object.prototype.hasOwnProperty.call(v, q)) o[q] = v[q]; }
+            if (first(o, RATE_NAME_KEYS) == null) o.name = k;
+            out.push(o);
+          } else if (num(v) != null){
+            out.push({ name: k, value: v });
+          }
+        });
+      }
+      out = out.concat(corridorEntries(raw));
+    }
+    out = out.concat(corridorEntries(c));
+    if (!out.length && num(first(c, ["rate","policy_rate","value"])) != null){
+      out = [{ name: first(c, ["rate_name","name_of_rate","rate_label"]),
+               value: first(c, ["rate","policy_rate","value"]),
+               as_of: first(c, ["as_of","rate_as_of"]),
+               source: first(c, ["source"]),
+               history: first(c, RATE_HIST_KEYS) }];
+    }
+    /* dedupe on name + value + as-of, so a corridor spelled two ways is not listed twice */
+    var seen = {}, keep = [];
+    out.forEach(function(e){
+      var k = (txt(first(e, RATE_NAME_KEYS)) || "") + "|" + (num(first(e, RATE_VAL_KEYS)) || "") + "|" +
+              (txt(first(e, RATE_ASOF_KEYS)) || "");
+      if (seen[k]) return;
+      seen[k] = 1; keep.push(e);
+    });
+    return keep;
+  }
+  function rateCard(c){
+    var col = txt(first(c, ["color"])) || "#33e29a";
+    var entries = rateEntries(c);
+    var cname = txt(c.country) || txt(c.name) || "Country not named in source file";
+    var html = '<div class="mc-card" data-iso="' + esc(isoOf(c)) + '">' +
+      '<div class="cname"><span class="nm"><i class="cdot" style="background:' + esc(col) + '"></i>' +
+        '<span style="color:' + esc(col) + '">' + esc(cname) + '</span></span>' +
+        '<span class="exch">' + esc(txt(first(c, ["iso2","code"])) || "") + '</span></div>';
+    var bank = txt(first(c, ["central_bank","bank","monetary_authority","authority"]));
+    if (bank) html += '<div class="sub">' + esc(bank) + '</div>';
+    if (!entries.length){
+      html += '<div class="mc-rates">' + naCell() + '</div>';
+    } else {
+      html += '<div class="mc-rates">' + entries.map(function(e){
+        var rawVal = first(e, RATE_VAL_KEYS);
+        var v = num(rawVal);
+        var unit = txt(first(e, ["unit","units"]));
+        var asof = txt(first(e, RATE_ASOF_KEYS));
+        var esrc = txt(first(e, RATE_SRC_KEYS));
+        var eurl = txt(first(e, ["source_url","url"]));
+        var srcBit = esrc
+          ? (eurl ? '<a href="' + esc(eurl) + '" target="_blank" rel="noopener">' + esc(esrc) + '</a>' : esc(esrc))
+          : (eurl ? '<a href="' + esc(eurl) + '" target="_blank" rel="noopener">' + esc(eurl) + '</a>'
+                  : '<span class="sec">the file states no source for this rate</span>');
+        var meta = 'as of ' + (asof ? esc(asof) : '<span class="sec">the file states no date for this rate</span>') +
+          ' &middot; ' + srcBit;
+        return '<div class="mc-rate"' + (isProjected(e) ? ' data-projected="1"' : '') + '>' +
+          '<span class="rn">' + esc(txt(first(e, RATE_NAME_KEYS)) || "rate name not stated in source file") +
+            (isProjected(e) ? PROJ_TAG : "") +
+            '<span class="mc-src">' + meta + '</span></span>' +
+          '<span class="rv">' + (rawVal == null
+              ? naCell()
+              : (v != null ? fmtRate(v, unit) + (unit == null ? ' <span class="u">unit not stated in source</span>' : '')
+                           : '<span class="tv">' + esc(String(rawVal)) + '</span>')) +
+          '</span></div>';
+      }).join("") + '</div>';
+    }
+    var prInfo = (c.policy_rate && typeof c.policy_rate === "object") ? c.policy_rate : {};
+    var src0 = (Array.isArray(c.sources) && c.sources.length) ? c.sources[0] : {};
+    html += srcLine(brief(txt(first(c, ["source","publisher"])) || txt(prInfo.source_note) || txt(first(src0, ["what","name"]))),
+                    txt(first(c, ["as_of","asof","generated","updated"])) || txt(first(prInfo, ["as_of","asof"])) || txt(first(src0, ["fetched"])),
+                    null,
+                    txt(first(c, ["source_url","url"])) || txt(first(prInfo, ["source_url","url"])) || txt(first(src0, ["url"])));
+    html += '</div>';
+    return html;
+  }
+  /* one path card per rate that carries its own history, plus one for the
+     country-level history when the file gives it that way */
+  function ratePathCards(c){
+    var col = txt(first(c, ["color"])) || "#33e29a";
+    var cname = txt(c.country) || txt(c.name) || "Country not named in source file";
+    var prInfo = (c.policy_rate && typeof c.policy_rate === "object") ? c.policy_rate : {};
+    var cunit = txt(first(prInfo, ["unit","units"])) || txt(first(c, ["unit","units"]));
+    var blocks = [];
+    rateEntries(c).forEach(function(e){
+      var pts = seriesPts(first(e, RATE_HIST_KEYS), RATE_VAL_KEYS, RATE_ASOF_KEYS);
+      if (pts.length < 2) return;
+      var unit = txt(first(e, ["unit","units"])) || cunit;
+      blocks.push({ name: txt(first(e, RATE_NAME_KEYS)) || "rate", pts: pts,
+                    fmt: (function(u){ return function(v){ return unitPct(u) ? v.toFixed(2) + "%" : v.toFixed(2); }; })(unit) });
+    });
+    /* the country history is the published policy path: one series when each
+       point carries a single value, one series per named rate when the file
+       publishes a corridor history with several columns per date */
+    rateSeriesFromHistory(first(c, RATE_HIST_KEYS)).forEach(function(b){
+      var unit = b.unit || cunit;
+      blocks.push({ name: b.name || "published policy path", pts: b.pts,
+                    fmt: (function(u){ return function(v){ return unitPct(u) ? v.toFixed(2) + "%" : v.toFixed(2); }; })(unit) });
+    });
+    if (!blocks.length){
+      return '<div class="mc-na"><b>' + esc(cname) + '</b><span class="why">no published history</span></div>';
+    }
+    return blocks.map(function(b){
+      var span = b.pts.length ? ' <span class="mc-src">' + b.pts.length + ' published points, ' +
+        esc(b.pts[0].label) + ' to ' + esc(b.pts[b.pts.length - 1].label) + '</span>' : '';
+      return '<div class="mc-na" data-rate-path="1" data-iso="' + esc(isoOf(c)) + '"><b>' + esc(cname) + ' &middot; ' + esc(b.name) + '</b>' +
+        '<div class="sph">' + pathChart(b.pts, col, b.fmt, esc(cname) + " " + esc(b.name) + " history", "step") + '</div>' +
+        (hasProjected(b.pts) ? PROJ_TAG : '') +
+        span + '</div>';
+    }).join("");
+  }
+  function rateDecTable(rows){
+    var head = '<tr><th class="l">Country</th><th class="l">Action</th><th class="l">Stance</th>' +
+               '<th class="l">Meeting date</th><th class="l">Source</th></tr>';
+    var body = rows.map(function(c){
+      var pr = (c.policy_rate && typeof c.policy_rate === "object") ? c.policy_rate : {};
+      var decs = Array.isArray(c.decisions) ? c.decisions : [];
+      var last = decs.length ? decs[decs.length - 1] : null;
+      var decision = txt(first(pr, ["decision"])) || (typeof pr.decision === "string" ? txt(pr.decision) : null);
+      var shortAct = last ? txt(first(last, ["action","decision","change","direction"])) : null;
+      var action = shortAct || decision || txt(first(c, ["decision","policy_action","action"]));
+      var stance = txt(first(pr, ["stance","bias","guidance","forward_guidance"])) ||
+                   txt(first(c, ["stance","bias","guidance"]));
+      var meet   = txt(first(pr, ["last_decision_date","meeting_date","decision_date","as_of"])) ||
+                   (last ? txt(first(last, ["meeting_date","date","announced"])) : null) ||
+                   txt(first(c, ["meeting_date","decision_date"]));
+      var src    = txt(first(pr, ["source","publisher"])) || txt(c.central_bank);
+      var url    = txt(first(pr, ["source_url","url"])) || txt(first(c, ["source_url","url"]));
+      var projected = isProjected(pr) || isProjected(last) || isProjected(c);
+      function cell(v){ return v ? esc(v) : naCell(); }
+      return '<tr data-iso="' + esc(isoOf(c)) + '">' +
+        '<td class="l hd">' + esc(txt(c.country) || txt(c.name) || "Country not named in source file") +
+          (projected ? PROJ_TAG : "") + '</td>' +
+        '<td class="l">' + cell(action, 'the file gives no decision for this country') + '</td>' +
+        '<td class="l">' + cell(stance, 'the file gives no stance for this country') + '</td>' +
+        '<td class="l mc-mid">' + cell(meet, 'the file gives no meeting date for this country') + '</td>' +
+        '<td class="l">' + (url
+            ? '<a href="' + esc(url) + '" target="_blank" rel="noopener" style="color:var(--acc);text-decoration:none">' +
+              esc(src || url) + '</a>'
+            : (src ? esc(src) : naCell('the file states no source for this country'))) + '</td></tr>';
+    }).join("");
+    return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+  }
+  function renderRates(res){
+    var grid = document.getElementById("mcRateGrid");
+    var decHost = document.getElementById("mcRateDecHost");
+    var histHost = document.getElementById("mcRateHistHost");
+    var note = document.getElementById("mcRateNote");
+    if (!res.ok){
+      grid.innerHTML = naBlock("Policy rates not available");
+      decHost.innerHTML = naBlock("Decisions not available");
+      histHost.innerHTML = naBlock("Policy path not available");
+      note.innerHTML = "";
+      return;
+    }
+    var d = res.json || {};
+    var rows = (d.countries || d.data || []).filter(function(c){ return c && typeof c === "object"; });
+    if (!rows.length){
+      grid.innerHTML = naBlock("Policy rates not available");
+      decHost.innerHTML = ""; histHost.innerHTML = "";
+      note.innerHTML = srcOne(txt(d.source) || "the central banks",
+        dayIn(first(d, ["as_of","generated","updated"])));
+      return;
+    }
+    grid.innerHTML = rows.map(rateCard).join("");
+    decHost.innerHTML = rateDecTable(rows);
+    histHost.innerHTML = rows.map(ratePathCards).join("");
+    /* one line: the banks that publish the rates, and the day the file was read */
+    note.innerHTML = srcOne(
+      shortList(rows.map(function(c){ return c.central_bank; }), 4, " and the other central banks"),
+      dayIn(d.generated));
+  }
+
+  /* ==================================================================
+     2. CURRENCY FLUCTUATIONS AND EXCHANGE RATES
+     ================================================================== */
+  /* One accent colour per currency, matching the country colour used above */
+  var FXCOL = { KES:"#e0a340", NGN:"#1ecfb0", ZAR:"#f87171", EGP:"#33e29a", USD:"#9a9a9a", EUR:"#9a9a9a", GBP:"#9a9a9a" };
+  /* The file now carries an fx_rates block: a per-currency current quote with
+     its own as_of, source and fetched_at, the dated series it was computed
+     from, the period changes and the volatility. This reads that block. If a
+     snapshot predates it the older cross-rate matrix shape is still read, so
+     the panel does not go blank on an older file. */
+  function fxRateList(d){
+    var fr = (d && d.fx_rates && typeof d.fx_rates === "object") ? d.fx_rates : null;
+    return (fr && Array.isArray(fr.rates) && fr.rates.length) ? fr : null;
+  }
+  function fxCards(d, lm){
+    var fr = fxRateList(d);
+    if (!fr){ return fxCardsMatrix(d, lm); }
+    return fr.rates.map(function(r){
+      var code = txt(r.code) || txt(r.name) || "";
+      var col = FXCOL[String(code).toUpperCase()] || "#33e29a";
+      var cur = (r.current && typeof r.current === "object") ? r.current : {};
+      var mk = (cur.market && typeof cur.market === "object") ? cur.market : {};
+      var v = num(mk.value);
+      var tsBits = [];
+      tsBits.push('Quote time: ' + (txt(mk.as_of) ? esc(txt(mk.as_of))
+        : '<span class="sec">not stated</span>'));
+      tsBits.push(mk.source
+        ? (mk.source_url ? '<a href="' + esc(mk.source_url) + '" target="_blank" rel="noopener">' + esc(mk.source) + '</a>' : esc(mk.source))
+        : '<span class="sec">source not stated</span>');
+      /* the official reference, where the file carries one, and its own stated
+         reason where it does not; both are printed rather than a blank slot */
+      var offBits = '';
+      ["official","official_nfem"].forEach(function(k){
+        var o = cur[k];
+        if (!o || typeof o !== "object") return;
+        var olab = (k === "official_nfem") ? "NFEM official reference" : "Official reference";
+        if (num(o.value) != null){
+          offBits += '<div class="mc-rate"><span class="rn">' + olab +
+            '<span class="mc-src">as of ' + (txt(o.as_of) ? esc(txt(o.as_of))
+              : '<span class="sec">date not stated</span>') + ' &middot; ' +
+            (o.source ? (o.source_url ? '<a href="' + esc(o.source_url) + '" target="_blank" rel="noopener">' + esc(o.source) + '</a>' : esc(o.source))
+                      : '<span class="sec">source not stated</span>') +
+            (txt(o.series) ? ' &middot; ' + esc(txt(o.series)) : '') + '</span></span>' +
+            '<span class="rv">' + esc(fxNum(num(o.value))) + '</span></div>';
+        } else if (o.absent){
+          var oWhy = brief(o.reason);
+          offBits += '<div class="mc-rate"><span class="rn">' + olab +
+            (oWhy ? '<span class="mc-src">' + esc(oWhy) + '</span>' : '') +
+            '</span><span class="rv"><span class="mc-cellna">absent</span></span></div>';
+        }
+      });
+      return '<div class="mc-card" data-ccy="' + esc(code) + '">' +
+        '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+          '<span style="color:' + col + '">' + esc(txt(r.name) || code) + '</span></span>' +
+          '<span class="exch">' + esc(code) + '/USD</span></div>' +
+        '<div class="big" style="color:' + col + '">' +
+          (v != null ? esc(fxNum(v)) + '<span class="yr">' + esc(code) + ' per USD</span>' + (isProjected(mk) ? PROJ_TAG : '')
+                     : naCell()) + '</div>' +
+        '<div class="sub">' + esc(brief(fr.quote_convention) || 'units of the listed currency per 1 US dollar') + '</div>' +
+        '<span class="mc-src">' + tsBits.join(' &middot; ') + '</span>' +
+        offBits +
+        '</div>';
+    }).join("");
+  }
+  /* the older shape, kept so a pre-extension snapshot still reads */
+  function fxCardsMatrix(d, lm){
+    var usd = null;
+    (d.matrix || []).forEach(function(r){
+      if (r && String(r.base).toUpperCase() === "USD") usd = r;
+    });
+    if (!usd){
+      return naBlock("Spot rates not available");
+    }
+    var want = ["KES","NGN","ZAR","EGP"];
+    var names = {};
+    (d.currencies || []).forEach(function(c){ if (c && c.code) names[String(c.code).toUpperCase()] = txt(c.name); });
+    var cells = {};
+    (usd.cells || []).forEach(function(c){ if (c && c.to) cells[String(c.to).toUpperCase()] = c; });
+    var note = txt(d.note);
+    var gen = txt(first(d, ["generated","as_of","timestamp"]));
+    var tsLine = '<span class="mc-src">Quote time: ' + (gen ? esc(gen)
+      : '<span class="sec">not stated</span>') + '</span>';
+    return want.map(function(cu){
+      var cell = cells[cu];
+      var col = FXCOL[cu] || "#33e29a";
+      var v = cell ? num(cell.rate) : null;
+      var has = cell ? (cell.has_rate === undefined ? v != null : (cell.has_rate !== false && v != null)) : false;
+      return '<div class="mc-card" data-ccy="' + esc(cu) + '">' +
+        '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+          '<span style="color:' + col + '">' + esc(names[cu] || cu) + '</span></span>' +
+          '<span class="exch">' + esc(cu) + '/USD</span></div>' +
+        '<div class="big" style="color:' + col + '">' +
+          (has ? esc(fxNum(v)) + '<span class="yr">' + esc(cu) + ' per USD</span>' + (isProjected(cell) ? PROJ_TAG : '')
+               : naCell()) + '</div>' +
+        '<div class="sub">One US dollar in ' + esc(cu) + '</div>' +
+        tsLine +
+        '</div>';
+    }).join("");
+  }
+  function fxChangeBlock(d){
+    var fr = fxRateList(d);
+    if (!fr){ return null; }
+    var WINS = [["d1","1 day"],["w1","1 week"],["m1","1 month"],["y1","1 year"],["ytd","year to date"]];
+    var any = false;
+    var rows = fr.rates.map(function(r){
+      var ch = (r.changes && typeof r.changes === "object") ? r.changes : {};
+      var code = txt(r.code) || "";
+      var col = FXCOL[String(code).toUpperCase()] || "#33e29a";
+      var cells = WINS.map(function(w){
+        var c = chgCell(ch[w[0]]);
+        if (c) any = true;
+        if (!c) return '<td>' + naCell() + '</td>';
+        var tt = (c.from && c.to) ? esc(c.from + ' to ' + c.to) : '';
+        return '<td><span class="d ' + c.cls + '">' + esc(c.txt) + '</span>' +
+          '<span class="mc-src">' + tt + (c.dir ? ' &middot; ' + esc(c.dir) : '') + '</span></td>';
+      }).join("");
+      return '<tr data-ccy="' + esc(code) + '"><td class="l hd" style="color:' + col + '">' + esc(code) + '</td>' + cells + '</tr>';
+    }).join("");
+    if (!any){ return null; }
+    var head = '<tr><th class="l">Currency</th>' + WINS.map(function(w){ return '<th>' + esc(w[1]) + '</th>'; }).join("") + '</tr>';
+    return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + rows +
+      '</tbody></table></div>';
+  }
+  function fxMatrix(d){
+    var rows = (d.matrix || []).filter(function(r){ return r && r.base; });
+    var derived = (d.fx_rates && d.fx_rates.cross_derived && Array.isArray(d.fx_rates.cross_derived.rows))
+      ? d.fx_rates.cross_derived.rows.filter(function(r){ return r && r.base; }) : null;
+    if (!rows.length && derived){ rows = derived; }
+    if (!rows.length){
+      return naBlock("Cross rates not available");
+    }
+    var codes = [];
+    (d.currencies || []).forEach(function(c){ if (c && c.code) codes.push(String(c.code).toUpperCase()); });
+    if (!codes.length && rows[0].cells){ rows[0].cells.forEach(function(c){ codes.push(String(c.to).toUpperCase()); }); }
+    var head = '<tr><th class="l">Base</th>' + codes.map(function(c){ return '<th data-col="' + esc(c) + '">' + esc(c) + '</th>'; }).join("") + '</tr>';
+    var body = rows.map(function(r){
+      var rowCodes = {};
+      (r.cells || []).forEach(function(c){ if (c && c.to) rowCodes[String(c.to).toUpperCase()] = c; });
+      return '<tr data-ccy="' + esc(String(r.base).toUpperCase()) + '"><td class="l hd">' + esc(String(r.base).toUpperCase()) +
+        (txt(r.name) ? '<span class="hk">' + esc(txt(r.name)) + '</span>' : '') + '</td>' +
+        codes.map(function(c){
+          var cell = rowCodes[c];
+          var v = cell ? num(cell.rate) : null;
+          var okc = cell ? (cell.has_rate === undefined ? v != null : (cell.has_rate !== false && v != null)) : false;
+          return '<td data-col="' + esc(c) + '">' + (okc ? '<span class="v">' + esc(fxNum(v)) + '</span>' +
+            (isProjected(cell) ? PROJ_TAG : '')
+            : naCell()) + '</td>';
+        }).join("") + '</tr>';
+    }).join("");
+    return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + body +
+      '</tbody></table></div>';
+  }
+  function renderFx(res){
+    var grid = document.getElementById("mcFxGrid");
+    var chg  = document.getElementById("mcFxChangeHost");
+    var ser  = document.getElementById("mcFxSeriesHost");
+    var mtx  = document.getElementById("mcFxMatrixHost");
+    var note = document.getElementById("mcFxNote");
+    if (!res.ok){
+      grid.innerHTML = naBlock("Spot rates not available");
+      chg.innerHTML  = naBlock("Period changes not available");
+      ser.innerHTML  = naBlock("Rate series not available");
+      mtx.innerHTML  = naBlock("Cross rates not available");
+      note.innerHTML = "";
+      return;
+    }
+    var d = res.json || {};
+    var fr = fxRateList(d);
+    grid.innerHTML = fxCards(d, res.lm);
+    chg.innerHTML = fxChangeBlock(d) || "";
+    /* the dated series the file holds, one chart per currency: the market
+       series always, and the official series where the file carries one */
+    var seriesCards = [];
+    if (fr){
+      fr.rates.forEach(function(r){
+        var code = txt(r.code) || "";
+        var col = FXCOL[String(code).toUpperCase()] || "#33e29a";
+        var hist = (r.history && typeof r.history === "object") ? r.history : {};
+        [["market","market close"],["official","official reference"],["official_nfem","official NFEM"]].forEach(function(hk){
+          var h = hist[hk[0]];
+          if (!h || !Array.isArray(h.points)) return;
+          var pts = fxSeriesPts(h.points);
+          if (pts.length < 2) return;
+          var lbl = code + " " + hk[1];
+          var volLine = "";
+          if (hk[0] === "market" && r.volatility && r.volatility.windows){
+            var ws = r.volatility.windows, vs = [];
+            Object.keys(ws).forEach(function(k){
+              if (ws[k] && num(ws[k].annualised_pct) != null) vs.push(k + " " + num(ws[k].annualised_pct).toFixed(2) + "%");
+            });
+            if (vs.length) volLine = '<span class="mc-src">volatility, annualised: ' + esc(vs.join(", ")) + '</span>';
+          }
+          seriesCards.push('<div class="mc-card" data-ccy="' + esc(code) + '"><div class="cname"><span class="nm">' +
+            '<i class="cdot" style="background:' + col + '"></i>' +
+            '<span style="color:var(--tx)">' + esc(lbl) + '</span></span>' +
+            '<span class="exch">' + esc(pts.length) + ' points</span></div>' +
+            '<div class="sph">' + pathChart(pts, col, function(v){ return fxNum(v); }, esc(lbl + " exchange rate series"), "line") + '</div>' +
+            '<span class="mc-src">' + (txt(h.source)
+              ? (h.source_url ? 'Source: <a href="' + esc(h.source_url) + '" target="_blank" rel="noopener">' + esc(h.source) + '</a>' : 'Source: ' + esc(h.source))
+              : 'source not stated') +
+              (txt(h.start) && txt(h.end) ? ' &middot; ' + esc(h.start) + ' to ' + esc(h.end) : '') +
+              (txt(h.granularity) ? ' &middot; ' + esc(h.granularity) : '') +
+              (h.stale ? ' &middot; stale' : '') + '</span>' +
+            volLine + '</div>');
+        });
+      });
+    }
+    if (!seriesCards.length){
+      ser.innerHTML = naBlock("Rate series not available");
+    } else {
+      ser.innerHTML = '<div class="mc-grid">' + seriesCards.join("") + '</div>';
+    }
+    mtx.innerHTML = fxMatrix(d);
+    /* one line: the sources the file quotes, and the day the quote was taken.
+       How the cross rates were derived is the file's own business, and every
+       card still carries the quote time and source of its own currency. */
+    var fxMk = [], fxOff = [];
+    if (fr){
+      fr.rates.forEach(function(r){
+        var cur = (r.current && typeof r.current === "object") ? r.current : {};
+        var mk = (cur.market && typeof cur.market === "object") ? cur.market : {};
+        if (txt(mk.source)) fxMk.push(txt(mk.source));
+        ["official","official_nfem"].forEach(function(k){
+          if (cur[k] && txt(cur[k].source)) fxOff.push(txt(cur[k].source));
+        });
+      });
+    }
+    var fxLabel = shortList(fxMk, 2, " and other market sources");
+    if (fxOff.length) fxLabel += (fxLabel ? " and central bank references" : shortList(fxOff, 2, " and other sources"));
+    note.innerHTML = srcOne(fxLabel, dayIn((fr && fr.generated) || d.generated));
+  }
+
+  /* ==================================================================
+     3. FISCAL POLICY AND SOVEREIGN DEBT
+     ================================================================== */
+  var DEBT_KEYS = ["debt_ratio","debt_to_gdp","gross_debt","government_debt","gross_government_debt",
+                   "central_government_debt","debt_pct_gdp","public_debt","general_government_debt","debt"];
+  var BAL_KEYS  = ["fiscal_balance","budget_balance","overall_balance","net_lending","primary_balance",
+                   "fiscal_balance_pct_gdp","balance","fiscal_deficit"];
+  var SRC_ANY   = ["source","publisher","provider"];
+  function metric(o, keys){
+    for (var i = 0; i < keys.length; i++){
+      var v = o ? o[keys[i]] : null;
+      if (v && typeof v === "object"){
+        var val = num(first(v, RATE_VAL_KEYS));
+        if (val != null){
+          return { value: val, year: txt(first(v, ["year","as_of","date","period","fy"])),
+                   source: txt(first(v, SRC_ANY)), unit: txt(first(v, ["unit"])),
+                   projected: isProjected(v), url: txt(first(v, ["source_url","url"])),
+                   secondary: txt(first(v, ["secondary_source","via","derived_from"])) };
+        }
+      } else if (num(v) != null){
+        return { value: num(v),
+                 year: txt(first(o, [keys[i] + "_year", keys[i] + "Year", "year"])),
+                 source: txt(first(o, SRC_ANY)), unit: txt(first(o, ["unit"])),
+                 projected: isProjected(o), url: txt(first(o, ["source_url","url"])),
+                 secondary: txt(first(o, ["secondary_source","via","derived_from"])) };
+      }
+    }
+    return null;
+  }
+  function fiscalCountry(c){
+    var col = "#33e29a";
+    var debt = metric(c, DEBT_KEYS);
+    var bal  = metric(c, BAL_KEYS);
+    /* the trajectory lives inside the debt block: each point carries its own
+       year, value and projected flag. Where a file instead gives a flat
+       country-level history it is used, and a country-level projections list is
+       appended for the tail. */
+    var debtBlock = (c.debt_ratio && typeof c.debt_ratio === "object") ? c.debt_ratio : null;
+    var histArr = (debtBlock && Array.isArray(debtBlock.history)) ? debtBlock.history
+                : first(c, ["history","series","trajectory","debt_history"]);
+    var pts = seriesPts(histArr, DEBT_KEYS.concat(RATE_VAL_KEYS), ["year","date","period","as_of","fy"]);
+    var tail = seriesPts(first(c, ["projections","projection","forecast"]),
+                         DEBT_KEYS.concat(RATE_VAL_KEYS), ["year","date","period","as_of","fy"]);
+    var cname = txt(c.country) || txt(c.name) || "Country not named in source file";
+    var h = '<div class="mc-card" data-iso="' + esc(isoOf(c)) + '">' +
+      '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+        '<span style="color:' + col + '">' + esc(cname) + '</span></span>' +
+        '<span class="exch">' + esc(txt(first(c, ["iso2","code","exchange"])) || "") + '</span></div>';
+    h += '<div class="mc-rates">';
+    /* The label names the figure and nothing more: the unit is whatever the
+       file states, printed beside the value, so the panel never asserts a unit
+       the source file did not give. */
+    [["Government debt ratio", "debt ratio", debt],
+     ["Fiscal balance", "fiscal balance", bal]].forEach(function(t){
+      var label = t[0], what = t[1], m = t[2];
+      var meta = m ? '<span class="mc-src">' +
+          (m.year ? 'year ' + esc(m.year) + (m.projected ? ' projected' : '') : 'year not stated') +
+          ' &middot; ' + (m.source ? esc(m.source) : '<span class="sec">source not stated</span>') +
+          (m.secondary ? ' &middot; secondary: ' + esc(m.secondary) : '') + '</span>' : '';
+      var val = m
+        ? esc(fmtNum(m.value)) + ' <span class="u">' + (m.unit ? esc(m.unit) : 'unit not stated in source') + '</span>'
+        : naCell();
+      h += '<div class="mc-rate"' + (m && m.projected ? ' data-projected="1"' : '') + '>' +
+        '<span class="rn">' + esc(label) + (m && m.projected ? PROJ_TAG : '') + meta + '</span>' +
+        '<span class="rv">' + val + '</span></div>';
+    });
+    h += '</div>';
+    var all = pts.concat(tail);
+    if (all.length >= 2){
+      h += '<div class="sub">Trajectory</div><div class="sph">' +
+        pathChart(all, col, function(v){ return fmtNum(v); }, esc(cname) + " government debt trajectory", "line") + '</div>';
+      if (hasProjected(all)){
+        h += '<div class="mc-why">' + PROJ_TAG + '</div>';
+      }
+    } else {
+      h += '<div class="nodata" style="padding:6px 0">No published trajectory.</div>';
+    }
+    var src0 = (Array.isArray(c.sources) && c.sources.length) ? c.sources[0] : {};
+    h += srcLine(txt(debtBlock && debtBlock.source) || txt(first(src0, ["name","what"])),
+                 txt(first(c, ["as_of","generated","updated"])) || txt(debtBlock && debtBlock.source_last_updated) || txt(first(src0, ["fetched"])),
+                 null,
+                 txt(debtBlock && debtBlock.source_url) || txt(first(src0, ["url"])));
+    h += '</div>';
+    return h;
+  }
+  function fiscalTable(rows){
+    var head = '<tr><th class="l">Country</th><th>Debt ratio</th><th>Year</th>' +
+               '<th>Fiscal balance</th><th>Year</th><th class="l">Source</th></tr>';
+    var body = rows.map(function(c){
+      var debt = metric(c, DEBT_KEYS), bal = metric(c, BAL_KEYS);
+      function yr(m, which){
+        if (!m || !m.year) return naCell();
+        return esc(m.year) + (m.projected ? PROJ_TAG : '');
+      }
+      function val(m, which){
+        if (!m) return naCell();
+        return '<span class="v">' + esc(fmtNum(m.value)) + '</span><span class="mc-src">' +
+          (m.unit ? esc(m.unit) : 'unit not stated in source') + '</span>';
+      }
+      var src0 = (Array.isArray(c.sources) && c.sources.length) ? c.sources[0] : {};
+      var src = (debt && debt.source) || txt(first(src0, ["name","what"])) || txt(first(c, ["source","publisher"]));
+      var url = (debt && debt.url) || txt(first(src0, ["url"])) || txt(first(c, ["source_url","url"]));
+      return '<tr data-iso="' + esc(isoOf(c)) + '"><td class="l hd">' + esc(txt(c.country) || txt(c.name) || "Country not named in source file") +
+        '<span class="hk">' + esc(txt(first(c, ["iso2","code"])) || "") + '</span></td>' +
+        '<td>' + val(debt, "debt ratio") + '</td><td>' + yr(debt, "debt ratio") + '</td>' +
+        '<td>' + val(bal, "fiscal balance") + '</td><td>' + yr(bal, "fiscal balance") + '</td>' +
+        '<td class="l">' + (src
+          ? esc(src) + (url ? '<span class="mc-src"><a href="' + esc(url) + '" target="_blank" rel="noopener">' +
+              esc(url) + '</a></span>' : '')
+          : naCell()) + '</td></tr>';
+    }).join("");
+    return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + body +
+      '</tbody></table></div>';
+  }
+  function renderFiscal(res){
+    var tableHost = document.getElementById("mcFiscalTableHost");
+    var grid = document.getElementById("mcFiscalGrid");
+    var note = document.getElementById("mcFiscalNote");
+    if (!res.ok){
+      tableHost.innerHTML = naBlock("Fiscal and sovereign debt not available");
+      grid.innerHTML = '';
+      note.innerHTML = "";
+      return;
+    }
+    var d = res.json || {};
+    var rows = (d.countries || d.data || []).filter(function(c){ return c && typeof c === "object"; });
+    if (!rows.length){
+      tableHost.innerHTML = naBlock("Fiscal and sovereign debt not available");
+      grid.innerHTML = '';
+      note.innerHTML = srcOne(txt(d.source) || "IMF and national sources",
+        dayIn(first(d, ["as_of","generated","updated"])));
+      return;
+    }
+    tableHost.innerHTML = fiscalTable(rows);
+    grid.innerHTML = rows.map(fiscalCountry).join("");
+    /* one line: the sources behind the fiscal figures, and the day the file
+       was read. Each card and each table row still carries its own figure,
+       its own year and its own source. */
+    note.innerHTML = srcOne(
+      shortList(Array.isArray(d.sources) && d.sources.length ? d.sources : [txt(d.source)],
+                2, " and national sources"),
+      dayIn(d.generated));
+  }
+
+  /* ==================================================================
+     4. TAXATION: six headings across four countries, as one matrix
+     ================================================================== */
+  var TAX_HEADINGS = [
+    { key:"capital_gains",   label:"Capital gains",
+      aliases:["capital_gains","capital_gains_tax","cgt","capitalgainstax"] },
+    { key:"income_interest", label:"Income and interest",
+      aliases:["income_interest","income_and_interest","personal_income","personal_income_tax","income","interest","interest_income","paye"] },
+    { key:"dividend",        label:"Dividend",
+      aliases:["dividend","dividend_tax","dividends","dividend_withholding"] },
+    { key:"withholding",     label:"Withholding",
+      aliases:["withholding","withholding_tax","wht","withholding_taxes"] },
+    { key:"corporate",       label:"Corporate",
+      aliases:["corporate","corporate_tax","corporate_income_tax","cit","company","company_tax"] },
+    { key:"property_wealth", label:"Property and wealth",
+      aliases:["property_wealth","property_and_wealth","property","wealth","property_tax","wealth_tax","property_taxes"] }
+  ];
+  function norm(k){ return String(k == null ? "" : k).toLowerCase().replace(/[^a-z0-9]/g, ""); }
+  function headingFor(k){
+    var n = norm(k);
+    if (!n) return null;
+    for (var i = 0; i < TAX_HEADINGS.length; i++){
+      var h = TAX_HEADINGS[i];
+      if (norm(h.key) === n || norm(h.label) === n) return h;
+      for (var j = 0; j < h.aliases.length; j++){ if (norm(h.aliases[j]) === n) return h; }
+    }
+    return null;
+  }
+  /* flatten whichever shape the tax file uses into iso2 -> headingKey -> cell */
+  function taxMap(d){
+    var map = {};
+    function put(iso, hk, cell){
+      if (!iso || !hk || !cell) return;
+      var k = String(iso).toUpperCase();
+      if (!map[k]) map[k] = {};
+      if (!map[k][hk]) map[k][hk] = cell;
+    }
+    /* the file's own shape: one block per country, its headings under
+       countries[].taxes[heading] */
+    if (Array.isArray(d.countries)){
+      d.countries.forEach(function(c){
+        if (!c || typeof c !== "object") return;
+        var iso = txt(first(c, ["iso2","code","iso"])) || txt(first(c, ["country","name"]));
+        var taxes = c.taxes || c.rates || c.tax_rates || null;
+        if (!iso || !taxes || typeof taxes !== "object") return;
+        Object.keys(taxes).forEach(function(hk){
+          var h = headingFor(hk);
+          if (!h) return;
+          var cell = taxes[hk];
+          if (cell && typeof cell === "object") put(iso, h.key, cell);
+          else if (cell != null) put(iso, h.key, { rate: cell });
+        });
+      });
+    }
+    var cand = d.cells || d.matrix || null;
+    if (cand && typeof cand === "object" && !Array.isArray(cand)){
+      Object.keys(cand).forEach(function(a){
+        var ha = headingFor(a), inner = cand[a];
+        if (!inner || typeof inner !== "object") return;
+        if (ha){
+          Object.keys(inner).forEach(function(b){
+            var v = inner[b];
+            if (v && typeof v === "object") put(b, ha.key, v);
+            else if (v != null) put(b, ha.key, { rate: v });
+          });
+        } else {
+          Object.keys(inner).forEach(function(b){
+            var hb = headingFor(b), v = inner[b];
+            if (!hb) return;
+            if (v && typeof v === "object") put(a, hb.key, v);
+            else if (v != null) put(a, hb.key, { rate: v });
+          });
+        }
+      });
+    }
+    var rowsArr = d.rows || d.data || d.taxes;
+    if (Array.isArray(rowsArr)){
+      rowsArr.forEach(function(r){
+        if (!r || typeof r !== "object") return;
+        var iso = txt(first(r, ["iso2","country_code","code","iso"])) || txt(first(r, ["country","name"]));
+        var h = headingFor(txt(first(r, ["heading","tax","key","category","type"])));
+        if (h && iso) put(iso, h.key, r);
+      });
+    }
+    return map;
+  }
+  function taxCountries(d){
+    var out = [], seen = {};
+    var cs = d.countries || d.country_list || null;
+    if (Array.isArray(cs)){
+      cs.forEach(function(c){
+        var iso = null, nm = null;
+        if (typeof c === "string"){ nm = c; iso = c.length === 2 ? c.toUpperCase() : null; }
+        else if (c && typeof c === "object"){
+          iso = txt(first(c, ["iso2","code","iso"]));
+          nm  = txt(first(c, ["country","name"]));
+        }
+        if (!iso && nm){
+          var low = nm.toLowerCase();
+          if (low === "kenya") iso = "KE";
+          else if (low === "nigeria") iso = "NG";
+          else if (low === "south africa") iso = "ZA";
+          else if (low === "egypt") iso = "EG";
+        }
+        if (iso && !seen[String(iso).toUpperCase()]){
+          seen[String(iso).toUpperCase()] = 1;
+          out.push({ iso2:String(iso).toUpperCase(), country:nm, currency:txt(first(c, ["currency"])) });
+        }
+      });
+    }
+    if (out.length < 4){
+      CANON.forEach(function(c){
+        if (!seen[c.iso2]){ seen[c.iso2] = 1; out.push({ iso2:c.iso2, country:c.country, currency:c.currency }); }
+      });
+    }
+    return out;
+  }
+  function taxCell(cell){
+    if (!cell){
+      return naCell();
+    }
+    var verdict = txt(first(cell, ["verdict","status"]));
+    var headline = txt(cell.headline);
+    var asof = txt(first(cell, ["as_of","year","effective_year","asof","period","fy","year_of_assessment"]));
+    var src  = txt(first(cell, ["source","publisher","primary_source"]));
+    var url  = txt(first(cell, ["source_url","url"]));
+    var note = txt(first(cell, ["note","unresolved","reason","why","comment"]));
+    var bandList = (Array.isArray(cell.bands) && cell.bands.length) ? cell.bands : null;
+    var rateRaw = first(cell, ["rate","value","percent","level","tax_rate"]);
+    var structure = txt(first(cell, ["rate_or_structure","structure","standard_rate","rate_resident"]));
+    /* the file states an absence in its own words: reproduce that, and keep
+       the source and the as-of date beside it rather than a bare blank */
+    var absent = (verdict && /absent/i.test(verdict)) || (headline && /^absent\b/i.test(headline));
+    var meta = 'as of ' + (asof ? esc(brief(asof)) : '<span class="sec">date not stated</span>') +
+      ' &middot; ' + (src
+        ? (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(src) + '</a>' : esc(src))
+        : '<span class="sec">source not stated</span>');
+    if (absent){
+      var aWhy = brief(headline ? headline.replace(/^ABSENT[:,]?\s*/i, "") : note);
+      return '<span class="mc-cellna">absent' + (aWhy ? '<span class="why">' + esc(aWhy) + '</span>' : '') + '</span>' +
+        '<span class="mc-src">' + meta + '</span>';
+    }
+    var body = '';
+    if (headline) body += '<div class="mc-taxh">' + esc(headline) + '</div>';
+    if (bandList){
+      /* a progressive scale is a ladder, not one number: every band is shown,
+         so a top rate is never printed as the rate everyone pays */
+      body += '<ul class="mc-bands">' + bandList.map(function(b){
+        var lab = txt(first(b, ["band","bracket","range","from","label"])) || "";
+        var rt  = txt(first(b, ["rate","value","percent"])) || "";
+        return '<li><span class="bnd">' + esc(lab) + '</span><span class="brt">' + esc(rt) + '</span></li>';
+      }).join("") + '</ul>';
+      if (txt(cell.top_marginal_rate)) body += '<div class="mc-src">top marginal rate: ' + esc(cell.top_marginal_rate) + '</div>';
+    } else if (rateRaw != null){
+      body += '<div class="mc-taxrate"><span class="v">' + esc(String(rateRaw)) + '</span></div>';
+    } else if (structure){
+      body += '<div class="mc-taxstruct">' + esc(brief(structure)) + '</div>';
+    }
+    return body + '<span class="mc-src">' + meta + '</span>' + (isProjected(cell) ? PROJ_TAG : '');
+  }
+  function renderTax(res){
+    var host = document.getElementById("mcTaxHost");
+    var note = document.getElementById("mcTaxNote");
+    if (!res.ok){
+      host.innerHTML = naBlock("Tax rates not available");
+      host.innerHTML += '<div class="mc-tablewrap"><table class="mc mtx"><thead><tr><th class="l">Heading</th>' +
+        CANON.map(function(c){ return '<th>' + esc(c.country) + '</th>'; }).join("") + '</tr></thead><tbody>' +
+        TAX_HEADINGS.map(function(h){
+          return '<tr><td class="l hd">' + esc(h.label) + '</td>' + CANON.map(function(){
+            return '<td>' + naCell() + '</td>';
+          }).join("") + '</tr>';
+        }).join("") + '</tbody></table></div>';
+      note.innerHTML = "";
+      return;
+    }
+    var d = res.json || {};
+    var map = taxMap(d);
+    var countries = taxCountries(d);
+    var anyCell = false;
+    Object.keys(map).forEach(function(k){ if (Object.keys(map[k]).length) anyCell = true; });
+    var head = '<tr><th class="l">Heading</th>' + countries.map(function(c){
+      return '<th data-iso="' + esc(c.iso2) + '">' + esc(c.country || c.iso2) + '<span class="hk">' + esc(c.currency || c.iso2) + '</span></th>';
+    }).join("") + '</tr>';
+    var body = TAX_HEADINGS.map(function(h){
+      return '<tr><td class="l hd">' + esc(h.label) + '</td>' +
+        countries.map(function(c){ return '<td data-iso="' + esc(c.iso2) + '">' + taxCell((map[c.iso2] || {})[h.key]) + '</td>'; }).join("") + '</tr>';
+    }).join("");
+    host.innerHTML = '<div class="mc-tablewrap"><table class="mc mtx" id="mcTaxTable"><thead>' + head +
+      '</thead><tbody>' + body + '</tbody></table></div>';
+    /* one line: the revenue authorities the cells came from, and the day the
+       file was read. Each cell still carries its own year and its own source. */
+    var TAXAUTH = { "kra.go.ke":"KRA", "sars.gov.za":"SARS", "eta.gov.eg":"ETA",
+                    "firs.gov.ng":"FIRS", "nrs.gov.ng":"NRS" };
+    var authShort = [];
+    (Array.isArray(d.authority_domains) ? d.authority_domains : []).forEach(function(dom){
+      var k = String(dom).toLowerCase();
+      if (TAXAUTH[k] && authShort.indexOf(TAXAUTH[k]) < 0) authShort.push(TAXAUTH[k]);
+    });
+    note.innerHTML = srcOne(authShort.length ? authShort.slice(0, 4).join(", ") : "Revenue authority publications",
+      dayIn(d.generated));
+  }
+
+  /* ==================================================================
+     5. UNEMPLOYMENT RATE, NATIONAL INCOME AND RETAIL SALES
+        Reads static_data/macro_economy.json. Every figure is read from the
+        file and every block prints its own period, unit, basis and source.
+        An unemployment figure carries its basis: an ILO modelled estimate,
+        an ILOSTAT national estimate and the national statistics office's own
+        release are three different measures and are printed as three labelled
+        figures rather than merged into one. A series a country does not
+        publish prints an explicit not-published sentence with the reason the
+        file gives; it is never a zero, never a dash and never a figure
+        carried from another year.
+     ================================================================== */
+  var ECON_FILE = SD + "macro_economy.json";
+  var ECCOL = { KE:"#e0a340", NG:"#1ecfb0", ZA:"#f87171", EG:"#33e29a" };
+
+  /* a current-price level in a local currency is read at its own scale with
+     thousands separators and is never rounded to a headline */
+  function bigNum(v){
+    if (v == null || !isFinite(v)) return "n/a";
+    try { return Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 }); }
+    catch(e){ return String(Math.round(v)); }
+  }
+  /* A period is called projected only when the file says so in an explicit
+     boolean. It is never inferred from wording in a basis or measure label: a
+     figure the ILO models is a modelled figure, not a projection, and calling
+     it one would be its own misreading of the source. */
+  function econProj(m){ return !!(m && (m.projected === true || m.is_projection === true)); }
+  function econPeriod(m){
+    if (!m) return "period not stated";
+    var y = txt(first(m, ["year","as_of","period","fy"]));
+    return y ? "period " + esc(y) + (econProj(m) ? " projected" : "")
+             : "period not stated";
+  }
+  function econSrcMeta(m){
+    return (m && m.source ? esc(m.source) : "source not stated") +
+      (m && m.source_url ? ' &middot; <a href="' + esc(m.source_url) + '" target="_blank" rel="noopener">source document</a>' : "");
+  }
+  function econMetric(label, m, fmt){
+    if (!m) return "";
+    var v = num(m.value);
+    var meta = '<span class="mc-src">' + econPeriod(m) +
+      (m.unit ? ' &middot; ' + esc(m.unit) : ' &middot; unit not stated in source') +
+      (m.basis ? ' &middot; basis: ' + esc(brief(m.basis)) : '') +
+      ' &middot; ' + econSrcMeta(m) + '</span>';
+    return '<div class="mc-rate"><span class="rn">' + esc(label) + meta + '</span>' +
+      '<span class="rv">' + (v == null ? naCell() : (fmt ? fmt(v) : fmtNum(v))) +
+      (m.unit ? ' <span class="u">' + esc(m.unit) + '</span>' : '') + '</span></div>';
+  }
+  function econNotPublished(what, obj){
+    var why = brief(obj && obj.reason);
+    return '<div class="mc-rate"><span class="rn">' + esc(what) +
+      (why ? '<span class="mc-src">' + esc(why) + '</span>' : '') + '</span>' +
+      '<span class="rv">' + naCell() + '</span></div>';
+  }
+
+  function econUnemployment(u, name, col){
+    u = u || {};
+    var out = "";
+    out += econMetric("ILO modelled estimate", u.ilo_modelled);
+    out += econMetric("National estimate (ILOSTAT)", u.national_estimate);
+    var no = u.national_office || {};
+    if (no.not_published){
+      out += econNotPublished("National statistics office", no);
+    } else if (num(no.value) != null){
+      var noNote = brief(no.note);
+      var meta = '<span class="mc-src">' + econPeriod(no) +
+        (no.unit ? ' &middot; ' + esc(no.unit) : ' &middot; unit not stated') +
+        (no.basis ? ' &middot; basis: ' + esc(brief(no.basis)) : '') +
+        ' &middot; ' + econSrcMeta(no) +
+        (noNote ? ' &middot; ' + esc(noNote) : '') + '</span>';
+      out += '<div class="mc-rate"><span class="rn">' + esc(txt(no.statistic) || "National statistics office") + meta + '</span>' +
+        '<span class="rv">' + fmtNum(num(no.value)) +
+        (no.unit ? ' <span class="u">' + esc(no.unit) + '</span>' : '') + '</span></div>';
+    }
+    /* the trend is drawn only from published points: a year the source has
+       not published is a gap, never an interpolated point */
+    var pts = [];
+    (u.history || []).forEach(function(p){
+      var v = num(p.ilo_modelled);
+      if (v == null) return;
+      pts.push({ label: String(first(p, ["year"]) || ""), value: v, projected: econProj(p) });
+    });
+    if (pts.length >= 2){
+      out += '<div class="sub">ILO modelled estimate, ' + esc(pts[0].label) + ' to ' + esc(pts[pts.length - 1].label) +
+        '</div><div class="sph">' +
+        pathChart(pts, col, fmtNum, esc(name) + " ILO modelled unemployment rate", "line") + '</div>';
+    }
+    return out || naCell();
+  }
+
+  function econIncome(inc, cu){
+    inc = inc || {};
+    var out = "";
+    out += econMetric("GDP, current prices", inc.gdp, bigNum);
+    out += econMetric("GNI, current prices", inc.gni, bigNum);
+    var yrs = (inc.years || []).slice().sort(function(a, b){ return b.year - a.year; }).slice(0, 8);
+    if (yrs.length){
+      out += '<div class="mc-tablewrap econ-mini"><table class="mc"><thead><tr>' +
+        '<th class="l">Year</th><th>GDP (' + esc(cu) + ')</th><th>GNI (' + esc(cu) + ')</th></tr></thead><tbody>' +
+        yrs.map(function(p){
+          return '<tr><td class="l">' + esc(p.year) + '</td><td>' +
+            (num(p.gdp_lcu) != null ? bigNum(num(p.gdp_lcu)) : 'n/a') + '</td><td>' +
+            (num(p.gni_lcu) != null ? bigNum(num(p.gni_lcu)) : 'n/a') + '</td></tr>';
+        }).join("") + '</tbody></table></div>';
+    }
+    return out || naCell();
+  }
+
+  function econRetail(ret){
+    ret = ret || {};
+    if (ret.not_published) return econNotPublished("Retail trade sales", ret);
+    var out = "";
+    var retNote = brief(ret.note);
+    var meta = '<span class="mc-src">' + econPeriod(ret) +
+      (ret.unit ? ' &middot; ' + esc(ret.unit) : ' &middot; unit not stated') +
+      (ret.basis ? ' &middot; basis: ' + esc(brief(ret.basis)) : '') +
+      (ret.base_period ? ' &middot; base period: ' + esc(ret.base_period) : '') +
+      (ret.series ? ' &middot; series: ' + esc(ret.series) : '') +
+      ' &middot; ' + econSrcMeta(ret) +
+      (retNote ? ' &middot; ' + esc(retNote) : '') + '</span>';
+    out += '<div class="mc-rate"><span class="rn">' + esc(txt(ret.series) || "Retail sales") + meta + '</span>' +
+      '<span class="rv">' + fmtNum(num(ret.value)) + ' <span class="u">' + esc(ret.unit || "") + '</span></span></div>';
+    if (num(ret.level) != null){
+      out += '<div class="mc-rate"><span class="rn">Level<span class="mc-src">' +
+        esc(ret.level_period || "period not stated") + ' &middot; ' + esc(ret.level_unit || "unit not stated") +
+        '</span></span><span class="rv">' + bigNum(num(ret.level)) + ' <span class="u">R million</span></span></div>';
+    }
+    return out;
+  }
+
+  function econCard(c){
+    var iso = isoOf(c);
+    var name = txt(c.country) || "Country not named in source file";
+    var col = ECCOL[iso] || "#33e29a";
+    var cu = txt(c.currency) || "the country's own currency";
+    var h = '<div class="mc-card" data-iso="' + esc(iso) + '">';
+    h += '<div class="cname"><span class="nm"><i class="cdot" style="background:' + col + '"></i>' +
+      '<span style="color:' + col + '">' + esc(name) + '</span></span>' +
+      '<span class="exch">' + esc(txt(c.iso2) || iso) + ' &middot; ' + esc(cu) + '</span></div>';
+    h += '<div class="econ-blk"><div class="econ-blk-h">Unemployment rate</div>' +
+      econUnemployment(c.unemployment, name, col) + '</div>';
+    h += '<div class="econ-blk"><div class="econ-blk-h">National income &middot; current prices, ' + esc(cu) + ', nominal</div>' +
+      econIncome(c.national_income, cu) + '</div>';
+    h += '<div class="econ-blk"><div class="econ-blk-h">Retail sales</div>' +
+      econRetail(c.retail_sales) + '</div>';
+    h += '</div>';
+    return h;
+  }
+
+  function econTable(rows){
+    function uCell(c){
+      var u = c.unemployment || {}, no = u.national_office || {};
+      if (!no.not_published && num(no.value) != null)
+        return '<span class="v">' + fmtNum(num(no.value)) + '%</span><span class="mc-src">' +
+          esc(no.period || "period not stated") + ' &middot; ' + esc(no.source || "source not stated in source file") + '</span>';
+      if (u.national_estimate && num(u.national_estimate.value) != null)
+        return '<span class="v">' + fmtNum(num(u.national_estimate.value)) + '%</span><span class="mc-src">ILOSTAT national estimate, ' +
+          esc(u.national_estimate.year || "year not stated") + '</span>';
+      var uWhy = brief(no && no.reason);
+      return naCell() + (uWhy ? '<span class="mc-src">' + esc(uWhy) + '</span>' : '');
+    }
+    function incCell(m, cu){
+      if (!m || num(m.value) == null) return naCell();
+      return '<span class="v">' + bigNum(num(m.value)) + '</span><span class="mc-src">' +
+        esc(cu) + ', ' + esc(m.year || "year not stated") + ' &middot; ' + esc(m.source || "source not stated") + '</span>';
+    }
+    function retCell(c){
+      var r = c.retail_sales || {};
+      if (r.not_published){
+        var rWhy = brief(r.reason);
+        return naCell() + (rWhy ? '<span class="mc-src">' + esc(rWhy) + '</span>' : '');
+      }
+      return '<span class="v">' + fmtNum(num(r.value)) + '</span><span class="mc-src">' + esc(r.unit || "") + ', ' +
+        esc(r.period || "period not stated") + ' &middot; ' + esc(brief(r.basis) || "basis not stated") + '</span>';
+    }
+    var head = '<tr><th class="l">Country</th>' +
+      '<th>Unemployment<br><span class="hk">ILO modelled, year</span></th>' +
+      '<th>Unemployment<br><span class="hk">national, period</span></th>' +
+      '<th>GDP<br><span class="hk">current LCU, year</span></th>' +
+      '<th>GNI<br><span class="hk">current LCU, year</span></th>' +
+      '<th>Retail sales<br><span class="hk">period</span></th></tr>';
+    var body = rows.map(function(c){
+      var u = c.unemployment || {}, inc = c.national_income || {};
+      var cu = c.currency || (inc.gdp && inc.gdp.unit) || "";
+      var im = u.ilo_modelled;
+      return '<tr data-iso="' + esc(isoOf(c)) + '"><td class="l hd">' +
+        esc(txt(c.country) || "Country not named in source file") +
+        '<span class="hk">' + esc(txt(c.iso2) || "") + '</span></td>' +
+        '<td>' + (im && num(im.value) != null
+          ? '<span class="v">' + fmtNum(num(im.value)) + '%</span><span class="mc-src">' + esc(im.year || "year not stated") +
+            ' &middot; ' + esc(im.basis || "basis not stated") + '</span>'
+          : naCell()) + '</td>' +
+        '<td>' + uCell(c) + '</td>' +
+        '<td>' + incCell(inc.gdp, cu) + '</td>' +
+        '<td>' + incCell(inc.gni, cu) + '</td>' +
+        '<td>' + retCell(c) + '</td></tr>';
+    }).join("");
+    return '<div class="mc-tablewrap"><table class="mc mtx"><thead>' + head + '</thead><tbody>' + body +
+      '</tbody></table></div>';
+  }
+
+  function renderEcon(res){
+    var host = document.getElementById("mcEconGrid");
+    var tbl  = document.getElementById("mcEconTableHost");
+    var note = document.getElementById("mcEconNote");
+    if (!res.ok){
+      tbl.innerHTML = naBlock("Unemployment, national income and retail sales not available");
+      host.innerHTML = '';
+      note.innerHTML = "";
+      return;
+    }
+    var d = res.json || {};
+    var rows = (d.countries || []).filter(function(c){ return c && typeof c === "object"; });
+    if (!rows.length){
+      tbl.innerHTML = naBlock("Unemployment, national income and retail sales not available");
+      host.innerHTML = "";
+      note.innerHTML = srcOne(txt(d.source) || "national statistics offices",
+        dayIn(first(d, ["as_of","generated","updated"])));
+      return;
+    }
+    tbl.innerHTML = econTable(rows);
+    host.innerHTML = rows.map(econCard).join("");
+    /* one line: the sources behind the figures, and the day the file was read.
+       Every figure on the cards still carries its own basis, period and source. */
+    note.innerHTML = srcOne(shortList(d.sources, 3, " and national statistics offices"), dayIn(d.generated));
+  }
+
+  /* ---------------- boot ---------------- */
+  loadFile(RATES_FILE).then(renderRates);
+  loadFile(FX_FILE).then(renderFx);
+  loadFile(TAX_FILE).then(renderTax);
+  loadFile(ECON_FILE).then(renderEcon);
+  (function loadFiscal(i, results){
+    if (i >= FISCAL_FILES.length){
+      var anyMissing = false;
+      results.forEach(function(r){ if (r.status === 404) anyMissing = true; });
+      renderFiscal({ ok:false, path:FISCAL_FILES[0],
+                     status: anyMissing ? 404 : (results.length ? results[results.length - 1].status : 0),
+                     tried: results });
+      return;
+    }
+    loadFile(FISCAL_FILES[i]).then(function(res){
+      if (res.ok) renderFiscal(res);
+      else loadFiscal(i + 1, results.concat([res]));
+    });
+  })(0, []);
+})();
+</script>
+
+<script>
+/* ==================================================================
+   MACRO panel: COUNTRY SEARCH.
+
+   One input above every section. A reader types a country name, its
+   ISO2 code, its currency code or its exchange code. Typing narrows all
+   six sections to that one country; clearing the input returns the panel
+   to its all-country view exactly as it was.
+
+   Narrowing is done by identity, not by rebuilding. The Inflation and GDP
+   sections are drawn by the panel's original script and are left
+   untouched: this block only records which country each of their
+   per-country elements belongs to, and hides the rest. The four later
+   sections carry a data-iso or data-ccy attribute on each element they
+   already create, so the same show-or-hide applies to them. Nothing is
+   recomputed, so a figure that is shown is the figure the panel already
+   drew from its file, with its own source and as-of date.
+
+   The panel's section-level provenance notes are not rewritten: they say
+   where a file came from and they name every market that file covers.
+   That is provenance about the file, not another country's figures.
+   ================================================================== */
+(function(){
+  "use strict";
+
+  var CANON = [
+    { iso2:"KE", country:"Kenya",        currency:"KES", exchange:"NSE" },
+    { iso2:"NG", country:"Nigeria",      currency:"NGN", exchange:"NGX" },
+    { iso2:"ZA", country:"South Africa", currency:"ZAR", exchange:"JSE" },
+    { iso2:"EG", country:"Egypt",        currency:"EGP", exchange:"EGX" }
+  ];
+  var CCOL = { KE:"#e0a340", NG:"#1ecfb0", ZA:"#f87171", EG:"#33e29a" };
+
+  var input  = document.getElementById("mcCsInput");
+  var sugBox = document.getElementById("mcCsSug");
+  var msgBox = document.getElementById("mcCsMsg");
+  var actEl  = document.getElementById("mcCsActive");
+  var clrBtn = document.getElementById("mcCsClear");
+  var scroll = document.querySelector(".mc-scroll");
+  if (!input || !sugBox || !msgBox || !actEl || !clrBtn || !scroll) return;
+
+  var state = { iso: null };
+  var suppress = false;
+  var raf = 0;
+
+  /* ---------------- small helpers ---------------- */
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function(ch){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" }[ch];
+    });
+  }
+  function low(s){ return String(s == null ? "" : s).toLowerCase(); }
+  function squeeze(s){ return low(s).replace(/\s+/g, " ").trim(); }
+  function byIso(iso){ for (var i = 0; i < CANON.length; i++){ if (CANON[i].iso2 === iso) return CANON[i]; } return null; }
+  function currencyOf(iso){ var c = byIso(iso); return c ? c.currency : null; }
+
+  /* A country is matched on its own identity, never on a fragment of an
+     unrelated word. A code must be given in full; a name may be given as a
+     leading fragment of the name or of one whole word inside it. */
+  function matches(c, q){
+    var n = squeeze(q);
+    if (!n) return false;
+    if (n === low(c.iso2)) return true;
+    if (n === low(c.currency)) return true;
+    if (n === low(c.exchange)) return true;
+    var nm = low(c.country);
+    if (nm.indexOf(n) === 0) return true;
+    var words = nm.split(/[^a-z]+/);
+    for (var i = 0; i < words.length; i++){ if (words[i] && words[i].indexOf(n) === 0) return true; }
+    return false;
+  }
+  function matchAll(q){
+    if (!squeeze(q)) return CANON.slice();
+    return CANON.filter(function(c){ return matches(c, q); });
+  }
+
+  /* The country a rendered element belongs to, read from the country name
+     the panel printed inside it. Used only for Inflation and GDP, whose
+     markup this block does not own. An element whose country cannot be
+     read is left untagged and is therefore never hidden by mistake. */
+  var NAMES = CANON.map(function(c){ return low(c.country); })
+                   .sort(function(a, b){ return b.length - a.length; });
+  var NAME2ISO = {};
+  CANON.forEach(function(c){ NAME2ISO[low(c.country)] = c.iso2; });
+  function isoFromText(t){
+    var s = squeeze(t).replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+    if (!s) return null;
+    for (var i = 0; i < NAMES.length; i++){
+      var nm = NAMES[i];
+      var re = new RegExp("(^|[^a-z])" + nm.replace(/ +/g, "\\s+") + "([^a-z]|$)");
+      if (re.test(s)) return NAME2ISO[nm];
+    }
+    return null;
+  }
+
+  /* ---------------- tag Inflation and GDP, then show or hide ------------ */
+  function tagInflGdp(){
+    var els, i, j, iso, s;
+    els = scroll.querySelectorAll("#mcInflGrid .mc-card");
+    for (i = 0; i < els.length; i++){
+      s = els[i].querySelector(".cname .nm span:last-child");
+      iso = s ? isoFromText(s.textContent) : null;
+      if (iso) els[i].setAttribute("data-iso", iso);
+    }
+    els = scroll.querySelectorAll("#mcKey > span");
+    for (i = 0; i < els.length; i++){
+      iso = isoFromText(els[i].textContent);
+      if (iso) els[i].setAttribute("data-iso", iso);
+    }
+    var ths = scroll.querySelectorAll("#mcInflTableHost thead tr th");
+    var colIso = [];
+    for (i = 0; i < ths.length; i++){
+      iso = isoFromText(ths[i].textContent);
+      colIso.push(iso);
+      if (iso) ths[i].setAttribute("data-iso", iso);
+    }
+    els = scroll.querySelectorAll("#mcInflTableHost tbody tr");
+    for (i = 0; i < els.length; i++){
+      var tds = els[i].children;
+      for (j = 0; j < tds.length; j++){
+        if (colIso[j] && tds[j].tagName === "TD") tds[j].setAttribute("data-iso", colIso[j]);
+      }
+    }
+    els = scroll.querySelectorAll("#mcGdpTableBody tr");
+    for (i = 0; i < els.length; i++){
+      s = els[i].querySelector("td.country span");
+      iso = s ? isoFromText(s.textContent) : null;
+      if (iso) els[i].setAttribute("data-iso", iso);
+    }
+    els = scroll.querySelectorAll("#mcGdpGrid .mc-card");
+    for (i = 0; i < els.length; i++){
+      s = els[i].querySelector(".cname .nm span:last-child");
+      iso = s ? isoFromText(s.textContent) : null;
+      if (iso) els[i].setAttribute("data-iso", iso);
+    }
+    els = scroll.querySelectorAll("#mcGdpHist details");
+    for (i = 0; i < els.length; i++){
+      s = els[i].querySelector("summary .sfx > span");
+      iso = s ? isoFromText(s.textContent) : null;
+      if (iso) els[i].setAttribute("data-iso", iso);
+    }
+  }
+  var COVERED = ["KES", "NGN", "ZAR", "EGP"];
+  function keep(attr, val){
+    if (attr === "data-iso") return state.iso == null || val === state.iso;
+    var want = state.iso ? currencyOf(state.iso) : null;
+    if (attr === "data-ccy") return want == null || val === want;
+    if (attr === "data-col") return want == null || val === want || COVERED.indexOf(val) < 0;
+    return true;
+  }
+  function showHide(){
+    document.body.classList.toggle("mc-cs-on", !!state.iso);
+    var attrs = ["data-iso", "data-ccy", "data-col"], a, i, els;
+    for (a = 0; a < attrs.length; a++){
+      els = scroll.querySelectorAll("[" + attrs[a] + "]");
+      for (i = 0; i < els.length; i++){
+        els[i].style.display = keep(attrs[a], els[i].getAttribute(attrs[a])) ? "" : "none";
+      }
+    }
+  }
+  function sync(){ tagInflGdp(); showHide(); }
+  function schedule(){
+    if (raf) return;
+    var run = function(){ raf = 0; sync(); };
+    raf = window.requestAnimationFrame ? window.requestAnimationFrame(run) : setTimeout(run, 0);
+  }
+  function applyFilter(iso){ state.iso = iso || null; sync(); }
+
+  /* ---------------- the search bar ---------------- */
+  function msgFor(q, list){
+    var n = squeeze(q);
+    if (!list.length){
+      return '<b>No country matches "' + esc(n) + '".</b>';
+    }
+    return '<b>' + list.length + ' countries match "' + esc(n) + '".</b> ' +
+      list.map(function(c){ return esc(c.country) + " (" + esc(c.iso2) + ")"; }).join(", ");
+  }
+  function renderSug(list){
+    if (!list || !list.length){ sugBox.hidden = true; sugBox.innerHTML = ""; return; }
+    sugBox.innerHTML = list.map(function(c){
+      var col = CCOL[c.iso2] || "#33e29a";
+      return '<button class="mc-cs-opt" type="button" data-iso="' + esc(c.iso2) + '">' +
+        '<span class="nm"><span class="cdot" style="background:' + col + '"></span>' +
+        '<span style="color:' + col + '">' + esc(c.country) + '</span></span>' +
+        '<span class="cds">' + esc(c.iso2) + ' &middot; ' + esc(c.currency) + ' &middot; ' + esc(c.exchange) + '</span>' +
+        '</button>';
+    }).join("");
+    sugBox.hidden = false;
+  }
+  function renderMsg(html){
+    if (!html){ msgBox.hidden = true; msgBox.innerHTML = ""; return; }
+    msgBox.innerHTML = html;
+    msgBox.hidden = false;
+  }
+  function setActive(iso){
+    var c = iso ? byIso(iso) : null;
+    if (!c){
+      actEl.hidden = true; actEl.innerHTML = "";
+      return;
+    }
+    var col = CCOL[iso] || "#33e29a";
+    actEl.innerHTML = 'Active: <span style="color:' + col + '">' + esc(c.country) + '</span>' +
+      ' <span class="cc">' + esc(c.iso2) + ' &middot; ' + esc(c.currency) + ' &middot; ' + esc(c.exchange) + '</span>';
+    actEl.hidden = false;
+  }
+  /* Clear is offered whenever there is anything to clear: a selected country,
+     or a query in the box even when it matched nothing. */
+  function syncChrome(){ clrBtn.hidden = !(state.iso || !!squeeze(input.value)); }
+  function select(c){
+    if (!c) return;
+    input.value = c.country;
+    suppress = true;
+    state.iso = c.iso2;
+    sync();
+    setActive(c.iso2);
+    renderSug([]);
+    renderMsg(null);
+    syncChrome();
+    try { input.focus(); } catch(e){}
+  }
+  function clearAll(){
+    input.value = "";
+    suppress = true;
+    applyFilter(null);
+    setActive(null);
+    renderSug([]);
+    renderMsg(null);
+    syncChrome();
+    try { input.focus(); } catch(e){}
+  }
+  function onInput(){
+    suppress = false;
+    var q = input.value;
+    if (!squeeze(q)){
+      applyFilter(null);
+      setActive(null);
+      renderMsg(null);
+      renderSug(document.activeElement === input ? CANON.slice() : []);
+      syncChrome();
+      return;
+    }
+    var list = matchAll(q);
+    renderSug(document.activeElement === input ? list : []);
+    if (list.length === 1){
+      applyFilter(list[0].iso2);
+      setActive(list[0].iso2);
+      renderMsg(null);
+    } else {
+      applyFilter(null);
+      setActive(null);
+      renderMsg(msgFor(q, list));
+    }
+    syncChrome();
+  }
+
+  input.addEventListener("input", onInput);
+  input.addEventListener("focus", function(){ if (!suppress) renderSug(matchAll(input.value)); });
+  input.addEventListener("blur", function(){ setTimeout(function(){ renderSug([]); }, 160); });
+  input.addEventListener("keydown", function(ev){
+    if (ev.key === "Enter"){
+      var list = matchAll(input.value);
+      if (list.length && !state.iso){ ev.preventDefault(); select(list[0]); }
+    } else if (ev.key === "Escape"){
+      suppress = true;
+      renderSug([]);
+    } else if (ev.key === "ArrowDown" && !sugBox.hidden){
+      var first = sugBox.querySelector("button[data-iso]");
+      if (first){ ev.preventDefault(); first.focus(); }
+    }
+  });
+  sugBox.addEventListener("click", function(ev){
+    var t = ev.target;
+    while (t && t !== sugBox && !(t.getAttribute && t.getAttribute("data-iso"))) t = t.parentNode;
+    if (!t || t === sugBox) return;
+    select(byIso(t.getAttribute("data-iso")));
+  });
+  clrBtn.addEventListener("click", clearAll);
+
+  /* ---------------- boot ---------------- */
+  applyFilter(null);
+  renderSug([]);
+  renderMsg(null);
+  setActive(null);
+  syncChrome();
+  /* the six sections render themselves after their files arrive, and the
+     Refresh button redraws Inflation and GDP; re-apply the current filter
+     whenever a section redraws, so a redraw cannot drop the reader back to
+     every country. Attributes and inline display are not childList changes,
+     so this cannot loop. */
+  if (window.MutationObserver){
+    new MutationObserver(function(){ schedule(); }).observe(scroll, { childList: true, subtree: true });
+  }
+  schedule();
+})();
+</script>
+
+</body>
+</html>
