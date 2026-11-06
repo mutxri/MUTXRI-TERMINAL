@@ -118,7 +118,7 @@
   #c_sel{grid-column:2;grid-row:1 / span 2}
   /* the map gets every pixel the law list does not need, and the law card
      keeps its own content height up to a cap so it is never cut in half */
-  #c_law{max-height:min(432px,47vh)}
+  #c_law{max-height:min(400px,40vh)}
   .card{background:var(--bg);display:flex;flex-direction:column;min-height:0;min-width:0;
         position:relative}
   .ch{display:flex;align-items:center;gap:8px;padding:3px 8px;border-bottom:1px solid var(--line);
@@ -208,6 +208,11 @@
   g.nd{pointer-events:all;cursor:pointer}
   g.nd text.nl{font-family:var(--mono);font-size:7px;letter-spacing:.03em;fill:#b4b4b4;
                text-anchor:middle}
+  /* RADIAL MINT: a label sits beside its node, anchored out on whichever side it
+     falls, so the full name is readable instead of a 10-character stub */
+  g.nd text.nl.a-l{text-anchor:end}
+  g.nd text.nl.a-r{text-anchor:start}
+  line.ldr{stroke-width:.7;stroke-opacity:.42}
   g.nd.hv text.nl,g.nd.on text.nl,g.nd.cat-on text.nl{fill:#f0f0f0}
   g.nd.on circle.lf{stroke-width:2.4}
   g.nd.cat-on circle.lf{stroke-width:2.2}
@@ -1154,7 +1159,7 @@
   /* One centre disc and two concentric dashed ellipses. A node sits at an equal
      arc length from its neighbours, and a wedge either side of the left apex is
      left empty so the RING 1 / RING 2 labels can never sit on a node. */
-  var MIN_GAP = 47, RING_GAP = 0.40;
+  var MIN_GAP = 30, RING_GAP = 0.40;
 
   function ringTab(rx, ry, gapHalf){
     var N = 720, cum = [0], L = 0, i;
@@ -1186,6 +1191,13 @@
     for(i = 0; i < n; i++) out.push(tabAngle(tab, tab.L * (i + 0.5) / n));
     return out;
   }
+  /* RADIAL MINT shows the company name, not its code: a map labelled 'JT' and 'WG'
+     tells the reader nothing they can act on. */
+  function leafLabel(it){
+    if(it && it.dispLabel) return it.dispLabel;
+    var nm = String((it && (it.name || it.label)) || '').replace(/\s+/g, ' ').trim();
+    return cut(nm, 20);
+  }
   function labelW(s){ return String(s || '').length * 3.95 + 2; }
 
   function layoutRadial(m, W, H){
@@ -1194,21 +1206,32 @@
        window is genuinely too small to carry it */
     var rC = Math.round(Math.min(24, Math.max(13, Math.min(W / 26, H / 13))));
     var lr1 = Math.max(3, rC * 5 / 24), lr2 = Math.max(2.4, rC * 4 / 24);
-    var ry2 = Math.max(rC * 2.6, H / 2 - 56);
-    var rx2 = Math.min(W / 2 - 74, Math.max(rC * 3.4, (H / 2 - 60) * 2.75));
-    rx2 = Math.max(rC * 3, rx2);
+    /* RADIAL MINT: one true circle per ring. The elliptical version pushed the
+       outer ring into the corners of the frame, which left the map visually small
+       and the labels crowded under their nodes. A circle of the largest radius the
+       frame allows uses the same area honestly on every aspect ratio. */
+    /* A strict circle is the cleanest radial shape, but this box is short and wide:
+       fitting the circle to the height threw away the width and ring 1 could only
+       hold 7 of the 20 links, so the map quietly showed a third of the graph. The
+       circle is therefore allowed to stretch horizontally, up to 1.85x, only when
+       the frame is short. Capacity is preserved and the shape still reads radial. */
+    var rY = Math.max(rC * 3.4, H / 2 - 40);
+    var rX = Math.min(W / 2 - 86, rY * 1.85);
+    rX = Math.max(rY, rX);
+    var rx2 = rX, ry2 = rY;
+    var Rmax = rY;
 
     /* ring 1 grows only as far as its own population needs, and never past the
        inner edge of ring 2 */
-    var t1 = ringTab(rx2 * 0.55, ry2 * 0.55, RING_GAP);
+    var t1 = ringTab(Rmax * 0.58, Rmax * 0.58, RING_GAP);
     if(m.ring1.length){
       var need = m.ring1.length * MIN_GAP / t1.L;
       if(need > 1){
-        var f = Math.min(0.86 / 0.55, need * 1.03);
-        t1 = ringTab(rx2 * 0.55 * f, ry2 * 0.55 * f, RING_GAP);
+        var f = Math.min(0.92 / 0.58, need * 1.03);
+        t1 = ringTab(Rmax * 0.58 * f, Rmax * 0.58 * f, RING_GAP);
       }
     }
-    var t2 = ringTab(rx2, ry2, RING_GAP);
+    var t2 = ringTab(Rmax, Rmax, RING_GAP);
 
     /* a ring draws the population it can carry and the rest is counted as
        dropped, on the header, never silently */
@@ -1230,12 +1253,52 @@
       it.r = r;
       it.ring = ring;
       it.drawn = true;
-      it.lx = Math.max(24, Math.min(W - 24, it.x));
-      it.ly = it.y + r + 9.2;
-      it.lw = labelW(cut(it.label, 10));
+      it.side = Math.cos(a) < 0 ? 'l' : 'r';
+      it.lx = it.x + (it.side === 'l' ? -8 : 8);
+      it.ly = it.y + 2.6;
+      it.lw = labelW(leafLabel(it));   /* recomputed below if de-duplicated */
     }
     m.ring1.forEach(function(it, i){ place(it, t1, a1[i], lr1, 1); });
     m.ring2.forEach(function(it, i){ place(it, t2, a2[i], lr2, 2); });
+
+    /* labels on the same side stack in reading order: sorted by height and pushed
+       apart by a minimum gap, so two long company names can never overlap */
+    /* the same company can be recorded under two categories, which is honest but
+       renders as two identical labels. Where a name repeats, the category is appended
+       so the reader can see it is two records and not a duplicated row. */
+    (function(){
+      var seen = {}, all = m.ring1.concat(m.ring2);
+      all.forEach(function(q){
+        var k = leafLabel(q).toLowerCase();
+        if(seen[k]){ seen[k]._dup = true; q._dup = true; } else seen[k] = q;
+      });
+      all.forEach(function(q){
+        if(q._dup){
+          var c = String(q.cat || '').toUpperCase().slice(0, 4);
+          /* truncating to 15 here cut off the very words that tell the two records
+             apart, so the fuller name is kept and only the category is appended */
+          var full = String((q.name || q.label) || '').replace(/\s+/g, ' ').trim();
+          /* the two records often differ only in a trailing account number
+             ('... A/C 1019D' against '... A/C 915B'), so the tail is kept and the
+             middle is what gets cut */
+          var tail = full.length > 26 ? full.slice(-10).trim() : '';
+          q.dispLabel = cut(full, 15) + (tail ? ' ' + tail : '') + (c ? '.' + c : '');
+        }
+      });
+    })();
+
+    (m.ring1.concat(m.ring2)).forEach(function(q){ q.lw = labelW(leafLabel(q)); });
+
+    var LBL_GAP = 10.4;
+    ['l', 'r'].forEach(function(side){
+      var arr = m.ring1.concat(m.ring2).filter(function(q){ return q.side === side; });
+      arr.sort(function(x, y){ return x.y - y.y; });
+      var prev = null;
+      arr.forEach(function(q){
+        if(prev != null && q.ly - prev < LBL_GAP) q.ly = prev + LBL_GAP;
+        prev = q.ly;
+      });
+    });
     m.cats.forEach(function(c){
       c.drawn = 0;
       c.items.forEach(function(it){ if(it.x != null) c.drawn++; });
@@ -1250,7 +1313,8 @@
        another node, and nothing may leave the viewBox */
     var labs = [], all = m.ring1.concat(m.ring2), i, j;
     all.forEach(function(it){
-      labs.push({k:it.key, x:it.lx - it.lw / 2, y:it.ly - 7.6, w:it.lw, h:8.6});
+      labs.push({k:it.key, x:(it.side === 'l' ? it.lx - it.lw : it.lx),
+                 y:it.ly - 6.8, w:it.lw, h:8.4});
     });
     labs.forEach(function(a){
       if(a.x < 0 || a.x + a.w > W || a.y < 0 || a.y + a.h > H) g.outside++;
@@ -1277,8 +1341,10 @@
   /* ---------- 6. drawing ------------------------------------------- */
   /* one arrowhead per link type, in the type colour, so a link can be read
      without a legend */
+  /* RADIAL MINT palette: mint is reserved for what is filed or owned (holders),
+     amber for statutes, and the commercial links stay in their own muted colours */
   var MK = [{k:'customers', c:UP}, {k:'suppliers', c:BLUE}, {k:'competitors', c:DN},
-            {k:'partners', c:AMB}, {k:'holders', c:GREY}, {k:'laws', c:AMB}];
+            {k:'partners', c:AMB}, {k:'holders', c:UP}, {k:'laws', c:AMB}];
   function f1(v){ return (Math.round(v * 10) / 10).toFixed(1); }
   function mkOf(k){
     for(var i = 0; i < MK.length; i++){ if(MK[i].k === k) return MK[i]; }
@@ -1362,8 +1428,11 @@
         }
         out += '<circle class="lf' + (it.hop === 2 ? ' h2' : '') + '" cx="' + f1(it.x) +
           '" cy="' + f1(it.y) + '" r="' + f1(it.r) + '" stroke="' + it.colour + '"/>' +
-          '<text class="nl" x="' + f1(it.lx) + '" y="' + f1(it.ly) + '">' +
-          t(cut(it.label, 10)) + '</text></g>';
+          '<line class="ldr" x1="' + f1(it.x) + '" y1="' + f1(it.y) + '" x2="' +
+          f1(it.lx + (it.side === 'l' ? -2 : 2)) + '" y2="' + f1(it.ly - 2.4) +
+          '" stroke="' + it.colour + '"/>' +
+          '<text class="nl a-' + it.side + '" x="' + f1(it.lx) + '" y="' + f1(it.ly) + '">' +
+          t(leafLabel(it)) + '</text></g>';
       });
     });
     return out;
