@@ -112,13 +112,24 @@
   .sg.none{color:var(--tx3);font-size:10px;cursor:default}
 
   /* ---------- the map and the detail of the node the reader pinned -------- */
+  /* THE READER SETS THE PROPORTIONS. The map, the node detail and the law list are
+     all useful at different sizes depending on what is being read, so the two
+     internal dividers are draggable and the sizes survive a reload. */
   .grid{flex:1 1 auto;min-height:0;display:grid;gap:1px;background:var(--line2);padding:1px;
-        grid-template-columns:minmax(0,1fr) 288px;
-        grid-template-rows:minmax(0,1fr) auto}
-  #c_sel{grid-column:2;grid-row:1 / span 2}
-  /* the map gets every pixel the law list does not need, and the law card
-     keeps its own content height up to a cap so it is never cut in half */
-  #c_law{max-height:min(400px,40vh)}
+        grid-template-columns:minmax(0,1fr) 5px var(--perpw,288px);
+        grid-template-rows:minmax(0,1fr) 5px var(--perph,224px)}
+  #c_rel{grid-column:1;grid-row:1}
+  #c_sel{grid-column:3;grid-row:1 / span 3}
+  #c_law{grid-column:1;grid-row:3;min-height:0}
+  .sp{background:transparent;position:relative;z-index:3}
+  .sp:hover,.sp.dragging{background:rgba(51,226,154,.34)}
+  .sp::after{content:'';position:absolute;inset:0;background:transparent}
+  /* the dividers own the 5px tracks between the panes; without explicit placement
+     they auto-flow into the first free cell and land on top of the map */
+  #sp_v{grid-column:2;grid-row:1 / span 3;cursor:col-resize}
+  #sp_h{grid-column:1;grid-row:2;cursor:row-resize}
+  .sp:hover::after{content:'';position:absolute;inset:0;
+    box-shadow:0 0 0 1px rgba(51,226,154,.5)}
   .card{background:var(--bg);display:flex;flex-direction:column;min-height:0;min-width:0;
         position:relative}
   .ch{display:flex;align-items:center;gap:8px;padding:3px 8px;border-bottom:1px solid var(--line);
@@ -311,6 +322,10 @@
   </div>
 
   <div class="grid">
+    <div class="sp" id="sp_h" role="separator" aria-orientation="horizontal"
+         title="drag to resize the map against the law list; double-click to reset"></div>
+    <div class="sp" id="sp_v" role="separator" aria-orientation="vertical"
+         title="drag to resize the map against node detail; double-click to reset"></div>
     <div class="card" id="c_rel">
       <div class="ch">
         <span class="cl">RELATIONSHIP MAP</span>
@@ -597,6 +612,79 @@
   function failBox(what, why){
     return '<div class="fail"><b>' + t(what) + ' NOT READ</b> ' + t(why) + '</div>';
   }
+
+  /* ---------- the reader sets the internal proportions ---------------------
+     Two dividers inside the panel: one between the map and node detail, one
+     between the map and the law list. Sizes are written to a CSS variable on the
+     grid, so the map's own ResizeObserver redraws at the new geometry, and they
+     are remembered per browser. A double-click on either divider restores the
+     shipped proportions without losing anything else the reader has set. */
+  (function(){
+    var grid = document.querySelector('.grid');
+    if(!grid) return;
+    var KEY = 'mt_perp_dims_v1';
+    var DEF = {w:288, h:224};
+    function read(){
+      try{
+        var o = JSON.parse(localStorage.getItem(KEY) || '{}');
+        return {w:(o && isFinite(o.w)) ? Number(o.w) : DEF.w,
+                h:(o && isFinite(o.h)) ? Number(o.h) : DEF.h};
+      }catch(e){ return {w:DEF.w, h:DEF.h}; }
+    }
+    function write(d){
+      try{ localStorage.setItem(KEY, JSON.stringify(d)); }catch(e){}
+    }
+    function apply(d){
+      grid.style.setProperty('--perpw', Math.round(d.w) + 'px');
+      grid.style.setProperty('--perph', Math.round(d.h) + 'px');
+    }
+    var D = read();
+    apply(D);
+
+    function clampW(v, rect){
+      /* never let a divider swallow a pane: the map keeps 240px, the detail 180px */
+      return Math.max(180, Math.min(rect.width - 246, v));
+    }
+    function clampH(v, rect){
+      return Math.max(84, Math.min(rect.height - 190, v));
+    }
+    function attach(el, vertical){
+      if(!el) return;
+      el.addEventListener('mousedown', function(ev){
+        ev.preventDefault(); ev.stopPropagation();
+        el.classList.add('dragging');
+        document.body.style.userSelect = 'none';
+        var rect = grid.getBoundingClientRect();
+        function move(e){
+          if(vertical){
+            D.w = clampW(rect.right - e.clientX - 2, rect);
+          }else{
+            D.h = clampH(rect.bottom - e.clientY - 2, rect);
+          }
+          apply(D);
+        }
+        function up(){
+          el.classList.remove('dragging');
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', move, true);
+          window.removeEventListener('mouseup', up, true);
+          write(D);
+          try{ Object.keys(PAINT).forEach(function(k){ PAINT[k](); }); }catch(e){}
+        }
+        window.addEventListener('mousemove', move, true);
+        window.addEventListener('mouseup', up, true);
+      });
+      el.addEventListener('dblclick', function(ev){
+        ev.preventDefault();
+        D = {w:DEF.w, h:DEF.h};
+        apply(D); write(D);
+        try{ Object.keys(PAINT).forEach(function(k){ PAINT[k](); }); }catch(e){}
+      });
+    }
+    attach(document.getElementById('sp_v'), true);
+    attach(document.getElementById('sp_h'), false);
+    window.__perpDims = function(){ return {w:D.w, h:D.h}; };
+  })();
 
   var PAINT = {};
   var RT = null;
