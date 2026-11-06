@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- build: transcript wording pass 2026-11-06b -->
+<!-- build: transcript wording pass 2026-11-06c -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -123,7 +123,7 @@
       "durationSec":1140,
       "audio":"media/transcripts/SCOM_Q3_2026.mp3",
       "source":"MUTXRI recording",
-      "rights":"MUTXRI_OWNED" | "LICENSED" | "PERMISSION_ON_FILE" | "PENDING",
+      "rights": recorded on the event but NOT rendered in this panel,
       "turns":[{"t":14,"speaker":"CFO","text":"..."}]
     }]
   }
@@ -132,7 +132,7 @@
   - No sample events are hard coded. An absent file opens on an absent file.
   - File absent, request failed, audio without a transcript, and an event with
     neither are four different states, each printed in its own words.
-  - The rights field is shown, because a third party earnings call is licensed
+  - The rights field is recorded, not shown: licence bookkeeping belongs in the
     content. Selling access to someone else's recording is not the same as
     recording your own interview.
 -->
@@ -223,10 +223,7 @@
     if(!r || r.revenue == null) return "";
     return compactMoney(r.revenue, r.currency);
   }
-  function rightsLabel(r){
-    return ({MUTXRI_OWNED:"RECORDED BY MUTXRI", LICENSED:"LICENSED",
-             PERMISSION_ON_FILE:"WRITTEN PERMISSION ON FILE", PENDING:"RIGHTS PENDING"})[r] || (r || "RIGHTS NOT STATED");
-  }
+
   function audioSrc(a){
     if(!a) return "";
     a = String(a);
@@ -338,12 +335,13 @@
       /* ONLY WHAT EXISTS. 'date not stated', 'duration not stated' and '0 turns' on
          every event were three ways of printing nothing, and the label line repeated
          the name and kind the header already carries. */
+      /* The licence field and the source line are out. Both were bookkeeping printed
+         beside the event, and neither tells the reader anything about what happened.
+         What stays is what happened and when. */
       '<div class="meta">' + [
         e.date ? esc(e.date) : '',
         e.durationSec ? clock(e.durationSec) : '',
-        turns ? turns + ' turns' : '',
-        (e.audio || turns) ? esc(rightsLabel(e.rights)) : '',
-        e.source ? 'source ' + esc(String(e.source).split('/').pop().slice(0, 30)) : ''
+        turns ? turns + ' turns' : ''
       ].filter(Boolean).map(function(x){ return '<b>' + x + '</b>'; }).join(' | ') + '</div>' +
       /* the figure only: 'as Revenue (labelled total) | filing held 2026-10-25' told the
          reader how the number was labelled, which is derivation, not data */
