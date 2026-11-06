@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- build: transcript wording pass 2026-11-06 -->
+<!-- build: transcript wording pass 2026-11-06b -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -343,13 +343,13 @@
         e.durationSec ? clock(e.durationSec) : '',
         turns ? turns + ' turns' : '',
         (e.audio || turns) ? esc(rightsLabel(e.rights)) : '',
-        e.source ? 'source ' + esc(String(e.source).split('/').pop()) : ''
+        e.source ? 'source ' + esc(String(e.source).split('/').pop().slice(0, 30)) : ''
       ].filter(Boolean).map(function(x){ return '<b>' + x + '</b>'; }).join(' | ') + '</div>' +
+      /* the figure only: 'as Revenue (labelled total) | filing held 2026-10-25' told the
+         reader how the number was labelled, which is derivation, not data */
       (e.reported && e.reported.revenue != null
-        ? '<div class="meta">reported revenue <b>' + esc(compactMoney(e.reported.revenue, e.reported.currency)) + '</b>' +
-          (e.reported.revenueLabel ? ' as <b>' + esc(e.reported.revenueLabel) + '</b>' : '') +
-          (e.reported.basis ? ' (' + esc(e.reported.basis) + ')' : '') +
-          (e.sourceAsOf ? ' | filing held ' + esc(e.sourceAsOf) : '') + '</div>'
+        ? '<div class="meta">reported revenue <b>' +
+          esc(compactMoney(e.reported.revenue, e.reported.currency)) + '</b></div>'
         : '');
 
     $("player").innerHTML = e.audio
