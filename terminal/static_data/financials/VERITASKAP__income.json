@@ -2,7 +2,7 @@
  "ticker": "VERITASKAP",
  "name": "Veritas",
  "currency": "NGN",
- "source": "CRON 20261014: Veritas Kapital Assurance Plc unaudited consolidated financial statements for the period ended 30 June 2026 (NGX doclib filing library), Group 2026 column, N'000 scaled to naira. Profit before taxation less Taxation equals the printed Profit after taxation. The filing's EPS line is labelled kobo but both its 2026 and 2025 columns reproduce naira per share against the stated profit and share count, so 0.13 is stored as a loss per share. | NGX (doclib.ngxgroup.com) | gaps filled from stockanalysis.com only where the source row reproduced an already stored figure of the SAME row within 1.5 percent of the stored value | CRON 20260929_195546: profit before tax and net profit corrected for the restated 2024 and 2023 columns of the FY2025 five year financial summary; the file previously mixed figures from an earlier presentation. Profit before tax less tax equals profit after tax for all five years. | CORRECTED 2026-10-24: Revenue had been stored as 3,318,913 (FY2025) and 2,853,088 (FY2024), about an eighth of the audited top line, which also made Profit Before Tax FY2025 (4,180,641) exceed revenue. Replaced with Insurance revenue from the audited consolidated and separate statement of profit or loss, Veritas Kapital Assurance Plc Annual Report FY2025, page 53, Group column, N thousand scaled to naira: 22,579,472 (2025) and 23,310,885 (2024). Profit Before Tax minus Income Tax still equals Net Profit for both years.",
+ "source": "CRON 20261107_0415: H1 2026 column completed from the issuer's own interim statement. Consolidated statement of profit or loss for half year ended 30 June 2026, page 8: insurance revenue 11,772,002, insurance service result -687,301, other operating expenses 3,090,684. Cost of Sales is Revenue less the printed insurance service result. | earlier: CRON 20261014: Veritas Kapital Assurance Plc unaudited consolidated financial statements for the period ended 30 June 2026 (NGX doclib filing library), Group 2026 column, N'000 scaled to naira. Profit before taxation less Taxation equals the printed Profit after taxation. The filing's EPS line is labelled kobo but both its 2026 and 2025 columns reproduce naira per share against the stated profit and share count, so 0.13 is stored as a loss per share. | NGX (doclib.ngxgroup.com) | gaps filled from stockanalysis.com only where the source row reproduced an already stored figure of the SAME row wi",
  "asOf": "FY2025",
  "statement": "income",
  "statementTitle": "Income Statement",
@@ -20,13 +20,14 @@
   {
    "label": "Revenue",
    "values": [
-    null,
+    11772002000,
     22579472000,
     23310885000,
     null,
     null,
     null
-   ]
+   ],
+   "source": "CRON 20261107_0415: Consolidated statement of profit or loss for half year ended 30 June 2026, page 8: insurance revenue 11,772,002, insurance service result -687,301, other operating expenses 3,090,684. Cost of Sales is Revenue less the printed insurance service result."
   },
   {
    "label": "Profit Before Tax",
@@ -72,14 +73,15 @@
   {
    "label": "Operating Expenses",
    "values": [
-    null,
+    3090684000,
     7226959000.0,
     5217145000.0,
     3787004000.0,
     3049539000.0,
     null
    ],
-   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity PINNED (filing): row stored uniformly negative, and the file carries neither Gross Profit nor EBIT so the identity can never test it; the FY2025 audited statements (note 35 Other operating expenses) print it as a bracketed deduction of the same magnitude, so the value is the filing's own and the sign is the artefact, and the column ties with it positive"
+   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity PINNED (filing): row stored uniformly negative, and the file carries neither Gross Profit nor EBIT so the identity can never test it; the FY2025 audited statements (note 35 Other operating expenses) print it as a bracketed deduction of the same magnitude, so the value is the filing's own and the sign is the artefact, and the column ties with it positive",
+   "source": "CRON 20261107_0415: Consolidated statement of profit or loss for half year ended 30 June 2026, page 8: insurance revenue 11,772,002, insurance service result -687,301, other operating expenses 3,090,684. Cost of Sales is Revenue less the printed insurance service result."
   },
   {
    "label": "Debt to Equity",
@@ -110,7 +112,7 @@
   {
    "label": "Net Margin (%)",
    "values": [
-    null,
+    -15.89,
     17.87,
     -4.69,
     null,
@@ -137,34 +139,43 @@
   {
    "label": "Cost of Sales",
    "values": [
-    null,
+    12459303000,
     null,
     null,
     null,
     null,
     null
-   ]
+   ],
+   "source": "CRON 20261107_0415: Consolidated statement of profit or loss for half year ended 30 June 2026, page 8: insurance revenue 11,772,002, insurance service result -687,301, other operating expenses 3,090,684. Cost of Sales is Revenue less the printed insurance service result."
   },
   {
    "label": "Gross Profit",
    "values": [
-    null,
+    -687301000,
     null,
     null,
     null,
     null,
     null
-   ]
+   ],
+   "source": "CRON 20261107_0415: Consolidated statement of profit or loss for half year ended 30 June 2026, page 8: insurance revenue 11,772,002, insurance service result -687,301, other operating expenses 3,090,684. Cost of Sales is Revenue less the printed insurance service result."
   },
   {
    "label": "Operating Profit (EBIT)",
    "values": [
-    null,
+    -3777985000,
     null,
     null,
     null,
     null,
     null
+   ],
+   "derived": true,
+   "derivedFormula": "Operating Profit (EBIT) = Gross Profit - Operating Expenses",
+   "identityAgreement": "2978 agree / 191 contradict",
+   "derivedFrom": [
+    "Gross Profit",
+    "Operating Expenses"
    ]
   },
   {
@@ -189,11 +200,42 @@
     0.038986,
     0.03644
    ]
+  },
+  {
+   "label": "Gross Margin (%)",
+   "values": [
+    -5.84,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "derivedCells": [
+    0
+   ],
+   "derivedCellFormula": "Gross Margin (%) = Gross Profit / Revenue x 100",
+   "identityAgreement": "4252 agree / 5 contradict"
+  },
+  {
+   "label": "Operating Margin (%)",
+   "values": [
+    -32.09,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "derived": true,
+   "derivedFrom": "Operating Profit (EBIT) / Revenue x 100"
   }
  ],
  "validated": true,
  "derivation": {
-  "ratios": "derive_ratios.py"
+  "ratios": "derive_ratios.py",
+  "ratiosBy": "derive_statement_rows.py",
+  "ratiosNote": "ratio cells tagged derived are arithmetic on the filed figures of this security, not printed in the source"
  },
  "source_url": "https://doclib.ngxgroup.com/Financial_NewsDocs/",
  "sourceAsOf": "2026-09-29",
@@ -224,5 +266,7 @@
  },
  "marketCap": 15391999999,
  "sharesOutstanding": 13866666666,
- "marketCapSource": "NGX 'List of Equities as of 2026-04-09' (doclib.ngxgroup.com), shares outstanding"
+ "marketCapSource": "NGX 'List of Equities as of 2026-04-09' (doclib.ngxgroup.com), shares outstanding",
+ "reconciliation_note": "Net insurance and investment result 1,090,326 plus other operating income 444,038 less operating expenses 3,090,684 equals the printed Profit Before Tax of -1,556,320 exactly. No operating profit line is printed, so EBIT is left blank rather than derived across the investment result.",
+ "derivedCellsNote": "Individual blank cells derived from the same file own printed inputs, each tagged derived true with its formula and identity agreement rate."
 }

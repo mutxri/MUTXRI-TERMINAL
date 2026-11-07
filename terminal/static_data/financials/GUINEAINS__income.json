@@ -2,7 +2,7 @@
  "ticker": "GUINEAINS",
  "name": "Guinea Insurance PLC",
  "currency": "NGN",
- "source": "NGX doclib: Guinea Insurance Plc audited financial statements for the year ended 31 December 2025 (statement of profit or loss and five year financial summary, N'000) plus CRON 20261014 interim | derived 2026-10-25 from this file's own printed rows under an identity verified against its populated years: Income Tax = Profit Before Tax - Net Profit",
+ "source": "CRON 20261107_0415: H1 2026 column completed from the issuer's own interim statement. Insurance revenue 1,484,193 less insurance service expenses 1,436,796 less net expenses on reinsurance contracts 8,291 equals Insurance service result 39,106, all printed for Jan to June 2026 on page 5. Gross Profit is the printed insurance service result; Cost of Sales is Revenue less that result. Operating Expenses is the printed other operating expenses (852,645) for the six-month column. | earlier: NGX doclib: Guinea Insurance Plc audited financial statements for the year ended 31 December 2025 (statement of profit or loss and five year financial summary, N'000) plus CRON 20261014 interim | derived 2026-10-25 from this file's own printed rows under an identity verified against its populated years: Income Tax = Profit Before Tax - Net Profit",
  "asOf": "FY2025",
  "statement": "income",
  "statementTitle": "Income Statement",
@@ -65,14 +65,15 @@
   {
    "label": "Operating Expenses",
    "values": [
-    null,
+    852645000,
     1708273000,
     1486038000,
     null,
     null,
     null
    ],
-   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity Gross Profit - Operating Expenses = Operating Profit (EBIT), and the column ties with it positive"
+   "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity Gross Profit - Operating Expenses = Operating Profit (EBIT), and the column ties with it positive",
+   "source": "CRON 20261107_0415: Insurance revenue 1,484,193 less insurance service expenses 1,436,796 less net expenses on reinsurance contracts 8,291 equals Insurance service result 39,106, all printed for Jan to June 2026 on page 5. Gross Profit is the printed insurance service result; Cost of Sales is Revenue less that result. Operating Expenses is the printed other operating expenses (852,645) for the six-month column."
   },
   {
    "label": "ROE (%)",
@@ -129,27 +130,27 @@
   {
    "label": "Cost of Sales",
    "values": [
-    null,
+    1445087000,
     1772765000,
     1788655000,
     null,
     null,
     null
    ],
-   "source": "Guinea Insurance Plc audited statement of profit or loss FY2025",
+   "source": "CRON 20261107_0415: Insurance revenue 1,484,193 less insurance service expenses 1,436,796 less net expenses on reinsurance contracts 8,291 equals Insurance service result 39,106, all printed for Jan to June 2026 on page 5. Gross Profit is the printed insurance service result; Cost of Sales is Revenue less that result. Operating Expenses is the printed other operating expenses (852,645) for the six-month column.",
    "derived": false
   },
   {
    "label": "Gross Profit",
    "values": [
-    null,
+    39106000,
     1155538000.0,
     1048596000.0,
     null,
     null,
     null
    ],
-   "source": "Guinea Insurance Plc audited statement of profit or loss FY2025",
+   "source": "CRON 20261107_0415: Insurance revenue 1,484,193 less insurance service expenses 1,436,796 less net expenses on reinsurance contracts 8,291 equals Insurance service result 39,106, all printed for Jan to June 2026 on page 5. Gross Profit is the printed insurance service result; Cost of Sales is Revenue less that result. Operating Expenses is the printed other operating expenses (852,645) for the six-month column.",
    "derived": false
   },
   {
@@ -225,7 +226,7 @@
   {
    "label": "Gross Margin (%)",
    "values": [
-    null,
+    2.63,
     39.46,
     36.96,
     null,
@@ -238,20 +239,24 @@
   {
    "label": "Operating Profit (EBIT)",
    "values": [
-    null,
+    -813539000.0,
     -552735000.0,
     -437442000.0,
     null,
     null,
     null
    ],
-   "derived": true,
-   "derived_from": "Gross Profit - Operating Expenses"
+   "derived_from": "Gross Profit - Operating Expenses",
+   "derivedCells": [
+    0
+   ],
+   "derivedCellFormula": "Operating Profit (EBIT) = Gross Profit - Operating Expenses, applied only to a file whose own filed EBIT periods all agree with it",
+   "identityAgreement": "3869 agree / 392 contradict globally, self-checked inside this file"
   },
   {
    "label": "Operating Margin (%)",
    "values": [
-    null,
+    -54.81,
     -18.88,
     -15.42,
     null,
@@ -276,7 +281,9 @@
  ],
  "validated": true,
  "derivation": {
-  "ratios": "derive_ratios.py"
+  "ratios": "derive_ratios.py",
+  "ebitBy": "derive_statement_rows.py",
+  "ebitNote": "EBIT periods tagged derived are arithmetic on this security's own gross profit and operating expenses"
  },
  "pdf_fill": {
   "Profit Before Tax": "NGX GUINEAINS.pdf p.90; page states \"N'000\"",
@@ -307,5 +314,6 @@
     -389119000
    ]
   }
- ]
+ ],
+ "reconciliation_note": "Gross Profit less Operating Expenses does not equal Profit Before Tax because the printed bridge runs through the net insurance and investment result of 473,754; the two-row identity does not apply to this statement."
 }

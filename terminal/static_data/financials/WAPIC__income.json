@@ -2,7 +2,7 @@
  "ticker": "WAPIC",
  "name": "Coronation",
  "currency": "NGN",
- "source": "CRON 20261014: Coronation Insurance Plc Q2 unaudited consolidated and separate financial statements as at 30 June 2026 (NGX doclib filing library), Coronation Group 30-Jun-26 column, N'000 scaled to naira. Revenue is the printed Insurance revenue; Gross Profit is the printed Insurance service result; Cost of Sales is Revenue less Insurance service result, which equals Insurance service expenses plus Net income (expenses) from reinsurance contracts held. EPS is not printed in this filing and is left blank for this period. | NGX audited annual report (filed PDF, _ngx_pdf) FY2025 | 2026-10-24 gap fill: FY2023 and FY2022 Revenue from the audited Five Year Financial Summary, Group column, page 286 of Coronation Insurance Plc (WAPIC) consolidated and separate financial statements FY2025: Insurance revenue 24,566,337 and 18,392,781 N thousand scaled to naira. Calibrated because the same row reproduces the stored FY2025 74,827,775 and FY2024 49,473,986 exactly; the FY2021 column is printed as a dash, so that cell stays empty.",
+ "source": "CRON 20261107_0415: H1 2026 column completed from the issuer's own interim statement. Total operating expenses 6,332,921 and Operating profit 3,557,448 printed in the consolidated statement of profit or loss for the period ended 30 June 2026, page 36, Group column. | earlier: CRON 20261014: Coronation Insurance Plc Q2 unaudited consolidated and separate financial statements as at 30 June 2026 (NGX doclib filing library), Coronation Group 30-Jun-26 column, N'000 scaled to naira. Revenue is the printed Insurance revenue; Gross Profit is the printed Insurance service result; Cost of Sales is Revenue less Insurance service result, which equals Insurance service expenses plus Net income (expenses) from reinsurance contracts held. EPS is not printed in this filing and is left blank for this period. | NGX audited annual report (filed PDF, _ngx_pdf) FY2025 | 2026-10-24 gap",
  "asOf": "FY2025",
  "statement": "income",
  "statementTitle": "Income Statement",
@@ -175,14 +175,14 @@
   {
    "label": "Operating Expenses",
    "values": [
-    null,
+    6332921000,
     7136541000,
     5912991000,
     null,
     null,
     null
    ],
-   "source": "Coronation Insurance Plc (WAPIC) audited consolidated statement of profit or loss FY2025",
+   "source": "CRON 20261107_0415: Total operating expenses 6,332,921 and Operating profit 3,557,448 printed in the consolidated statement of profit or loss for the period ended 30 June 2026, page 36, Group column.",
    "derived": false,
    "sign_normalized": "negated to the dataset convention: stored negative, which broke the printed identity Gross Profit - Operating Expenses = Operating Profit (EBIT), and the column ties with it positive"
   },
@@ -215,20 +215,25 @@
   {
    "label": "Operating Profit (EBIT)",
    "values": [
-    null,
+    -277225000.0,
     3433104000.0,
     -425873000.0,
     null,
     null,
     null
    ],
-   "derived": true,
-   "derived_from": "Gross Profit - Operating Expenses"
+   "derived_from": "Gross Profit - Operating Expenses",
+   "source": "CRON 20261107_0415: Total operating expenses 6,332,921 and Operating profit 3,557,448 printed in the consolidated statement of profit or loss for the period ended 30 June 2026, page 36, Group column.",
+   "derivedCells": [
+    0
+   ],
+   "derivedCellFormula": "Operating Profit (EBIT) = Gross Profit - Operating Expenses, applied only to a file whose own filed EBIT periods all agree with it",
+   "identityAgreement": "3869 agree / 392 contradict globally, self-checked inside this file"
   },
   {
    "label": "Operating Margin (%)",
    "values": [
-    null,
+    -0.73,
     4.59,
     -0.86,
     null,
@@ -253,7 +258,9 @@
  ],
  "validated": true,
  "derivation": {
-  "ratios": "derive_ratios.py"
+  "ratios": "derive_ratios.py",
+  "ebitBy": "derive_statement_rows.py",
+  "ebitNote": "EBIT periods tagged derived are arithmetic on this security's own gross profit and operating expenses"
  },
  "source_url": "https://doclib.ngxgroup.com/Financial_NewsDocs/",
  "sourceAsOf": "2026-04-02",
@@ -268,5 +275,6 @@
   "basis": "market-cap anchored: cap 5.66204e+10, net profit 7.51527e+09, revenue 7.48278e+10; at x1 P/E 7.53, P/S 0.757",
   "appliedAt": "2026-10-04T16:19:27",
   "sections": []
- }
+ },
+ "reconciliation_note": "Operating profit is printed by the issuer as net insurance and investment result 9,890,369 less total operating expenses 6,332,921; share of profit from associate 489,151 then gives the printed Profit Before Tax of 4,046,599."
 }
