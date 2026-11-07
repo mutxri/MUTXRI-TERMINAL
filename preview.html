@@ -247,6 +247,22 @@
   .mk-dr .n{font-family:var(--ui);font-size:9px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .mk-dr .s{font-family:var(--ui);font-size:8.5px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .mk-dr .r{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* the window leads with one security, so its line is marked and its own
+     session figures sit under it as a read-out rather than the wide board */
+  .mk-dr.on{background:var(--bg3);box-shadow:inset 2px 0 0 var(--mint);}
+  .mk-read{display:flex;flex-direction:column;min-height:0;padding:4px 10px 2px;}
+  .mk-kv{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);
+    font-size:9.5px;line-height:2.55;border-bottom:1px solid var(--line);}
+  .mk-kv .k{color:var(--tx3);letter-spacing:.1em;}
+  .mk-kv .v{color:var(--tx);white-space:nowrap;}
+  .mk-range{padding:8px 10px 4px;}
+  .mk-range .rlab{font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:var(--tx3);
+    font-weight:700;margin-bottom:5px;}
+  .mk-range .rbar{position:relative;height:3px;background:var(--bg3);border-radius:2px;}
+  .mk-range .rdot{position:absolute;top:-3px;width:9px;height:9px;margin-left:-4.5px;
+    border-radius:50%;background:var(--mint);box-shadow:0 0 0 2px var(--bg1);}
+  .mk-range .rlabs{display:flex;justify-content:space-between;margin-top:5px;
+    font-family:var(--mono);font-size:8px;color:var(--tx3);}
   .mk-body{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px;padding:0 10px 4px;
     min-height:0;}
   .mcol{min-width:0;overflow:hidden;}
@@ -1423,39 +1439,54 @@
         '<span class="tone ' + toneCls + '">' + tone + '</span></div>' +
     '</div>';
 
-    // the security table: the session's most traded names, in full detail
-    var det = active.slice(0, 14);
+    // THE MARKET WINDOW IS ABOUT THE EXCHANGE'S LEAD SECURITY, NOT THE WIDE BOARD.
+    // The owner asked for that security's own information here rather than the
+    // general market. Every figure below is a published field of market_<EX>.json,
+    // and a field the file does not carry prints "-".
+    var lead = null, pref = String(CFG.sym).toUpperCase();
+    for (var z = 0; z < all.length; z++){
+      if (String(all[z].ticker || all[z].sym || "").toUpperCase() === pref){ lead = all[z]; break; }
+    }
+    if (!lead && active.length) lead = active[0];
+
     html += '<div class="mk-det" id="mkDet">' +
       '<div class="mk-dh"><span>TICKER</span><span>NAME</span><span class="r">LAST</span>' +
       '<span class="r">CHG</span><span class="r">CHG %</span><span class="r">VOL</span>' +
       '<span class="r">MKT CAP</span><span>SECTOR</span></div>' +
-      det.map(detRow).join("") + '</div>';
+      (lead ? detRow(lead).replace('class="mk-dr"', 'class="mk-dr on"') : "") + '</div>';
 
-    var N = 18;
-    html += '<div class="mk-body">';
-    var sections = 0;
-    if (gain.length){
-      html += '<div class="mcol"><div class="msec">TOP GAINERS</div><div class="sec-gain">' +
-        gain.slice(0, N).map(mover).join("") + '</div></div>';
-      sections++;
+    if (lead){
+      function px(f){ var v = num(lead[f]); return v === null ? "-" : fmtPx(v); }
+      function big(f){ var c = compact(lead[f]); return c === null ? "-" : esc(c); }
+      function kvLine(k, v){ return '<div class="mk-kv"><span class="k">' + esc(k) + '</span>' +
+        '<span class="v">' + v + '</span></div>'; }
+      var lo = num(lead.low), hi = num(lead.high), lastPx = num(lead.price);
+      // where the last price sits inside the published session range
+      var barPos = (lo !== null && hi !== null && lastPx !== null && hi > lo)
+        ? Math.max(0, Math.min(100, (lastPx - lo) / (hi - lo) * 100)) : null;
+      html += '<div class="mk-read">' +
+        kvLine("LAST", px("price")) +
+        kvLine("CHANGE", chgCell(lead)) +
+        kvLine("CHANGE %", '<span class="' + cls(num(lead.chgPct)) + '">' + pctCell(num(lead.chgPct)) + '</span>') +
+        kvLine("PREV CLOSE", px("prevClose")) +
+        kvLine("OPEN", px("open")) +
+        kvLine("HIGH", px("high")) +
+        kvLine("LOW", px("low")) +
+        kvLine("VOLUME", big("volume")) +
+        kvLine("TURNOVER", big("turnover")) +
+        kvLine("MKT CAP", big("marketCap")) +
+        kvLine("SHARES ISSUED", big("sharesIssued")) +
+        kvLine("SECTOR", esc(String(lead.sector || "-"))) +
+        kvLine("INSTRUMENT", esc(String(lead.instrument || "-"))) +
+        kvLine("CURRENCY", esc(String(lead.currency || CFG.cur || "-"))) +
+        kvLine("SESSION", esc(String(lead.asOf || "-"))) +
+        '</div>';
+      if (barPos !== null){
+        html += '<div class="mk-range"><div class="rlab">SESSION RANGE</div>' +
+          '<div class="rbar"><span class="rdot" style="left:' + barPos.toFixed(1) + '%"></span></div>' +
+          '<div class="rlabs"><span>LOW ' + fmtPx(lo) + '</span><span>HIGH ' + fmtPx(hi) + '</span></div></div>';
+      }
     }
-    if (lose.length){
-      html += '<div class="mcol"><div class="msec">TOP LOSERS</div><div class="sec-lose">' +
-        lose.slice(0, N).map(mover).join("") + '</div></div>';
-      sections++;
-    }
-    if (active.length){
-      html += '<div class="mcol"><div class="msec">MOST ACTIVE</div><div class="sec-act">' +
-        active.slice(0, N).map(mover).join("") + '</div></div>';
-      sections++;
-    }
-    // a board with no published change still gets one ranked table of real
-    // securities, with its price and its (absent) change shown as absent
-    if (!sections){
-      html += '<div class="mcol"><div class="msec">THE BOARD BY VOLUME</div><div class="sec-board">' +
-        active.slice(0, N).map(mover).join("") + '</div></div>';
-    }
-    html += '</div>';
 
     host.innerHTML = html;
     trimMarket(host);
