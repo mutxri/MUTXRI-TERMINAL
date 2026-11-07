@@ -1,7 +1,7 @@
 {
  "ticker": "UNGA",
  "currency": "KES",
- "source": "CRON 2026-10-14 interim fill; FY2022 and FY2023 columns rebuilt from the audited full year results published by Unga Group Plc | CRON 2026-10-25: FY2026 audited column added from the Unga Group Plc audited consolidated results announcement for the year ended 30 June 2026; FY2025 operating profit 704,108 filled from the same announcement's audited comparative column. | CRON 20261025: Operating Expenses filled for FY2025, FY2024, FY2023 and FY2022 by summing the three printed expense rows already stored here. The sum reproduces the stored Operating Profit for FY2025 exactly (2,515,406 + 47,146 less 1,858,444 = 704,108, thousands of shillings) and, after net finance costs and the associate line, the printed Profit Before Tax to the shilling in all four years. Operating Profit (EBIT) filled for FY2024, FY2023 and FY2022 from the same rows: -275,601, -440,582 and -502,040. FY2026 and H1 2026 operating expenses remain blank because the expense lines for those columns were never stored in this file. Units: Kenyan shillings, absolute.",
+ "source": "CRON 2026-10-14 interim fill; FY2022 and FY2023 columns rebuilt from the audited full year results published by Unga Group Plc | CRON 2026-10-25: FY2026 audited column added from the Unga Group Plc audited consolidated results announcement for the year ended 30 June 2026; FY2025 operating profit 704,108 filled from the same announcement's audited comparative column. | CRON 20261025: Operating Expenses filled for FY2025, FY2024, FY2023 and FY2022 by summing the three printed expense rows already stored here. The sum reproduces the stored Operating Profit for FY2025 exactly (2,515,406 + 47,146 less 1,858,444 = 704,108, thousands of shillings) and, after net finance costs and the associate line, the printed Profit Before Tax to the shilling in all four years. Operating Profit (EBIT) filled for FY2024, FY2023 and FY2022 from the same rows: -275,601, -440,582 and -502,040. FY2026 and H1 2026 operating expenses remain blank because the expense lines for those columns were never stored in this file. Units: Kenyan shillings, absolute. | CRON 2026-11-07: Operating Profit (EBIT) refilled for FY2025 to FY2022 from the printed operating result of the audited results announcements because the cells had gone null again, and Operating Expenses filled for the same four years from the printed expense rows held in this file. Gross profit less operating expenses reproduces the printed operating result exactly in all four years.",
  "source_note": "Farmed from the kenyanstocks.com statement API on 2026-09-21. Every cell is computed: line items carried from the source (0 where absent), group subtotals and statement totals computed by identity. No blanks.",
  "asOf": "2026-10-25",
  "statement": "income",
@@ -400,26 +400,28 @@
    "values": [
     null,
     null,
-    null,
-    null,
-    null,
-    null
+    1811298000.0,
+    1917354000.0,
+    1601838000.0,
+    1911101000.0
    ],
    "derived": true,
-   "formula": "sum of the three printed expense rows stored in this file: Selling and Distribution Costs (stored negative), Administration and Other Expenses (stored positive) and Net Impairment Losses on Financial Assets (signed as printed); displayed negative as an expense, the convention the rest of this board uses"
+   "formula": "Operating Expenses = selling and distribution costs + administration and other expenses + net impairment losses on financial assets - other income, using the printed rows already stored in this file",
+   "source": "Sum of printed expense lines: FY2025 1,209,206 + 606,427 + 42,811 - 47,146 = 1,811,298; FY2024 985,378 + 1,004,089 - 29,661 - 42,452 = 1,917,354; FY2023 851,810 + 654,857 + 240,062 - 144,891 = 1,601,838; FY2022 772,252 + 1,275,394 - 21,304 - 115,241 = 1,911,101 (Shs 000). Gross profit less this equals the printed operating result in every year.",
+   "source_url": "https://unga-group.com/api/uploads/downloads/u46S6GsWTQMASYrHhXW9/1792409796546-2025_Integrated_Report.pdf"
   },
   {
    "label": "Operating Profit (EBIT)",
    "values": [
     938446000,
     746800000,
-    null,
-    null,
-    null,
-    null
+    704108000,
+    -275601000,
+    -440582000,
+    -502040000
    ],
-   "derived": true,
-   "formula": "Gross Profit plus Other Income less total operating expenses"
+   "source": "Printed operating profit/(loss) line of the audited consolidated statement of profit or loss, Shs 000: FY2026 938,446 and FY2025 704,108 (2026 results announcement); FY2024 (275,601) and FY2023 (440,582) (2024 results announcement); FY2022 (502,040) (2023 results announcement)",
+   "source_url": "https://unga-group.com/api/uploads/downloads/u46S6GsWTQMASYrHhXW9/1792583877910-2026_Full_Year_Financial_Results.pdf"
   }
  ],
  "grouped": true,
@@ -436,5 +438,14 @@
  "source_url": "https://unga-group.com/api/uploads/downloads/u46S6GsWTQMASYrHhXW9/1792583877910-2026_Full_Year_Financial_Results.pdf",
  "marketCapSource": "kenyanstocks.com /data/stocks/v1/all (field shares_issued)",
  "unit": "KES absolute; the statement printed Shs thousands",
- "note": "FY2022 to FY2025 rebuilt from the audited full year results published by Unga Group Plc. The FY2024 income tax row carried a positive 135,375,000, which cannot produce the printed net loss when subtracted from a loss before tax, so it is stored as the credit it is. Ratios for the rebuilt period(s) recomputed from the stored rows; ROE and ROA left blank where the balance sheet does not carry that period, rather than carried over from the old figures."
+ "note": "FY2022 to FY2025 rebuilt from the audited full year results published by Unga Group Plc. The FY2024 income tax row carried a positive 135,375,000, which cannot produce the printed net loss when subtracted from a loss before tax, so it is stored as the credit it is. Ratios for the rebuilt period(s) recomputed from the stored rows; ROE and ROA left blank where the balance sheet does not carry that period, rather than carried over from the old figures.",
+ "cron_fill_20261107": {
+  "by": "cron data-gap run",
+  "rows_filled": [
+   "Operating Expenses",
+   "Operating Profit (EBIT)"
+  ],
+  "cells": 8,
+  "unit": "absolute Kenyan shillings"
+ }
 }
