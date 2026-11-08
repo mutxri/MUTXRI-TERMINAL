@@ -258,6 +258,17 @@
   .mk-quote .q-p{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--tx);}
   .mk-quote .q-c{font-family:var(--mono);font-size:10px;}
   .mk-quote .q-cur{font-family:var(--mono);font-size:8px;color:var(--tx3);letter-spacing:.1em;}
+  .mk-quote .q-logo{width:22px;height:22px;object-fit:contain;align-self:center;}
+  .mk-grp{border-top:1px solid var(--line2);padding:6px 10px 4px;}
+  .mk-gh{font-family:var(--mono);font-size:8px;letter-spacing:.12em;font-weight:700;color:var(--tx3);margin-bottom:3px;}
+  .mk-gi{font-family:var(--ui);font-size:9px;color:var(--tx2);line-height:1.55;}
+  .mk-ge{font-family:var(--ui);font-size:9px;color:var(--tx3);font-style:italic;}
+  .mk-read{display:flex;flex-direction:column;min-height:0;padding:2px 10px 0;overflow:hidden;}
+  .fx-min{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 14px;height:100%;}
+  .fx-msym{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--tx);letter-spacing:.02em;}
+  .fx-mpx{text-align:right;}
+  .fx-mlast{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--tx);line-height:1.1;}
+  .fx-mchg{font-family:var(--mono);font-size:13px;}
   .mk-read{display:flex;flex-direction:column;min-height:0;padding:2px 10px 0;}
   .mk-kv{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);
     font-size:9.5px;line-height:2.3;border-bottom:1px solid var(--line);}
@@ -1379,6 +1390,11 @@
   // underneath. Every field is a published field of market_<EX>.json; the one
   // derived figure is the change in price, and it is printed only when the
   // row's own percent agrees with it (levelOf). An absent field prints "-".
+  // ---- MARKET window: one security, its profile and its relationships ------
+  // The window names the exchange's lead security and shows what the terminal
+  // shows for it: the quote, the profile fields, then the entities the company is
+  // tied to. Every value is read from a published file and an absent one prints
+  // "-"; nothing here is derived except the change, which levelOf guards.
   function renderMarket(){
     var host = $("mkBody");
     var all = allRows();
@@ -1390,126 +1406,79 @@
       return;
     }
     var priced = all.filter(function(r){ return num(r.price) !== null; });
-    var adv = 0, dec = 0, unc = 0;
-    for (var i = 0; i < all.length; i++){
-      var c = num(all[i].chgPct);
-      if (c === null) continue;
-      if (c > 0) adv++; else if (c < 0) dec++; else unc++;
-    }
-    var ratio = dec ? adv / dec : (adv ? 9 : 1);
-    var tone = ratio >= 1.5 ? "RISK-ON" : (ratio <= 0.67 ? "RISK-OFF" : "MIXED");
-    var toneCls = ratio >= 1.5 ? "up" : (ratio <= 0.67 ? "down" : "flat");
-    var curs = {};
-    for (var q = 0; q < all.length; q++){ curs[curOf(all[q])] = 1; }
-    var cur = Object.keys(curs).sort()[0] || CFG.cur;
-    var session = mkSession();
-
-    var withChg = priced.filter(function(r){ return num(r.chgPct) !== null; });
-    var gain = withChg.slice().sort(function(a, b){ return num(b.chgPct) - num(a.chgPct); });
-    var lose = withChg.slice().sort(function(a, b){ return num(a.chgPct) - num(b.chgPct); });
-    var active = priced.slice().sort(function(a, b){ return (num(b.volume) || 0) - (num(a.volume) || 0); });
-
-    function tkOf(s){ return String(s.ticker || s.sym || ""); }
-    function chgCell(s){
-      var lv = levelOf(s);
-      return lv === null ? '<span class="flat">-</span>'
-        : '<span class="' + cls(lv) + '">' + (lv > 0 ? "+" : "") + fmtPx(lv) + '</span>';
-    }
-    // one full-detail line for the security table
-    function detRow(s){
-      var p = num(s.price), pc = num(s.chgPct), v = num(s.volume), cap = compact(s.marketCap);
-      return '<div class="mk-dr">' +
-        '<span class="t">' + esc(tkOf(s) || "-") + '</span>' +
-        '<span class="n">' + esc(String(s.name || "")) + '</span>' +
-        '<span class="r">' + (p === null ? "-" : fmtPx(p)) + '</span>' +
-        '<span class="r">' + chgCell(s) + '</span>' +
-        '<span class="r ' + cls(pc) + '">' + pctCell(pc) + '</span>' +
-        '<span class="r">' + (v === null ? "-" : compact(v)) + '</span>' +
-        '<span class="r">' + (cap === null ? "-" : esc(cap)) + '</span>' +
-        '<span class="s">' + esc(String(s.sector || "-")) + '</span>' +
-      '</div>';
-    }
-    // one compact line for the three mover columns
-    function mover(s){
-      var ch = num(s.chgPct), v = num(s.volume);
-      return '<div class="mrow"><span class="mt">' + esc(tkOf(s) || "-") + '</span>' +
-        '<span class="mp">' + (num(s.price) === null ? "-" : fmtPx(num(s.price))) + '</span>' +
-        '<span class="mc ' + cls(ch) + '">' + pctCell(ch) + '</span>' +
-        '<span class="mv">' + (v === null ? "-" : compact(v)) + '</span></div>';
-    }
-
-    var html = '<div class="mk-top">' +
-      '<div class="mk-ex">' + esc(EX) + ' <span>&middot; ' + esc(CFG.full) + '</span></div>' +
-      '<div class="mk-sub">' + esc(CFG.country) + ' &middot; ' +
-        esc(cur) + (session ? ' &middot; EOD ' + esc(session) : "") + '</div>' +
-      '<div class="mk-br"><span class="up">&#9650; ' + adv + '</span>' +
-        '<span class="down">&#9660; ' + dec + '</span>' +
-        '<span class="flat">- ' + unc + '</span>' +
-        '<span class="tone ' + toneCls + '">' + tone + '</span></div>' +
-    '</div>';
-
-    // THE MARKET WINDOW IS ABOUT THE EXCHANGE'S LEAD SECURITY, NOT THE WIDE BOARD.
-    // The owner asked for that security's own information here rather than the
-    // general market. Every figure below is a published field of market_<EX>.json,
-    // and a field the file does not carry prints "-".
     var lead = null, pref = String(CFG.sym).toUpperCase();
-    for (var z = 0; z < all.length; z++){
-      if (String(all[z].ticker || all[z].sym || "").toUpperCase() === pref){ lead = all[z]; break; }
+    for (var i = 0; i < all.length; i++){
+      if (String(all[i].ticker || all[i].sym || "").toUpperCase() === pref){ lead = all[i]; break; }
     }
-    if (!lead && active.length) lead = active[0];
+    if (!lead) lead = priced.length ? priced[0] : all[0];
 
-    // the window is about one security, so it says which one before the table
-    if (lead){
-      html += '<div class="mk-quote">' +
-        '<span class="q-t">' + esc(tkOf(lead) || "-") + '</span>' +
-        '<span class="q-n">' + esc(String(lead.name || "")) + '</span>' +
-        '<span class="q-p">' + (num(lead.price) === null ? "-" : fmtPx(num(lead.price))) + '</span>' +
-        '<span class="q-c ' + cls(num(lead.chgPct)) + '">' + pctCell(num(lead.chgPct)) + '</span>' +
-        '<span class="q-cur">' + esc(String(lead.currency || CFG.cur || "")) + '</span>' +
-        '</div>';
-      // where the last price sits between the published low and high
-      var qlo = num(lead.low), qhi = num(lead.high), qlast = num(lead.price);
-      var qpos = (qlo !== null && qhi !== null && qlast !== null && qhi > qlo)
-        ? Math.max(0, Math.min(100, (qlast - qlo) / (qhi - qlo) * 100)) : null;
-      if (qpos !== null){
-        html += '<div class="mk-range"><div class="rlab">SESSION RANGE</div>' +
-          '<div class="rbar"><span class="rfill" style="width:' + qpos.toFixed(1) + '%"></span>' +
-          '<span class="rdot" style="left:' + qpos.toFixed(1) + '%"></span></div>' +
-          '<div class="rlabs"><span>LOW ' + fmtPx(qlo) + '</span><span>HIGH ' + fmtPx(qhi) + '</span></div></div>';
+    var info = infoOf(lead) || {};
+    var rels = relOf(lead) || {};
+    var tk = String(lead.ticker || lead.sym || "");
+    var px = num(lead.price), pc = num(lead.chgPct), lv = levelOf(lead);
+    var cur = String(lead.currency || CFG.cur || "");
+    var ceo = (CEOS && (CEOS[tk] || CEOS[String(lead.sym || tk)])) || null;
+    var lg = logoOf(lead);
+    var divs = info.dividends || [];
+    var divTxt = divs.length && divs[0] && divs[0].amount ? String(divs[0].amount) : "-";
+
+    function row(k, v){
+      return '<div class="mk-kv"><span class="k">' + esc(k) + '</span><span class="v">' +
+        (v === null || v === undefined || v === "" ? "-" : esc(String(v))) + '</span></div>';
+    }
+    function raw(f){ var v = lead[f]; return (v === null || v === undefined || v === "") ? null : v; }
+    function big(f){ var v = num(lead[f]); return v === null ? null : compact(v); }
+
+    var html = '<div class="mk-quote">' +
+      (lg ? '<img class="q-logo" src="' + esc(lg) + '" alt="">' : '') +
+      '<span class="q-t">' + esc(tk || "-") + '</span>' +
+      '<span class="q-n">' + esc(String(lead.name || info.name || "")) + '</span>' +
+      '<span class="q-p">' + (px === null ? "-" : fmtPx(px)) + '</span>' +
+      '<span class="q-cur">' + esc(cur) + '</span>' +
+      '<span class="q-c ' + cls(pc) + '">' + pctCell(pc) + '</span>' +
+      '</div>';
+
+    html += '<div class="mk-read">' +
+      row("DATA AS OF", raw("asOf")) +
+      row("VOLUME", big("volume")) +
+      row("SECTOR", lead.sector || info.sector) +
+      row("COUNTRY", info.country) +
+      row("CEO", ceo) +
+      row("FOUNDED", info.founded) +
+      row("LISTED", info.listed) +
+      row("YEAR END", lead.yearEnd || info.year_end) +
+      row("OPEN", raw("open") === null ? null : fmtPx(num(lead.open))) +
+      row("PREV CLOSE", raw("prevClose") === null ? null : fmtPx(num(lead.prevClose))) +
+      row("TURNOVER", big("turnover")) +
+      row("SHARES", big("sharesIssued")) +
+      row("MKT CAP", big("marketCap")) +
+      row("EXCHANGE", lead.exchange || info.exchange || EX) +
+      row("PHONE", info.phone) +
+      row("TRANSFER SEC", info.transfer_secretary) +
+      row("DIVIDENDS", divs.length ? divTxt : null) +
+      row("STATEMENTS", info.statements ? "filed" : null) +
+      '</div>';
+
+    function group(label, list, empty){
+      list = list || [];
+      var h = '<div class="mk-grp"><div class="mk-gh">' + esc(label) + ' ' + list.length + '</div>';
+      if (!list.length){
+        h += '<div class="mk-ge">' + esc(empty) + '</div>';
+      } else {
+        h += list.map(function(x){
+          var nm = (typeof x === "object" && x !== null) ? (x.name || x.entity || "") : x;
+          return '<div class="mk-gi">' + esc(String(nm)) + '</div>';
+        }).join("");
       }
+      return h + '</div>';
     }
-    html += '<div class="mk-det" id="mkDet">' +
-      '<div class="mk-dh"><span>TICKER</span><span>NAME</span><span class="r">LAST</span>' +
-      '<span class="r">CHG</span><span class="r">CHG %</span><span class="r">VOL</span>' +
-      '<span class="r">MKT CAP</span><span>SECTOR</span></div>' +
-      (lead ? detRow(lead).replace('class="mk-dr"', 'class="mk-dr on"') : "") + '</div>';
-
-    if (lead){
-      function px(f){ var v = num(lead[f]); return v === null ? "-" : fmtPx(v); }
-      function big(f){ var c = compact(lead[f]); return c === null ? "-" : esc(c); }
-      function kvLine(k, v){ return '<div class="mk-kv"><span class="k">' + esc(k) + '</span>' +
-        '<span class="v">' + v + '</span></div>'; }
-      html += '<div class="mk-read">' +
-        kvLine("LAST", px("price")) +
-        kvLine("CHANGE", chgCell(lead)) +
-        kvLine("CHANGE %", '<span class="' + cls(num(lead.chgPct)) + '">' + pctCell(num(lead.chgPct)) + '</span>') +
-        kvLine("PREV CLOSE", px("prevClose")) +
-        kvLine("OPEN", px("open")) +
-        kvLine("HIGH", px("high")) +
-        kvLine("LOW", px("low")) +
-        kvLine("VOLUME", big("volume")) +
-        kvLine("TURNOVER", big("turnover")) +
-        kvLine("MKT CAP", big("marketCap")) +
-        kvLine("SHARES ISSUED", big("sharesIssued")) +
-        kvLine("SECTOR", esc(String(lead.sector || "-"))) +
-        kvLine("INSTRUMENT", esc(String(lead.instrument || "-"))) +
-        kvLine("CURRENCY", esc(String(lead.currency || CFG.cur || "-"))) +
-        kvLine("SESSION", esc(String(lead.asOf || "-"))) +
-        '</div>';
-    }
+    html += group("CUSTOMERS", rels.customers, "no customer is published for this security");
+    html += group("SUPPLIERS", rels.suppliers, "no supplier is published for this security");
+    html += group("COMPETITORS", rels.competitors, "no competitor is published for this security");
+    html += group("PEERS", rels.peers, "no sector peer on this board");
+    html += group("PARTNERS", rels.partners, "no partner is published for this security");
 
     host.innerHTML = html;
-    trimMarket(host);
     $("mkMetaMark").textContent = noDates((BOARD_FULL ? "quotes" : "screener file") + " - " + priced.length + " priced");
   }
 
@@ -1527,6 +1496,9 @@
     var all = allRows();
     return all.length ? all[0] : null;
   }
+  // ---- FOCUS window: the ticker and its price -----------------------------
+  // The owner's shape: the symbol large on the left, the last price and the
+  // change on the right, nothing else in the window.
   function renderFocus(){
     var host = $("fxBody");
     var r = focusRow();
@@ -1536,24 +1508,13 @@
       $("fxMeta").textContent = EX;
       return;
     }
-    var p = num(r.price), c = num(r.chgPct), lvl = levelOf(r);
-    var cur = curOf(r);
-    function kv(k, v){ return '<span>' + k + '</span><b>' + (v === null || v === "" ? "-" : esc(v)) + '</b>'; }
-    var vol = num(r.volume), cap = compact(r.marketCap);
-    var asof = r.asOf ? String(r.asOf).slice(0, 10) : "";
-    var chgTxt = (lvl === null ? null : (lvl > 0 ? "+" : "") + fmtPx(lvl));
-    host.innerHTML =
-      '<div class="fx-top">' +
-        '<div class="fx-sym">' + esc(String(r.ticker || r.sym || "")) + '<span>' + esc(EX) + '</span></div>' +
-        '<div class="fx-nm">' + esc(r.name || "") + '</div>' +
-        '<div class="fx-px">' + (p === null ? '<span class="nq">no quote</span>' : fmtPx(p)) + '</div>' +
-        '<div class="fx-ch"><span class="' + cls(c) + '">' + pctCell(c) + '</span>' +
-          (lvl === null ? ' <span class="flat">-</span>' : ' <span class="' + cls(lvl) + '">' + chgTxt + '</span>') +
-          '<span class="cur">' + esc(cur) + '</span></div>' +
-      '</div>' +
-      '<div class="fx-line" id="fxLine"><svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg></div>' +
-      '<div class="fx-range" id="fxRange">no price history on file</div>';
-    $("fxMeta").textContent = EX + (r.sector ? " - " + r.sector : "");
+    var p = num(r.price), c = num(r.chgPct);
+    host.innerHTML = '<div class="fx-min">' +
+      '<div class="fx-msym">' + esc(String(r.ticker || r.sym || "")) + '</div>' +
+      '<div class="fx-mpx"><div class="fx-mlast">' + (p === null ? "no quote" : fmtPx(p)) + '</div>' +
+      '<div class="fx-mchg ' + cls(c) + '">' + pctCell(c) + '</div></div>' +
+      '</div>';
+    $("fxMeta").textContent = EX;
   }
   function drawFocusLine(){
     var box = $("fxLine");
@@ -3283,6 +3244,48 @@
   // board, so MARKET, FOCUS and the WATCHLIST can never disagree about which
   // securities exist, and the empty state is only reached when NEITHER file
   // answers.
+  // ---- the four files the terminal reads for a security card ---------------
+  // company_info.json holds the profile fields, ceos.json the chief executive,
+  // relationships_<EX>.json the entities a filing or a report ties the company to,
+  // and logos.json the mark. None is invented here: an absent field prints "-".
+  var CINFO = null, CEOS = null, RELS = null, LOGOS = null;
+
+  function loadProfile(){
+    function safe(u){ return get(u).catch(function(){ return null; }); }
+    return Promise.all([
+      safe("terminal/static_data/company_info.json"),
+      safe("terminal/static_data/ceos.json"),
+      safe("terminal/static_data/relationships_" + EX + ".json"),
+      safe("terminal/static_data/logos.json")
+    ]).then(function(r){
+      CINFO = r[0]; CEOS = r[1]; RELS = r[2]; LOGOS = r[3];
+      try { renderMarket(); } catch(e){}
+      try { renderFocus(); } catch(e){}
+      return r;
+    }).catch(function(){ return null; });
+  }
+
+  function infoOf(row){
+    if (!CINFO) return null;
+    var t = String((row && (row.ticker || row.sym)) || "").toUpperCase();
+    return CINFO[t] || CINFO[EX + ":" + t] || null;
+  }
+  function logoOf(row){
+    if (!LOGOS) return "";
+    var t = String((row && (row.ticker || row.sym)) || "").toUpperCase();
+    var keys = [t, EX + "_" + t, t + ".JO", EX + ":" + t];
+    for (var i = 0; i < keys.length; i++){
+      var v = LOGOS[keys[i]];
+      if (v) return typeof v === "string" ? v : (v.url || v.src || "");
+    }
+    return "";
+  }
+  function relOf(row){
+    if (!RELS || !RELS.securities) return null;
+    var t = String((row && (row.ticker || row.sym)) || "").toUpperCase();
+    return RELS.securities[t] || null;
+  }
+
   function loadBoard(){
     var prim = "terminal/static_data/market_" + EX + ".json";
     var alt  = "terminal/static_data/screener_" + EX + ".json";
@@ -3327,6 +3330,7 @@
 
     return Promise.all([
       loadBoard(),
+      loadProfile(),
       get("terminal/static_data/ex_" + EX + "_indices.json").catch(function(){ return null; })
     ])
     .then(function(res){
