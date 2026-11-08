@@ -1055,6 +1055,12 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
   var AUTH_API = allowedApi(window.AUTH_API) || allowedApi(new URLSearchParams(location.search).get("api")) || "https://mutxri-terminal.onrender.com";
   var gate = document.getElementById("authGate");
   var q = new URLSearchParams(location.search);
+  // THE LOCAL HOST IS NOT GATED. Serving from localhost means the files are on
+  // this machine already, so the wall protects nothing and only hides the desk.
+  if(location.hostname === "localhost" || location.hostname === "127.0.0.1"){
+    if(gate) gate.remove();
+    window.__mxLocalHost = true;
+  }
   // ONLY EMBEDDED FRAMES ARE PREVIEWS. The ?view= test used to be an OR, so any
   // visitor could append ?view=anything to a top-level /terminal/ URL and the gate
   // was removed for them - a sign-in wall that anyone could step around by typing.
@@ -2140,6 +2146,19 @@ let PANELS = [
   // static_data/shareholders_<EX>.json still carries the rows the MARKET
   // window's rail draws inline, so nothing on disk was lost. Do not re-register
   // it here.
+  // ---- parity pack: the Godel-style panels the terminal was missing.
+  // QM is the watchlist monitor, MOST ranks the session, HP is the OHLCV table,
+  // GR is a pair ratio with correlation and beta, EM is the income-statement
+  // matrix with the live filing index, SECF searches every board, AL watches
+  // levels against the snapshot and NOTE keeps research notes.
+  {id:'qm',    label:'QM',    url:'features/panels/mx_qm.html'},
+  {id:'most',  label:'MOST',  url:'features/panels/mx_most.html'},
+  {id:'hp',    label:'HP',    url:'features/panels/mx_hp.html'},
+  {id:'gr',    label:'GR',    url:'features/panels/mx_gr.html'},
+  {id:'em',    label:'EM',    url:'features/panels/mx_em.html'},
+  {id:'secf',  label:'SECF',  url:'features/panels/mx_secf.html'},
+  {id:'al',    label:'AL',    url:'features/panels/mx_al.html'},
+  {id:'note',  label:'NOTE',  url:'features/panels/mx_note.html'},
 ];
 // restore the user's saved tab order (workflow persistence)
 try{
@@ -5887,7 +5906,15 @@ window.__getRecents = function(){
 // ===== Command bar =====
 // ===== Command bar:  "TICKER FUNCTION" =====
 const PANEL_ALIAS = {DES:'info', FA:'financials', FIN:'financials', GP:'financials', CN:'news', NEWS:'news', REG:'news',
-                      HP:'financials', EQS:'screener', RV:'financials', SPLC:'info', CMP:'compare', CMPR:'compare', TR:'trade',
+                      HP:'hp', EQS:'screener', RV:'financials', SPLC:'info', CMP:'compare', CMPR:'compare', TR:'trade',
+                      // parity pack
+                      QM:'qm', QUOTE:'qm', WATCHLIST:'qm', MONITOR:'qm',
+                      MOST:'most', MOVERS:'most', ACTIVE:'most',
+                      PRICES:'hp', HISTORY:'hp', HCP:'hp',
+                      GR:'gr', RATIO:'gr', PAIR:'gr',
+                      EM:'em', MATRIX:'em', EARNINGS:'em',
+                      SECF:'secf', FIND:'secf', SEARCH:'secf', SCAN:'secf',
+                      AL:'al', ALERTS:'al', ALERT:'al', NOTE:'note', NOTES:'note',
                       DERIV:'der', DERIVATIVES:'der', BOND:'bnd', BONDS:'bnd', FINANCIAL:'financials', FINANCIALS:'financials',
                       PORTFOLIO:'portfolio', PF:'portfolio',
                       // BUDGET is the word a reader types for the FISCAL panel:
