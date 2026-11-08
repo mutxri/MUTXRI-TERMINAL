@@ -250,6 +250,14 @@
   /* the window leads with one security, so its line is marked and its own
      session figures sit under it as a read-out rather than the wide board */
   .mk-dr.on{background:var(--bg3);box-shadow:inset 2px 0 0 var(--mint);}
+  .mk-quote{display:flex;align-items:baseline;gap:9px;padding:7px 10px 6px;
+    border-bottom:1px solid var(--line2);}
+  .mk-quote .q-t{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx);letter-spacing:.04em;}
+  .mk-quote .q-n{font-family:var(--ui);font-size:10px;color:var(--tx2);flex:1;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mk-quote .q-p{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--tx);}
+  .mk-quote .q-c{font-family:var(--mono);font-size:10px;}
+  .mk-quote .q-cur{font-family:var(--mono);font-size:8px;color:var(--tx3);letter-spacing:.1em;}
   .mk-read{display:flex;flex-direction:column;min-height:0;padding:4px 10px 2px;}
   .mk-kv{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);
     font-size:9.5px;line-height:2.55;border-bottom:1px solid var(--line);}
@@ -1449,6 +1457,16 @@
     }
     if (!lead && active.length) lead = active[0];
 
+    // the window is about one security, so it says which one before the table
+    if (lead){
+      html += '<div class="mk-quote">' +
+        '<span class="q-t">' + esc(tkOf(lead) || "-") + '</span>' +
+        '<span class="q-n">' + esc(String(lead.name || "")) + '</span>' +
+        '<span class="q-p">' + (num(lead.price) === null ? "-" : fmtPx(num(lead.price))) + '</span>' +
+        '<span class="q-c ' + cls(num(lead.chgPct)) + '">' + pctCell(num(lead.chgPct)) + '</span>' +
+        '<span class="q-cur">' + esc(String(lead.currency || CFG.cur || "")) + '</span>' +
+        '</div>';
+    }
     html += '<div class="mk-det" id="mkDet">' +
       '<div class="mk-dh"><span>TICKER</span><span>NAME</span><span class="r">LAST</span>' +
       '<span class="r">CHG</span><span class="r">CHG %</span><span class="r">VOL</span>' +
@@ -1530,20 +1548,6 @@
         '<div class="fx-ch"><span class="' + cls(c) + '">' + pctCell(c) + '</span>' +
           (lvl === null ? ' <span class="flat">-</span>' : ' <span class="' + cls(lvl) + '">' + chgTxt + '</span>') +
           '<span class="cur">' + esc(cur) + '</span></div>' +
-      '</div>' +
-      '<div class="fx-kv">' +
-        kv("LAST", p === null ? null : fmtPx(p)) +
-        kv("CHG", chgTxt) +
-        kv("CHG %", c === null ? null : fmtPct(c)) +
-        kv("PREV", num(r.prevClose) === null ? null : fmtPx(num(r.prevClose))) +
-        kv("OPEN", num(r.open) === null ? null : fmtPx(num(r.open))) +
-        kv("HIGH", num(r.high) === null ? null : fmtPx(num(r.high))) +
-        kv("LOW", num(r.low) === null ? null : fmtPx(num(r.low))) +
-        kv("VOL", vol === null ? null : fmtInt(vol)) +
-        kv("MKT CAP", cap) +
-        kv("CUR", cur) +
-        kv("SECTOR", r.sector || null) +
-        
       '</div>' +
       '<div class="fx-line" id="fxLine"><svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg></div>' +
       '<div class="fx-range" id="fxRange">no price history on file</div>';
