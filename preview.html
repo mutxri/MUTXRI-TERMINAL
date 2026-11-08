@@ -258,15 +258,16 @@
   .mk-quote .q-p{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--tx);}
   .mk-quote .q-c{font-family:var(--mono);font-size:10px;}
   .mk-quote .q-cur{font-family:var(--mono);font-size:8px;color:var(--tx3);letter-spacing:.1em;}
-  .mk-read{display:flex;flex-direction:column;min-height:0;padding:4px 10px 2px;}
+  .mk-read{display:flex;flex-direction:column;min-height:0;padding:2px 10px 0;}
   .mk-kv{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);
-    font-size:9.5px;line-height:2.55;border-bottom:1px solid var(--line);}
+    font-size:9.5px;line-height:2.3;border-bottom:1px solid var(--line);}
   .mk-kv .k{color:var(--tx3);letter-spacing:.1em;}
   .mk-kv .v{color:var(--tx);white-space:nowrap;}
-  .mk-range{padding:8px 10px 4px;}
+  .mk-range{padding:6px 10px 8px;}
   .mk-range .rlab{font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:var(--tx3);
     font-weight:700;margin-bottom:5px;}
-  .mk-range .rbar{position:relative;height:3px;background:var(--bg3);border-radius:2px;}
+  .mk-range .rbar{position:relative;height:4px;background:var(--line2);border-radius:2px;}
+  .mk-range .rfill{position:absolute;left:0;top:0;height:4px;border-radius:2px;background:var(--mint);opacity:.45;}
   .mk-range .rdot{position:absolute;top:-3px;width:9px;height:9px;margin-left:-4.5px;
     border-radius:50%;background:var(--mint);box-shadow:0 0 0 2px var(--bg1);}
   .mk-range .rlabs{display:flex;justify-content:space-between;margin-top:5px;
@@ -1466,6 +1467,16 @@
         '<span class="q-c ' + cls(num(lead.chgPct)) + '">' + pctCell(num(lead.chgPct)) + '</span>' +
         '<span class="q-cur">' + esc(String(lead.currency || CFG.cur || "")) + '</span>' +
         '</div>';
+      // where the last price sits between the published low and high
+      var qlo = num(lead.low), qhi = num(lead.high), qlast = num(lead.price);
+      var qpos = (qlo !== null && qhi !== null && qlast !== null && qhi > qlo)
+        ? Math.max(0, Math.min(100, (qlast - qlo) / (qhi - qlo) * 100)) : null;
+      if (qpos !== null){
+        html += '<div class="mk-range"><div class="rlab">SESSION RANGE</div>' +
+          '<div class="rbar"><span class="rfill" style="width:' + qpos.toFixed(1) + '%"></span>' +
+          '<span class="rdot" style="left:' + qpos.toFixed(1) + '%"></span></div>' +
+          '<div class="rlabs"><span>LOW ' + fmtPx(qlo) + '</span><span>HIGH ' + fmtPx(qhi) + '</span></div></div>';
+      }
     }
     html += '<div class="mk-det" id="mkDet">' +
       '<div class="mk-dh"><span>TICKER</span><span>NAME</span><span class="r">LAST</span>' +
@@ -1478,10 +1489,6 @@
       function big(f){ var c = compact(lead[f]); return c === null ? "-" : esc(c); }
       function kvLine(k, v){ return '<div class="mk-kv"><span class="k">' + esc(k) + '</span>' +
         '<span class="v">' + v + '</span></div>'; }
-      var lo = num(lead.low), hi = num(lead.high), lastPx = num(lead.price);
-      // where the last price sits inside the published session range
-      var barPos = (lo !== null && hi !== null && lastPx !== null && hi > lo)
-        ? Math.max(0, Math.min(100, (lastPx - lo) / (hi - lo) * 100)) : null;
       html += '<div class="mk-read">' +
         kvLine("LAST", px("price")) +
         kvLine("CHANGE", chgCell(lead)) +
@@ -1499,11 +1506,6 @@
         kvLine("CURRENCY", esc(String(lead.currency || CFG.cur || "-"))) +
         kvLine("SESSION", esc(String(lead.asOf || "-"))) +
         '</div>';
-      if (barPos !== null){
-        html += '<div class="mk-range"><div class="rlab">SESSION RANGE</div>' +
-          '<div class="rbar"><span class="rdot" style="left:' + barPos.toFixed(1) + '%"></span></div>' +
-          '<div class="rlabs"><span>LOW ' + fmtPx(lo) + '</span><span>HIGH ' + fmtPx(hi) + '</span></div></div>';
-      }
     }
 
     host.innerHTML = html;
