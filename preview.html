@@ -1062,10 +1062,13 @@
           chTxt = fmtPct(num(ix.changePct));
           chCls = cls(num(ix.changePct));
         }
+        // an index with no published level is left out of the tape entirely: printing
+        // "withheld" three times in the strip reads as three broken figures
+        if (lvl === null) continue;
         head += '<span class="tape-i">' +
           '<b>' + esc(ix.name || ix.ticker || "") + '</b>' +
-          '<span class="px">' + (lvl === null ? '<span class="nq">withheld</span>' : fmtPx(lvl)) + '</span>' +
-          '<span class="ch ' + (lvl === null ? "flat" : chCls) + '">' + (lvl === null ? "-" : esc(chTxt)) + '</span>' +
+          '<span class="px">' + fmtPx(lvl) + '</span>' +
+          '<span class="ch ' + chCls + '">' + esc(chTxt) + '</span>' +
         '</span>';
       }
     }
