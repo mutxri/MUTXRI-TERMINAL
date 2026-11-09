@@ -1926,7 +1926,10 @@ const jsq = s => String(s ?? '').replace(/[\\<>\x22'&\r\n\u2028\u2029]/g, c => '
 // timezone guess and the search index. These four are only the fallback for a
 // failed fetch, so the terminal still works offline.
 let EXCHANGES = ['JSE', 'EGX', 'NGX', 'NSE'];
-let EX_DEFAULT = 'JSE';
+// NSE is the exchange the terminal opens on. A reader in Nairobi should not have
+// to switch boards before seeing the market on their own doorstep, and a first
+// visit should not land on Johannesburg.
+let EX_DEFAULT = 'NSE';
 // Nobody should have to pick a market before seeing anything. Order of
 // preference: an explicit ?ex= deep link, then whatever they used last, then
 // their own timezone, and only then a default.
@@ -2020,7 +2023,7 @@ const EX_TZ = {
   NSE: {tz: 'Africa/Nairobi',      city: 'NBO'},
 };
 function clockTZ(){
-  const ex = (typeof currentEx !== 'undefined' ? currentEx : 'JSE');
+  const ex = (typeof currentEx !== 'undefined' ? currentEx : EX_DEFAULT);
   const info = EX_TZ[ex] || EX_TZ.JSE;
   try{
     const d = new Date();
@@ -7504,7 +7507,7 @@ document.addEventListener('click', function(e){
   var code = a.getAttribute('data-goto');
   if(!code) return;
   e.preventDefault();
-  var ex = (typeof currentEx !== 'undefined') ? currentEx : 'JSE';
+  var ex = (typeof currentEx !== 'undefined') ? currentEx : EX_DEFAULT;
   var ls = (typeof listing !== 'undefined' && listing[ex]) ? listing[ex] : [];
   var row = ls.find(function(s){ var st = String(s.ticker || s.sym || ''); var b = st.split('.')[0];
     return st.toUpperCase() === code.toUpperCase() || b.toUpperCase() === code.toUpperCase() || String(s.name||'').toUpperCase() === code.toUpperCase(); });
@@ -7516,7 +7519,7 @@ document.addEventListener('click', function(e){
   var code = a.getAttribute('data-goto');
   if(!code) return;
   e.preventDefault();
-  var ex = (typeof currentEx !== 'undefined') ? currentEx : 'JSE';
+  var ex = (typeof currentEx !== 'undefined') ? currentEx : EX_DEFAULT;
   var ls = (typeof listing !== 'undefined' && listing[ex]) ? listing[ex] : [];
   var row = ls.find(function(s){ var st = String(s.ticker || s.sym || ''); var b = st.split('.')[0];
     return st.toUpperCase() === code.toUpperCase() || b.toUpperCase() === code.toUpperCase() || String(s.name||'').toUpperCase() === code.toUpperCase(); });
