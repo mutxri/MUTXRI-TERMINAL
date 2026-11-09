@@ -467,15 +467,18 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
    mobile flow (stacked scroll-through panels, no tabs) exactly as it was. */
 .pwlayer{position:absolute;left:0;top:0;right:0;bottom:0;z-index:45;display:none;pointer-events:none}
 .pwlayer.on{display:block}
+/* FLAT DESK (2026-11-09): a panel is a square cornered pane of the desk, not a
+   floating card. No radius, no drop shadow, a hairline black edge, so tiled panels
+   read as one surface divided by seams the way a command terminal does. */
 .pwin{position:absolute;display:flex;flex-direction:column;pointer-events:auto;
-  background:#0b0b0b;border:1px solid var(--win-outline,var(--line2));border-radius:3px;
-  box-shadow:0 12px 34px rgba(0,0,0,.62);overflow:hidden;min-width:0;min-height:0}
+  background:#0d0d0d;border:1px solid #000;border-radius:0;
+  box-shadow:none;overflow:hidden;min-width:0;min-height:0}
 /* THE WINDOW IN FRONT IS UNMISTAKABLE: a mint edge, a deeper shadow and a
    lifted title bar, so which panel a click will act on is never a guess. */
-.pwin-front{border-color:var(--mint-line)!important;box-shadow:0 20px 56px rgba(0,0,0,.8)!important}
+.pwin-front{border-color:rgba(51,226,154,.55)!important;box-shadow:none!important}
 .pwin-front>.pwin-hd{background:var(--bg4);color:var(--tx)}
 .pwin-front>.pwin-hd .pw-t{color:var(--acc)}
-.pwin-hd{display:flex;align-items:center;gap:6px;height:22px;flex:0 0 22px;padding:0 4px 0 7px;
+.pwin-hd{display:flex;align-items:center;gap:5px;height:16px;flex:0 0 16px;padding:0 3px 0 6px;
   background:#151515;border-bottom:1px solid var(--line2);cursor:grab;
   font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--tx2);
   -webkit-user-select:none;user-select:none;white-space:nowrap;overflow:hidden}
@@ -3780,7 +3783,9 @@ function renderTabs(){
 window.MTPanelWins = (function(){
   const KEY = 'mt_panelwins';
   const SYM_KEY = 'mt_sym';
-  const MIN_W = 240, MIN_H = 140, BAR = 24, GAP = 4;
+  // GAP 1 turns a tiled desk into one surface divided by hairlines instead of
+  // four separate cards with air between them
+  const MIN_W = 240, MIN_H = 140, BAR = 16, GAP = 1;
 
   const layer = document.getElementById('pwLayer');
   const WINS = {};                 // id -> {label, url}
@@ -4195,7 +4200,7 @@ window.MTPanelWins = (function(){
     // a zoom or text-size change re-renders through here; the workspace record would
     // otherwise restore the pre-fit height and the panel would grow, leaving a gap at
     // the bottom. The fitted height wins until the reader resizes the window himself.
-    if(fitH[id] && !userSized[id]) w.h = fitH[id];
+    if(fitH[id] && !userSized[id] && !w.tiled) w.h = fitH[id];
     n.style.display = '';
     n.style.left = Math.round(w.x) + 'px';
     n.style.top = Math.round(w.y) + 'px';
@@ -4379,7 +4384,7 @@ window.MTPanelWins = (function(){
       const f = frames[id];
       if(!f || f.contentWindow !== ev.source) return;
       const st = state[id];
-      if(!st || !st.open || userSized[id]) return;
+      if(!st || !st.open || userSized[id] || st.tiled) return;
       const want = Math.max(MIN_H, Math.ceil(h) + 30);   // 22px head + 8px air
       if(Math.abs(st.h - want) > 8){
         fitH[id] = want;
@@ -4487,6 +4492,8 @@ window.MTPanelWins = (function(){
       function fitPass(){
         passes++;
         try{
+          if(st.tiled) return;   // a tiled pane keeps its cell and scrolls inside it
+
           const doc = f.contentDocument, st = state[id], n2 = nodes[id];
           if(!doc || !st || !st.open || !n2 || n2.style.display === 'none') return;
           hideInnerSearch(id);            // one search per window, not two
@@ -4664,6 +4671,9 @@ window.MTPanelWins = (function(){
       w.w = Math.max(MIN_W, cw);
       w.h = Math.max(MIN_H, ch);
       w.geom = true;
+      // a tiled pane keeps the cell it was given: without this the fit-to-content
+      // pass grows a long panel (news, filings) far past its cell and the desk tears
+      try{ userSized[id] = true; }catch(e){}
     });
     render();
     save();
@@ -4851,6 +4861,7 @@ window.MTPanelWins = (function(){
         if(isFinite(n)) w[k] = n;
       });
       w.geom = true;
+      if(g && g.h != null) w.tiled = true;
       w.w = Math.max(MIN_W, w.w);
       w.h = Math.max(MIN_H, w.h);
       try{ place(id); }catch(e){}
@@ -9416,9 +9427,36 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       }, true);
     }catch(err){}
   }
+  // panels that read a security: opened without one they show an empty state, so a
+  // pane inherits the desk's current symbol the way the stage panels do
+  var SYM_PANELS = ['focus','chart','financials','news','tas','holders','transcript',
+                    'ann','corp','compare','perplexity','ratings','research','trade'];
+
+  function deskSym(){
+    try{
+      if(typeof curSec !== 'undefined' && curSec) return curSec;
+      return localStorage.getItem('mt_sym') || '';
+    }catch(e){ return ''; }
+  }
+  function fillSymbol(f){
+    try{
+      var host = f.closest ? f.closest('.pwin') : null;
+      var id = host ? host.getAttribute('data-panelwin') : null;
+      if(!id || SYM_PANELS.indexOf(id) < 0) return;
+      if(f.__mtSymFilled) return;
+      var src = f.getAttribute('src') || '';
+      if(/[?&]sym=/.test(src)) { f.__mtSymFilled = true; return; }
+      var sym = deskSym();
+      if(!sym) return;
+      f.__mtSymFilled = true;
+      f.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + 'sym=' + encodeURIComponent(sym);
+    }catch(e){}
+  }
+
   function hookAllFrames(){
     Array.prototype.forEach.call(document.querySelectorAll('iframe'), function(f){
       hookFrame(f);
+      fillSymbol(f);
       if(!f.__mtHookBound){
         f.__mtHookBound = true;
         f.addEventListener('load', function(){ hookFrame(f); });
@@ -9561,6 +9599,43 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       return;
     }
   }, true);
+
+  /* ---- tiling: one deterministic grid over the desk -------------------------
+     The layer's own tiler computes a cell height once and then a panel that grew to
+     its content keeps the old one, so a tiled desk ended up with cells overlapping.
+     This lays the open panels out itself, through placeGeometry, with a one pixel
+     seam, and every cell the same size regardless of what a panel wants. */
+  function tileDesk(){
+    if(!window.MTPanelWins) return 0;
+    var layer = document.getElementById('pwLayer') || document.querySelector('.pwlayer');
+    var ids = (window.MTPanelWins.openIds ? window.MTPanelWins.openIds() : []) || [];
+    if(!layer || !ids.length) return 0;
+    var b = layer.getBoundingClientRect();
+    var W = Math.round(b.width), H = Math.round(b.height), gap = 1;
+    var n = ids.length, cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
+    var cw = Math.floor((W - gap * (cols + 1)) / cols);
+    var ch = Math.floor((H - gap * (rows + 1)) / rows);
+    ids.forEach(function(id, i){
+      var c = i % cols, r = Math.floor(i / cols);
+      var cell = {x: gap + c * (cw + gap), y: gap + r * (ch + gap), w: cw, h: ch};
+      // the layer owns the model and the stored record; the node is written too so
+      // the pane lands in its cell even if the layer's own render clamps a value
+      try{ window.MTPanelWins.placeGeometry(id, cell); }catch(e){}
+      var node = document.querySelector('.pwin[data-panelwin="' + id + '"]');
+      if(node){
+        node.style.left = cell.x + 'px';
+        node.style.top = cell.y + 'px';
+        node.style.width = cell.w + 'px';
+        node.style.height = cell.h + 'px';
+      }
+    });
+    return ids.length;
+  }
+  window.mtTileDesk = tileDesk;
+  if(window.MTPanelWins && window.MTPanelWins.tile){
+    // the TILE command goes through the exported tile, so it gets the grid too
+    window.MTPanelWins.tile = function(){ return tileDesk(); };
+  }
 
   /* ---- drag snapping on any panel window: show the zone, commit on release ---- */
   document.addEventListener('mousedown', function(e){
