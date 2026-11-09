@@ -3700,6 +3700,10 @@ function renderTabs(){
     }
     return {toggle: function(k){ set(k, !win(k).open); }, set: set, layout: render, reset: reset,
             saveLayout: saveLayout,
+            // A quiet save for geometry that moved without a pointer gesture
+            // (the window keys). It writes the same mt_ws record as a drag and
+            // stays silent, so a guest is refused without being told twice.
+            saveQuiet: function(){ try{ save(); }catch(e){} },
             // the window manager only owns the layout outside the embed views; the
             // panel picker asks so it does not offer a window control where a
             // dismissal could never take effect (and would only be saved)
@@ -4836,6 +4840,24 @@ window.MTPanelWins = (function(){
     // is what it hands back when a workspace is entered (null = none open).
     capture: capture,
     apply: apply,
+    // A keyboard move or resize is not a pointer gesture, so nothing in the drag path
+    // runs for it. This is the one call that does what a drag's end does: the state
+    // model, the panel store and the workspace record all take the new geometry.
+    placeGeometry: function(id, g){
+      const w = state[id];
+      if(!w) return false;
+      ['x','y','w','h'].forEach(function(k){
+        const n = Number(g && g[k]);
+        if(isFinite(n)) w[k] = n;
+      });
+      w.geom = true;
+      w.w = Math.max(MIN_W, w.w);
+      w.h = Math.max(MIN_H, w.h);
+      try{ place(id); }catch(e){}
+      try{ save(); }catch(e){}
+      try{ if(window.MTWin && window.MTWin.syncPanels) window.MTWin.syncPanels(); }catch(e){}
+      return true;
+    },
     wsIndex: wsIndex,
     geometry: function(){
       const o = {};
@@ -9390,17 +9412,36 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
     return null;
   }
 
+  // every geometry change made by a key has to land in the workspace record, or a
+  // reload would put the window back where the last pointer drag left it
+  function commit(){
+    try{ if(window.MTWin && window.MTWin.saveQuiet) window.MTWin.saveQuiet(); }catch(e){}
+  }
+
+  // A panel window is owned by the panel layer, which keeps its own geometry model
+  // and writes it to the workspace record. Setting inline styles on it would look
+  // right and be lost on reload, so every key change goes through that layer when
+  // the window has one, and falls back to inline styles for anything else.
+  function applyGeom(w, g){
+    var id = w.getAttribute('data-panelwin');
+    if(id && window.MTPanelWins && window.MTPanelWins.placeGeometry){
+      if(window.MTPanelWins.placeGeometry(id, g)) return true;
+    }
+    if(g.x != null) w.style.left = g.x + 'px';
+    if(g.y != null) w.style.top = g.y + 'px';
+    if(g.w != null) w.style.width = g.w + 'px';
+    if(g.h != null) w.style.height = g.h + 'px';
+    return false;
+  }
+
   function moveBy(w, dx, dy){
-    w.style.left = Math.max(0, w.offsetLeft + dx) + 'px';
-    w.style.top  = Math.max(0, w.offsetTop + dy) + 'px';
+    applyGeom(w, {x: Math.max(0, w.offsetLeft + dx), y: Math.max(0, w.offsetTop + dy)});
   }
   function resizeBy(w, dw, dh){
-    w.style.width  = Math.max(220, w.offsetWidth + dw) + 'px';
-    w.style.height = Math.max(120, w.offsetHeight + dh) + 'px';
+    applyGeom(w, {w: Math.max(220, w.offsetWidth + dw), h: Math.max(120, w.offsetHeight + dh)});
   }
   function snapTo(w, z){
-    w.style.left = z.l + 'px'; w.style.top = z.t + 'px';
-    w.style.width = z.w + 'px'; w.style.height = z.h + 'px';
+    applyGeom(w, {x: z.l, y: z.t, w: z.w, h: z.h});
   }
 
   document.addEventListener('keydown', function(e){
@@ -9459,7 +9500,7 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
                : e.key === 'ArrowRight' ? {l:Math.round(innerWidth/2),t:0,w:Math.round(innerWidth-innerWidth/2),h:innerHeight}
                : e.key === 'ArrowUp' ? {l:0,t:0,w:innerWidth,h:Math.round(innerHeight/2)}
                : {l:0,t:Math.round(innerHeight/2),w:innerWidth,h:Math.round(innerHeight-innerHeight/2)};
-      snapTo(f2, zone);
+      snapTo(f2, zone); commit();
       return;
     }
     if(e.shiftKey && !e.altKey && e.key.indexOf('Arrow') === 0){
@@ -9468,6 +9509,7 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       if(e.key === 'ArrowRight') moveBy(f2,  step, 0);
       if(e.key === 'ArrowUp')    moveBy(f2, 0, -step);
       if(e.key === 'ArrowDown')  moveBy(f2, 0,  step);
+      commit();
       return;
     }
     if(e.altKey && !e.shiftKey && e.key.indexOf('Arrow') === 0){
@@ -9476,6 +9518,7 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       if(e.key === 'ArrowRight') resizeBy(f2,  step, 0);
       if(e.key === 'ArrowUp')    resizeBy(f2, 0, -step);
       if(e.key === 'ArrowDown')  resizeBy(f2, 0,  step);
+      commit();
       return;
     }
   }, true);
@@ -9504,7 +9547,7 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       g.style.display = 'none';
       if(!moved) return;
       var z = zoneFor(w);
-      if(z) snapTo(w, z);
+      if(z){ snapTo(w, z); commit(); }
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
