@@ -9392,6 +9392,45 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
     if(closeStack.length > 12) closeStack.shift();
   }, true);
 
+  /* ---- keys pressed inside a panel -------------------------------------------
+     A panel is an iframe, so clicking one moves keyboard focus out of the shell and
+     every key lands inside the frame instead. Without this the window keys appear
+     dead the moment a reader clicks a panel, which is the normal thing to do. The
+     frames are same origin, so their key events are forwarded to the parent. */
+  function hookFrame(f){
+    try{
+      var d = f.contentDocument;
+      if(!d || d.__mtKeysHooked) return;
+      d.__mtKeysHooked = true;
+      d.addEventListener('keydown', function(e){
+        var owned = e.key === 'F1' || e.key === 'Escape' || e.key === 'Tab' ||
+                    (e.key && e.key.indexOf('Arrow') === 0) ||
+                    ((e.ctrlKey || e.metaKey) && ['+','=','-','0','z','Z'].indexOf(e.key) !== -1);
+        if(!owned) return;
+        try{
+          parent.document.dispatchEvent(new KeyboardEvent('keydown', {
+            key: e.key, code: e.code, bubbles: true, cancelable: true,
+            shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey
+          }));
+        }catch(err){}
+      }, true);
+    }catch(err){}
+  }
+  function hookAllFrames(){
+    Array.prototype.forEach.call(document.querySelectorAll('iframe'), function(f){
+      hookFrame(f);
+      if(!f.__mtHookBound){
+        f.__mtHookBound = true;
+        f.addEventListener('load', function(){ hookFrame(f); });
+      }
+    });
+  }
+  hookAllFrames();
+  try{
+    new MutationObserver(hookAllFrames).observe(document.body, {childList: true, subtree: true});
+  }catch(err){}
+  setInterval(hookAllFrames, 2000);
+
   /* ---- snapping: a ghost follows the drag, the release commits ---- */
   var ghost = null;
   function ensureGhost(){
