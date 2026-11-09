@@ -9323,5 +9323,194 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
 
 
 </script>
+
+<!-- ===== window keys, snapping and zoom (2026-11-09) =====
+     The desk behaves the way a command terminal's windows are expected to: Tab cycles
+     the open windows, Esc twice closes the one in front, Ctrl+Z brings back the last
+     closed one, Shift+arrows move it, Ctrl+Shift+arrows snap it to a half, Alt+arrows
+     resize it, and Ctrl plus or minus changes the reader scale. Nothing here changes
+     what a panel draws; it only moves and sizes the window around it. -->
+<script>
+(function(){
+  "use strict";
+  var closeStack = [], escAt = 0;
+
+  function scale(){ return (window.mtScale && window.mtScale()) || 1; }
+  function wins(){
+    return Array.prototype.slice.call(document.querySelectorAll('.pwin'))
+      .filter(function(w){ return w.offsetParent !== null; });
+  }
+  function frontWin(){
+    var f = document.querySelector('.pwin.pwin-front');
+    if(f) return f;
+    var all = wins(), best = null, bz = -1e9;
+    all.forEach(function(w){
+      var z = parseInt(getComputedStyle(w).zIndex, 10);
+      if(!isNaN(z) && z >= bz){ bz = z; best = w; }
+    });
+    return best || all[all.length - 1] || null;
+  }
+  function focusWin(w){
+    if(!w) return;
+    wins().forEach(function(x){ x.classList.remove('pwin-front'); });
+    w.classList.add('pwin-front');
+  }
+  function typing(){
+    var a = document.activeElement;
+    return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
+  }
+
+  /* ---- undo support: remember the node before its own close button removes it ---- */
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest ? e.target.closest('.pw-x') : null;
+    if(!btn) return;
+    var host = btn.closest('.pwin');
+    if(!host) return;
+    closeStack.push({node: host, parent: host.parentNode, next: host.nextSibling});
+    if(closeStack.length > 12) closeStack.shift();
+  }, true);
+
+  /* ---- snapping: a ghost follows the drag, the release commits ---- */
+  var ghost = null;
+  function ensureGhost(){
+    if(ghost) return ghost;
+    ghost = document.createElement('div');
+    ghost.id = 'mtSnapGhost';
+    ghost.style.cssText = 'position:fixed;border:1px dashed rgba(51,226,154,.85);' +
+      'background:rgba(51,226,154,.08);pointer-events:none;z-index:9000;display:none;border-radius:3px';
+    document.body.appendChild(ghost);
+    return ghost;
+  }
+  function zoneFor(w){
+    var r = w.getBoundingClientRect(), W = innerWidth, H = innerHeight;
+    var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if(cx < W * 0.12) return {l: 0, t: 0, w: Math.round(W / 2), h: H};
+    if(cx > W * 0.88) return {l: Math.round(W / 2), t: 0, w: Math.round(W - W / 2), h: H};
+    if(cy < H * 0.10) return {l: 0, t: 0, w: W, h: Math.round(H / 2)};
+    return null;
+  }
+
+  function moveBy(w, dx, dy){
+    w.style.left = Math.max(0, w.offsetLeft + dx) + 'px';
+    w.style.top  = Math.max(0, w.offsetTop + dy) + 'px';
+  }
+  function resizeBy(w, dw, dh){
+    w.style.width  = Math.max(220, w.offsetWidth + dw) + 'px';
+    w.style.height = Math.max(120, w.offsetHeight + dh) + 'px';
+  }
+  function snapTo(w, z){
+    w.style.left = z.l + 'px'; w.style.top = z.t + 'px';
+    w.style.width = z.w + 'px'; w.style.height = z.h + 'px';
+  }
+
+  document.addEventListener('keydown', function(e){
+    // zoom: ctrl or cmd with plus, minus, zero
+    if((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0')){
+      e.preventDefault();
+      var cur = scale();
+      var next = e.key === '0' ? 1 : (e.key === '-' ? Math.max(0.7, cur - 0.1) : Math.min(1.8, cur + 0.1));
+      next = Math.round(next * 100) / 100;
+      document.documentElement.style.setProperty('--mt-scale', String(next));
+      try{ localStorage.setItem('mt_textsize', String(next)); }catch(err){}
+      return;
+    }
+    if(typing()) return;
+
+    if(e.key === 'Tab'){
+      var all = wins();
+      if(!all.length) return;
+      e.preventDefault();
+      var cur = frontWin(), i = all.indexOf(cur);
+      focusWin(all[(i + (e.shiftKey ? -1 : 1) + all.length) % all.length]);
+      return;
+    }
+    if(e.key === 'Escape'){
+      var now = Date.now();
+      if(now - escAt < 420){
+        var f = frontWin();
+        if(f){
+          var x = f.querySelector('.pw-x');
+          if(x) x.click();
+          escAt = 0;
+          return;
+        }
+      }
+      escAt = now;
+      return;
+    }
+    if((e.ctrlKey || e.metaKey) && !e.shiftKey && String(e.key).toLowerCase() === 'z'){
+      var rec = closeStack.pop();
+      if(rec && rec.node && rec.parent && !document.body.contains(rec.node)){
+        e.preventDefault();
+        rec.parent.insertBefore(rec.node, rec.next && rec.next.parentNode === rec.parent ? rec.next : null);
+        focusWin(rec.node);
+      }
+      return;
+    }
+
+    var f2 = frontWin();
+    if(!f2) return;
+    var step = Math.round(24 / scale());
+
+    if(e.shiftKey && e.ctrlKey && e.key.indexOf('Arrow') === 0){
+      e.preventDefault();
+      var r = f2.getBoundingClientRect();
+      var zone = e.key === 'ArrowLeft' ? {l:0,t:0,w:Math.round(innerWidth/2),h:innerHeight}
+               : e.key === 'ArrowRight' ? {l:Math.round(innerWidth/2),t:0,w:Math.round(innerWidth-innerWidth/2),h:innerHeight}
+               : e.key === 'ArrowUp' ? {l:0,t:0,w:innerWidth,h:Math.round(innerHeight/2)}
+               : {l:0,t:Math.round(innerHeight/2),w:innerWidth,h:Math.round(innerHeight-innerHeight/2)};
+      snapTo(f2, zone);
+      return;
+    }
+    if(e.shiftKey && !e.altKey && e.key.indexOf('Arrow') === 0){
+      e.preventDefault();
+      if(e.key === 'ArrowLeft')  moveBy(f2, -step, 0);
+      if(e.key === 'ArrowRight') moveBy(f2,  step, 0);
+      if(e.key === 'ArrowUp')    moveBy(f2, 0, -step);
+      if(e.key === 'ArrowDown')  moveBy(f2, 0,  step);
+      return;
+    }
+    if(e.altKey && !e.shiftKey && e.key.indexOf('Arrow') === 0){
+      e.preventDefault();
+      if(e.key === 'ArrowLeft')  resizeBy(f2, -step, 0);
+      if(e.key === 'ArrowRight') resizeBy(f2,  step, 0);
+      if(e.key === 'ArrowUp')    resizeBy(f2, 0, -step);
+      if(e.key === 'ArrowDown')  resizeBy(f2, 0,  step);
+      return;
+    }
+  }, true);
+
+  /* ---- drag snapping on any panel window: show the zone, commit on release ---- */
+  document.addEventListener('mousedown', function(e){
+    var hd = e.target && e.target.closest ? e.target.closest('.pwin-hd') : null;
+    if(!hd || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    var w = hd.closest('.pwin');
+    if(!w) return;
+    var g = ensureGhost(), moved = false;
+    function onMove(){
+      moved = true;
+      var z = zoneFor(w);
+      if(z){
+        g.style.display = 'block';
+        g.style.left = z.l + 'px'; g.style.top = z.t + 'px';
+        g.style.width = z.w + 'px'; g.style.height = z.h + 'px';
+      } else {
+        g.style.display = 'none';
+      }
+    }
+    function onUp(){
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      g.style.display = 'none';
+      if(!moved) return;
+      var z = zoneFor(w);
+      if(z) snapTo(w, z);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, true);
+})();
+</script>
+
 </body>
 </html>
