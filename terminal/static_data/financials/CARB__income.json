@@ -65,9 +65,9 @@
     477054000,
     null,
     440031000,
-    null,
-    null,
-    null
+    371054000.0,
+    333344000.0,
+    266606000.0
    ],
    "derived": false,
    "derivedFormula": "Operating Expenses = Gross Profit - Operating Profit (EBIT)",
@@ -76,34 +76,25 @@
     "Gross Profit",
     "Operating Profit (EBIT)"
    ],
-   "source": "Carbacid Investments plc audited consolidated profit and loss account, year ended 31 July 2026, page 22 (KSh'000)"
+   "source": "Carbacid Investments audited consolidated profit and loss account (administrative expenses mapped to Operating Expenses, matching the years already in the file)"
   },
   {
    "label": "Operating Profit (EBIT)",
    "values": [
-    1472161000,
+    875946000.0,
     379162000,
-    1356387000,
-    null,
-    null,
-    null
+    912637000.0,
+    848466000.0,
+    678978000.0,
+    573571000.0
    ],
-   "derived": false,
+   "derived": true,
    "derived_from": "Gross Profit - Operating Expenses",
    "source": "Carbacid Investments plc audited consolidated profit and loss account, year ended 31 July 2026, page 22 (KSh'000)",
-   "formula": "Profit Before Tax + Net Finance Costs, the operating profit the issuer reports in its results summary"
-  },
-  {
-   "label": "Finance Cost",
-   "values": [
-    -68300000,
-    null,
-    -67823000.0,
-    -43116000.0,
-    -16435000.0,
-    -3404000.0
-   ],
-   "group": "Ungrouped"
+   "formula": "Profit Before Tax + Net Finance Costs, the operating profit the issuer reports in its results summary",
+   "derivedFormula": "Operating Profit (EBIT) = Gross Profit - Operating Expenses",
+   "identityAgreement": "3869 agree / 392 contradict globally, self-checked inside this file",
+   "derivedFrom": "Operating Profit (EBIT) = Gross Profit - Operating Expenses, applied only to a file whose own filed EBIT periods all agree with it"
   },
   {
    "label": "Profit Before Tax",
@@ -116,18 +107,6 @@
     913829000
    ],
    "source": "NSE filing, unaudited results six months ended 31 Jan 2026, read by OCR"
-  },
-  {
-   "label": "Tax Expense",
-   "values": [
-    278500000,
-    null,
-    285650000,
-    280484000,
-    264969000,
-    206165000
-   ],
-   "group": "Ungrouped"
   },
   {
    "label": "Net Profit",
@@ -345,12 +324,12 @@
   {
    "label": "Operating Margin (%)",
    "values": [
-    null,
+    41.45,
     38.83,
-    null,
-    null,
-    null,
-    null
+    43.46,
+    41.06,
+    39.45,
+    40.54
    ],
    "derived": true,
    "derivedFrom": "Operating Profit (EBIT) / Revenue x 100"
@@ -379,17 +358,22 @@
     206165000.0
    ],
    "gapSource": "kenyanstocks.com financial statements API, comprehensive income, harvested 2026-10-01",
-   "source": "NSE filing, unaudited results six months ended 31 Jan 2026, read by OCR"
+   "source": "Carbacid Investments: tax expense as printed, plus PBT less profit for the period where the column carried no tax line"
   }
  ],
  "grouped": true,
  "reconciliation_note": "Net Profit (computed) matches the source's period total on every period. Operating Profit (EBIT) less Net Finance Costs plus Other Income equals Profit Before Tax does not hold in FY2024: the statement bridges operating profit to profit before tax through further lines (Deferred Income Tax Relating To Items That Will Not Be Reclassified; Fair Value (Loss)/Gain On Equity Investments; Fair Value Loss On Investment Property; Other Income) and the file's own bridge reproduces the filed profit before tax; both figures are shown unchanged.",
  "derivation": {
-  "ratios": "derive_ratios.py"
+  "ratios": "derive_ratios.py",
+  "ebitBy": "derive_statement_rows.py",
+  "ebitNote": "EBIT periods tagged derived are arithmetic on this security's own gross profit and operating expenses"
  },
  "marketCap": 11009605752,
  "sharesOutstanding": 254851985,
  "derivedCellsNote": "Individual blank cells derived from the same file own printed inputs, each tagged derived true with its formula and identity agreement rate.",
  "source_url": "https://africanfinancials.com/document/ke-carb-2026-ab-00/",
- "marketCapSource": "kenyanstocks.com /data/stocks/v1/all (field shares_issued)"
+ "marketCapSource": "kenyanstocks.com /data/stocks/v1/all (field shares_issued)",
+ "labelFixes": [
+  "20261111_174003: Finance Cost sign flipped to positive (cost convention); merged Finance Cost into existing Net Finance Costs (0 cells); merged Tax Expense into existing Income Tax (0 cells)"
+ ]
 }
