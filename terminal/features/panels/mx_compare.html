@@ -30,7 +30,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261113014619';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261113023042';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compare</title>
@@ -54,6 +54,7 @@
   .head .code.c2{color:var(--ser3)}
   .head .code.c3{color:var(--down)}
   .head .code.fund{color:var(--gold)}
+  .head .code.nfund{color:#c48bf7}
   .fundblk{padding:12px 14px;border-bottom:1px solid var(--line2)}
   .fundblk .fh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
   .fundblk .fn{color:var(--gold);font-weight:700;letter-spacing:.04em}
@@ -125,7 +126,7 @@
   <div class="controls">
     <input class="tk" id="inToks" placeholder="SCOM, KCB, MMF" maxlength="160">
     <button class="go" id="goBtn">COMPARE</button>
-    <span class="hint">2 to 4, comma or space separated. Tickers, or a ticker and a fund: MMF, SPECIAL, FIXED, EQUITY, BALANCED.</span>
+    <span class="hint">2 to 4, comma or space separated. Tickers, or a fund: MANSAX, MANSAXUSD, MADISONMMF, or a whole category: MMF, SPECIAL, FIXED, EQUITY, BALANCED.</span>
   </div>
   <div class="peers" id="peers" style="display:none"></div>
   <div id="body">
@@ -263,7 +264,40 @@ async function loadFx(){
    return: the CMA publishes no fund yield, so the return cell is withheld with
    that reason, and the only rate drawn on the chart is the Treasury bill, which
    is a published rate and is named as itself, never as a fund's. */
-var CIS = null;
+var CIS = null, FUNDS = null;
+/* A fund is a token too. MANSAX publishes a calendar-year net return series,
+   so it can be drawn as a line beside a share. A fund that publishes only a
+   current yield cannot be - a yield is not a path - and gets a rate card. */
+var FUNDCOL = ['#c48bf7','#f09ad0'];
+var NAMED_TOK = { MANSAX:'MANSAX_KES', MANSAXKES:'MANSAX_KES', MANSAXUSD:'MANSAX_USD',
+                  MADISONMMF:'MADISON_MMF', MADISONFIXED:'MADISON_FIXED',
+                  MADISONSPECIAL:'MADISON_WEALTH_SPECIAL', BRITAMMMF:'BRITAM_MMF' };
+async function loadFunds(){
+  if(FUNDS) return FUNDS;
+  FUNDS = (await loadJSON('../../static_data/funds_KE.json')) || { funds:[] };
+  return FUNDS;
+}
+/* Any fund in the file is typeable, not just the ones with a short alias: the
+   id itself is a token once its underscores are dropped, and the KES class of
+   a fund answers to its bare name because that is what a reader will type. */
+function normTok(x){ return String(x==null?'':x).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+async function resolveNamedFund(tok){
+  var t = normTok(tok);
+  if(!t) return null;
+  var d = await loadFunds();
+  var id = NAMED_TOK[t] || null;
+  var f = null;
+  if(id) f = ((d.funds)||[]).filter(function(x){ return x.id === id; })[0];
+  if(!f){
+    f = ((d.funds)||[]).filter(function(x){ return normTok(x.id) === t; })[0]
+     || ((d.funds)||[]).filter(function(x){ return normTok(x.id).replace(/KES$/,'') === t; })[0];
+  }
+  if(!f) return null;
+  id = f.id;
+  var short = id.replace(/_KES$/,'').replace(/_/g,' ');
+  return { kind:'named', id:id, key:short, ticker:short, name:f.fund, ex:'FUND',
+           quoteCcy:f.currency || 'KES', f:f, doc:d };
+}
 var FUND_TOK = { MMF:'MMF', MMFS:'MMF', MONEYMARKET:'MMF', MONEYMARKETFUND:'MMF',
                  MONEYMARKETFUNDS:'MMF',
                  SPECIAL:'SPECIAL', SPECIALFUND:'SPECIAL', SPECIALFUNDS:'SPECIAL',
@@ -292,6 +326,68 @@ function bnKes(v){ return v == null ? null : (v/1e9).toFixed(1) + 'B'; }
 
 /* the fund block: everything the regulator does publish, and one explicit
    hole where the thing it does not publish would go. */
+function renderNamed(named, chartFunds){
+  if(!named || !named.length) return '';
+  var out = '';
+  named.forEach(function(nf){
+    var f = nf.f, drawn = (chartFunds||[]).filter(function(c){ return c.key === nf.key; })[0];
+    var cards = '';
+    if(f.aum && f.aum.value != null){
+      var a = f.aum.currency === 'USD' ? ((f.aum.value/1e6).toFixed(1) + 'M USD')
+                                       : (bnKes(f.aum.value) + ' KES');
+      cards += '<div class="c gold"><div class="k">Assets under management</div><div class="v">'
+             + esc(a) + '</div><div class="s">as at ' + esc(f.aum.as_of || '') + '</div></div>';
+    }
+    (f.latest || []).forEach(function(l){
+      cards += '<div class="c"><div class="k">' + esc(l.label) + '</div><div class="v">'
+             + esc(l.value.toFixed(2)) + '%</div><div class="s">' + esc(l.period || '') + '</div></div>';
+    });
+    (f.rates || []).forEach(function(r){
+      cards += '<div class="c"><div class="k">' + esc(r.label) + '</div><div class="v">'
+             + esc(r.value.toFixed(2)) + '%</div><div class="s">'
+             + esc(r.period || ('read ' + (f.read || ''))) + '</div></div>';
+    });
+    if(drawn){
+      cards += '<div class="c gold"><div class="k">On the chart above</div><div class="v">'
+             + (drawn.ret>=0?'+':'') + drawn.ret.toFixed(1) + '%</div><div class="s">net, '
+             + esc(drawn.from) + ' to ' + esc(drawn.upto) + '</div></div>';
+    }
+    out += '<div class="fundblk">'
+      + '<div class="fh"><span class="fn" style="color:#c48bf7">' + esc(f.fund) + '</span>'
+      + '<span class="fk">' + esc(f.category || '') + ' &middot; ' + esc(f.manager || '')
+      + ' &middot; ' + esc(f.scheme || '') + '</span></div>'
+      + (f.strategy ? '<div class="fdef">' + esc(f.strategy) + '</div>' : '')
+      + '<div class="fundgrid">' + cards + '</div>';
+    if(f.stale){
+      out += '<div class="fundwhy" style="border-color:var(--amber)"><b>Not a current rate.</b> '
+           + esc(f.stale_why) + '</div>';
+    }
+    if(f.fees){
+      out += '<div class="fundwhy">Charges: ' + esc(f.fees.financial_services_charge || '')
+           + (f.fees.performance_charge ? ', plus ' + esc(f.fees.performance_charge)
+              + ' (hurdle ' + esc(f.fees.hurdle_rate || '') + ')' : '')
+           + '. Minimum ' + esc(f.fees.minimum_investment || '')
+           + (f.fees.initial_lock_in ? ', locked in for the first ' + esc(f.fees.initial_lock_in) : '')
+           + '. Returns shown are net of the service charge unless the row says otherwise.</div>';
+    }
+    if(drawn && f.cumulative_net && f.cumulative_net.note){
+      out += '<div class="fundwhy">' + esc(f.cumulative_net.note) + '</div>';
+    }
+    if(f.cumulative_net && f.cumulative_net.currency_warning){
+      out += '<div class="fundwhy" style="border-color:var(--amber)">'
+           + esc(f.cumulative_net.currency_warning) + '</div>';
+    }
+    if(f.basis_note){ out += '<div class="fundwhy">' + esc(f.basis_note) + '</div>'; }
+    if(f.source && f.source.url){
+      out += '<div class="fundwhy" style="border-color:var(--line2);color:var(--tx3)">Source: '
+           + esc(f.source.publication || f.source.url) + ', ' + esc(f.source.kind || '')
+           + ', read ' + esc(f.source.read || f.read || '') + '.</div>';
+    }
+    out += '</div>';
+  });
+  return out;
+}
+
 function renderFunds(funds, cashRet, cashFrom, cashTo){
   if(!funds.length) return '';
   var d = funds[0].cis || {};
@@ -597,9 +693,9 @@ function downsampleIdx(len, n){
   for(var i=0;i<n;i++) out.push(Math.round(i*step));
   return out;
 }
-function renderChart(secs, series, C){
+function renderChart(secs, series, C, named){
   var rets = secs.map(function(){ return null; });
-  var NONE = { rets:rets, cash:null };
+  var NONE = { rets:rets, cash:null, funds:[] };
   if(series.some(function(s){ return !s || s.length<2; })){
     NONE.html = '<div class="window">No common price history for these securities.</div>';
     return NONE;
@@ -610,6 +706,26 @@ function renderChart(secs, series, C){
     NONE.html = '<div class="window">No common price history for these securities.</div>';
     return NONE;
   }
+  /* A fund that opened in 2019 has no place on a chart that starts in 2008:
+     rebasing it to a date before it existed would invent eight years. So the
+     window is CLAMPED FORWARD to the latest inception among the funds being
+     drawn, every security is rebased to that same date, and the chart says so. */
+  var drawable = (named||[]).filter(function(f){
+    return f.f && f.f.cumulative_net && ((f.f.cumulative_net.points)||[]).length > 1;
+  });
+  var clampTo = null;
+  drawable.forEach(function(f){
+    var inc = String(f.f.inception || '');
+    var start = (inc.length >= 7) ? (inc.slice(0,7) + '-01') : f.f.cumulative_net.points[0].as_of;
+    if(clampTo == null || start > clampTo) clampTo = start;
+  });
+  var clampedFrom = null;
+  if(clampTo && dates.length && dates[0] < clampTo){
+    var kept = dates.filter(function(x){ return x >= clampTo; });
+    if(kept.length >= 2){ clampedFrom = dates[0]; dates = kept; }
+    else { drawable = []; clampTo = null; }
+  }
+
   var d0 = dates[0], dN = dates[dates.length-1];
   maps.forEach(function(m, i){ var a=m.get(d0), b=m.get(dN); if(a!=null && b!=null) rets[i]=(b/a-1)*100; });
 
@@ -619,9 +735,35 @@ function renderChart(secs, series, C){
   var bases = maps.map(function(m){ return m.get(d0); });
   var seriesPct = maps.map(function(m, si){ return pts.map(function(d){ return (m.get(d)/bases[si]-1)*100; }); });
   var cash = cashCurve(secs, pts, C);
+
+  /* a fund's points are annual, so each sits at the chart column whose DATE is
+     nearest to it, never at an evenly spaced slot, and each is rebased to the
+     fund's own value at the first point inside the window */
+  var fundLines = [];
+  drawable.forEach(function(f, fi){
+    var base = null, xy = [];
+    /* A fund's inception point can fall a few days before the first TRADING
+       day in the window - a fund opening on 1 January, a market opening on the
+       2nd. That point is the fund's zero and dropping it would silently charge
+       the fund's first year to nobody, so a point up to six weeks ahead of the
+       first column is kept and placed on it. */
+    (f.f.cumulative_net.points || []).forEach(function(p){
+      if(dayNum(p.as_of) < dayNum(pts[0]) - 42 || p.as_of > pts[pts.length-1]) return;
+      var bi = 0, bd = Infinity;
+      for(var q=0; q<pts.length; q++){
+        var dd = Math.abs(dayNum(pts[q]) - dayNum(p.as_of));
+        if(dd < bd){ bd = dd; bi = q; }
+      }
+      if(base == null) base = p.value;
+      xy.push({ i:bi, v: ((1 + p.value/100) / (1 + base/100) - 1) * 100, d:p.as_of });
+    });
+    if(xy.length >= 2) fundLines.push({ f:f, xy:xy, col: FUNDCOL[fi % FUNDCOL.length] });
+  });
+
   var all = [];
   seriesPct.forEach(function(sp){ all = all.concat(sp); });
   if(cash.pct) all = all.concat(cash.pct);
+  fundLines.forEach(function(fl){ fl.xy.forEach(function(p){ all.push(p.v); }); });
   var lo = Math.min(0, Math.min.apply(null, all)), hi = Math.max(0, Math.max.apply(null, all));
   var pad = (hi-lo)*0.08 || 1; lo -= pad; hi += pad;
   function X(i){ return L + (i/(pts.length-1))*iw; }
@@ -656,10 +798,30 @@ function renderChart(secs, series, C){
   for(var si=seriesPct.length-1; si>=0; si--){
     svg += '<path d="'+line(seriesPct[si])+'" fill="none" stroke="'+COL[si%COL.length]+'" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
   }
+  fundLines.forEach(function(fl){
+    var fp = '';
+    fl.xy.forEach(function(p, k){ fp += (k?'L':'M') + X(p.i).toFixed(1) + ' ' + Y(p.v).toFixed(1); });
+    svg += '<path d="'+fp+'" fill="none" stroke="'+fl.col+'" stroke-width="2.1" '
+         + 'stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
+    fl.xy.forEach(function(p){
+      svg += '<circle cx="'+X(p.i).toFixed(1)+'" cy="'+Y(p.v).toFixed(1)+'" r="2.3" fill="'+fl.col+'">'
+           + '<title>'+esc(p.d + '  ' + (p.v>=0?'+':'') + p.v.toFixed(1) + '% since the window start')
+           + '</title></circle>';
+    });
+    var e = fl.xy[fl.xy.length-1];
+    svg += '<text x="'+(X(e.i)-7).toFixed(1)+'" y="'+(Y(e.v)-8).toFixed(1)+'" fill="'+fl.col
+         + '" font-size="9" letter-spacing="0.7" text-anchor="end">'+esc(fl.f.key)+'</text>';
+  });
   svg += '<text x="'+L+'" y="'+(H-6)+'" fill="#6a6a6a" font-size="9" text-anchor="start">'+pts[0]+'</text>';
   svg += '<text x="'+(W-R)+'" y="'+(H-6)+'" fill="#6a6a6a" font-size="9" text-anchor="end">'+pts[pts.length-1]+'</text>';
   svg += '</svg>';
   var winTxt = 'common window ' + d0 + ' to ' + dN + ' (' + pts.length + ' points). Each series is rebased to 100 at the start, so a line is percent return, not price; currencies differ across markets, but a return is unit-free.';
+  if(clampedFrom){
+    winTxt += '<br><span style="color:#c48bf7">The securities have price history back to '
+            + esc(clampedFrom) + ', but the window starts at ' + esc(d0)
+            + ': that is when the fund on this chart opened. Everything here is rebased to that '
+            + 'date so the same money is followed over the same months.</span>';
+  }
   if(cash.pct){
     winTxt += '<br><span class="cashnote">The gold dashed line is the same money in the 91-day Treasury bill, '
             + 'compounded month by month at the Central Bank of Kenya&rsquo;s own published rate for that month, '
@@ -689,6 +851,12 @@ function renderChart(secs, series, C){
     var last = sp[sp.length-1];
     legend += '<span class="li"><span class="sw" style="background:'+COL[k%COL.length]+'"></span>'+esc(secs[k].ticker||secs[k].sym)+' '+(last>=0?'+':'')+last.toFixed(1)+'%</span>';
   });
+  fundLines.forEach(function(fl){
+    var fe = fl.xy[fl.xy.length-1];
+    legend += '<span class="li" style="color:'+fl.col+'"><span class="sw" style="background:'+fl.col+'"></span>'
+            + esc(fl.f.key) + ' ' + (fe.v>=0?'+':'') + fe.v.toFixed(1) + '% to ' + esc(fe.d)
+            + ' <span style="color:var(--tx3)">net, annual points</span></span>';
+  });
   if(cash.pct){
     var cl = cash.pct[cash.pct.length-1];
     legend += '<span class="li cash"><span class="sw dash"></span>91-day T-bill '+(cl>=0?'+':'')+cl.toFixed(1)+'%'
@@ -697,6 +865,11 @@ function renderChart(secs, series, C){
   return {
     html: '<div class="window">'+winTxt+'</div>' + svg + '<div class="legend">'+legend+'</div>',
     rets: rets,
+    funds: fundLines.map(function(fl){
+      var fe = fl.xy[fl.xy.length-1];
+      return { key: fl.f.key, name: fl.f.name, ret: fe.v, upto: fe.d, from: pts[0],
+               ccy: fl.f.quoteCcy };
+    }),
     cash: cash.pct ? { ret: cash.pct[cash.pct.length-1], upto: cash.upto, partial: cash.partial,
                        last: cash.last, retsAt: retsAt, from: d0 } : null
   };
@@ -825,7 +998,7 @@ function collectWithheld(secs, rows){
   return out;
 }
 
-function verdict(secs, rets, cash, funds){
+function verdict(secs, rets, cash, funds, chartFunds){
   var p = [];
   if(cash && cash.ret != null){
     var beat = [], lost = [];
@@ -869,6 +1042,25 @@ function verdict(secs, rets, cash, funds){
       p.push('<b>'+esc(have[0].s.ticker||have[0].s.sym)+'</b> trades on the lower P/E (<b>'+have[0].c.v.toFixed(1)+'x</b> vs '+have[have.length-1].c.v.toFixed(1)+'x'+(have[0].c.period?', both on '+esc(have[0].c.period):'')+').');
     }
   });
+  if(chartFunds && chartFunds.length){
+    chartFunds.forEach(function(cf){
+      var beat = [], lost = [];
+      secs.forEach(function(sec, i){
+        var r = rets[i];
+        if(r == null) return;
+        (r > cf.ret ? beat : lost).push(esc(sec.ticker||sec.sym) + ' ' + (r>=0?'+':'') + r.toFixed(1) + '%');
+      });
+      var line = '<b>' + esc(cf.name) + '</b> returned <b>' + (cf.ret>=0?'+':'') + cf.ret.toFixed(1)
+               + '%</b> net from ' + esc(cf.from) + ' to ' + esc(cf.upto) + '. ';
+      if(beat.length && lost.length) line += 'Ahead of it: ' + beat.join(', ') + '. Behind: ' + lost.join(', ') + '.';
+      else if(beat.length) line += 'Ahead of it: ' + beat.join(', ') + '.';
+      else if(lost.length) line += 'Nothing here is ahead of it: ' + lost.join(', ') + '.';
+      if(String(cf.ccy||'KES').toUpperCase() !== 'KES'){
+        line += ' This fund reports in ' + esc(cf.ccy) + ', so the two returns are not in the same money.';
+      }
+      p.push(line);
+    });
+  }
   if(funds && funds.length){
     p.push('<b>' + funds.map(function(f){ return esc(f.name); }).join(' and ')
          + '</b>: no return is compared. The Capital Markets Authority publishes the size of each '
@@ -890,9 +1082,9 @@ function renderHead(secs, funds){
   });
   (funds||[]).forEach(function(f, i){
     if(secs.length || i) h += '<span class="vs">vs</span>';
-    h += '<span class="code fund">'+esc(f.key)+'</span>'
+    h += '<span class="code '+(f.kind==='named'?'nfund':'fund')+'">'+esc(f.key)+'</span>'
        + '<span class="name">'+esc(f.name||'')+'</span>'
-       + '<span class="ex">CIS</span>';
+       + '<span class="ex">'+(f.kind==='named'?'FUND':'CIS')+'</span>';
   });
   $('head').innerHTML = h;
 }
@@ -963,8 +1155,10 @@ async function compare(tokArg){
     return;
   }
   $('status').textContent = 'loading ' + toks.join(', ');
-  var resolved = [], funds = [], missing = [];
+  var resolved = [], funds = [], named = [], missing = [];
   for(var i=0;i<toks.length;i++){
+    var nf = await resolveNamedFund(toks[i]);
+    if(nf){ named.push(nf); continue; }
     var fd = await resolveFund(toks[i]);
     if(fd){ funds.push(fd); continue; }
     var r = await resolveStock(toks[i]);
@@ -985,7 +1179,7 @@ async function compare(tokArg){
   var secs = [];
   for(var k=0;k<resolved.length;k++){ secs.push(await buildSec(resolved[k])); }
 
-  renderHead(secs, funds);
+  renderHead(secs, funds.concat(named));
   renderPeers(secs);
 
   var rows = ROWS();
@@ -1016,8 +1210,10 @@ async function compare(tokArg){
     if(!s.hist) return null;
     return (s.hist.bars||[]).map(function(b){ return { date:barDate(b), c:b.c }; }).filter(function(x){ return x.date && x.c!=null; });
   });
-  var chart = renderChart(secs, series, await loadCash());
+  await loadFunds();
+  var chart = renderChart(secs, series, await loadCash(), named);
   html += '<div class="chartbox">' + chart.html + '</div>';
+  html += renderNamed(named, chart.funds);
   html += renderFunds(funds,
     chart.cash ? chart.cash.ret : null,
     chart.cash ? chart.cash.from : '',
@@ -1058,7 +1254,7 @@ async function compare(tokArg){
     html += '</div>';
   }
 
-  html += '<div class="verdict">'+verdict(secs, chart.rets, chart.cash, funds)+'</div>';
+  html += '<div class="verdict">'+verdict(secs, chart.rets, chart.cash, funds, chart.funds)+'</div>';
   $('body').innerHTML = html;
   $('status').textContent = 'ready';
 }

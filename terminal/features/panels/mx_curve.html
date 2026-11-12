@@ -1,0 +1,440 @@
+<!--
+  mx_curve.html - the Kenyan money curve as a surface you can turn.
+
+  A yield curve is three dimensions pretending to be two. The usual chart picks
+  one of them and throws the other away: either one month's curve across tenors,
+  or one tenor's history across time. This panel keeps both. Time runs along one
+  edge, tenor along the other, and the rate is the height, so seventeen years of
+  the curve are one shape: the 2011 spike stands up as a wall, the 2020-21 floor
+  is a plain, the 2023-24 climb is a ridge.
+
+  Everything drawn is a published figure. The Central Bank of Kenya's own
+  monthly series (static_data/macro_rates.json, monthly_rates) carries the
+  interbank rate and the 91, 182 and 364-day Treasury bills. Only the months
+  where ALL FOUR were published are drawn, so no part of the surface is
+  interpolated across a gap, stretched over a missing tenor or carried forward.
+  The month count and the window are printed on the frame.
+
+  The tenor axis is spaced by ACTUAL DAYS, not by slot: 91, 182 and 364 sit
+  where they fall, and the interbank rate sits at overnight. A surface spaced
+  by slot would bend the curve's shape into something the rates never had.
+
+  Drag to turn it, wheel to zoom, hover a month to pull that month's curve out
+  as a plain two-dimensional slice. No WebGL, no library: one canvas, one
+  projection matrix, painter's algorithm, same as every other panel here.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head><script>(function(){var V='20261113023042';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curve</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+  :root{
+    --bg:#0d0d0d;--bg2:#0a0a0a;--bg3:#141414;--line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#d2d2d2;--tx3:#a8a8a8;--tx4:#6a6a6a;
+    --gold:#f5c542;--amber:#e0a340;--up:#33e29a;--down:#f87171;--violet:#c48bf7;
+    --mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --ui:Inter,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:transparent;color:var(--tx);font-family:var(--mono);font-size:12px}
+  .hd{display:flex;align-items:baseline;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line2);
+      background:var(--bg2);flex-wrap:wrap}
+  .hd .t{color:var(--gold);font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:11px}
+  .hd .s{color:var(--tx4);font-size:10px}
+  .bar{display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap}
+  .bar button{background:var(--bg3);color:var(--tx2);border:1px solid var(--line2);border-radius:2px;
+              padding:4px 10px;font-family:var(--mono);font-size:10px;cursor:pointer;letter-spacing:.04em}
+  .bar button:hover{color:var(--gold);border-color:var(--gold)}
+  .bar button.on{color:#140e00;background:var(--gold);border-color:var(--gold);font-weight:700}
+  .bar .sp{color:var(--tx4);font-size:10px;margin-left:auto}
+  .stage{display:grid;grid-template-columns:1fr 268px;gap:0;align-items:stretch}
+  @media (max-width:860px){ .stage{grid-template-columns:1fr} }
+  .cv{position:relative;background:var(--bg);border-right:1px solid var(--line2);min-height:430px}
+  canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+  canvas.drag{cursor:grabbing}
+  .side{padding:12px 14px;background:var(--bg2)}
+  .side h4{margin:0 0 8px;color:var(--tx4);font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:400}
+  .slice{width:100%;height:150px;display:block;background:var(--bg);border:1px solid var(--line2);border-radius:2px}
+  .rd{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
+  .rd .m{color:var(--gold);font-size:14px;font-weight:700;letter-spacing:.04em}
+  .rd table{width:100%;border-collapse:collapse;margin-top:6px}
+  .rd td{padding:3px 0;font-size:11px;color:var(--tx2)}
+  .rd td.v{text-align:right;color:var(--tx);font-weight:700}
+  .rd td.t{color:var(--tx4);font-size:10px}
+  .ramp{display:flex;align-items:center;gap:7px;margin-top:11px;font-size:9.5px;color:var(--tx4)}
+  .ramp .bar2{flex:1;height:8px;border-radius:1px;border:1px solid var(--line2)}
+  .note{padding:10px 14px;border-top:1px solid var(--line2);background:var(--bg2);color:var(--tx3);
+        font-family:var(--ui);font-size:11px;line-height:1.55}
+  .note b{font-family:var(--mono);color:var(--tx2)}
+  .err{padding:22px 14px;color:var(--down);font-family:var(--ui);line-height:1.6}
+</style>
+</head>
+<body>
+<div class="hd">
+  <span class="t">Kenya money curve</span>
+  <span class="s" id="sub">loading&hellip;</span>
+</div>
+<div class="bar">
+  <button data-view="iso" class="on">ISO</button>
+  <button data-view="time">TIME</button>
+  <button data-view="tenor">TENOR</button>
+  <button data-view="top">TOP</button>
+  <button id="spin">SPIN</button>
+  <button id="wire">WIREFRAME</button>
+  <span class="sp" id="hint">drag to turn &middot; wheel to zoom &middot; hover a month</span>
+</div>
+<div class="stage">
+  <div class="cv"><canvas id="cv"></canvas></div>
+  <div class="side">
+    <h4>Curve at the hovered month</h4>
+    <canvas class="slice" id="sl"></canvas>
+    <div class="rd" id="rd"></div>
+    <div class="ramp"><span id="lo">-</span><span class="bar2" id="ramp"></span><span id="hi">-</span></div>
+  </div>
+</div>
+<div class="note" id="note"></div>
+
+<script>
+'use strict';
+var EP = "../../static_data/macro_rates.json";
+var TENORS = [
+  { key:'interbank',   label:'Overnight', days:1,   short:'O/N'  },
+  { key:'t_bill_91d',  label:'91-day',    days:91,  short:'91d'  },
+  { key:'t_bill_182d', label:'182-day',   days:182, short:'182d' },
+  { key:'t_bill_364d', label:'364-day',   days:364, short:'364d' }
+];
+/* The tenor axis is spaced by the SQUARE ROOT of days, which is how a yield
+   curve is normally drawn. On a plain day scale the overnight rate sits one
+   day from zero and 90 days from the 91-day bill, so the step between them
+   becomes a near-vertical wall that hides the rest of the surface. The square
+   root opens the short end, where a curve actually does most of its moving,
+   without inventing anything: every tenor still sits at its own distance and
+   the order and the gaps between them are preserved. */
+var TMAX = Math.sqrt(364);
+TENORS.forEach(function(t){ t.pos = Math.sqrt(t.days) / TMAX; });
+
+var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+var sl = document.getElementById('sl'), sctx = sl.getContext('2d');
+var DATA = null, DPR = Math.min(window.devicePixelRatio || 1, 2);
+var yaw = -0.62, pitch = 0.52, zoom = 1, hover = -1, wire = false, spin = 0;
+
+/* months as a running count, so a gap in the series is a gap on the axis */
+function monthIndex(ym){ var a = String(ym).split('-'); return Number(a[0])*12 + (Number(a[1])-1); }
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+/* --- the ramp: one hue, dark where the rate is low and gold where it is high.
+   A rate is not a direction, so it never takes the mint/red pair. ----------- */
+function ramp(t){
+  t = Math.max(0, Math.min(1, t));
+  var stops = [[0,[26,30,38]], [0.35,[92,62,24]], [0.7,[224,163,64]], [1,[255,232,160]]];
+  for(var i=1;i<stops.length;i++){
+    if(t <= stops[i][0]){
+      var a = stops[i-1], b = stops[i], u = (t-a[0])/(b[0]-a[0] || 1);
+      return 'rgb(' + a[1].map(function(c,k){ return Math.round(c + (b[1][k]-c)*u); }).join(',') + ')';
+    }
+  }
+  return 'rgb(255,232,160)';
+}
+
+function shade(rgb, k){
+  var m = /rgb\((\d+),(\d+),(\d+)\)/.exec(rgb);
+  if(!m) return rgb;
+  return 'rgb(' + [1,2,3].map(function(i){
+    return Math.max(0, Math.min(255, Math.round(Number(m[i]) * k)));
+  }).join(',') + ')';
+}
+
+async function load(){
+  var r = await fetch(EP, {cache:'no-store'});
+  if(!r.ok) throw new Error('macro_rates.json ' + r.status);
+  var d = await r.json();
+  var k = (d.countries||[]).filter(function(c){ return c.iso2==='KE' || c.country==='Kenya'; })[0];
+  if(!k) throw new Error('no Kenya block in macro_rates.json');
+
+  /* only a month with EVERY tenor published is drawn: a surface must not be
+     stitched across a hole, and a carried-forward rate is an invented one */
+  var months = [], dropped = 0;
+  (k.monthly_rates||[]).forEach(function(row){
+    var vals = TENORS.map(function(t){ return row[t.key]; });
+    if(vals.some(function(v){ return v == null; })){ dropped++; return; }
+    months.push({ date: row.date, v: vals.map(Number), cbr: row.cbr == null ? null : Number(row.cbr),
+                  t: monthIndex(row.date) });
+  });
+  if(months.length < 4) throw new Error('not enough complete months to draw a surface');
+
+  var all = [];
+  months.forEach(function(m){ all = all.concat(m.v); });
+  DATA = {
+    months: months,
+    dropped: dropped,
+    total: (k.monthly_rates||[]).length,
+    lo: Math.min.apply(null, all),
+    hi: Math.max.apply(null, all),
+    source: (k.sources||[])[0] || null,
+    publisher: k.central_bank || 'Central Bank of Kenya'
+  };
+  document.getElementById('sub').innerHTML =
+    esc(DATA.months[0].date) + ' to ' + esc(DATA.months[DATA.months.length-1].date) + ' &middot; ' +
+    DATA.months.length + ' months &middot; 4 tenors &middot; ' + esc(DATA.publisher);
+  document.getElementById('lo').textContent = DATA.lo.toFixed(1) + '%';
+  document.getElementById('hi').textContent = DATA.hi.toFixed(1) + '%';
+  var g = [];
+  for(var i=0;i<=10;i++) g.push(ramp(i/10) + ' ' + (i*10) + '%');
+  document.getElementById('ramp').style.background = 'linear-gradient(90deg,' + g.join(',') + ')';
+  document.getElementById('note').innerHTML =
+    'Height is the published rate. Time runs left to back and tenor runs front to back-right, spaced by the ' +
+    '<b>square root of days</b>, the way a yield curve is normally drawn: on a plain day scale the overnight ' +
+    'rate and the 91-day bill would sit almost on top of each other and the step between them would wall off ' +
+    'the rest of the surface. Every tenor still keeps its own place and its own distance from the others. ' +
+    '<b>' + DATA.months.length + '</b> of the ' + DATA.total + ' months on file are drawn: a month is only drawn ' +
+    'when all four tenors were published for it, so <b>' + DATA.dropped + '</b> months are left out rather than ' +
+    'filled in, and a face is never drawn between two months that are not next to each other. That is why the ' +
+    'early years read as a <b>comb rather than a sheet</b>: through 2009 and 2010 the 364-day bill was published ' +
+    'every other month, so every other month is a hole and the holes are left open. Nothing here is ' +
+    'interpolated, smoothed or carried forward. Source: ' + esc(DATA.publisher) + ', monthly rates.';
+  resize();
+}
+
+/* --- projection: yaw about the vertical, then pitch, then orthographic ---- */
+function project(x, y, z, W, H){
+  var cy = Math.cos(yaw), sy = Math.sin(yaw);
+  var x1 = x*cy - z*sy, z1 = x*sy + z*cy;
+  var cp = Math.cos(pitch), sp = Math.sin(pitch);
+  var y1 = y*cp - z1*sp, z2 = y*sp + z1*cp;
+  var s = Math.min(W, H*1.5) * 0.42 * zoom;
+  return { x: W/2 + x1*s, y: H*0.56 - y1*s, d: z2 };
+}
+
+function grid(){
+  var M = DATA.months, n = M.length, T = TENORS.length;
+  var lo = DATA.lo, hi = DATA.hi, span = (hi-lo) || 1;
+  var t0 = M[0].t, tN = M[n-1].t, tspan = (tN - t0) || 1;
+  var pts = [];
+  for(var i=0;i<n;i++){
+    var row = [];
+    row.adjacent = (i < n-1) && (M[i+1].t - M[i].t === 1);
+    for(var j=0;j<T;j++){
+      row.push({
+        x: ((M[i].t - t0)/tspan) * 2 - 1,
+        z: TENORS[j].pos * 1.1 - 0.55,
+        y: ((M[i].v[j]-lo)/span) * 0.85 - 0.18,
+        v: M[i].v[j]
+      });
+    }
+    pts.push(row);
+  }
+  return pts;
+}
+
+function draw(){
+  if(!DATA) return;
+  var W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,W,H);
+
+  var P = grid(), n = P.length, T = TENORS.length;
+  var lo = DATA.lo, hi = DATA.hi, span = (hi-lo) || 1;
+
+  /* the back wall: rate gridlines, so a height can be read as a number */
+  for(var g=0; g<=5; g++){
+    var rv = lo + span*g/5;
+    var yy = ((rv-lo)/span)*0.85 - 0.18;
+    var a = project(-1, yy, -0.55, W, H), b = project(1, yy, -0.55, W, H);
+    ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    ctx.fillStyle = '#6a6a6a'; ctx.font = '9px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'right';
+    ctx.fillText(rv.toFixed(0) + '%', a.x - 5, a.y + 3);
+  }
+
+  /* quads back to front: no depth buffer, so the order is the depth */
+  var quads = [], gaps = 0;
+  for(var i=0;i<n-1;i++){
+    /* two months that are not next to each other are not a surface. The quad
+       is skipped and the hole stays a hole: the alternative is a face that
+       spans months the Central Bank never published. */
+    if(!P[i].adjacent){ gaps++; continue; }
+    for(var j=0;j<T-1;j++){
+      var p00=P[i][j], p10=P[i+1][j], p11=P[i+1][j+1], p01=P[i][j+1];
+      var q = [p00,p10,p11,p01].map(function(p){ return project(p.x,p.y,p.z,W,H); });
+      var mid = (p00.v+p10.v+p11.v+p01.v)/4;
+      /* a plain directional light, so the shape reads as a shape and not as a
+         flat wash of one colour */
+      var ux = p10.x-p00.x, uy = p10.y-p00.y, uz = p10.z-p00.z;
+      var vx = p01.x-p00.x, vy = p01.y-p00.y, vz = p01.z-p00.z;
+      var nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+      var nl = Math.sqrt(nx*nx+ny*ny+nz*nz) || 1;
+      var lam = Math.abs((nx*0.35 + ny*0.86 + nz*0.37) / nl);
+      quads.push({ q:q, t:(mid-lo)/span, d:(q[0].d+q[1].d+q[2].d+q[3].d)/4, i:i,
+                   sh: 0.46 + 0.74*lam });
+    }
+  }
+  /* back to front. A larger projected depth is farther away, so the farthest
+     quad is painted FIRST and the nearest last; the other way round and the
+     far side of the surface paints over the near side, which reads as big
+     flat slabs where the monthly detail should be. */
+  quads.sort(function(a,b){ return b.d - a.d; });
+  quads.forEach(function(Q){
+    ctx.beginPath();
+    ctx.moveTo(Q.q[0].x, Q.q[0].y);
+    for(var k=1;k<4;k++) ctx.lineTo(Q.q[k].x, Q.q[k].y);
+    ctx.closePath();
+    if(!wire){ ctx.fillStyle = shade(ramp(Q.t), Q.sh); ctx.fill(); }
+    ctx.strokeStyle = wire ? ramp(Q.t) : 'rgba(0,0,0,.30)';
+    ctx.lineWidth = wire ? 0.7 : 0.6;
+    ctx.stroke();
+    if(hover >= 0 && (Q.i === hover || Q.i === hover-1)){
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.9; ctx.stroke();
+    }
+  });
+
+  /* the hovered month, lifted out of the surface as its own line */
+  if(hover >= 0 && hover < n){
+    ctx.beginPath();
+    for(var j2=0;j2<T;j2++){
+      var pp = project(P[hover][j2].x, P[hover][j2].y, P[hover][j2].z, W, H);
+      if(j2) ctx.lineTo(pp.x, pp.y); else ctx.moveTo(pp.x, pp.y);
+    }
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  /* the year marks along the time edge */
+  ctx.fillStyle = '#a8a8a8'; ctx.font = '9px ' + getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = 'center';
+  var seen = {};
+  for(var i3=0;i3<n;i3++){
+    var yr = DATA.months[i3].date.slice(0,4);
+    if(seen[yr] || (Number(yr) % 3)) continue;
+    seen[yr] = 1;
+    var pt = project(P[i3][0].x, -0.22, P[i3][0].z, W, H);
+    ctx.fillText(yr, pt.x, pt.y + 13);
+  }
+  /* and the tenor marks along the other edge */
+  ctx.textAlign = 'left';
+  for(var j3=0;j3<T;j3++){
+    var pe = project(1.02, -0.2, P[n-1][j3].z, W, H);
+    ctx.fillStyle = '#f5c542';
+    ctx.fillText(TENORS[j3].short, pe.x + 4, pe.y + 3);
+  }
+}
+
+/* --- the slice: the hovered month as an ordinary two-dimensional curve ---- */
+function drawSlice(){
+  var W = sl.clientWidth, H = sl.clientHeight;
+  sl.width = Math.round(W*DPR); sl.height = Math.round(H*DPR);
+  sctx.setTransform(DPR,0,0,DPR,0,0);
+  sctx.clearRect(0,0,W,H);
+  if(!DATA) return;
+  var i = hover >= 0 ? hover : DATA.months.length - 1;
+  var m = DATA.months[i];
+  var lo = DATA.lo, hi = DATA.hi, span = (hi-lo) || 1;
+  var L = 28, R = 10, Tp = 12, B = 20, iw = W-L-R, ih = H-Tp-B;
+  function X(days){ return L + (Math.sqrt(days)/TMAX)*iw; }
+  function Y(v){ return Tp + (1 - (v-lo)/span)*ih; }
+  for(var g=0; g<=3; g++){
+    var gv = lo + span*g/3, gy = Y(gv);
+    sctx.strokeStyle = '#1c1c1c'; sctx.lineWidth = 1;
+    sctx.beginPath(); sctx.moveTo(L, gy); sctx.lineTo(W-R, gy); sctx.stroke();
+    sctx.fillStyle = '#6a6a6a'; sctx.font = '8.5px ' + getComputedStyle(document.body).fontFamily;
+    sctx.textAlign = 'right'; sctx.fillText(gv.toFixed(0), L-4, gy+3);
+  }
+  sctx.beginPath();
+  TENORS.forEach(function(t, j){
+    var x = X(t.days), y = Y(m.v[j]);
+    if(j) sctx.lineTo(x,y); else sctx.moveTo(x,y);
+  });
+  sctx.strokeStyle = '#f5c542'; sctx.lineWidth = 2; sctx.stroke();
+  TENORS.forEach(function(t, j){
+    sctx.beginPath(); sctx.arc(X(t.days), Y(m.v[j]), 2.6, 0, 6.3);
+    sctx.fillStyle = '#f5c542'; sctx.fill();
+    sctx.fillStyle = '#6a6a6a'; sctx.textAlign = 'center'; sctx.font = '8.5px ' + getComputedStyle(document.body).fontFamily;
+    sctx.fillText(t.short, X(t.days), H-6);
+  });
+  var rows = TENORS.map(function(t, j){
+    return '<tr><td>' + esc(t.label) + '</td><td class="t">' + t.days + 'd</td><td class="v">' +
+           m.v[j].toFixed(2) + '%</td></tr>';
+  }).join('');
+  document.getElementById('rd').innerHTML =
+    '<div class="m">' + esc(m.date) + '</div><table>' + rows +
+    (m.cbr != null ? '<tr><td>Policy rate</td><td class="t">CBR</td><td class="v">' + m.cbr.toFixed(2) + '%</td></tr>' : '') +
+    '</table>' +
+    '<div style="color:var(--tx4);font-size:9.5px;margin-top:7px">' +
+      (m.v[3] > m.v[1] ? 'Upward sloping: longer money pays more.'
+                       : (m.v[3] < m.v[1] ? 'Inverted at the short end: the 364-day bill pays less than the 91-day.'
+                                          : 'Flat across the bills.')) +
+    '</div>';
+}
+
+/* --- turning it ---------------------------------------------------------- */
+var dragging = false, lastX = 0, lastY = 0;
+cv.addEventListener('pointerdown', function(e){
+  dragging = true; lastX = e.clientX; lastY = e.clientY; spin = 0;
+  cv.classList.add('drag'); cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointerup', function(e){ dragging = false; cv.classList.remove('drag'); });
+cv.addEventListener('pointermove', function(e){
+  if(dragging){
+    yaw += (e.clientX - lastX) * 0.0075;
+    pitch = Math.max(-0.2, Math.min(1.35, pitch + (e.clientY - lastY) * 0.0055));
+    lastX = e.clientX; lastY = e.clientY;
+    draw();
+    return;
+  }
+  if(!DATA) return;
+  /* nearest month column to the pointer, measured on screen */
+  var r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  var P = grid(), best = -1, bd = 1e9;
+  for(var i=0;i<P.length;i++){
+    var p = project(P[i][1].x, P[i][1].y, P[i][1].z, r.width, r.height);
+    var dd = (p.x-mx)*(p.x-mx) + (p.y-my)*(p.y-my);
+    if(dd < bd){ bd = dd; best = i; }
+  }
+  if(bd < 4200 && best !== hover){ hover = best; draw(); drawSlice(); }
+});
+cv.addEventListener('pointerleave', function(){ dragging = false; cv.classList.remove('drag'); });
+cv.addEventListener('wheel', function(e){
+  e.preventDefault();
+  zoom = Math.max(0.45, Math.min(2.6, zoom * (e.deltaY > 0 ? 0.92 : 1.08)));
+  draw();
+}, {passive:false});
+
+var VIEWS = { iso:[-0.62,0.52], time:[-1.5707,0.12], tenor:[0,0.12], top:[-0.62,1.33] };
+Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function(b){
+  b.addEventListener('click', function(){
+    Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function(x){ x.classList.remove('on'); });
+    b.classList.add('on');
+    var v = VIEWS[b.getAttribute('data-view')];
+    yaw = v[0]; pitch = v[1]; spin = 0; draw();
+  });
+});
+document.getElementById('wire').addEventListener('click', function(){
+  wire = !wire; this.classList.toggle('on', wire); draw();
+});
+document.getElementById('spin').addEventListener('click', function(){
+  spin = spin ? 0 : 1; this.classList.toggle('on', !!spin);
+});
+(function tick(){
+  if(spin){ yaw += 0.0045; draw(); }
+  requestAnimationFrame(tick);
+})();
+
+function resize(){ draw(); drawSlice(); }
+window.addEventListener('resize', resize);
+
+load().catch(function(e){
+  document.querySelector('.stage').outerHTML =
+    '<div class="err">The curve could not be drawn: ' + esc(e.message) + '</div>';
+  document.getElementById('sub').textContent = 'not drawn';
+});
+</script>
+</body>
+</html>
