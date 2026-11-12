@@ -3,7 +3,7 @@
   MUTXRI TERMINAL - NEWS panel. NSE news headlines. Vanilla JS, Godel palette.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261112165120';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261112165602';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -810,9 +810,19 @@
       var rows = (d && d.listings) || [];
       var host = document.getElementById("upcoming");
       if(!host || !rows.length) return;
-      var h = '<div class="up-h"><span class="up-code">UPCOMING</span>' +
-              '<span class="up-t">COMING TO MARKET <b>· NOT YET TRADING</b></span></div>';
-      rows.forEach(function(c){
+      // A LISTED COMPANY IS NOT "COMING TO MARKET". Quickmart listed on 12 November 2026
+      // and this card still showed it under NOT YET TRADING, because every row in the
+      // file was rendered under one heading. Rows are split on the status the file
+      // carries, and a listed row shows its ticker and its first trade instead.
+      function isListed(c){ return /^LISTED$/i.test(String((c && c.status) || "").trim()); }
+      var _up = rows.filter(function(c){ return !isListed(c); });
+      var _on = rows.filter(isListed);
+      var h = '';
+      if(_up.length){
+        h += '<div class="up-h"><span class="up-code">UPCOMING</span>' +
+             '<span class="up-t">COMING TO MARKET <b>· NOT YET TRADING</b></span></div>';
+      }
+      _up.concat([]).forEach(function(c){
         var facts = "";
         function f(label, val, cls){
           facts += '<div class="up-f"><div class="up-k">' + esc(label) + '</div>' +
@@ -851,6 +861,50 @@
              (c.note ? '<div class="up-text">' + esc(c.note) + '</div>' : '') +
              src + '</div>';
       });
+      if(_on.length){
+        h += '<div class="up-h"><span class="up-code">LISTED</span>' +
+             '<span class="up-t">NOW TRADING <b>· LISTED ON THE EXCHANGE</b></span></div>';
+        _on.forEach(function(c){
+          var facts2 = "";
+          function g(label, val, cls){
+            facts2 += '<div class="up-f"><div class="up-k">' + esc(label) + '</div>' +
+                      '<div class="up-v' + (cls ? ' ' + cls : '') + '">' + val + '</div></div>';
+          }
+          var exTxt2 = c.exchange_name || c.exchange || "";
+          if(c.segment) exTxt2 += (exTxt2 ? ' · ' : '') + c.segment;
+          if(c.ticker) g("TICKER", esc(c.ticker), "price");
+          if(exTxt2) g("EXCHANGE", esc(exTxt2));
+          if(c.listed_date) g("TRADING SINCE", esc(c.listed_date));
+          if(c.isin) g("ISIN", esc(c.isin));
+          if(c.offer_price != null)
+            g("OFFER PRICE", esc((typeof c.offer_price === "number" ? c.offer_price.toFixed(2) : c.offer_price) +
+              (c.offer_price_currency ? " " + c.offer_price_currency : "")) +
+              ' <span class="up-note">offer price, not a traded price</span>', "price");
+          if(c.first_trade && c.first_trade.price != null)
+            g("FIRST TRADE", esc(String(c.first_trade.price)) +
+              ' <span class="up-note">' + esc(num(c.first_trade.shares || 0)) + ' shares</span>', "price");
+          if(c.midday && c.midday.average_price != null)
+            g("MIDDAY AVERAGE", esc(String(c.midday.average_price)) +
+              ' <span class="up-note">on ' + esc(num(c.midday.volume || 0)) + ' shares</span>', "price");
+          if(c.shares_in_issue != null) g("SHARES IN ISSUE", esc(num(c.shares_in_issue)));
+          if(c.sector) g("SECTOR", esc(c.sector));
+          var src2 = "";
+          if(c.sources && c.sources.length){
+            src2 = '<div class="up-src">' + c.sources.map(function(x){
+              var l = x && (x.label || x);
+              return (x && x.url) ? '<a href="' + esc(x.url) + '" target="_blank" rel="nofollow noopener">' + esc(l) + '</a>'
+                                  : esc(l);
+            }).join(" · ") + '</div>';
+          }
+          h += '<div class="up-card">' +
+               '<div class="up-top"><span class="up-name">' + esc(c.name || "") + '</span>' +
+               '<span class="up-chip ok">' + esc(c.status) + '</span></div>' +
+               (c.trading_name ? '<div class="up-aka">trading as ' + esc(c.trading_name) + '</div>' : '') +
+               '<div class="up-grid">' + facts2 + '</div>' +
+               (c.trading_note ? '<div class="up-text">' + esc(c.trading_note) + '</div>' : '') +
+               src2 + '</div>';
+        });
+      }
       h += '<div class="up-sep"></div>';
       host.innerHTML = h;
     })
