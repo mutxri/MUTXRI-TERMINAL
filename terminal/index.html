@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261112212117';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261112213308';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -5135,6 +5135,25 @@ async function loadListing(ex){
           return s;
         });
       }catch(e2){ mxFetchFailQuiet('market overlay fail', e2); }
+    // CURATED LISTINGS, APPENDED TO WHATEVER THE BOARD LOADED FROM. The shell takes its
+    // rows from the quotes API when one answers, and that API does not carry a security
+    // that has just listed - so QMRT sat in listing_NSE.json and was still missing from
+    // the watchlist. Anything in new_listings.json is appended here when that exchange's
+    // list does not already hold it, and it carries no price.
+    try{
+      const nl = await fetch('static_data/new_listings.json', {cache:'no-store'});
+      if(nl.ok){
+        const nd = await nl.json();
+        const mine = (nd.listings || []).filter(c => String(c.exchange || 'NSE').toUpperCase() === String(ex).toUpperCase());
+        const have = new Set((listing[ex] || []).map(s => String(s.ticker || s.sym || '').toUpperCase()));
+        mine.forEach(c => {
+          const t = String(c.ticker || '').toUpperCase();
+          if(!t || have.has(t)) return;
+          listing[ex].push(Object.assign({}, c, {ticker: t, sym: c.sym || t, price: null}));
+          have.add(t);
+        });
+      }
+    }catch(e3){ /* no curated file: nothing to add */ }
     $('wlEx').textContent = ex;   // board name only, no row count (owner, 2026-11-02)
     renderWatchlist($('q').value);
     buildTape(ex);            // tape now shows the new exchange immediately
