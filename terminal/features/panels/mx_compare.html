@@ -30,7 +30,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261113005055';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261113013933';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compare</title>
@@ -42,7 +42,7 @@
   :root{
     --bg:#121212;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;--line:#1a1a1a;--line2:#262626;
     --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;--up:#33e29a;--acc:#33e29a;--down:#f87171;--acc2:#1ecfb0;
-    --amber:#e0a340;--blue:#1ecfb0;--violet:#f87171;--mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --amber:#e0a340;--blue:#1ecfb0;--violet:#f87171;--gold:#f5c542;--ser3:#7aa2f7;--mono:'Oxygen Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
     --ui:Inter,system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -50,9 +50,25 @@
   .wrap{border:0;background:transparent;max-width:none;margin:0;border-radius:0}
   .head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line2);background:var(--bg2);flex-wrap:wrap}
   .head .code{color:var(--acc);font-weight:700;letter-spacing:.04em}
-  .head .code.c1{color:var(--blue)}
-  .head .code.c2{color:var(--amber)}
-  .head .code.c3{color:var(--violet)}
+  .head .code.c1{color:var(--amber)}
+  .head .code.c2{color:var(--ser3)}
+  .head .code.c3{color:var(--down)}
+  .head .code.fund{color:var(--gold)}
+  .fundblk{padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .fundblk .fh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .fundblk .fn{color:var(--gold);font-weight:700;letter-spacing:.04em}
+  .fundblk .fk{color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+  .fundblk .fdef{color:var(--tx2);font-family:var(--ui);font-size:11px;line-height:1.55;margin-bottom:10px}
+  .fundgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+  .fundgrid .c{border:1px solid var(--line2);background:var(--bg3);padding:8px 10px;border-radius:2px}
+  .fundgrid .c .k{color:var(--tx3);font-size:9px;text-transform:uppercase;letter-spacing:.07em}
+  .fundgrid .c .v{color:var(--tx);font-size:17px;font-weight:700;margin-top:3px}
+  .fundgrid .c .s{color:var(--tx3);font-size:9.5px;margin-top:2px}
+  .fundgrid .c.gold .v{color:var(--gold)}
+  .fundgrid .c.held{border-color:#3a2f12;background:#170f02}
+  .fundgrid .c.held .v{color:var(--amber);font-size:13px}
+  .fundwhy{color:var(--tx2);font-family:var(--ui);font-size:11px;line-height:1.55;margin-top:9px;
+           border-left:2px solid var(--gold);padding-left:9px}
   .head .vs{color:var(--tx3)}
   .head .name{color:var(--tx2);font-family:var(--ui)}
   .head .ex{color:var(--tx3);font-size:10px}
@@ -73,6 +89,11 @@
   .legend{display:flex;gap:16px;padding:6px 0 0;flex-wrap:wrap}
   .legend .li{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--tx2)}
   .legend .sw{width:10px;height:10px;border-radius:1px;display:inline-block}
+  .legend .sw.dash{width:16px;height:0;border-radius:0;border-top:2px dashed var(--gold)}
+  .legend .li.cash{color:var(--gold)}
+  .chartbox .window .cashnote{color:var(--gold)}
+  .notes .wn.cash{color:var(--gold)}
+  .notes .wn.cash b{color:var(--gold)}
   table{width:100%;border-collapse:collapse}
   th,td{padding:7px 14px;text-align:right;white-space:nowrap;vertical-align:top}
   th:first-child,td:first-child{text-align:left}
@@ -102,9 +123,9 @@
 <div class="wrap">
   <div class="head" id="head"><span class="code">--</span></div>
   <div class="controls">
-    <input class="tk" id="inToks" placeholder="SCOM, ABG.JO, KCB" maxlength="160">
+    <input class="tk" id="inToks" placeholder="SCOM, KCB, MMF" maxlength="160">
     <button class="go" id="goBtn">COMPARE</button>
-    <span class="hint">2 to 4 tickers, comma or space separated.</span>
+    <span class="hint">2 to 4, comma or space separated. Tickers, or a ticker and a fund: MMF, SPECIAL, FIXED, EQUITY, BALANCED.</span>
   </div>
   <div class="peers" id="peers" style="display:none"></div>
   <div id="body">
@@ -117,7 +138,12 @@
 var Q = new URLSearchParams(location.search);
 var EXS = ['NSE','NGX','JSE','EGX'];
 var MAX_SEC = 4;
-var COL = ['#33e29a','#e0a340','#1ecfb0','#f87171'];
+/* Four lines on one frame have to be told apart at a glance, and they have to
+   be told apart from the gold benchmark line. Mint, amber, blue, red: the same
+   order the header prints them (.code, .code.c1, .code.c2, .code.c3), so a code
+   at the top and a line in the chart are never different colours. */
+var COL = ['#33e29a','#e0a340','#7aa2f7','#f87171'];
+var GOLD = '#f5c542';
 var listingCache = {};
 var FX = null, FX_ASOF = '';
 
@@ -210,6 +236,185 @@ async function loadFx(){
   FX = map;
   return FX;
 }
+/* ---- the cash line ------------------------------------------------------
+   The chart rebases every security to 0% at the start of the window. The cash
+   line is built the same way and from the Central Bank of Kenya's OWN monthly
+   91-day Treasury bill series (static_data/macro_rates.json, monthly_rates[].
+   t_bill_91d, 1991 to date): each month's published rate is applied to the days
+   of that month that fall inside the window, so the curve is the path the bill
+   actually took, never today's rate projected backwards. Each month converts as
+   (1 + r)^(days/365), stated on the chart.
+
+   Three rules keep it honest. The series is Kenyan, so the line is drawn only
+   when every selected security quotes in shillings: a shilling bill is not a
+   reference for a rand or a naira return. A month with no published rate is
+   never bridged - the line stops there. And where the series ends before the
+   price window does, the line ends with it, says so, and the beat-the-bill
+   verdict is measured to that date for every security, not to two dates. */
+/* ---- funds as things you can put IN a comparison -----------------------
+   A reader does not only weigh one share against another: the real question is
+   whether to own the share at all or leave the money in a fund. So the fund
+   CATEGORIES the Capital Markets Authority licenses are first-class tokens
+   here - MMF, SPECIAL, FIXED, EQUITY, BALANCED - resolved from
+   static_data/cis_NSE.json, the CMA's own Soundness Report figures.
+
+   What a fund brings to the frame is its size, its share of the industry and
+   the CMA's own definition of what it invests in. What it does NOT bring is a
+   return: the CMA publishes no fund yield, so the return cell is withheld with
+   that reason, and the only rate drawn on the chart is the Treasury bill, which
+   is a published rate and is named as itself, never as a fund's. */
+var CIS = null;
+var FUND_TOK = { MMF:'MMF', MMFS:'MMF', MONEYMARKET:'MMF', MONEYMARKETFUND:'MMF',
+                 MONEYMARKETFUNDS:'MMF',
+                 SPECIAL:'SPECIAL', SPECIALFUND:'SPECIAL', SPECIALFUNDS:'SPECIAL',
+                 FIXED:'FIXED', FIXEDINCOME:'FIXED', FIXEDINCOMEFUND:'FIXED',
+                 EQUITY:'EQUITY', EQUITYFUND:'EQUITY', EQUITYFUNDS:'EQUITY',
+                 BALANCED:'BALANCED', BALANCEDFUND:'BALANCED' };
+async function loadCis(){
+  if(CIS) return CIS;
+  CIS = (await loadJSON('../../static_data/cis_NSE.json')) || {};
+  return CIS;
+}
+function fundKeyOf(tok){
+  return FUND_TOK[String(tok==null?'':tok).toUpperCase().replace(/[^A-Z]/g,'')] || null;
+}
+async function resolveFund(tok){
+  var key = fundKeyOf(tok);
+  if(!key) return null;
+  var d = await loadCis();
+  var rows = (d.categories && d.categories.rows) || [];
+  var row = rows.filter(function(r){ return r.key === key; })[0];
+  if(!row) return null;
+  return { kind:'fund', key:key, ticker:key, name:row.category, ex:'CIS',
+           quoteCcy:'KES', row:row, cis:d };
+}
+function bnKes(v){ return v == null ? null : (v/1e9).toFixed(1) + 'B'; }
+
+/* the fund block: everything the regulator does publish, and one explicit
+   hole where the thing it does not publish would go. */
+function renderFunds(funds, cashRet, cashFrom, cashTo){
+  if(!funds.length) return '';
+  var d = funds[0].cis || {};
+  var cats = (d.categories && d.categories.rows) || [];
+  var tot = cats.reduce(function(a, r){ return a + (r.aum_kes || 0); }, 0);
+  var asOf = (d.categories && d.categories.as_of) || '';
+  var inv = d.investors || {};
+  var ac = ((d.asset_classes || {}).rows || []);
+  var gov = ac.filter(function(r){ return /government/i.test(r.asset_class); })[0];
+  var why = (d.yields && d.yields.why) || 'The regulator publishes no fund yield.';
+  var out = '';
+  funds.forEach(function(f){
+    var r = f.row;
+    out += '<div class="fundblk" style="border-bottom:0;padding-bottom:4px">'
+      + '<div class="fh"><span class="fn">' + esc(r.category) + '</span>'
+      + '<span class="fk">' + esc(f.key) + ' &middot; licensed by the ' + esc(d.regulator || 'CMA')
+      + (asOf ? ' &middot; as at ' + esc(asOf) : '') + '</span></div>'
+      + '<div class="fdef">' + esc(r.definition || '') + '</div>'
+      + '<div class="fundgrid">'
+      + '<div class="c gold"><div class="k">Assets under management</div><div class="v">'
+        + (r.aum_kes != null ? esc(bnKes(r.aum_kes)) + ' <span style="font-size:11px">KES</span>'
+                             : '<span style="font-size:12px;color:var(--tx3)">not published</span>')
+        + '</div><div class="s">'
+        + (r.aum_kes != null ? 'CMA Soundness Report' : esc(r.aum_note || 'the report gives the share, not the amount'))
+        + '</div></div>'
+      + '<div class="c"><div class="k">Share of all schemes</div><div class="v">'
+        + (r.share_pct != null ? esc(r.share_pct.toFixed(1)) + '%' : '-')
+        + '</div><div class="s">of ' + (tot ? esc(bnKes(tot)) + ' KES across the five categories' : 'total CIS assets')
+        + '</div></div>'
+      + '<div class="c held"><div class="k">Return, this category</div><div class="v">WITHHELD</div>'
+        + '<div class="s">no published yield</div></div>'
+      + '</div></div>';
+  });
+
+  /* what is true of the industry, not of one category, is printed once */
+  out += '<div class="fundblk">'
+    + '<div class="fundgrid" style="margin-bottom:9px">'
+    + '<div class="c"><div class="k">Investors, all schemes</div><div class="v">'
+      + (inv.count ? (inv.count/1e6).toFixed(2) + 'M' : '-') + '</div><div class="s">'
+      + (inv.change_pct != null ? '+' + inv.change_pct + '% on a year' : '') + '</div></div>'
+    + (gov ? '<div class="c"><div class="k">Government securities held</div><div class="v">'
+             + esc(String(gov.share_pct)) + '%</div><div class="s">of what Kenyan schemes hold</div></div>' : '')
+    + '</div>'
+    + '<div class="fundwhy">' + esc(why) + '</div>';
+  if(cashRet != null){
+    out += '<div class="fundwhy" style="border-color:var(--acc);margin-top:7px">The rate that CAN be drawn is the '
+         + '<b>91-day Treasury bill</b>, the gold line above: it returned <b>' + (cashRet>=0?'+':'') + cashRet.toFixed(1)
+         + '%</b> over the chart window, ' + esc(cashFrom) + ' to ' + esc(cashTo) + '. '
+         + (gov ? 'Government securities are ' + esc(String(gov.share_pct)) + ' per cent of what Kenyan schemes '
+                + 'actually hold, so the bill is near the fund side of this comparison, ' : '')
+         + 'but it is the bill and not a fund: a fund charges a management fee and its return is taxed at 15 per '
+         + 'cent at source. It is drawn as the bill and labelled as the bill.</div>';
+  }
+  out += '</div>';
+  return out;
+}
+
+var CASH = null;
+function pad2(x){ return (x<10?'0':'')+x; }
+function monthKey(d){ return String(d).slice(0,7); }
+function daysInMonth(ym){ var a=ym.split('-'); return new Date(Number(a[0]), Number(a[1]), 0).getDate(); }
+function nextMonth(ym){ var a=ym.split('-'), y=Number(a[0]), m=Number(a[1])+1; if(m>12){ m=1; y++; } return y+'-'+pad2(m); }
+function dayNum(d){ return Math.floor(Date.parse(d+'T00:00:00Z')/86400000); }
+
+async function loadCash(){
+  if(CASH) return CASH;
+  var d = await loadJSON('../../static_data/macro_rates.json');
+  var out = { m:{}, months:[], point:null, publisher:'Central Bank of Kenya' };
+  if(d && d.countries){
+    var k = d.countries.filter(function(c){ return c.iso2==='KE' || c.country==='Kenya'; })[0];
+    if(k){
+      (k.monthly_rates||[]).forEach(function(r){
+        if(r && r.date && r.t_bill_91d!=null){ out.m[r.date] = Number(r.t_bill_91d); out.months.push(r.date); }
+      });
+      out.months.sort();
+      out.point = (k.market_rates||{}).t_bill_91d || null;
+    }
+  }
+  CASH = out;
+  return CASH;
+}
+/* accrual factor from d0 to d. null the moment a month on the path is missing. */
+function cashFactor(d0, d, C){
+  var t0 = dayNum(d0), t1 = dayNum(d);
+  if(!(t1 > t0)) return 1;
+  var f = 1, ym = monthKey(d0), endYm = monthKey(d), guard = 0;
+  while(guard++ < 2400){
+    var r = C.m[ym];
+    if(r == null) return null;
+    var ms = dayNum(ym+'-01'), me = dayNum(ym+'-'+pad2(daysInMonth(ym))) + 1;
+    var a = Math.max(t0, ms), b = Math.min(t1, me);
+    if(b > a) f *= Math.pow(1 + r/100, (b-a)/365);
+    if(ym === endYm) break;
+    ym = nextMonth(ym);
+  }
+  return f;
+}
+function cashCurve(secs, pts, C){
+  if(!C || !C.months.length)
+    return { pct:null, why:'the Central Bank of Kenya monthly 91-day bill series could not be read' };
+  var allKes = secs.every(function(s){ return String(majorOf(s.quoteCcy)||'').toUpperCase() === 'KES'; });
+  if(!allKes)
+    return { pct:null, why:'the bill is a shilling return, and this selection does not quote only in shillings. '
+                        + 'A return earned in rand or naira is not comparable to it without the exchange rate, '
+                        + 'so no cash line is drawn' };
+  var d0 = pts[0], first = C.months[0], last = C.months[C.months.length-1];
+  if(monthKey(d0) < first)
+    return { pct:null, why:'the price window opens before the bill series does ('+first+')' };
+  if(monthKey(d0) > last)
+    return { pct:null, why:'the price window opens after the last month on file ('+last+')' };
+  var cap = last+'-'+pad2(daysInMonth(last));
+  var pct = [], cut = -1;
+  for(var i=0;i<pts.length;i++){
+    if(pts[i] > cap) break;
+    var f = cashFactor(d0, pts[i], C);
+    if(f == null) break;
+    pct.push((f-1)*100); cut = i;
+  }
+  if(pct.length < 2)
+    return { pct:null, why:'the bill series does not cover enough of this window' };
+  return { pct:pct, cut:cut, upto:pts[cut], partial:(cut < pts.length-1), last:last, point:C.point };
+}
+
 function fxRate(from, to){
   from = majorOf(from); to = majorOf(to);
   if(!from || !to) return null;
@@ -324,6 +529,11 @@ function ROWS(){
     out.push({ id:m[0], label:m[1], unit:'x', dir:'lower', sec:'Valuation (multiples)',
       get:function(s){ return multCell(s.an, m[0]); } });
   });
+  out.push({ id:'earnings_yield', label:'Earnings yield', unit:'%', dir:'higher', sec:'Valuation (multiples)',
+    get:function(s){
+      var v = s.an && s.an.valuation; if(!v) return { v:null, unit:'%' };
+      return { v: num(v.earnings_yield), unit:'%', period: v.pePeriod || v.asOfPeriod || null };
+    } });
   [
     ['roe','Return on equity','%','higher'],
     ['roa','Return on assets','%','higher'],
@@ -387,15 +597,18 @@ function downsampleIdx(len, n){
   for(var i=0;i<n;i++) out.push(Math.round(i*step));
   return out;
 }
-function renderChart(secs, series){
+function renderChart(secs, series, C){
   var rets = secs.map(function(){ return null; });
+  var NONE = { rets:rets, cash:null };
   if(series.some(function(s){ return !s || s.length<2; })){
-    return { html:'<div class="window">No common price history for these securities.</div>', rets: rets };
+    NONE.html = '<div class="window">No common price history for these securities.</div>';
+    return NONE;
   }
   var A = alignDates(series);
   var dates = A.dates, maps = A.maps;
   if(dates.length < 2){
-    return { html:'<div class="window">No common price history for these securities.</div>', rets: rets };
+    NONE.html = '<div class="window">No common price history for these securities.</div>';
+    return NONE;
   }
   var d0 = dates[0], dN = dates[dates.length-1];
   maps.forEach(function(m, i){ var a=m.get(d0), b=m.get(dN); if(a!=null && b!=null) rets[i]=(b/a-1)*100; });
@@ -405,8 +618,10 @@ function renderChart(secs, series){
   var pts = idx.map(function(ix){ return dates[ix]; });
   var bases = maps.map(function(m){ return m.get(d0); });
   var seriesPct = maps.map(function(m, si){ return pts.map(function(d){ return (m.get(d)/bases[si]-1)*100; }); });
+  var cash = cashCurve(secs, pts, C);
   var all = [];
   seriesPct.forEach(function(sp){ all = all.concat(sp); });
+  if(cash.pct) all = all.concat(cash.pct);
   var lo = Math.min(0, Math.min.apply(null, all)), hi = Math.max(0, Math.max.apply(null, all));
   var pad = (hi-lo)*0.08 || 1; lo -= pad; hi += pad;
   function X(i){ return L + (i/(pts.length-1))*iw; }
@@ -421,6 +636,23 @@ function renderChart(secs, series){
   var zeroY = Y(0);
   var svg = '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">' + grid
     + '<line x1="'+L+'" y1="'+zeroY+'" x2="'+(W-R)+'" y2="'+zeroY+'" stroke="#3a3a3a" stroke-dasharray="3 3"/>';
+  if(cash.pct){
+    var cd = '';
+    for(var ci=0; ci<cash.pct.length; ci++){ cd += (ci?'L':'M') + X(ci).toFixed(1) + ' ' + Y(cash.pct[ci]).toFixed(1); }
+    svg += '<path d="'+cd+'" fill="none" stroke="'+GOLD+'" stroke-width="1.8" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/>';
+    /* where the series ends before the prices do, the end is marked, not faded out */
+    var ex = X(cash.cut), ey = Y(cash.pct[cash.pct.length-1]);
+    if(cash.partial){
+      svg += '<circle cx="'+ex.toFixed(1)+'" cy="'+ey.toFixed(1)+'" r="2.6" fill="'+GOLD+'"/>';
+      svg += '<line x1="'+ex.toFixed(1)+'" y1="'+T+'" x2="'+ex.toFixed(1)+'" y2="'+(T+ih)+'" stroke="'+GOLD+'" stroke-opacity="0.22" stroke-dasharray="2 4"/>';
+    }
+    /* the line names itself on the frame: a reader should not have to match a
+       colour against a legend to know which line is the cash one */
+    var lx = ex + 7, anc = 'start';
+    if(lx > W-R-46){ lx = ex - 7; anc = 'end'; }
+    svg += '<text x="'+lx.toFixed(1)+'" y="'+(ey-6).toFixed(1)+'" fill="'+GOLD+'" font-size="9" '
+         + 'letter-spacing="0.8" text-anchor="'+anc+'">T-BILL</text>';
+  }
   for(var si=seriesPct.length-1; si>=0; si--){
     svg += '<path d="'+line(seriesPct[si])+'" fill="none" stroke="'+COL[si%COL.length]+'" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
   }
@@ -428,13 +660,46 @@ function renderChart(secs, series){
   svg += '<text x="'+(W-R)+'" y="'+(H-6)+'" fill="#6a6a6a" font-size="9" text-anchor="end">'+pts[pts.length-1]+'</text>';
   svg += '</svg>';
   var winTxt = 'common window ' + d0 + ' to ' + dN + ' (' + pts.length + ' points). Each series is rebased to 100 at the start, so a line is percent return, not price; currencies differ across markets, but a return is unit-free.';
+  if(cash.pct){
+    winTxt += '<br><span class="cashnote">The gold dashed line is the same money in the 91-day Treasury bill, '
+            + 'compounded month by month at the Central Bank of Kenya&rsquo;s own published rate for that month, '
+            + '(1 + r) to the power days/365. It is not today&rsquo;s rate projected backwards.'
+            + (cash.partial ? ' The bill series ends '+esc(cash.last)+', so the line stops at '+esc(cash.upto)
+                            + ' and the beat-the-bill reading below is measured to that date for every security.' : '')
+            + '</span>';
+  } else if(cash.why){
+    winTxt += '<br><span class="cashnote">Cash line withheld: '+esc(cash.why)+'.</span>';
+  }
+
+  /* when the bill line stops short, every security is re-measured to its end
+     date: a verdict must not compare a return to one date with a return to
+     another. rets (the full window) is left alone for the rest of the panel. */
+  var cashEnd = cash.pct ? pts[cash.cut] : null;
+  var retsAt = secs.map(function(){ return null; });
+  if(cashEnd){
+    maps.forEach(function(m, i){
+      var a = bases[i], b = m.get(cashEnd);
+      if(a != null && b != null) retsAt[i] = (b/a-1)*100;
+    });
+  }
+
   var legend = '';
   seriesPct.forEach(function(sp, k){
     if(!sp) return;
     var last = sp[sp.length-1];
     legend += '<span class="li"><span class="sw" style="background:'+COL[k%COL.length]+'"></span>'+esc(secs[k].ticker||secs[k].sym)+' '+(last>=0?'+':'')+last.toFixed(1)+'%</span>';
   });
-  return { html: '<div class="window">'+winTxt+'</div>' + svg + '<div class="legend">'+legend+'</div>', rets: rets };
+  if(cash.pct){
+    var cl = cash.pct[cash.pct.length-1];
+    legend += '<span class="li cash"><span class="sw dash"></span>91-day T-bill '+(cl>=0?'+':'')+cl.toFixed(1)+'%'
+            + (cash.partial ? ' to '+esc(cash.upto) : '') + '</span>';
+  }
+  return {
+    html: '<div class="window">'+winTxt+'</div>' + svg + '<div class="legend">'+legend+'</div>',
+    rets: rets,
+    cash: cash.pct ? { ret: cash.pct[cash.pct.length-1], upto: cash.upto, partial: cash.partial,
+                       last: cash.last, retsAt: retsAt, from: d0 } : null
+  };
 }
 
 /* ---- table ------------------------------------------------------------ */
@@ -476,8 +741,12 @@ function renderTable(secs){
   var body = '';
   var cmpRows = 0;
 
+  /* two or more securities: a row with one value is no comparison and is
+     dropped. ONE security (it is being weighed against a fund, not another
+     share) keeps its own column: there is nothing to mislead a reader with. */
+  var minCells = (secs.length === 1) ? 1 : 2;
   function emitRow(label, cells, opt){
-    if(numCount(cells) < 2) return '';                     // one value is no comparison
+    if(numCount(cells) < minCells) return '';
     var pers = periodSet(cells);
     var mixed = pers.length > 1;
     var rowPeriod = (pers.length===1) ? pers[0] : null;
@@ -556,8 +825,25 @@ function collectWithheld(secs, rows){
   return out;
 }
 
-function verdict(secs, rets){
+function verdict(secs, rets, cash, funds){
   var p = [];
+  if(cash && cash.ret != null){
+    var beat = [], lost = [];
+    secs.forEach(function(s, i){
+      var r = cash.retsAt[i];
+      if(r == null) return;
+      (r > cash.ret ? beat : lost).push(esc(s.ticker||s.sym) + ' ' + (r>=0?'+':'') + r.toFixed(1) + '%');
+    });
+    if(beat.length || lost.length){
+      var head = 'The same money in the <b>91-day Treasury bill</b> returned <b>'
+               + (cash.ret>=0?'+':'') + cash.ret.toFixed(1) + '%</b> from ' + esc(cash.from)
+               + ' to ' + esc(cash.upto) + '. ';
+      if(beat.length && lost.length) head += 'Beat it: ' + beat.join(', ') + '. Did not: ' + lost.join(', ') + '.';
+      else if(beat.length) head += 'Beat it: ' + beat.join(', ') + '.';
+      else head += 'Nothing here beat it: ' + lost.join(', ') + '.';
+      p.push(head);
+    }
+  }
   var withRet = [];
   secs.forEach(function(s, i){ if(rets[i]!=null) withRet.push({ s:s, r:rets[i] }); });
   if(withRet.length>=2){
@@ -583,18 +869,30 @@ function verdict(secs, rets){
       p.push('<b>'+esc(have[0].s.ticker||have[0].s.sym)+'</b> trades on the lower P/E (<b>'+have[0].c.v.toFixed(1)+'x</b> vs '+have[have.length-1].c.v.toFixed(1)+'x'+(have[0].c.period?', both on '+esc(have[0].c.period):'')+').');
     }
   });
+  if(funds && funds.length){
+    p.push('<b>' + funds.map(function(f){ return esc(f.name); }).join(' and ')
+         + '</b>: no return is compared. The Capital Markets Authority publishes the size of each '
+         + 'category and what the schemes hold, but no yield, so a fund return is not placed beside '
+         + 'a share return here.');
+  }
   if(!p.length) return 'Not enough shared, period-aligned data.';
   return p.join(' ');
 }
 
 /* ---- head / peers ----------------------------------------------------- */
-function renderHead(secs){
+function renderHead(secs, funds){
   var h = '';
   secs.forEach(function(s, i){
     if(i) h += '<span class="vs">vs</span>';
     h += '<span class="code c'+i+'">'+esc(s.ticker||s.sym)+'</span>'
        + '<span class="name">'+esc(s.name||'')+'</span>'
        + '<span class="ex">'+esc(s.ex||'')+'</span>';
+  });
+  (funds||[]).forEach(function(f, i){
+    if(secs.length || i) h += '<span class="vs">vs</span>';
+    h += '<span class="code fund">'+esc(f.key)+'</span>'
+       + '<span class="name">'+esc(f.name||'')+'</span>'
+       + '<span class="ex">CIS</span>';
   });
   $('head').innerHTML = h;
 }
@@ -659,13 +957,16 @@ async function compare(tokArg){
   var toks = dedupeCap(parseToks(tokArg));
   $('inToks').value = toks.join(', ');
   if(toks.length < 2){
-    $('body').innerHTML = '<div class="err">At least two tickers.</div>';
+    $('body').innerHTML = '<div class="err">At least two: tickers, or a ticker and a fund '
+      + '(<b>MMF</b>, <b>SPECIAL</b>, <b>FIXED</b>, <b>EQUITY</b>, <b>BALANCED</b>).</div>';
     $('status').textContent = 'need two or more';
     return;
   }
   $('status').textContent = 'loading ' + toks.join(', ');
-  var resolved = [], missing = [];
+  var resolved = [], funds = [], missing = [];
   for(var i=0;i<toks.length;i++){
+    var fd = await resolveFund(toks[i]);
+    if(fd){ funds.push(fd); continue; }
     var r = await resolveStock(toks[i]);
     if(r) resolved.push(r); else missing.push(toks[i]);
   }
@@ -675,10 +976,16 @@ async function compare(tokArg){
     return;
   }
   await loadFx();
+  if(!resolved.length){
+    $('body').innerHTML = '<div class="err">A comparison needs at least one listed security '
+      + 'beside the fund. Try <b>SCOM MMF</b>.</div>';
+    $('status').textContent = 'need a security';
+    return;
+  }
   var secs = [];
   for(var k=0;k<resolved.length;k++){ secs.push(await buildSec(resolved[k])); }
 
-  renderHead(secs);
+  renderHead(secs, funds);
   renderPeers(secs);
 
   var rows = ROWS();
@@ -709,12 +1016,39 @@ async function compare(tokArg){
     if(!s.hist) return null;
     return (s.hist.bars||[]).map(function(b){ return { date:barDate(b), c:b.c }; }).filter(function(x){ return x.date && x.c!=null; });
   });
-  var chart = renderChart(secs, series);
+  var chart = renderChart(secs, series, await loadCash());
   html += '<div class="chartbox">' + chart.html + '</div>';
+  html += renderFunds(funds,
+    chart.cash ? chart.cash.ret : null,
+    chart.cash ? chart.cash.from : '',
+    chart.cash ? chart.cash.upto : '');
+
   var tbl = renderTable(secs);
   html += tbl.html;
   if(tbl.cmpRows === 0){
     html += '<div class="notes"><div class="nt">No shared fundamental metric</div></div>';
+  }
+
+  /* the bill as a single number, beside the yields it is there to be read
+     against. The chart carries the path; this carries the latest point, with
+     the CBK's own as-of date on it, and the MMF rate the CMA does not publish. */
+  var eys = secs.map(function(s){ var v = s.an && s.an.valuation; return (v && num(v.earnings_yield)) || null; })
+                .filter(function(x){ return x != null; });
+  if(CASH && CASH.point && CASH.point.value != null && eys.length >= 2
+     && secs.every(function(s){ return String(majorOf(s.quoteCcy)||'').toUpperCase() === 'KES'; })){
+    var bill = Number(CASH.point.value);
+    var over = eys.filter(function(x){ return x > bill; }).length;
+    html += '<div class="notes"><div class="nt">Cash reference</div>'
+          + '<div class="wn cash"><b>91-day Treasury bill ' + bill.toFixed(3) + '%</b> as at '
+          + esc(CASH.point.as_of || '') + ', Central Bank of Kenya. '
+          + over + ' of ' + eys.length + ' earnings yields above it.</div>'
+          + '<div class="wn">An earnings yield is what the business earns on the price you pay. The bill is '
+          + 'a contractual rate paid in cash. A shareholder receives only what is paid out as dividend, so '
+          + 'the comparison shows what the price is asking you to accept, not what you will be paid.</div>'
+          + '<div class="wn"><b>Money market fund rate: withheld.</b> The Capital Markets Authority publishes '
+          + 'no fund yield. Managers publish their own and they are not like-for-like: some gross of the 15 '
+          + 'per cent withholding tax, some net of fees, some a three-month average.</div>'
+          + '</div>';
   }
 
   var wd = collectWithheld(secs, rows);
@@ -724,7 +1058,7 @@ async function compare(tokArg){
     html += '</div>';
   }
 
-  html += '<div class="verdict">'+verdict(secs, chart.rets)+'</div>';
+  html += '<div class="verdict">'+verdict(secs, chart.rets, chart.cash, funds)+'</div>';
   $('body').innerHTML = html;
   $('status').textContent = 'ready';
 }
