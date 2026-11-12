@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261112121926';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261112142104';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -9474,6 +9474,13 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       var d = f.contentDocument;
       if(!d || d.__mtKeysHooked) return;
       d.__mtKeysHooked = true;
+      d.addEventListener('contextmenu', function(e){
+        try{
+          e.preventDefault();
+          var host = f.closest ? f.closest('.pwin') : null;
+          if(host && parent.mtContextPane) parent.mtContextPane(host.getAttribute('data-panelwin'));
+        }catch(err){}
+      }, true);
       d.addEventListener('keydown', function(e){
         var owned = e.key === 'F1' || e.key === 'Escape' || e.key === 'Tab' ||
                     (e.key && e.key.indexOf('Arrow') === 0) ||
@@ -9516,6 +9523,7 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
 
   function hookAllFrames(){
     try{ addLayerButtons(); }catch(e){}
+    try{ addMenuButtons(); }catch(e){}
     Array.prototype.forEach.call(document.querySelectorAll('iframe'), function(f){
       hookFrame(f);
       fillSymbol(f);
@@ -9761,6 +9769,98 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
                      'padding:0 2px;cursor:pointer;font-family:inherit}' +
                      '.pw-lay:hover{color:#33e29a}';
     document.head.appendChild(st);
+  }catch(e){}
+
+  /* ---- the window menu -------------------------------------------------------
+     Right click a title line, or press the dots, for the four things a windowed
+     terminal always offers: bring to front, send to back, fill the desk, close.
+     This is the discoverable path to layering, so it does not depend on knowing
+     a key. */
+  var menuEl = null;
+  function closeMenu(){
+    if(menuEl && menuEl.parentNode) menuEl.parentNode.removeChild(menuEl);
+    menuEl = null;
+  }
+  function openMenu(id, x, y){
+    closeMenu();
+    var items = [
+      ['Bring to front', function(){ liftPane(id); }],
+      ['Send to back',   function(){ dropPane(id); }],
+      ['Fill the desk',  function(){ focusPane(id); }],
+      ['Close',          function(){
+          var node = document.querySelector('.pwin[data-panelwin="' + id + '"]');
+          var x2 = node && node.querySelector('.pw-x');
+          if(x2) x2.click(); else if(window.MTPanelWins && window.MTPanelWins.close) window.MTPanelWins.close(id);
+      }]
+    ];
+    var m = document.createElement('div');
+    m.className = 'pw-menu';
+    m.setAttribute('role', 'menu');
+    items.forEach(function(it){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = it[0];
+      b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); closeMenu(); it[1](); });
+      m.appendChild(b);
+    });
+    document.body.appendChild(m);
+    var w = m.offsetWidth, h = m.offsetHeight;
+    m.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 6)) + 'px';
+    m.style.top  = Math.max(4, Math.min(y, window.innerHeight - h - 6)) + 'px';
+    menuEl = m;
+  }
+  window.mtWindowMenu = openMenu;
+  window.mtContextPane = function(id){
+    var node = document.querySelector('.pwin[data-panelwin="' + id + '"] .pwin-hd');
+    if(!node) return;
+    var r = node.getBoundingClientRect();
+    openMenu(id, Math.round(r.left + 140), Math.round(r.bottom + 2));
+  };
+
+  document.addEventListener('contextmenu', function(e){
+    var hd = e.target && e.target.closest ? e.target.closest('.pwin-hd, .pwin') : null;
+    if(!hd) return;
+    var host = hd.closest('.pwin');
+    if(!host) return;
+    e.preventDefault();
+    openMenu(host.getAttribute('data-panelwin'), e.clientX, e.clientY);
+  }, true);
+
+  document.addEventListener('mousedown', function(e){
+    if(menuEl && !(e.target.closest && e.target.closest('.pw-menu'))) closeMenu();
+  }, true);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeMenu(); }, true);
+
+  function addMenuButtons(){
+    Array.prototype.forEach.call(document.querySelectorAll('.pwin'), function(win){
+      var hd = win.querySelector('.pwin-hd');
+      if(!hd || hd.querySelector('.pw-dots')) return;
+      var id = win.getAttribute('data-panelwin');
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pw-dots';
+      b.textContent = '\u22EF';
+      b.title = 'window menu: front, back, fill, close (or right click the title)';
+      b.addEventListener('mousedown', function(ev){ ev.stopPropagation(); });
+      b.addEventListener('click', function(ev){
+        ev.preventDefault(); ev.stopPropagation();
+        var r = b.getBoundingClientRect();
+        openMenu(id, Math.round(r.left - 90), Math.round(r.bottom + 2));
+      });
+      hd.appendChild(b);
+    });
+  }
+  try{
+    var mst = document.createElement('style');
+    mst.textContent =
+      '.pw-dots{background:transparent;border:0;color:#9aa8a1;font-size:10px;line-height:1;padding:0 2px;cursor:pointer;font-family:inherit}' +
+      '.pw-dots:hover{color:#33e29a}' +
+      '.pw-menu{position:fixed;z-index:99999;background:#111;border:1px solid #303030;padding:2px;display:flex;' +
+      'flex-direction:column;min-width:132px;box-shadow:0 8px 24px rgba(0,0,0,.6)}' +
+      '.pw-menu button{background:transparent;border:0;color:#e8f1ec;font-family:inherit;font-size:9.5px;' +
+      'text-align:left;padding:5px 8px;cursor:pointer;letter-spacing:.06em;text-transform:uppercase}' +
+      '.pw-menu button:hover{background:#1f1f1f;color:#33e29a}';
+    document.head.appendChild(mst);
   }catch(e){}
 
   /* ---- focus a pane: one window on the whole desk, and back again -----------
