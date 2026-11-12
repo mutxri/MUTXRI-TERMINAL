@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - CIS panel: Kenyan collective investment schemes, with the
+  money market and special fund categories the reader comes here for.
+
+  SOURCE. Capital Markets Authority (K), Capital Markets Soundness Report
+  (CMSR), Quarter 4 FY 2025/2026, whose special feature is collective
+  investment schemes. Read 2026-11-12. CMA states it has no objection to the
+  material being referenced provided an acknowledgment is made, and every
+  figure on this panel is acknowledged to the CMA on screen.
+
+  WHY THERE IS NO YIELD COLUMN. The obvious thing to want here is what each
+  money market fund pays. The regulator does not publish it. Every yield in
+  the CMA's CIS report is a government bond yield; there is no per-fund
+  effective annual rate, daily rate or return anywhere in it. A 2019 CIS
+  report did carry a "Yield of Money Market Funds" table with Daily Yield and
+  Effective Annual Rate columns, and that table is not in current reporting.
+  Kenyan MMF rates today are published by each fund manager, and they are not
+  like-for-like: some are gross of the 15 per cent withholding tax, some net
+  of fees, some a three-month average. So the panel prints the withheld state
+  and the reason, the same way the MARKET window withholds a multiple it
+  cannot build, rather than a rate the regulator never published.
+
+  WHY THERE IS NO PER-FUND TABLE. Per-fund assets under management are in the
+  CMA's separate CIS Quarterly Report at cmarcp.or.ke. That host's TLS
+  certificate has expired, so the file could not be fetched and verified, and
+  nothing per-fund is shown rather than figures lifted from secondary
+  reporting.
+
+  DATA INTERFACE. Reads static_data/cis_NSE.json. Vanilla JS, no build step.
+  The shell draws this panel's window chrome, so the panel draws no frame of
+  its own: no max-width, no margin, no border, no background.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - Collective investment schemes</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<link href="https://fonts.googleapis.com/css2?family=Oxygen+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+
+  :root{
+    /* the terminal's current tokens: grey desk, black windows, lifted grey
+       ramp, and gold for the subject - never for a direction */
+    --bg:#303030;--bg2:#0b0b0b;--bg3:#161616;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#303030;
+    --tx:#f5f5f5;--tx2:#d2d2d2;--tx3:#a8a8a8;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--warn:#f5c542;
+    --gold:#f5c542;--gold-line:rgba(245,197,66,.55);
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:transparent;color:var(--tx);font-family:var(--ui);font-size:13px;padding:0;}
+  .cis{max-width:none;margin:0;border:0;background:transparent;border-radius:0;}
+
+  .hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    padding:10px 14px;border-bottom:1px solid var(--line2);flex-wrap:wrap;}
+  .hd .t{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;}
+  .hd .m{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--tx3);}
+
+  .sec{padding:14px;border-bottom:1px solid var(--line);}
+  .sec>h3{margin:0 0 10px;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--tx3);font-weight:400;}
+  .asof{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--tx3);}
+
+  /* the five categories */
+  .cat{display:flex;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .cat:last-child{border-bottom:0;}
+  .cat .n{flex:1 1 auto;min-width:0;color:var(--tx);font-size:13px;}
+  .cat.sub .n{color:var(--gold);font-weight:600;}
+  .cat .a{font-family:var(--mono);font-size:13px;color:var(--tx2);white-space:nowrap;}
+  .cat .p{font-family:var(--mono);font-size:14px;color:var(--tx);min-width:58px;text-align:right;white-space:nowrap;}
+  .cat.sub .p{color:var(--gold);font-weight:700;}
+  .bar{height:6px;background:#151515;border-radius:3px;margin-top:6px;overflow:hidden;}
+  .bar>i{display:block;height:100%;background:#2f2f2f;border-radius:3px;}
+  .cat.sub .bar>i{background:var(--gold);}
+  .def{color:var(--tx3);font-size:11.5px;line-height:1.45;margin-top:4px;}
+
+  /* the withheld state, the same idiom the MARKET window uses */
+  .wh{border:1px solid var(--line2);border-left:3px solid var(--warn);background:var(--bg2);
+    border-radius:6px;padding:12px 14px;}
+  .wh .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--warn);text-transform:uppercase;}
+  .wh .v{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--warn);float:right;}
+  .wh p{margin:8px 0 0;color:var(--tx2);font-size:12px;line-height:1.55;}
+
+  table{width:100%;border-collapse:collapse;}
+  th{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--tx3);text-align:right;font-weight:400;padding:0 0 6px;border-bottom:1px solid var(--line2);}
+  th:first-child{text-align:left;}
+  td{padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;text-align:right;color:var(--tx2);}
+  td:first-child{text-align:left;color:var(--tx);}
+  td.num{font-family:var(--mono);}
+  tr:last-child td{border-bottom:0;}
+  tr.me td:first-child{color:var(--gold);font-weight:600;}
+  tr.me td{color:var(--gold);}
+
+  .spark{display:flex;align-items:flex-end;gap:3px;height:62px;margin-top:8px;}
+  .spark>i{flex:1 1 0;background:#2f2f2f;border-radius:2px 2px 0 0;display:block;}
+  .spark>i.last{background:var(--gold);}
+  .sparkx{display:flex;justify-content:space-between;font-family:var(--mono);font-size:8.5px;color:var(--tx3);margin-top:4px;}
+
+  .kv{display:flex;gap:10px;flex-wrap:wrap;}
+  .kv>div{flex:1 1 150px;border:1px solid var(--line);background:var(--bg2);border-radius:6px;padding:10px 12px;}
+  .kv .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;}
+  .kv .v{font-family:var(--mono);font-size:21px;color:var(--tx);margin-top:4px;}
+  .kv .s{font-size:11px;color:var(--tx3);margin-top:3px;}
+
+  .src{padding:12px 14px;color:var(--tx3);font-size:11px;line-height:1.6;}
+  .src a{color:var(--acc);text-decoration:none;}
+  .src a:hover{text-decoration:underline;}
+
+  /* the cash comparison */
+  .bench{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;border:1px solid var(--gold-line);
+    background:rgba(245,197,66,.06);border-radius:6px;padding:9px 12px;margin-bottom:12px;}
+  .bench .bl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);}
+  .bench .bv{font-family:var(--mono);font-size:19px;color:var(--gold);font-weight:700;}
+  .bench .bs{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-left:auto;}
+
+  .chart{position:relative;padding:2px 0;}
+  .chart .rule{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--gold);
+    opacity:.8;z-index:2;pointer-events:none;}
+  .chart .row{display:flex;align-items:center;gap:8px;height:22px;}
+  .chart .tk{width:58px;flex:0 0 58px;font-family:var(--mono);font-size:10.5px;color:var(--tx2);}
+  .chart .tr{flex:1 1 auto;min-width:0;position:relative;height:11px;background:#141414;border-radius:2px;}
+  .chart .tr>i{display:block;height:100%;border-radius:2px;}
+  .chart .tr>i.up{background:var(--up);}
+  .chart .tr>i.dn{background:var(--down);}
+  .chart .cx{position:absolute;right:2px;top:-3px;color:#0b0b0b;font-size:11px;line-height:1;}
+  .chart .vl{width:62px;flex:0 0 62px;text-align:right;font-family:var(--mono);font-size:11px;}
+  .chart .vl.up{color:var(--up);} .chart .vl.dn{color:var(--down);}
+  .chart .pd{width:56px;flex:0 0 56px;text-align:right;font-family:var(--mono);font-size:8.5px;color:var(--tx3);}
+
+  .legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:10px;
+    font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--tx3);}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+  .legend i.up{background:var(--up);} .legend i.dn{background:var(--down);}
+  .legend .ax{margin-left:auto;}
+  .err{padding:16px;color:var(--down);font-family:var(--mono);font-size:12px;}
+</style>
+</head>
+<body>
+<div class="cis" id="cis"><div class="src">Loading collective investment schemes…</div></div>
+
+<script>
+(function(){
+  var EP   = "../../static_data/cis_NSE.json";
+  var CASH = "../../static_data/cash_alternative_NSE.json";
+  var el = document.getElementById("cis");
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"})[c]; }); }
+  function bn(v){ return v == null ? "n/a" : (v / 1e9).toFixed(1) + "B"; }
+  function pct(v){ return v == null ? "n/a" : v.toFixed(1) + "%"; }
+
+  function render(d){
+    var out = [];
+    var cats = (d.categories && d.categories.rows) || [];
+    var top = Math.max.apply(null, cats.map(function(c){ return c.share_pct || 0; }));
+
+    out.push('<div class="hd"><span class="t">' + esc(d.title || "Collective investment schemes") +
+      '</span><span class="m">' + esc(d.regulator || "") + ' &middot; as at ' +
+      esc((d.categories && d.categories.as_of) || "") + '</span></div>');
+
+    // 1. the categories, with the two the reader came for carried in gold
+    out.push('<div class="sec"><h3>Where the money is &middot; <span class="asof">Q1 2026, share of total assets under management</span></h3>');
+    cats.forEach(function(c){
+      var subject = (c.key === "MMF" || c.key === "SPECIAL");
+      out.push('<div class="cat' + (subject ? ' sub' : '') + '">' +
+        '<span class="n">' + esc(c.category) + '</span>' +
+        '<span class="a">' + (c.aum_kes == null ? '<span style="color:var(--tx3)">amount not published</span>' : esc(bn(c.aum_kes)) + ' KES') + '</span>' +
+        '<span class="p">' + esc(pct(c.share_pct)) + '</span></div>' +
+        '<div class="bar"><i style="width:' + ((c.share_pct || 0) / top * 100).toFixed(1) + '%"></i></div>' +
+        '<div class="def">' + esc(c.definition) + '</div>');
+    });
+    out.push('</div>');
+
+    // 2. the rate the regulator does not publish
+    if (d.yields && d.yields.status === "withheld") {
+      out.push('<div class="sec"><h3>Fund yields</h3><div class="wh">' +
+        '<span class="k">Effective annual rate, per fund</span><span class="v">Withheld</span>' +
+        '<p>' + esc(d.yields.why) + '</p></div></div>');
+    }
+
+    // 2b. a hole the cash block fills once its own file arrives
+    out.push('<div id="cashblk"></div>');
+
+    // 3. the industry, eight years of it
+    var s = d.aum_series || {};
+    var pts = s.points || [];
+    if (pts.length) {
+      var mx = Math.max.apply(null, pts.map(function(p){ return p.aum_kes; }));
+      out.push('<div class="sec"><h3>The industry &middot; <span class="asof">' + esc(s.note || "") + '</span></h3>' +
+        '<div class="spark">' + pts.map(function(p, i){
+          return '<i class="' + (i === pts.length - 1 ? 'last' : '') + '" style="height:' +
+            (p.aum_kes / mx * 100).toFixed(1) + '%" title="' + esc(p.period + " " + bn(p.aum_kes)) + '"></i>';
+        }).join("") + '</div>' +
+        '<div class="sparkx"><span>' + esc(pts[0].period) + '</span><span>' + esc(pts[pts.length - 1].period) + '</span></div>');
+      var inv = d.investors || {};
+      out.push('<div class="kv" style="margin-top:12px">' +
+        '<div><div class="k">Assets under management</div><div class="v">' + esc(bn(pts[pts.length - 1].aum_kes)) +
+          '</div><div class="s">KES, March 2026</div></div>' +
+        '<div><div class="k">Investors</div><div class="v">' +
+          (inv.count ? (inv.count / 1e6).toFixed(2) + "M" : "n/a") + '</div><div class="s">' +
+          (inv.change_pct != null ? "+" + inv.change_pct + "% on a year" : "") + '</div></div>' +
+        '</div></div>');
+    }
+
+    // 4. what the schemes actually hold
+    var ac = d.asset_classes || {};
+    if (ac.rows && ac.rows.length) {
+      out.push('<div class="sec"><h3>What the schemes hold &middot; <span class="asof">' + esc(ac.note || "") + '</span></h3>' +
+        '<table><tr><th>Asset class</th><th>KES millions</th><th>Share</th></tr>' +
+        ac.rows.map(function(r){
+          return '<tr><td>' + esc(r.asset_class) + '</td><td class="num">' +
+            r.amount_kes_m.toLocaleString("en-US") + '</td><td class="num">' +
+            (r.share_pct == null ? '<span style="color:var(--tx3)">-</span>' : esc(pct(r.share_pct))) + '</td></tr>';
+        }).join("") + '</table></div>');
+    }
+
+    // 5. Kenya against the continent
+    var af = d.africa_comparison || {};
+    if (af.rows && af.rows.length) {
+      out.push('<div class="sec"><h3>Kenya against the continent &middot; <span class="asof">' + esc(af.as_of || "") + '</span></h3>' +
+        '<table><tr><th>Market</th><th>AUM, USD billions</th></tr>' +
+        af.rows.map(function(r){
+          return '<tr class="' + (r.market === "Kenya" ? "me" : "") + '"><td>' + esc(r.market) +
+            '</td><td class="num">' + r.aum_usd_bn.toFixed(2) + '</td></tr>';
+        }).join("") + '</table></div>');
+    }
+
+    // 6. what is not here, and why
+    if (d.per_fund && d.per_fund.status !== "ok") {
+      out.push('<div class="sec"><div class="wh"><span class="k">Per-fund assets under management</span>' +
+        '<span class="v">Not on file</span><p>' + esc(d.per_fund.why) + '</p></div></div>');
+    }
+
+    var src = d.source || {};
+    out.push('<div class="src"><b style="color:var(--tx2)">Source.</b> ' + esc(src.publisher || "") + ', ' +
+      esc(src.publication || "") + (src.url ? ' &middot; <a href="' + esc(src.url) + '" target="_blank" rel="noopener">the report</a>' : "") +
+      '. Read ' + esc(src.read || "") + '. ' + esc(src.permission || "") + ' ' + esc(src.note || "") + '</div>');
+
+    el.innerHTML = out.join("");
+  }
+
+  /* THE CASH COMPARISON, DRAWN.
+     One row per security, length by earnings yield, mint where it clears the
+     91-day Treasury bill and red where it does not, with the bill itself as a
+     gold rule straight down the chart. The colour carries the verdict so the
+     reader does not have to read a single number to get the answer; the
+     numbers are printed anyway, on the right.
+
+     The axis is capped at 30 per cent. One security sits far above that and
+     would otherwise squash every other bar into the first sixth of the width -
+     so its bar runs to the edge, carries a caret, and prints its true figure.
+     The cap is stated on screen; it is never a silently shortened bar. */
+  function renderCash(c){
+    var host = document.getElementById("cashblk");
+    if (!host || !c || !c.securities || !c.securities.length) return;
+    var bench = c.benchmark || {};
+    var CAP = 30;
+    var over = c.securities.filter(function(s){ return s.earnings_yield > CAP; });
+    var x = function(v){ return Math.min(v, CAP) / CAP * 100; };
+
+    var o = ['<div class="sec"><h3>Against leaving it in cash &middot; <span class="asof">' +
+      'earnings yield per security, against the ' + esc(bench.name || "91-day Treasury Bill") + '</span></h3>'];
+
+    o.push('<div class="bench">' +
+      '<span class="bl">' + esc(bench.name || "") + '</span>' +
+      '<span class="bv">' + Number(bench.value).toFixed(3) + '%</span>' +
+      '<span class="bs">' + esc(bench.publisher || "") + ' &middot; as at ' + esc(bench.as_of || "") + '</span>' +
+      '</div>');
+
+    o.push('<div class="chart"><div class="rule" style="left:' + x(bench.value).toFixed(2) + '%"></div>');
+    c.securities.forEach(function(s){
+      var w = x(s.earnings_yield);
+      o.push('<div class="row">' +
+        '<span class="tk">' + esc(s.ticker) + '</span>' +
+        '<span class="tr"><i class="' + (s.beats_bill ? "up" : "dn") + '" style="width:' + w.toFixed(2) + '%"></i>' +
+          (s.earnings_yield > CAP ? '<b class="cx">&#9656;</b>' : '') + '</span>' +
+        '<span class="vl ' + (s.beats_bill ? "up" : "dn") + '">' + s.earnings_yield.toFixed(2) + '%</span>' +
+        '<span class="pd">' + esc(s.period || "") + '</span></div>');
+    });
+    o.push('</div>');
+
+    o.push('<div class="legend"><span><i class="up"></i>clears the bill &middot; ' +
+      c.counts.beat_the_bill + '</span><span><i class="dn"></i>does not &middot; ' +
+      (c.counts.with_yield - c.counts.beat_the_bill) + '</span>' +
+      '<span class="ax">axis capped at ' + CAP + '%' +
+      (over.length ? '; ' + over.map(function(s){ return esc(s.ticker) + " " + s.earnings_yield.toFixed(2) + "%"; }).join(", ") + ' runs past it' : '') +
+      '</span></div>');
+
+    if (c.money_market_fund && c.money_market_fund.status === "withheld") {
+      o.push('<div class="wh" style="margin-top:12px"><span class="k">Money market fund rate</span>' +
+        '<span class="v">Withheld</span><p>' + esc(c.money_market_fund.why) + '</p></div>');
+    }
+    o.push('<div class="src" style="padding:12px 0 0">' + esc(c.caveat || "") +
+      ' ' + esc(c.counts.no_yield_on_file) + ' securities on this board carry no earnings yield on file and are left out, not shown as zero.</div>');
+    o.push('</div>');
+    host.innerHTML = o.join("");
+  }
+
+  function get(u){
+    return fetch(u + (u.indexOf("?") < 0 ? "?t=" : "&t=") + Date.now())
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+  }
+
+  get(EP)
+    .then(function(d){
+      render(d);
+      // the cash block is its own file and its own failure: the schemes above
+      // still stand if it is missing
+      return get(CASH).then(renderCash).catch(function(e){
+        var h = document.getElementById("cashblk");
+        if (h) h.innerHTML = '<div class="sec"><div class="err">Cash comparison unavailable (' +
+          esc(e.message) + ').</div></div>';
+      });
+    })
+    .catch(function(e){
+      el.innerHTML = '<div class="err">Collective investment schemes file unavailable (' +
+        esc(e.message) + '). Nothing is shown rather than a figure that was not read.</div>';
+    });
+})();
+</script>
+</body>
+</html>
