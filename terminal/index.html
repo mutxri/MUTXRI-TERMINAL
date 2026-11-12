@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261112223504';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261112230049';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -6316,17 +6316,88 @@ function runCommand(raw){
     return;
   }
   if(v === 'HELP'){
-    // The HELP panel used to print every panel code beside its internal file name.
-    // A reader does not need the file the panel is drawn from, and the code list
-    // read as a command sheet rather than a terminal. Removed on the owner's call.
-    $('rightInfo').innerHTML = ''  +
-      '<div style="padding:8px 0;color:var(--tx3)">type a ticker, a panel name, a panel code, or a ticker and a panel - e.g. MTN FINANCIALS, SCOM FIN, FINANCIAL (financials), BOND (the bond board).</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Panel windows: a panel name or code opens THAT panel in its own window, and several stay open at once, all following the same symbol. A new one is placed where it can be seen rather than on top of another, and clicking any part of a window brings it to the front. Typing its name again closes it when it is already the front window, and brings it forward instead when another window is covering it. <b style="color:var(--acc)">CLOSE FINANCIALS</b> shuts one, <b style="color:var(--acc)">TILE</b> lays the open ones out in a grid, <b style="color:var(--acc)">RESET</b> closes the extras.</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Comparing: <b style="color:var(--acc)">COMPARE SCOM EQTY</b> (also <b style="color:var(--acc)">CMP</b> or <b style="color:var(--acc)">CMPR</b>, two to four securities, or <b style="color:var(--acc)">SCOM VS EQTY</b>) sets them side by side; the code on its own opens the COMPARE panel window.</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Windows: <b style="color:var(--acc)">WATCH</b>, <b style="color:var(--acc)">PANEL</b>, <b style="color:var(--acc)">MARKET</b>, <b style="color:var(--acc)">CHAT</b> open one you closed; <b style="color:var(--acc)">WINDOWS</b> opens all four.</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Opening a panel: type its name or its code in the finder - <b style="color:var(--acc)">FINANCIAL</b> or <b style="color:var(--acc)">FIN</b> for financials, <b style="color:var(--acc)">BOND</b>, <b style="color:var(--acc)">HEATMAP</b>, <b style="color:var(--acc)">NEWS</b>, and so on; <b style="color:var(--acc)">HELP</b> explains the workspace. A panel opens in its own window and a window you closed is remembered.</div>' +
-      '<div style="padding:4px 0;color:var(--tx3)">Workspaces: the tabs in the sheet strip along the bottom of the window are saved layouts. <b style="color:var(--acc)">+</b> adds one, click to switch, double-click to rename, the x on a tab deletes it. Every window keeps its place, size and stacking, and each workspace keeps its own.</div>' +
-      '';
+    // THE COMMAND SHEET, BUILT FROM THE SHELL'S OWN TABLES. HELP used to print
+    // paragraphs about how the workspace behaves and no command at all, so a reader
+    // asking what they could type got prose. Every row here is generated from
+    // PANELS and PANEL_ALIAS, so a panel that exists is listed and one that is
+    // removed stops being listed without anyone editing this text.
+    var byId = {};
+    PANELS.forEach(function(pp){ byId[pp.id] = {label: String(pp.label || pp.id).toUpperCase(), codes: []}; });
+    Object.keys(PANEL_ALIAS).forEach(function(code){
+      var id = PANEL_ALIAS[code];
+      if(!byId[id]) return;
+      // the two or three letter forms first, then the word forms
+      byId[id].codes.push(code);
+    });
+    Object.keys(byId).forEach(function(id){
+      var rec = byId[id];
+      rec.codes = rec.codes.filter(function(c){ return c !== rec.label; });
+      rec.codes.sort(function(a, b){
+        var sa = a.length <= 4 ? 0 : 1, sb = b.length <= 4 ? 0 : 1;
+        return sa - sb || a.length - b.length || (a < b ? -1 : 1);
+      });
+      if(!rec.codes.length) rec.codes = [String(id).toUpperCase()];
+    });
+    var rows = Object.keys(byId).map(function(id){
+      var rec = byId[id];
+      return {code: rec.codes[0], alt: rec.codes.slice(1, 3).join(' '), label: rec.label, id: id};
+    }).sort(function(a, b){ return a.label < b.label ? -1 : 1; });
+
+    var H = 'padding:7px 0 3px;color:var(--acc);font-family:var(--mono);font-size:9px;' +
+            'letter-spacing:.16em;border-bottom:1px solid var(--line2);margin-top:6px';
+    var ROW = 'display:grid;grid-template-columns:74px minmax(0,1fr);gap:8px;padding:2px 0;' +
+              'font-family:var(--mono);font-size:10px;line-height:1.45';
+    var CODE = 'color:var(--acc);white-space:nowrap';
+    var LBL = 'color:var(--tx2)';
+    var ALT = 'color:var(--tx3)';
+
+    var html = '';
+    html += '<div style="padding:6px 0 2px;color:var(--tx2);font-family:var(--mono);font-size:10px">' +
+            'Type a ticker, a panel code, or a ticker and a panel: <b style="color:var(--acc)">SCOM</b>, ' +
+            '<b style="color:var(--acc)">FA</b>, <b style="color:var(--acc)">SCOM FIN</b>.</div>';
+
+    html += '<div style="' + H + '">PANELS</div>';
+    rows.forEach(function(r){
+      html += '<div style="' + ROW + '"><span style="' + CODE + '">' + r.code + '</span>' +
+              '<span style="' + LBL + '">' + r.label +
+              (r.alt ? ' <span style="' + ALT + '">' + r.alt + '</span>' : '') + '</span></div>';
+    });
+
+    var cmds = [
+      ['CLOSE <code>', 'close one panel window, e.g. CLOSE HEATMAP'],
+      ['CMP <sym> <sym>', 'compare two to four securities, also SCOM VS EQTY'],
+      ['WATCH / PANEL / MARKET / CHAT', 'open a workspace window you closed'],
+      ['WINDOWS', 'open all four workspace windows'],
+      ['TILE', 'lay the open panels out in a grid'],
+      ['RESET', 'close the extra panels, back to the default desk'],
+      ['SAVE', 'keep the layout in front of you, same as the tab control'],
+      ['HELP', 'this sheet']
+    ];
+    var STACK = 'padding:3px 0;font-family:var(--mono);font-size:10px;line-height:1.45';
+    var DESC = 'color:var(--tx3);font-size:9.5px;padding-left:10px';
+    html += '<div style="' + H + '">COMMANDS</div>';
+    cmds.forEach(function(c){
+      html += '<div style="' + STACK + '"><div style="' + CODE + '">' + c[0] + '</div>' +
+              '<div style="' + DESC + '">' + c[1] + '</div></div>';
+    });
+
+    var keys = [
+      ['TAB / SHIFT+TAB', 'cycle the open windows'],
+      ['SHIFT+ARROWS', 'move the front window'],
+      ['CTRL+SHIFT+ARROWS', 'snap it to a half of the desk'],
+      ['ALT+ARROWS', 'resize it'],
+      ['CTRL+PAGEUP / PAGEDOWN', 'bring it to the front, or send it to the back'],
+      ['ESC ESC', 'close the front window'],
+      ['CTRL+Z', 'reopen the last one closed'],
+      ['DOUBLE CLICK TITLE', 'fill the desk with that panel, again to put it back']
+    ];
+    html += '<div style="' + H + '">WINDOW KEYS</div>';
+    keys.forEach(function(c){
+      html += '<div style="' + STACK + '"><div style="' + CODE + '">' + c[0] + '</div>' +
+              '<div style="' + DESC + '">' + c[1] + '</div></div>';
+    });
+
+    $('rightInfo').innerHTML = html;
     return;
   }
   // SAVE: keep the arrangement of the workspace in front of the reader. The
