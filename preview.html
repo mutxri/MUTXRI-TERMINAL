@@ -97,7 +97,7 @@
   left out on purpose, apart from the CHART search field the owner asked for.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261112214618';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261112222624';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - PREVIEW</title>
@@ -110,9 +110,15 @@
   ::-webkit-scrollbar{width:0;height:0;display:none;}
 
   :root{
-    --bg:#000;--bg2:#070707;--bg3:#0d0d0d;--bg4:#141414;
-    --line:#161616;--line2:#242424;--tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
-    --up:#33e29a;--down:#f87171;--acc:#33e29a;--warn:#e0a340;
+    /* The same tokens the terminal carries. The desk is grey and the windows
+       are black; the grey text ramp is one step brighter than it used to be;
+       gold is the subject - the window you are looking at and its title - and
+       never carries a direction, which stays mint for up and red for down. */
+    --bg:#303030;--bg2:#0b0b0b;--bg3:#161616;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#303030;--tx:#f5f5f5;--tx2:#d2d2d2;--tx3:#a8a8a8;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--acc2:#1ecfb0;--warn:#f5c542;
+    --gold:#f5c542;--gold-line:rgba(245,197,66,.55);
+    --mint-dim:rgba(51,226,154,.10);--mint-line:rgba(51,226,154,.35);
     --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
     --rowh:26px;
   }
@@ -173,7 +179,7 @@
      WATCHLIST 370x290, HEATMAP 370x290. No uncovered pixel, no overlap: the
      tiles abut and each carries its own 1px border as the seam. */
   .grid{flex:1 1 auto;min-height:0;display:grid;padding:0;min-width:0;}
-  .grid.desk{display:grid;gap:0;padding:0;
+  .grid.desk{display:grid;gap:4px;padding:4px;
     grid-template-columns:370fr 370fr 460fr 400fr;
     grid-template-rows:330fr 250fr 290fr;
     grid-template-areas:
@@ -183,15 +189,15 @@
   .w-watch{grid-area:watch;} .w-mkt{grid-area:mkt;} .w-focus{grid-area:focus;}
   .w-cmp{grid-area:cmp;} .w-hm{grid-area:hmap;} .w-mc{grid-area:macro;}
   .w-chart{grid-area:chart;}
-  .win{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--bg);
-    border:1px solid var(--line2);border-radius:0;overflow:hidden;}
+  .win{display:flex;flex-direction:column;min-height:0;min-width:0;background:#0d0d0d;
+    border:1px solid #000;border-radius:8px;overflow:hidden;}
 
   .whead{flex:0 0 auto;display:flex;align-items:stretch;gap:0;height:27px;padding:0 5px;
-    background:#050505;border-bottom:1px solid var(--line2);min-height:26px;align-items:center;}
+    background:#1a1a1a;border-bottom:1px solid #000;min-height:26px;align-items:center;}
   .dg{align-self:center;color:var(--tx3);font-size:10px;padding:0 3px;opacity:.55;}
   .wtab{align-self:stretch;display:flex;align-items:center;font-family:var(--mono);font-size:9.5px;
-    letter-spacing:.16em;color:var(--tx);padding:0 5px;white-space:nowrap;}
-  .wtab.on{box-shadow:inset 0 -2px 0 var(--acc);}
+    letter-spacing:.16em;color:var(--gold);font-weight:700;padding:0 5px;white-space:nowrap;}
+  .wtab.on{box-shadow:inset 0 -2px 0 var(--gold);}
   .wtab i{font-style:normal;color:var(--tx3);letter-spacing:.06em;padding-left:5px;}
   .wmeta{align-self:center;margin-left:auto;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;
     color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px;}
@@ -201,7 +207,10 @@
   .card{border:1px solid var(--line2);border-radius:3px;background:var(--bg2);min-width:0;}
   .card-h{flex:0 0 auto;display:flex;align-items:baseline;justify-content:space-between;gap:10px;
     padding:7px 11px;border-bottom:1px solid var(--line);}
-  .card-h .l{font-family:var(--mono);font-size:8.5px;letter-spacing:.15em;color:var(--tx3);text-transform:uppercase;white-space:nowrap;}
+  /* the panel's own name is the subject of the screen, so it carries gold,
+     the same as .pwin-hd .pw-t does in the terminal shell */
+  .card-h .l{font-family:var(--mono);font-size:8.5px;letter-spacing:.15em;color:var(--gold);
+    font-weight:700;text-transform:uppercase;white-space:nowrap;}
   .card-h .r{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--tx2);
     min-width:0;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
