@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>GR</title>
+<style>
+:root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:12px/1.35 'Oxygen Mono',ui-monospace,monospace;height:100%}
+#wrap{display:flex;flex-direction:column;height:100%}
+.bar{display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;border-bottom:1px solid var(--line);background:#0d0d0d;flex:none}
+.bar .t{letter-spacing:.07em;text-transform:uppercase;font-size:11px}
+.sp{flex:1}
+button,input,select{font:inherit;color:var(--tx);background:#141414;border:1px solid var(--line);border-radius:2px;padding:2px 6px;font-size:11px}
+button:hover{background:#1d1d1d;cursor:pointer}
+button.on{background:var(--acc);color:#000;border-color:var(--acc)}
+input{width:96px;text-transform:uppercase}
+.body{flex:1;overflow:auto;padding:8px 10px}
+.pair{display:flex;gap:14px;align-items:center;margin-bottom:8px;font-size:11.5px}
+.pair .leg{display:flex;gap:6px;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:10px}
+.stat{background:#0b0b0b;padding:6px 8px}
+.stat .k{color:var(--tx3);font-size:10px;letter-spacing:.05em;text-transform:uppercase}
+.stat .v{font-size:15px;margin-top:2px}
+.chart{background:#070707;border:1px solid var(--line);margin-bottom:8px;padding:6px}
+.chart h4{margin:0 0 4px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);font-weight:400}
+svg{display:block;width:100%;height:170px}
+.up{color:var(--acc)}.down{color:var(--down)}.dim{color:var(--tx3)}
+.note{color:var(--tx3);font-size:10.5px;line-height:1.6}
+</style></head>
+<body><div id="wrap">
+  <div class="bar">
+    <span class="t">Ratio Analysis</span>
+    <span class="sp"></span>
+    <span id="ranges"></span>
+  </div>
+  <div class="body">
+    <div class="pair">
+      <span class="dim">BUY</span><input id="a" placeholder="ticker">
+      <span class="dim">SELL</span><input id="b" value="SPY" placeholder="ticker">
+      <button id="go">Graph</button>
+      <span class="sp" style="flex:1"></span>
+      <label class="dim"><input type="checkbox" id="corr" checked> correlation</label>
+      <input id="win" value="30" style="width:56px" title="correlation window (obs)">
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="chart"><h4>Buy / Sell ratio</h4><svg id="ratio"></svg></div>
+    <div class="chart"><h4>Correlation · rolling</h4><svg id="corrchart"></svg></div>
+    <div class="note" id="note">Pick two listings on the same exchange. Both legs must have stored history.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var qs=new URLSearchParams(location.search), EX=(qs.get('ex')||'NGX').toUpperCase();
+  var RANGES=[['1M',21],['3M',63],['6M',126],['1Y',252],['5Y',1260],['MAX',0]];
+  var ST={range:'1Y',A:null,B:null};
+  document.getElementById('ranges').innerHTML=RANGES.map(function(r){
+    return '<button data-r="'+r[0]+'" class="'+(r[0]==='1Y'?'on':'')+'" style="margin-left:4px">'+r[0]+'</button>';
+  }).join('');
+  document.getElementById('ranges').onclick=function(e){
+    if(e.target.tagName!=='BUTTON')return;
+    [].forEach.call(this.querySelectorAll('button'),function(b){b.classList.remove('on');});
+    e.target.classList.add('on'); ST.range=e.target.getAttribute('data-r'); graph();
+  };
+
+  function get(sym){
+    return fetch('/api/parity/history?symbol='+encodeURIComponent(sym)+'&ex='+EX).then(function(r){return r.json();});
+  }
+  function align(a,b){
+    var mb={}; b.forEach(function(x){ mb[x.t]=x.c; });
+    var out=[]; a.forEach(function(x){ if(mb[x.t]!=null) out.push({t:x.t,a:x.c,b:mb[x.t]}); });
+    return out;
+  }
+  function rets(rows,key){
+    var out=[]; for(var i=1;i<rows.length;i++){ var p=rows[i-1][key]; out.push(p?rows[i][key]/p-1:0); }
+    return out;
+  }
+  function corr(x,y){
+    var n=Math.min(x.length,y.length); if(n<3) return null;
+    var mx=0,my=0,i;
+    for(i=0;i<n;i++){mx+=x[i];my+=y[i];} mx/=n;my/=n;
+    var sxy=0,sxx=0,syy=0;
+    for(i=0;i<n;i++){var dx=x[i]-mx,dy=y[i]-my;sxy+=dx*dy;sxx+=dx*dx;syy+=dy*dy;}
+    return (sxx&&syy)?sxy/Math.sqrt(sxx*syy):null;
+  }
+  function ols(x,y){ // beta of y on x
+    var n=Math.min(x.length,y.length); if(n<3) return {};
+    var mx=0,my=0,i;
+    for(i=0;i<n;i++){mx+=x[i];my+=y[i];} mx/=n;my/=n;
+    var sxy=0,sxx=0,syy=0;
+    for(i=0;i<n;i++){var dx=x[i]-mx,dy=y[i]-my;sxy+=dx*dy;sxx+=dx*dx;syy+=dy*dy;}
+    var beta=sxx?sxy/sxx:null, alpha=my-(beta||0)*mx, r2=(sxx&&syy)?(sxy*sxy)/(sxx*syy):null;
+    return {beta:beta,alpha:alpha,r2:r2,n:n};
+  }
+  function path(svg,vals,w,h,color,pad){
+    if(!vals.length) return;
+    var min=Math.min.apply(null,vals),max=Math.max.apply(null,vals);
+    if(min===max){min-=1;max+=1;}
+    var dp=(Math.abs(max)<10)?4:2;                    // a ratio near 0.003 needs 4dp
+    var pts=vals.map(function(v,i){
+      var x=pad+i*(w-2*pad)/(Math.max(1,vals.length-1));
+      var y=h-pad-(v-min)/(max-min)*(h-2*pad);
+      return x.toFixed(1)+','+y.toFixed(1);
+    }).join(' ');
+    svg.innerHTML='<polyline fill="none" stroke="'+color+'" stroke-width="1.2" points="'+pts+'"/>'+
+      '<text x="'+(pad+2)+'" y="'+(h-4)+'" fill="#555" font-size="9">'+min.toFixed(dp)+'</text>'+
+      '<text x="'+(pad+2)+'" y="'+(pad+10)+'" fill="#555" font-size="9">'+max.toFixed(dp)+'</text>';
+  }
+
+  function graph(){
+    var a=document.getElementById('a').value.trim().toUpperCase();
+    var b=document.getElementById('b').value.trim().toUpperCase();
+    if(!a||!b) return;
+    document.getElementById('note').textContent='loading '+a+' vs '+b+' on '+EX+'…';
+    Promise.all([get(a),get(b)]).then(function(res){
+      var da=res[0],db=res[1];
+      var bad=[];
+      if(da.error||!da.bars) bad.push(a);
+      if(db.error||!db.bars) bad.push(b);
+      if(bad.length){
+        document.getElementById('stats').innerHTML='';
+        document.getElementById('ratio').innerHTML=''; document.getElementById('corrchart').innerHTML='';
+        document.getElementById('note').innerHTML='<b>No history for '+bad.join(' and ')+' on '+EX+'.</b><br>'+
+          'Stored OHLCV exists for JSE (.JO) and EGX (.CA) listings only, so a pair on '+EX+' cannot be aligned. Nothing is drawn rather than a fake line.';
+        return;
+      }
+      var rng=RANGES.filter(function(r){return r[0]===ST.range;})[0], n=(rng&&rng[1])?rng[1]:0;
+      var A=bars=da.bars.slice(n?-n:0), B=db.bars.slice(n?-n:0);
+      var rows=align(A,B);
+      if(rows.length<10){
+        document.getElementById('note').textContent='Only '+rows.length+' overlapping sessions between '+a+' and '+b+'.';
+        return;
+      }
+      var ratio=rows.map(function(r){return r.a/r.b;});
+      var ra=rets(rows,'a'), rb=rets(rows,'b');
+      var w=parseInt(document.getElementById('win').value,10)||30;
+      var rolling=[];
+      for(var i=w;i<=ra.length;i++){ var c=corr(ra.slice(i-w,i),rb.slice(i-w,i)); if(c!=null) rolling.push(c); }
+      var fit=ols(rb,ra);
+      var first=ratio[0],last=ratio[ratio.length-1];
+      var chg=(last/first-1)*100;
+      document.getElementById('stats').innerHTML=
+        [['Pair',a+' / '+b],['Sessions',rows.length],
+         ['Ratio now',last.toFixed(4)],
+         ['Ratio chg',(chg>0?'+':'')+chg.toFixed(2)+'%',chg>=0?'up':'down'],
+         ['Beta',fit.beta==null?'—':fit.beta.toFixed(3)],
+         ['R²',fit.r2==null?'—':fit.r2.toFixed(3)],
+         ['Alpha',fit.alpha==null?'—':(fit.alpha*100).toFixed(3)+'%'],
+         ['Corr (window)',rolling.length?rolling[rolling.length-1].toFixed(3):'—']]
+        .map(function(x){ return '<div class="stat"><div class="k">'+x[0]+'</div><div class="v '+(x[2]||'')+'">'+x[1]+'</div></div>'; }).join('');
+      path(document.getElementById('ratio'), ratio, 1000, 170, '#33e29a', 8);
+      path(document.getElementById('corrchart'), rolling, 1000, 170, '#7f9cf5', 8);
+      document.getElementById('note').textContent=da.name+' ('+da.currency+') vs '+db.name+' ('+db.currency+') · '+rows[0].t+' → '+rows[rows.length-1].t+' · beta of '+a+' returns on '+b+' returns.';
+      document.getElementById('a').value=da.sym||a; document.getElementById('b').value=db.sym||b;
+    }).catch(function(e){ document.getElementById('note').textContent='failed: '+e.message; });
+  }
+  document.getElementById('go').onclick=graph;
+  ['a','b','win'].forEach(function(id){ document.getElementById(id).onkeydown=function(e){ if(e.key==='Enter') graph(); }; });
+  document.getElementById('corr').onchange=graph;
+  var pa=qs.get('a')||qs.get('sym');
+  if(pa){ document.getElementById('a').value=pa.toUpperCase(); if(qs.get('b')) document.getElementById('b').value=qs.get('b').toUpperCase(); graph(); }
+})();
+</script></body></html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>AL</title>
+<style>
+:root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:12px/1.35 'Oxygen Mono',ui-monospace,monospace;height:100%}
+#wrap{display:flex;flex-direction:column;height:100%}
+.bar{display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;border-bottom:1px solid var(--line);background:#0d0d0d;flex:none}
+.bar .t{letter-spacing:.07em;text-transform:uppercase;font-size:11px}
+.sp{flex:1}
+button,input,select{font:inherit;color:var(--tx);background:#141414;border:1px solid var(--line);border-radius:2px;padding:2px 6px;font-size:11px}
+button:hover{background:#1d1d1d;cursor:pointer}
+button.on{background:var(--acc);color:#000;border-color:var(--acc)}
+input{width:96px;text-transform:uppercase}
+.form{display:flex;gap:6px;align-items:center;padding:8px;border-bottom:1px solid var(--line);flex-wrap:wrap;font-size:11px}
+.tw{flex:1;overflow:auto}
+table{border-collapse:collapse;width:100%;font-size:11.5px}
+th{position:sticky;top:0;background:#0d0d0d;border-bottom:1px solid #262626;color:var(--tx3);font-weight:400;text-align:right;padding:4px 8px;white-space:nowrap}
+th.l,td.l{text-align:left}
+td{border-bottom:1px solid #131313;padding:3px 8px;text-align:right;white-space:nowrap}
+tr:hover{background:#111}
+.up{color:var(--acc)}.down{color:var(--down)}.dim{color:var(--tx3)}
+.hit{color:var(--acc)}
+.foot{height:24px;display:flex;align-items:center;gap:12px;padding:0 8px;border-top:1px solid var(--line);color:var(--tx3);font-size:10.5px;flex:none}
+.x{cursor:pointer;color:#555}.x:hover{color:var(--down)}
+.empty{padding:30px 12px;color:var(--tx3);line-height:1.7}
+</style></head>
+<body><div id="wrap">
+  <div class="bar">
+    <span class="t">Alerts</span><span class="sp"></span>
+    <span class="dim" id="hint">checked every 30s against the live snapshot</span>
+    <button id="notif">Enable desktop alerts</button>
+  </div>
+  <div class="form">
+    <input id="sym" placeholder="ticker" list="syms">
+    <datalist id="syms"></datalist>
+    <select id="cond"><option value="&gt;">above</option><option value="&lt;">below</option><option value="=">crosses</option></select>
+    <input id="lvl" placeholder="level" style="width:88px">
+    <button id="add">Add alert</button>
+    <span class="sp" style="flex:1"></span>
+    <button id="clear">Clear fired</button>
+  </div>
+  <div class="tw"><table><thead><tr>
+    <th class="l">Ticker</th><th class="l">Ex</th><th class="l">Condition</th><th>Level</th><th>Last</th><th>Distance</th><th class="l">Status</th><th class="l">Set</th><th></th>
+  </tr></thead><tbody id="body"></tbody></table></div>
+  <div class="foot"><span id="cnt"></span><span class="sp" style="flex:1"></span><span id="msg"></span></div>
+</div>
+<script>
+(function(){
+  var qs=new URLSearchParams(location.search), EX0=(qs.get('ex')||'NGX').toUpperCase();
+  var KEY='mx_alerts';
+  var ST={alerts:JSON.parse(localStorage.getItem(KEY)||'[]'), prices:{}, names:{}};
+  function save(){ localStorage.setItem(KEY,JSON.stringify(ST.alerts)); }
+  function fmt(n){ if(n==null||isNaN(n))return '—'; return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+  function render(){
+    var tb=document.getElementById('body'); tb.innerHTML='';
+    if(!ST.alerts.length){
+      tb.innerHTML='<tr><td colspan="9" class="l empty">No alerts yet. Pick a ticker, a condition and a level. A fired alert stays in the list marked HIT so you can see what it caught; Clear fired removes them.</td></tr>';
+    }
+    ST.alerts.forEach(function(a,i){
+      var last=ST.prices[a.sym];
+      var cond=(a.cond==='>'?'above':(a.cond==='<'?'below':'crosses'));
+      var dist=(last!=null&&a.level)?((last-a.level)/a.level*100):null;
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td class="l">'+a.sym+'</td><td class="l dim">'+a.ex+'</td><td class="l">'+cond+'</td>'+
+        '<td>'+fmt(a.level)+'</td><td>'+fmt(last)+'</td>'+
+        '<td class="'+(dist==null?'':(dist>=0?'up':'down'))+'">'+(dist==null?'—':(dist>0?'+':'')+dist.toFixed(2)+'%')+'</td>'+
+        '<td class="l '+(a.hit?'hit':'dim')+'">'+(a.hit?('HIT '+a.hit):'armed')+'</td>'+
+        '<td class="l dim">'+(a.set||'')+'</td>'+
+        '<td class="x" data-i="'+i+'">×</td>';
+      tb.appendChild(tr);
+    });
+    document.querySelectorAll('.x').forEach(function(x){
+      x.onclick=function(){ ST.alerts.splice(parseInt(x.getAttribute('data-i'),10),1); save(); render(); };
+    });
+    document.getElementById('cnt').textContent=ST.alerts.length+' alerts · '+(ST.alerts.filter(function(a){return a.hit;}).length)+' fired';
+  }
+
+  function check(){
+    var exs={}; ST.alerts.forEach(function(a){ exs[a.ex]=1; });
+    Object.keys(exs).forEach(function(ex){
+      fetch('/api/parity/snapshot?ex='+ex).then(function(r){return r.json();}).then(function(d){
+        (d.stocks||[]).forEach(function(s){
+          var sym=s.sym||s.ticker, p=(s.price!=null?s.price:s.ltp);
+          if(p==null) return;
+          ST.prices[sym]=p;
+        });
+        ST.alerts.forEach(function(a){
+          if(a.hit) return;
+          var p=ST.prices[a.sym]; if(p==null) return;
+          var fired=(a.cond==='>'&&p>a.level)||(a.cond==='<'&&p<a.level)||(a.cond==='='&&Math.abs(p-a.level)/a.level<0.005);
+          if(fired){
+            a.hit=new Date().toLocaleTimeString();
+            save();
+            document.getElementById('msg').textContent=a.sym+' '+a.cond+' '+a.level+' — now '+fmt(p);
+            if(window.Notification && Notification.permission==='granted'){
+              new Notification('MUTXRI alert', {body:a.sym+' '+a.cond+' '+fmt(a.level)+' · last '+fmt(p)});
+            }
+          }
+        });
+        render();
+      }).catch(function(){});
+    });
+  }
+
+  document.getElementById('add').onclick=function(){
+    var sym=document.getElementById('sym').value.trim().toUpperCase();
+    var lvl=parseFloat(document.getElementById('lvl').value);
+    if(!sym||isNaN(lvl)) return;
+    var ex=EX0;
+    ST.alerts.push({sym:sym, ex:ex, cond:document.getElementById('cond').value, level:lvl,
+                    set:new Date().toISOString().slice(0,16).replace('T',' ')});
+    save(); render(); check();
+    document.getElementById('sym').value=''; document.getElementById('lvl').value='';
+  };
+  document.getElementById('clear').onclick=function(){
+    ST.alerts=ST.alerts.filter(function(a){return !a.hit;}); save(); render();
+  };
+  document.getElementById('notif').onclick=function(){
+    if(!window.Notification){ document.getElementById('msg').textContent='this browser has no Notification API'; return; }
+    Notification.requestPermission().then(function(p){ document.getElementById('msg').textContent='desktop alerts: '+p; });
+  };
+
+  fetch('/api/parity/snapshot?ex='+EX0).then(function(r){return r.json();}).then(function(d){
+    var dl=document.getElementById('syms');
+    (d.stocks||[]).slice(0,400).forEach(function(s){
+      var o=document.createElement('option'); o.value=s.sym||s.ticker; dl.appendChild(o);
+      ST.prices[s.sym||s.ticker]=(s.price!=null?s.price:s.ltp);
+    });
+    render(); check();
+    setInterval(check, 30000);
+  });
+})();
+</script></body></html>

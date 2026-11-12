@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en"><head><script>(function(){var V='20261112083717';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
+<title>HP</title>
+<style>
+:root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:12px/1.35 'Oxygen Mono',ui-monospace,monospace;height:100%}
+#wrap{display:flex;flex-direction:column;height:100%}
+.bar{display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;border-bottom:1px solid var(--line);background:#0d0d0d;flex:none}
+.bar .t{letter-spacing:.07em;text-transform:uppercase;font-size:11px}
+.sp{flex:1}
+button,input,select{font:inherit;color:var(--tx);background:#141414;border:1px solid var(--line);border-radius:2px;padding:2px 6px;font-size:11px}
+button:hover{background:#1d1d1d;cursor:pointer}
+button.on{background:var(--acc);color:#000;border-color:var(--acc)}
+#ranges{display:inline-flex;gap:4px}
+input{width:110px;text-transform:uppercase}
+.sum{display:flex;gap:16px;align-items:center;height:26px;padding:0 10px;border-bottom:1px solid var(--line);background:#080808;font-size:11px;flex:none;overflow-x:auto}
+.sum b{font-weight:400}
+.sum .k{color:var(--tx3)}
+.tw{flex:1;overflow:auto}
+table{border-collapse:collapse;width:100%;font-size:11.5px}
+thead th{position:sticky;top:0;background:#0d0d0d;border-bottom:1px solid #262626;text-align:right;padding:4px 8px;color:var(--tx3);font-weight:400;white-space:nowrap}
+thead th.l{text-align:left}
+tbody td{border-bottom:1px solid #131313;padding:3px 8px;text-align:right;white-space:nowrap}
+tbody td.l{text-align:left}
+tbody tr:hover{background:#111}
+.up{color:var(--acc)}.down{color:var(--down)}.dim{color:var(--tx3)}
+.foot{height:26px;display:flex;align-items:center;gap:10px;padding:0 8px;border-top:1px solid var(--line);color:var(--tx3);font-size:10.5px;flex:none}
+.foot button{padding:1px 8px}
+.empty{padding:40px 16px;color:var(--tx3);line-height:1.7}
+.empty b{color:var(--tx)}
+</style></head>
+<body><div id="wrap">
+  <div class="bar">
+    <span class="t">Historical Prices</span>
+    <input id="sym" placeholder="ticker" autocomplete="off">
+    <button id="go">Load</button>
+    <span class="sp"></span>
+    <span id="ranges"></span>
+    <button id="csv">CSV</button>
+  </div>
+  <div class="sum" id="sum"><span class="dim">Enter a ticker to load OHLCV history.</span></div>
+  <div class="tw"><table><thead><tr>
+    <th class="l">Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Chg %</th><th>Volume</th>
+  </tr></thead><tbody id="body"></tbody></table></div>
+  <div class="foot">
+    <button id="prev">‹</button><span id="page">—</span><button id="next">›</button>
+    <span class="sp" style="flex:1"></span><span id="src"></span>
+  </div>
+</div>
+<script>
+(function(){
+  var qs=new URLSearchParams(location.search);
+  var EX=(qs.get('ex')||'NGX').toUpperCase();
+  var ST={bars:[],all:[],page:0,per:100,range:'1Y'};
+  var RANGES=[['1M',21],['3M',63],['6M',126],['1Y',252],['5Y',1260],['MAX',0]];
+
+  document.getElementById('ranges').innerHTML=RANGES.map(function(r){
+    return '<button data-r="'+r[0]+'" class="'+(r[0]==='1Y'?'on':'')+'" style="margin-left:4px">'+r[0]+'</button>';
+  }).join('');
+  document.getElementById('ranges').onclick=function(e){
+    if(e.target.tagName!=='BUTTON') return;
+    [].forEach.call(this.querySelectorAll('button'),function(b){b.classList.remove('on');});
+    e.target.classList.add('on'); ST.range=e.target.getAttribute('data-r'); slice(); render();
+  };
+
+  function fmt(n,d){ if(n==null||isNaN(n)) return '—'; return n.toLocaleString(undefined,{minimumFractionDigits:d==null?2:d,maximumFractionDigits:d==null?2:d}); }
+  function fmtv(n){ if(n==null||isNaN(n)) return '—'; var a=Math.abs(n);
+    if(a>=1e9) return (n/1e9).toFixed(2)+'B'; if(a>=1e6) return (n/1e6).toFixed(2)+'M'; if(a>=1e3) return (n/1e3).toFixed(1)+'K'; return String(Math.round(n)); }
+
+  function slice(){
+    var r=RANGES.filter(function(x){return x[0]===ST.range;})[0];
+    var n=(r&&r[1])?r[1]:0;
+    ST.bars=n?ST.all.slice(-n):ST.all.slice();
+    ST.page=0;
+  }
+
+  function summary(){
+    var b=ST.bars;
+    if(!b.length){ document.getElementById('sum').innerHTML='<span class="dim">No bars loaded.</span>'; return; }
+    var hi=-Infinity,lo=Infinity,sum=0;
+    b.forEach(function(x){ if(x.h>hi)hi=x.h; if(x.l<lo)lo=x.l; sum+=x.c; });
+    var first=b[0].c,last=b[b.length-1].c,chg=last-first,pct=first?chg/first*100:null;
+    document.getElementById('sum').innerHTML=
+      '<span><span class="k">Days</span> <b>'+b.length+'</b></span>'+
+      '<span><span class="k">Hi</span> <b class="up">'+fmt(hi)+'</b></span>'+
+      '<span><span class="k">Lo</span> <b class="down">'+fmt(lo)+'</b></span>'+
+      '<span><span class="k">Chg</span> <b class="'+(chg>=0?'up':'down')+'">'+(chg>0?'+':'')+fmt(chg)+'</b></span>'+
+      '<span><span class="k">Chg %</span> <b class="'+(chg>=0?'up':'down')+'">'+(pct==null?'—':(pct>0?'+':'')+pct.toFixed(2)+'%')+'</b></span>'+
+      '<span><span class="k">Avg</span> <b>'+fmt(sum/b.length)+'</b></span>';
+  }
+
+  function render(){
+    var tb=document.getElementById('body'); tb.innerHTML='';
+    var b=ST.bars.slice().reverse();
+    var start=ST.page*ST.per, page=b.slice(start,start+ST.per);
+    page.forEach(function(x,i){
+      var prev=b[start+i+1];
+      var pct=(prev&&prev.c)?((x.c-prev.c)/prev.c*100):null;
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td class="l">'+x.t+'</td><td>'+fmt(x.o)+'</td><td>'+fmt(x.h)+'</td><td>'+fmt(x.l)+'</td>'+
+        '<td>'+fmt(x.c)+'</td>'+
+        '<td class="'+(pct==null?'':(pct>=0?'up':'down'))+'">'+(pct==null?'—':(pct>0?'+':'')+pct.toFixed(2)+'%')+'</td>'+
+        '<td>'+fmtv(x.v)+'</td>';
+      tb.appendChild(tr);
+    });
+    var pages=Math.max(1,Math.ceil(b.length/ST.per));
+    document.getElementById('page').textContent='page '+(ST.page+1)+' / '+pages+' · '+b.length+' bars';
+  }
+
+  function load(){
+    var s=document.getElementById('sym').value.trim().toUpperCase();
+    if(!s) return;
+    document.getElementById('sum').innerHTML='<span class="dim">loading '+s+'…</span>';
+    fetch('/api/parity/history?symbol='+encodeURIComponent(s)+'&ex='+EX).then(function(r){return r.json();}).then(function(d){
+      if(d.error||!d.bars||!d.bars.length){
+        ST.all=[];ST.bars=[];
+        document.getElementById('body').innerHTML='';
+        document.getElementById('sum').innerHTML='';
+        document.querySelector('.tw').innerHTML='<div class="empty"><b>No stored history for '+s+' on '+EX+'.</b><br>'+
+          'MUTXRI keeps OHLCV files for JSE and EGX listings; the '+EX+' feed is a single-session snapshot, so there are no bars to page through.<br>'+
+          'The panel says so rather than drawing an empty chart.<br><span class="dim">source: static_data/history · '+(d.error||'')+'</span></div>';
+        document.getElementById('page').textContent='—';
+        return;
+      }
+      ST.all=d.bars; slice(); summary(); render();
+      document.getElementById('src').textContent=(d.name||'')+' · '+(d.currency||'')+' · '+(d.source||'')+(d._source?(' · '+d._source):'');
+      document.getElementById('page').textContent='';
+      document.getElementById('sym').value=d.sym||s;
+    }).catch(function(e){ document.getElementById('sum').innerHTML='<span class="down">load failed: '+e.message+'</span>'; });
+  }
+
+  document.getElementById('go').onclick=load;
+  document.getElementById('sym').onkeydown=function(e){ if(e.key==='Enter') load(); };
+  document.getElementById('prev').onclick=function(){ if(ST.page>0){ST.page--;render();} };
+  document.getElementById('next').onclick=function(){ if((ST.page+1)*ST.per<ST.bars.length){ST.page++;render();} };
+  document.getElementById('csv').onclick=function(){
+    var lines=['date,open,high,low,close,volume'];
+    ST.bars.forEach(function(x){ lines.push([x.t,x.o,x.h,x.l,x.c,x.v].join(',')); });
+    var blob=new Blob([lines.join('\n')],{type:'text/csv'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='hp_'+document.getElementById('sym').value+'.csv'; a.click();
+  };
+
+  var pre=qs.get('sym');
+  if(pre){ document.getElementById('sym').value=pre.toUpperCase(); load(); }
+})();
+</script></body></html>

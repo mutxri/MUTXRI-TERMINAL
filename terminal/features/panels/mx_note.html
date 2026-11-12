@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>NOTE</title>
+<style>
+:root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:12px/1.35 'Oxygen Mono',ui-monospace,monospace;height:100%}
+#wrap{display:flex;flex-direction:column;height:100%}
+.bar{display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;border-bottom:1px solid var(--line);background:#0d0d0d;flex:none}
+.bar .t{letter-spacing:.07em;text-transform:uppercase;font-size:11px}
+.sp{flex:1}
+button{font:inherit;color:var(--tx);background:#141414;border:1px solid var(--line);border-radius:2px;padding:2px 6px;font-size:11px}
+button:hover{background:#1d1d1d;cursor:pointer}
+.main{flex:1;display:flex;min-height:0}
+.side{width:170px;border-right:1px solid var(--line);overflow:auto;flex:none}
+.item{padding:5px 8px;border-bottom:1px solid #141414;cursor:pointer;font-size:11px;display:flex;justify-content:space-between;gap:6px}
+.item:hover{background:#141414}
+.item.on{background:#171717;color:var(--acc)}
+.item .d{color:#555;font-size:9.5px}
+.editor{flex:1;display:flex;flex-direction:column;min-width:0}
+#txt{flex:1;background:#050505;color:var(--tx);border:0;outline:none;resize:none;padding:12px 14px;font:12.5px/1.6 'Oxygen Mono',ui-monospace,monospace}
+.foot{height:24px;display:flex;align-items:center;gap:10px;padding:0 8px;border-top:1px solid var(--line);color:var(--tx3);font-size:10.5px;flex:none}
+</style></head>
+<body><div id="wrap">
+  <div class="bar">
+    <span class="t">Notes</span>
+    <button id="new">+ new</button>
+    <span class="sp"></span>
+    <span class="dim" id="stat"></span>
+  </div>
+  <div class="main">
+    <div class="side" id="list"></div>
+    <div class="editor"><textarea id="txt" placeholder="Write the note. Autosaves as you type; kept in this browser."></textarea></div>
+  </div>
+  <div class="foot"><span id="meta"></span><span class="sp" style="flex:1"></span><span id="msg"></span></div>
+</div>
+<script>
+(function(){
+  var KEY='mx_notes';
+  var ST={notes:JSON.parse(localStorage.getItem(KEY)||'[]'), id:null, t:null};
+  if(!ST.notes.length){ ST.notes=[{id:Date.now(), title:'Note 1', body:'', at:Date.now()}]; }
+  ST.id=ST.notes[0].id;
+
+  function save(){ localStorage.setItem(KEY,JSON.stringify(ST.notes)); }
+  function cur(){ return ST.notes.filter(function(n){return n.id===ST.id;})[0]; }
+  function render(){
+    var l=document.getElementById('list'); l.innerHTML='';
+    ST.notes.forEach(function(n){
+      var d=document.createElement('div');
+      d.className='item'+(n.id===ST.id?' on':'');
+      var when=new Date(n.at||Date.now());
+      d.innerHTML='<span>'+(n.title||'untitled')+'</span><span class="d">'+(when.getMonth()+1)+'/'+when.getDate()+'</span>';
+      d.onclick=function(){ ST.id=n.id; document.getElementById('txt').value=n.body||''; render(); };
+      l.appendChild(d);
+    });
+    var c=cur();
+    if(c){ document.getElementById('txt').value=c.body||''; }
+    var chars=(c&&c.body?c.body.length:0);
+    document.getElementById('meta').textContent=(c?(c.title||'untitled'):'')+' · '+chars+' chars';
+  }
+  document.getElementById('txt').oninput=function(){
+    var c=cur(); if(!c) return;
+    c.body=this.value; c.at=Date.now();
+    if(!c.title || c.title==='Note 1'){ c.title=(this.value.split('\n')[0]||'untitled').slice(0,28); }
+    clearTimeout(ST.t);
+    ST.t=setTimeout(function(){ save(); render(); flash('saved'); }, 800);
+  };
+  document.getElementById('new').onclick=function(){
+    var n={id:Date.now(), title:'Note '+(ST.notes.length+1), body:'', at:Date.now()};
+    ST.notes.unshift(n); ST.id=n.id; save(); render(); document.getElementById('txt').focus();
+  };
+  function flash(m){ document.getElementById('msg').textContent=m; setTimeout(function(){ document.getElementById('msg').textContent=''; },1200); }
+  window.addEventListener('beforeunload', save);
+  render();
+  document.getElementById('stat').textContent='stored locally in this browser';
+})();
+</script></body></html>

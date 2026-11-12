@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261112063820';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261112083717';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -4311,6 +4311,21 @@ window.MTPanelWins = (function(){
     if(nodes[id]) nodes[id].style.zIndex = String(w.z);
     front();
   }
+  // SEND TO BACK: the window goes under every other open one, and the stack is
+  // renumbered so it cannot drift downwards forever.
+  function lower(id){
+    const w = state[id];
+    if(!w || !w.open) return;
+    let minZ = Infinity;
+    Object.keys(state).forEach(function(k){
+      const o = state[k];
+      if(o && o.open && k !== id && o.z < minZ) minZ = o.z;
+    });
+    if(minZ !== Infinity && w.z <= minZ) return;
+    w.z = (minZ === Infinity ? 1 : minZ - 1);
+    if(nodes[id]) nodes[id].style.zIndex = String(w.z);
+    front();
+  }
 
   // ---- DOM ----
   // ---- search on the window title line -------------------------------------
@@ -4913,6 +4928,8 @@ window.MTPanelWins = (function(){
       try{ if(window.MTWin && window.MTWin.syncPanels) window.MTWin.syncPanels(); }catch(e){}
       return true;
     },
+    raise: raise,
+    lower: lower,
     wsIndex: wsIndex,
     geometry: function(){
       const o = {};
@@ -9460,7 +9477,7 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       d.addEventListener('keydown', function(e){
         var owned = e.key === 'F1' || e.key === 'Escape' || e.key === 'Tab' ||
                     (e.key && e.key.indexOf('Arrow') === 0) ||
-                    ((e.ctrlKey || e.metaKey) && ['+','=','-','0','z','Z'].indexOf(e.key) !== -1);
+                    ((e.ctrlKey || e.metaKey) && ['+','=','-','0','z','Z','PageUp','PageDown'].indexOf(e.key) !== -1);
         if(!owned) return;
         try{
           parent.document.dispatchEvent(new KeyboardEvent('keydown', {
@@ -9498,9 +9515,29 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
   }
 
   function hookAllFrames(){
+    try{ addLayerButtons(); }catch(e){}
     Array.prototype.forEach.call(document.querySelectorAll('iframe'), function(f){
       hookFrame(f);
       fillSymbol(f);
+      // a press inside a pane's frame must lift that pane, which needs the frame's
+      // own mousedown events because they never reach the shell
+      if(!f.__mtLiftBound){
+        f.__mtLiftBound = true;
+        try{
+          f.contentDocument.addEventListener('mousedown', function(){
+            const host = f.closest ? f.closest('.pwin') : null;
+            if(host) liftPane(host.getAttribute('data-panelwin'));
+          }, true);
+        }catch(e){}
+        f.addEventListener('load', function(){
+          try{
+            f.contentDocument.addEventListener('mousedown', function(){
+              const host = f.closest ? f.closest('.pwin') : null;
+              if(host) liftPane(host.getAttribute('data-panelwin'));
+            }, true);
+          }catch(e){}
+        });
+      }
       if(!f.__mtHookBound){
         f.__mtHookBound = true;
         f.addEventListener('load', function(){ hookFrame(f); });
@@ -9600,6 +9637,15 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       escAt = now;
       return;
     }
+    // layering, by key, from wherever the reader is working
+    if((e.ctrlKey || e.metaKey) && (e.key === 'PageUp' || e.key === 'PageDown')){
+      var layId = currentPaneId();
+      if(layId){
+        e.preventDefault();
+        if(e.key === 'PageUp') liftPane(layId); else dropPane(layId);
+      }
+      return;
+    }
     if((e.ctrlKey || e.metaKey) && !e.shiftKey && String(e.key).toLowerCase() === 'z'){
       var rec = closeStack.pop();
       if(rec && rec.node && rec.parent && !document.body.contains(rec.node)){
@@ -9642,6 +9688,113 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
       commit();
       return;
     }
+  }, true);
+
+  /* ---- layering: bring a pane to the top, or drop it to the bottom -----------
+     A command that opens a panel already stacks it on top, but a click that lands
+     inside a panel lands in that panel's iframe, so the shell never hears it and
+     the pane you are reading can sit under another one. This makes any press in a
+     pane lift it, and gives every pane a top and a bottom control of its own. */
+  function paneOf(el){
+    while(el && el !== document){
+      if(el.classList && el.classList.contains('pwin')) return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+  function paneId(el){
+    const p = paneOf(el);
+    return p ? p.getAttribute('data-panelwin') : null;
+  }
+  function liftPane(id){
+    if(!id || !window.MTPanelWins || !window.MTPanelWins.raise) return;
+    try{ window.MTPanelWins.raise(id); }catch(e){}
+    try{ if(window.MTWin && window.MTWin.saveQuiet) window.MTWin.saveQuiet(); }catch(e){}
+  }
+  function dropPane(id){
+    if(!id || !window.MTPanelWins || !window.MTPanelWins.lower) return;
+    try{ window.MTPanelWins.lower(id); }catch(e){}
+    try{ if(window.MTWin && window.MTWin.saveQuiet) window.MTWin.saveQuiet(); }catch(e){}
+  }
+  window.mtLiftPane = liftPane;
+  window.mtDropPane = dropPane;
+
+  function currentPaneId(){
+    var ae = document.activeElement;
+    var id = ae ? paneId(ae) : null;
+    if(id) return id;
+    var frontNode = document.querySelector('.pwin.pwin-front') || document.querySelector('.pwin');
+    return frontNode ? frontNode.getAttribute('data-panelwin') : null;
+  }
+
+  // a press anywhere in the shell's own part of a pane lifts it
+  document.addEventListener('mousedown', function(e){
+    const id = paneId(e.target);
+    if(id) liftPane(id);
+  }, true);
+
+  // the layer body carries two controls: raise to top, send to bottom
+  function addLayerButtons(){
+    Array.prototype.forEach.call(document.querySelectorAll('.pwin'), function(win){
+      const hd = win.querySelector('.pwin-hd');
+      if(!hd || hd.querySelector('.pw-lay')) return;
+      const id = win.getAttribute('data-panelwin');
+      const mk = function(sym, title, fn){
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'pw-lay';
+        b.textContent = sym;
+        b.title = title;
+        b.addEventListener('mousedown', function(ev){ ev.stopPropagation(); });
+        b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn(id); });
+        return b;
+      };
+      const up = mk('\u25B2', 'bring this pane to the top', liftPane);
+      const dn = mk('\u25BC', 'send this pane to the bottom', dropPane);
+      hd.appendChild(up);
+      hd.appendChild(dn);
+    });
+  }
+  try{
+    const st = document.createElement('style');
+    st.textContent = '.pw-lay{background:transparent;border:0;color:#9aa8a1;font-size:7px;line-height:1;' +
+                     'padding:0 2px;cursor:pointer;font-family:inherit}' +
+                     '.pw-lay:hover{color:#33e29a}';
+    document.head.appendChild(st);
+  }catch(e){}
+
+  /* ---- focus a pane: one window on the whole desk, and back again -----------
+     Double clicking a pane's title line gives it the desk; double clicking again
+     puts it back exactly where it was. The size is remembered per pane in memory
+     only, so a reload comes back to the layout that was saved. */
+  var savedBox = {};
+  function focusPane(id){
+    if(!id || !window.MTPanelWins || !window.MTPanelWins.placeGeometry) return;
+    var layer = document.getElementById('pwLayer') || document.querySelector('.pwlayer');
+    if(!layer) return;
+    var geo = window.MTPanelWins.geometry ? window.MTPanelWins.geometry()[id] : null;
+    if(!geo) return;
+    var b = layer.getBoundingClientRect(), gap = 1;
+    if(savedBox[id]){
+      var keep = savedBox[id];
+      delete savedBox[id];
+      window.MTPanelWins.placeGeometry(id, keep);
+    }else{
+      savedBox[id] = {x: geo.x, y: geo.y, w: geo.w, h: geo.h};
+      window.MTPanelWins.placeGeometry(id, {x: gap, y: gap,
+        w: Math.round(b.width) - gap * 2, h: Math.round(b.height) - gap * 2});
+    }
+    liftPane(id);
+    try{ if(window.MTWin && window.MTWin.saveQuiet) window.MTWin.saveQuiet(); }catch(e){}
+  }
+  window.mtFocusPane = focusPane;
+
+  document.addEventListener('dblclick', function(e){
+    var hd = e.target && e.target.closest ? e.target.closest('.pwin-hd') : null;
+    if(!hd) return;
+    if(e.target.classList && e.target.classList.contains('pw-q')) return;
+    var host = hd.closest('.pwin');
+    if(host){ e.preventDefault(); focusPane(host.getAttribute('data-panelwin')); }
   }, true);
 
   /* ---- tiling: one deterministic grid over the desk -------------------------

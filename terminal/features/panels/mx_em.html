@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>EM</title>
+<style>
+:root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:12px/1.35 'Oxygen Mono',ui-monospace,monospace;height:100%}
+#wrap{display:flex;flex-direction:column;height:100%}
+.bar{display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;border-bottom:1px solid var(--line);background:#0d0d0d;flex:none}
+.bar .t{letter-spacing:.07em;text-transform:uppercase;font-size:11px}
+.sp{flex:1}
+button,input,select{font:inherit;color:var(--tx);background:#141414;border:1px solid var(--line);border-radius:2px;padding:2px 6px;font-size:11px}
+button:hover{background:#1d1d1d;cursor:pointer}
+button.on{background:var(--acc);color:#000;border-color:var(--acc)}
+input{width:110px;text-transform:uppercase}
+.body{flex:1;overflow:auto;padding:8px 10px;max-width:1180px}
+.ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:11px}
+.ctl .grp{display:flex;gap:0;border:1px solid var(--line);border-radius:2px;overflow:hidden}
+.ctl .grp button{border:0;border-radius:0;background:transparent}
+.ctl .grp button.on{background:var(--acc);color:#000}
+h4{margin:10px 0 4px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);font-weight:400}
+table{border-collapse:collapse;width:auto;min-width:560px;font-size:11.5px;margin-bottom:6px}
+th,td{border-bottom:1px solid #141414;padding:3px 8px;text-align:right;white-space:nowrap}
+th{color:var(--tx3);font-weight:400;border-bottom:1px solid #262626}
+th.l,td.l{text-align:left}
+td.est{color:#9a9a9a}
+tbody tr:hover{background:#101010}
+.up{color:var(--acc)}.down{color:var(--down)}.dim{color:var(--tx3)}
+.empty{color:var(--tx3);line-height:1.7;padding:24px 4px}
+.empty b{color:var(--tx)}
+.legend{font-size:10px;color:var(--tx3);margin:2px 0 10px}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px}
+</style></head>
+<body><div id="wrap">
+  <div class="bar">
+    <span class="t">Earnings Matrix</span>
+    <input id="sym" placeholder="ticker" autocomplete="off">
+    <button id="go">Load</button>
+    <span class="sp"></span>
+    <span id="ccy" class="dim"></span>
+  </div>
+  <div class="body">
+    <div class="ctl">
+      <div class="grp" id="mode">
+        <button data-g="val" class="on">Values</button>
+        <button data-g="yoy">YoY % Growth</button>
+      </div>
+      <span class="dim" id="unitlbl"></span>
+    </div>
+    <div id="out"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var qs=new URLSearchParams(location.search), EX=(qs.get('ex')||'JSE').toUpperCase();
+  var ST={rec:null,metric:'revenue',mode:'val'};
+
+  var FIELDS={
+    revenue:['Total Revenue','Operating Revenue','Revenue'],
+    gross:['Gross Profit'],
+    ebitda:['EBITDA','Normalized EBITDA'],
+    net:['Net Income','Net Income Common Stockholders','Net Income From Continuing Operation Net Minority Interest'],
+    eps:['Diluted EPS','Basic EPS'],
+    margin:null
+  };
+  function pick(obj,names){
+    for(var i=0;i<names.length;i++){ if(obj[names[i]]!=null) return obj[names[i]]; }
+    return null;
+  }
+  function fmt(n,isEps){
+    if(n==null||isNaN(n)) return '—';
+    var a=Math.abs(n);
+    if(isEps) return n.toFixed(2);
+    if(a>=1e12) return (n/1e12).toFixed(2)+'T';
+    if(a>=1e9) return (n/1e9).toFixed(2)+'B';
+    if(a>=1e6) return (n/1e6).toFixed(2)+'M';
+    if(a>=1e3) return (n/1e3).toFixed(1)+'K';
+    return n.toFixed(0);
+  }
+
+  function series(){
+    var inc=ST.rec.income||{};
+    var years=Object.keys(inc).filter(function(y){return /^\d{4}$/.test(y);}).sort();
+    return {years:years,inc:inc};
+  }
+  function valueFor(y,metric){
+    var d=ST.rec.income[y]||{};
+    if(metric==='margin'){
+      var ni=pick(d,FIELDS.net), rev=pick(d,FIELDS.revenue);
+      return (ni!=null&&rev)?ni/rev*100:null;
+    }
+    return pick(d,FIELDS[metric]||[metric]);
+  }
+
+  var ROWS=[
+    {k:'revenue', label:'Revenue'},
+    {k:'gross',   label:'Gross profit'},
+    {k:'ebitda',  label:'EBITDA'},
+    {k:'net',     label:'Net income'},
+    {k:'eps',     label:'EPS (diluted)', eps:1},
+    {k:'margin',  label:'Net margin', pct:1}
+  ];
+
+  function filingsBlock(list){
+    var h='<h4>Filed documents · live index</h4><table><thead><tr><th class="l">Filed</th><th class="l">Document</th><th class="l">Source</th></tr></thead><tbody>';
+    list.slice(0,12).forEach(function(f){
+      var u=f.url||'#';
+      h+='<tr><td class="l dim">'+(f.date||'')+'</td>'+
+         '<td class="l"><a href="'+u+'" target="_blank" rel="noopener" style="color:#33e29a;text-decoration:none">'+((f.title||'document').slice(0,110))+'</a></td>'+
+         '<td class="l dim">'+((f.verified_http_status||f.source||'')+'')+'</td></tr>';
+    });
+    return h+'</tbody></table>';
+  }
+
+  function draw(){
+    var out=document.getElementById('out');
+    if(!ST.rec){ out.innerHTML=''; return; }
+    var s=series(), years=s.years;
+    if(!years.length){
+      var f=ST.rec.filings||[];
+      if(f.length){
+        out.innerHTML='<div class="empty"><b>Statements are not parsed for this listing, but the filing index has '+f.length+' document'+(f.length===1?'':'s')+'.</b><br>Links open the filed PDF at the exchange.</div>'+filingsBlock(f);
+      } else {
+        out.innerHTML='<div class="empty"><b>No annual income statements filed for this listing.</b><br>The financials store has an entry, but no fiscal-year income rows to lay out.</div>';
+      }
+      return;
+    }
+    var sym=(document.getElementById('sym').value||'').toUpperCase();
+    document.getElementById('unitlbl').textContent=ST.mode==='yoy'?'year over year':'native currency, as filed';
+
+    var h='<h4>'+sym+' · income statement matrix</h4>';
+    h+='<table><thead><tr><th class="l">Metric</th>'+years.map(function(y){return '<th>FY '+y+'</th>';}).join('')+'</tr></thead><tbody>';
+    ROWS.forEach(function(row){
+      var vals=years.map(function(y){ return valueFor(y,row.k); });
+      h+='<tr><td class="l">'+row.label+'</td>';
+      vals.forEach(function(v,i){
+        if(ST.mode==='yoy'){
+          var prev=vals[i-1];
+          var g=(prev!=null&&v!=null&&prev!==0)?(v/prev-1)*100:null;
+          h+='<td class="'+(g==null?'dim':(g>=0?'up':'down'))+'">'+(g==null?'—':(g>0?'+':'')+g.toFixed(1)+'%')+'</td>';
+        } else {
+          var txt=(v==null?'—':(row.pct?v.toFixed(1)+'%':fmt(v,row.eps)));
+          h+='<td class="'+(v==null?'dim':'')+'">'+txt+'</td>';
+        }
+      });
+      h+='</tr>';
+    });
+    h+='</tbody></table>';
+
+    // multiples from the latest year + market cap
+    var last=years[years.length-1];
+    var ni=valueFor(last,'net'), rev=valueFor(last,'revenue'), eps=valueFor(last,'eps');
+    var cap=ST.rec.marketCap||null;
+    var rows=[
+      ['Market cap', fmt(cap)],
+      ['P/E (last FY)', (cap&&ni&&ni>0)?(cap/ni).toFixed(1)+'x':'—'],
+      ['P/S (last FY)', (cap&&rev&&rev>0)?(cap/rev).toFixed(1)+'x':'—'],
+      ['EPS (last FY)', eps==null?'—':eps.toFixed(2)],
+      ['Net margin (last FY)', (ni!=null&&rev)?(ni/rev*100).toFixed(1)+'%':'—'],
+      ['Fiscal years on file', years.length]
+    ];
+    h+='<div class="cols2"><div><h4>Multiples · FY '+last+'</h4><table><tbody>'+
+       rows.map(function(r){ return '<tr><td class="l">'+r[0]+'</td><td>'+r[1]+'</td></tr>'; }).join('')+'</tbody></table></div>'+
+       '<div><h4>Coverage</h4><table><tbody>'+
+         '<tr><td class="l">Currency</td><td>'+(ST.rec.currency||'—')+'</td></tr>'+
+         '<tr><td class="l">Shares outstanding</td><td>'+(ST.rec.sharesOutstanding?fmt(ST.rec.sharesOutstanding):'—')+'</td></tr>'+
+         '<tr><td class="l">First year</td><td>'+years[0]+'</td></tr>'+
+         '<tr><td class="l">Last year</td><td>'+last+'</td></tr>'+
+       '</tbody></table></div></div>';
+    if((ST.rec.filings||[]).length) h+=filingsBlock(ST.rec.filings);
+    h+='<div class="legend">Annual statements only: the store carries fiscal-year income rows, not quarterly consensus, so there is no estimate column to compare against. A dash is a year the filing does not cover.</div>';
+    out.innerHTML=h;
+  }
+
+  function load(){
+    var s=document.getElementById('sym').value.trim().toUpperCase();
+    if(!s) return;
+    document.getElementById('out').innerHTML='<div class="empty">loading '+s+'…</div>';
+    fetch('/api/parity/financials?symbol='+encodeURIComponent(s)+'&ex='+EX).then(function(r){return r.json();}).then(function(d){
+      if(d.error || (!d.income && !((d.filings||[]).length))){
+        ST.rec=null;
+        document.getElementById('out').innerHTML='<div class="empty"><b>No financials on file for '+s+'.</b><br>'+
+          'The statement store carries '+EX+' income data for the listings it has scraped; this one is not in it.<br>'+
+          '<span class="dim">'+(d.error||'')+'</span></div>';
+        return;
+      }
+      ST.rec=d;
+      document.getElementById('ccy').textContent=(d.name||'')+' · '+(d.currency||'');
+      draw();
+    }).catch(function(e){ document.getElementById('out').innerHTML='<div class="empty down">load failed: '+e.message+'</div>'; });
+  }
+
+  document.getElementById('go').onclick=load;
+  document.getElementById('sym').onkeydown=function(e){ if(e.key==='Enter') load(); };
+  document.getElementById('mode').onclick=function(e){
+    if(e.target.tagName!=='BUTTON')return;
+    [].forEach.call(this.children,function(b){b.classList.remove('on');});
+    e.target.classList.add('on'); ST.mode=e.target.getAttribute('data-g'); draw();
+  };
+  var pre=qs.get('sym');
+  if(pre){ document.getElementById('sym').value=pre.toUpperCase(); load(); }
+})();
+</script></body></html>

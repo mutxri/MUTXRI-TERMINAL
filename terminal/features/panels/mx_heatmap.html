@@ -7,7 +7,7 @@
      Never renders invented rows.
      LIVE DATA appears only when wired to the bundled Python server (see README). -->
 <html lang="en">
-<head><script>(function(){var V='20261112063820';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261112083717';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - Heatmap</title>
@@ -44,7 +44,6 @@
   .hm-right{display:flex;align-items:center;gap:12px;margin-left:auto;}
   .hm-status{font-family:var(--mono);font-size:10px;color:var(--tx3);display:flex;align-items:center;gap:5px;}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--tx3);display:inline-block;}
-  .dot.eod{background:#e0a340;box-shadow:0 0 6px #e0a340}
   .dot.live{background:var(--up);box-shadow:0 0 6px rgba(51,226,154,.7);animation:pulse 1.6s infinite;}
   .dot.sample{background:#e0a340;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
@@ -242,7 +241,7 @@
 </div>
 <script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <!-- drawing tools + indicator maths for the candlestick chart (shared module) -->
-<script src="../../static_data/mx_chart_tools.js?v=20261112063820"></script>
+<script src="../../static_data/mx_chart_tools.js?v=20261112083717"></script>
 <script>
 // The deploy ships static_data/ (which carries mx_chart_tools.js) but a fresh
 // checkout has not copied it there yet, so fall back to the tracked source that
@@ -250,8 +249,8 @@
 // promise of tools it cannot deliver and says so on the indicator line.
 if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/script>'); }
 </script>
-<script src="../../static_data/nse_heatmap_charts.js?v=20261112063820"></script>
-<script src="../../static_data/nse_ir_adapter.js?v=20261112063820"></script>
+<script src="../../static_data/nse_heatmap_charts.js?v=20261112083717"></script>
+<script src="../../static_data/nse_ir_adapter.js?v=20261112083717"></script>
 <script>
 (function(){
   "use strict";
@@ -268,7 +267,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   var ENDPOINT=API_BASE+"/api/heatmap";
   var EXCHANGES=["JSE","EGX","NGX","NSE"];
   var EOD_MARKETS={NGX:true,NSE:true};
-  var POLL_MS=15000, snapAsOf="";
+  var POLL_MS=15000;
   var CLAMP=4.0;
   var activeEx="JSE";
   // honor ?ex= deep-link from the terminal (landing exchange dropdown)
@@ -540,7 +539,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   // THAT (a dated snapshot, labelled as such) and never the SAMPLE treemap.
   // Only if both sources fail does the canvas go to an honest empty state.
   function load(){
-    fetch('../../static_data/heatmap_' + activeEx + '.json')
+    fetch(ENDPOINT+"?exchange="+encodeURIComponent(activeEx))
       .then(function(r){if(!r.ok)throw 0;return r.json();})
       .then(function(d){
         var rows;
@@ -572,7 +571,7 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     canvas.appendChild(m);
     setStatus("none");
   }
-  function startPolling(){/* static build: the snapshot changes only on deploy, but the first draw can land before the panel has its final width - redraw once layout settles */ setTimeout(load,300); setTimeout(load,1200);}
+  function startPolling(){if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(load,POLL_MS);}
   function tabs(){
     // exchange selector removed - the panel follows the terminal's ?ex=
     // (heatmap and screener always show the same exchange)
