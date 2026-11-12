@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261112172302';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261112181859';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -7144,19 +7144,30 @@ function mkSvgLine(pts){
   var d = pts.map(function(p, i){
     return (i ? 'L' : 'M') + (Math.round(sx(i)*10)/10) + ' ' + (Math.round(sy(p.close)*10)/10);
   }).join(' ');
+  // AREA, not a bare line: the same close series, filled to the baseline, so the
+  // panel reads as a price area the way the MARKET window is asked to.
+  var area = d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z';
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" ' +
          'aria-label="Price history for the selected security">' +
+         '<defs><linearGradient id="mkAreaFill" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0%" stop-color="#33e29a" stop-opacity="0.30"/>' +
+         '<stop offset="100%" stop-color="#33e29a" stop-opacity="0"/></linearGradient></defs>' +
+         '<path d="' + area + '" fill="url(#mkAreaFill)" stroke="none"></path>' +
          '<path d="' + d + '" fill="none" stroke="#33e29a" stroke-width="1.5" ' +
          'vector-effect="non-scaling-stroke" stroke-linejoin="round"></path></svg>';
 }
 function mkChart(box, bars){
   var mapped = [];
+  var areaPts = [];
   bars.forEach(function(b){
     var o = mkNum(b.o), h = mkNum(b.h), l = mkNum(b.l), c = mkNum(b.c);
-    // a bar missing any of its four prices is not drawn: a candle built out of a
+    // a bar missing any of its four prices is not drawn: a bar built out of a
     // missing open is an invented bar
     if(o === null || h === null || l === null || c === null) return;
     mapped.push({time: String(b.t), open: o, high: h, low: l, close: c});
+    // the MARKET window draws the close as an area, so the series it plots is the
+    // close itself rather than four prices per bar
+    areaPts.push({time: String(b.t), value: c});
   });
   MT_MK.drawn = mapped.length;
   if(!mapped.length){
@@ -7179,15 +7190,17 @@ function mkChart(box, bars){
         width: w, height: hgt
       });
       var opts = {
-        upColor:'#33e29a', downColor:'#f87171', borderUpColor:'#33e29a', borderDownColor:'#f87171',
-        wickUpColor:'#33e29a', wickDownColor:'#f87171',
-        priceLineVisible:true, priceLineColor:'#33e29a', priceLineWidth:1, priceLineStyle:2
+        lineColor:'#33e29a', lineWidth:2,
+        topColor:'rgba(51,226,154,.30)', bottomColor:'rgba(51,226,154,0)',
+        priceLineVisible:true, priceLineColor:'#33e29a', priceLineWidth:1, priceLineStyle:2,
+        crosshairMarkerVisible:true, crosshairMarkerRadius:2,
+        crosshairMarkerBorderColor:'#33e29a', crosshairMarkerBackgroundColor:'#0d0d0d'
       };
       var s = null;
-      if(typeof MT_MK.chart.addCandlestickSeries === 'function'){ s = MT_MK.chart.addCandlestickSeries(opts); }
-      else if(LC.CandlestickSeries){ s = MT_MK.chart.addSeries(LC.CandlestickSeries, opts); }
+      if(typeof MT_MK.chart.addAreaSeries === 'function'){ s = MT_MK.chart.addAreaSeries(opts); }
+      else if(LC.AreaSeries){ s = MT_MK.chart.addSeries(LC.AreaSeries, opts); }
       if(s && typeof s.setData === 'function'){
-        s.setData(mapped);
+        s.setData(areaPts);
         MT_MK.chart.timeScale().fitContent();
         return true;
       }
