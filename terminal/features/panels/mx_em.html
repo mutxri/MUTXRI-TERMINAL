@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en"><head><script>(function(){var V='20261113061852';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
 <title>EM</title>
 <style>
 :root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
@@ -51,6 +51,80 @@ tbody tr:hover{background:#101010}
   </div>
 </div>
 <script>
+
+/* ---- where this panel's data comes from --------------------------------
+   Built against serve_local.py, the development host that serves
+   /api/parity/* out of the same static files the site ships. The DEPLOYED
+   terminal has no such route: the call 404s to an HTML page, and a panel that
+   only knew how to call it printed a JSON parse error where its table should
+   be. Every read now goes through here. The parity route is tried first and
+   used when it answers with JSON; otherwise the same answer is assembled in
+   the browser out of static_data, which is what the deployed site serves. The
+   panel therefore works in the terminal, on the development host and straight
+   from the repo, and MX_SRC records which source answered. */
+var MX_SRC = '';
+function mxJSON(u){
+  return fetch(u, {cache:'no-store'}).then(function(r){
+    var nm = u.split('?')[0].split('/').pop();
+    if(!r.ok) throw new Error(nm + ' ' + r.status);
+    var ct = (r.headers.get('content-type') || '').toLowerCase();
+    if(ct.indexOf('json') < 0) throw new Error(nm + ' did not answer with JSON');
+    return r.json();
+  });
+}
+function mxFirst(urls){
+  var i = -1, last = null;
+  function next(e){
+    if(e) last = e;
+    i++;
+    if(i >= urls.length) throw (last || new Error('no file to read'));
+    return mxJSON(urls[i]).catch(next);
+  }
+  return Promise.resolve().then(function(){ return next(null); });
+}
+function mxFinancials(sym, ex){
+  var s = String(sym || '').toUpperCase().trim();
+  return mxJSON('/api/parity/financials?symbol=' + encodeURIComponent(s) + '&ex=' + encodeURIComponent(ex || ''))
+    .then(function(d){ MX_SRC = 'parity api'; return d; })
+    .catch(function(){
+      /* the shipped statement store: one file per company per statement, with
+         a period list and a row per line item. It is turned into the year map
+         this panel reads, and nothing is computed on the way: a value is the
+         value the filing column carries, under the label the store gives it. */
+      var base = '../../static_data/financials/', stem = s.split('.')[0], c = [];
+      [s, stem].forEach(function(k){
+        var u = base + k + '__income.json';
+        if(k && c.indexOf(u) < 0) c.push(u);
+      });
+      return mxFirst(c).then(function(f){
+        var inc = {}, per = f.periods || [], rows = f.rows || [];
+        per.forEach(function(p, i){
+          var y = (String(p).match(/(\d{4})/) || [])[1];
+          if(!y) return;
+          var o = inc[y] || (inc[y] = {});
+          rows.forEach(function(r){
+            var v = (r.values || [])[i];
+            if(r.label && v !== null && v !== undefined) o[r.label] = v;
+          });
+        });
+        var rec = {sym:s, name:f.name || f.ticker || s, currency:f.currency || '',
+                   income:inc, _source:'static statement store', period:f.period || '',
+                   asOf:f.asOf || ''};
+        return mxJSON('../../static_data/financials_index.json').then(function(idx){
+          var e = idx[stem] || idx[s] || null;
+          if(e){
+            rec.name = rec.name || e.name;
+            rec.currency = rec.currency || e.currency;
+            rec.marketCap = e.marketCap;
+            rec.filings = e.filings || [];
+            rec.exchange = e.exchange;
+          }
+          MX_SRC = 'static statement store';
+          return rec;
+        }).catch(function(){ MX_SRC = 'static statement store'; return rec; });
+      });
+    });
+}
 (function(){
   var qs=new URLSearchParams(location.search), EX=(qs.get('ex')||'JSE').toUpperCase();
   var ST={rec:null,metric:'revenue',mode:'val'};
@@ -176,7 +250,7 @@ tbody tr:hover{background:#101010}
     var s=document.getElementById('sym').value.trim().toUpperCase();
     if(!s) return;
     document.getElementById('out').innerHTML='<div class="empty">loading '+s+'…</div>';
-    fetch('/api/parity/financials?symbol='+encodeURIComponent(s)+'&ex='+EX).then(function(r){return r.json();}).then(function(d){
+    mxFinancials(s, EX).then(function(d){
       if(d.error || (!d.income && !((d.filings||[]).length))){
         ST.rec=null;
         document.getElementById('out').innerHTML='<div class="empty"><b>No financials on file for '+s+'.</b><br>'+

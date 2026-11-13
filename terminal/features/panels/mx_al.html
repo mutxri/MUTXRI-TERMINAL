@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en"><head><script>(function(){var V='20261113061852';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
 <title>AL</title>
 <style>
 :root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
@@ -47,6 +47,53 @@ tr:hover{background:#111}
   <div class="foot"><span id="cnt"></span><span class="sp" style="flex:1"></span><span id="msg"></span></div>
 </div>
 <script>
+
+/* ---- where this panel's data comes from --------------------------------
+   Built against serve_local.py, the development host that serves
+   /api/parity/* out of the same static files the site ships. The DEPLOYED
+   terminal has no such route: the call 404s to an HTML page, and a panel that
+   only knew how to call it printed a JSON parse error where its table should
+   be. Every read now goes through here. The parity route is tried first and
+   used when it answers with JSON; otherwise the same answer is assembled in
+   the browser out of static_data, which is what the deployed site serves. The
+   panel therefore works in the terminal, on the development host and straight
+   from the repo, and MX_SRC records which source answered. */
+var MX_SRC = '';
+function mxJSON(u){
+  return fetch(u, {cache:'no-store'}).then(function(r){
+    var nm = u.split('?')[0].split('/').pop();
+    if(!r.ok) throw new Error(nm + ' ' + r.status);
+    var ct = (r.headers.get('content-type') || '').toLowerCase();
+    if(ct.indexOf('json') < 0) throw new Error(nm + ' did not answer with JSON');
+    return r.json();
+  });
+}
+function mxFirst(urls){
+  var i = -1, last = null;
+  function next(e){
+    if(e) last = e;
+    i++;
+    if(i >= urls.length) throw (last || new Error('no file to read'));
+    return mxJSON(urls[i]).catch(next);
+  }
+  return Promise.resolve().then(function(){ return next(null); });
+}
+function mxSnapshot(ex){
+  ex = String(ex || 'NSE').toUpperCase();
+  return mxJSON('/api/parity/snapshot?ex=' + encodeURIComponent(ex))
+    .then(function(d){ MX_SRC = 'parity api'; return d; })
+    .catch(function(){
+      return mxFirst(['../../static_data/market_' + ex + '.json',
+                      '../../static_data/heatmap_' + ex + '.json'])
+        .then(function(d){
+          d.stocks = d.stocks || [];
+          d.count = d.stocks.length;
+          d.exchange = d.exchange || ex;
+          MX_SRC = 'static snapshot';
+          return d;
+        });
+    });
+}
 (function(){
   var qs=new URLSearchParams(location.search), EX0=(qs.get('ex')||'NGX').toUpperCase();
   var KEY='mx_alerts';
@@ -81,7 +128,7 @@ tr:hover{background:#111}
   function check(){
     var exs={}; ST.alerts.forEach(function(a){ exs[a.ex]=1; });
     Object.keys(exs).forEach(function(ex){
-      fetch('/api/parity/snapshot?ex='+ex).then(function(r){return r.json();}).then(function(d){
+      mxSnapshot(ex).then(function(d){
         (d.stocks||[]).forEach(function(s){
           var sym=s.sym||s.ticker, p=(s.price!=null?s.price:s.ltp);
           if(p==null) return;
@@ -123,7 +170,7 @@ tr:hover{background:#111}
     Notification.requestPermission().then(function(p){ document.getElementById('msg').textContent='desktop alerts: '+p; });
   };
 
-  fetch('/api/parity/snapshot?ex='+EX0).then(function(r){return r.json();}).then(function(d){
+  mxSnapshot(EX0).then(function(d){
     var dl=document.getElementById('syms');
     (d.stocks||[]).slice(0,400).forEach(function(s){
       var o=document.createElement('option'); o.value=s.sym||s.ticker; dl.appendChild(o);

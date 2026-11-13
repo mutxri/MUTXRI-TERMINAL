@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en"><head><script>(function(){var V='20261113061852';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
 <title>GR</title>
 <style>
 :root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
@@ -35,7 +35,7 @@ svg{display:block;width:100%;height:170px}
   <div class="body">
     <div class="pair">
       <span class="dim">BUY</span><input id="a" placeholder="ticker">
-      <span class="dim">SELL</span><input id="b" value="SPY" placeholder="ticker">
+      <span class="dim">SELL</span><input id="b" placeholder="second ticker, same board">
       <button id="go">Graph</button>
       <span class="sp" style="flex:1"></span>
       <label class="dim"><input type="checkbox" id="corr" checked> correlation</label>
@@ -48,6 +48,54 @@ svg{display:block;width:100%;height:170px}
   </div>
 </div>
 <script>
+
+/* ---- where this panel's data comes from --------------------------------
+   Built against serve_local.py, the development host that serves
+   /api/parity/* out of the same static files the site ships. The DEPLOYED
+   terminal has no such route: the call 404s to an HTML page, and a panel that
+   only knew how to call it printed a JSON parse error where its table should
+   be. Every read now goes through here. The parity route is tried first and
+   used when it answers with JSON; otherwise the same answer is assembled in
+   the browser out of static_data, which is what the deployed site serves. The
+   panel therefore works in the terminal, on the development host and straight
+   from the repo, and MX_SRC records which source answered. */
+var MX_SRC = '';
+function mxJSON(u){
+  return fetch(u, {cache:'no-store'}).then(function(r){
+    var nm = u.split('?')[0].split('/').pop();
+    if(!r.ok) throw new Error(nm + ' ' + r.status);
+    var ct = (r.headers.get('content-type') || '').toLowerCase();
+    if(ct.indexOf('json') < 0) throw new Error(nm + ' did not answer with JSON');
+    return r.json();
+  });
+}
+function mxFirst(urls){
+  var i = -1, last = null;
+  function next(e){
+    if(e) last = e;
+    i++;
+    if(i >= urls.length) throw (last || new Error('no file to read'));
+    return mxJSON(urls[i]).catch(next);
+  }
+  return Promise.resolve().then(function(){ return next(null); });
+}
+function mxHistory(sym, ex){
+  var s = String(sym || '').toUpperCase().trim();
+  ex = String(ex || '').toUpperCase();
+  return mxJSON('/api/parity/history?symbol=' + encodeURIComponent(s) + '&ex=' + encodeURIComponent(ex))
+    .then(function(d){ MX_SRC = 'parity api'; return d; })
+    .catch(function(){
+      /* history files are named by board and ticker on the two boards that
+         need the prefix, and by the symbol itself on the two that do not, so
+         the candidates are tried in order and the first that reads wins */
+      var base = '../../static_data/history/', stem = s.split('.')[0], c = [];
+      [ex + '_' + s, s, ex + '_' + stem, stem].forEach(function(k){
+        var u = base + k + '.json';
+        if(k && c.indexOf(u) < 0) c.push(u);
+      });
+      return mxFirst(c).then(function(d){ MX_SRC = 'static history'; return d; });
+    });
+}
 (function(){
   var qs=new URLSearchParams(location.search), EX=(qs.get('ex')||'NGX').toUpperCase();
   var RANGES=[['1M',21],['3M',63],['6M',126],['1Y',252],['5Y',1260],['MAX',0]];
@@ -62,7 +110,7 @@ svg{display:block;width:100%;height:170px}
   };
 
   function get(sym){
-    return fetch('/api/parity/history?symbol='+encodeURIComponent(sym)+'&ex='+EX).then(function(r){return r.json();});
+    return mxHistory(sym, EX);
   }
   function align(a,b){
     var mb={}; b.forEach(function(x){ mb[x.t]=x.c; });
@@ -148,14 +196,33 @@ svg{display:block;width:100%;height:170px}
         .map(function(x){ return '<div class="stat"><div class="k">'+x[0]+'</div><div class="v '+(x[2]||'')+'">'+x[1]+'</div></div>'; }).join('');
       path(document.getElementById('ratio'), ratio, 1000, 170, '#33e29a', 8);
       path(document.getElementById('corrchart'), rolling, 1000, 170, '#7f9cf5', 8);
-      document.getElementById('note').textContent=da.name+' ('+da.currency+') vs '+db.name+' ('+db.currency+') · '+rows[0].t+' → '+rows[rows.length-1].t+' · beta of '+a+' returns on '+b+' returns.';
+      document.getElementById('note').textContent=(da.name||da.sym||a)+' ('+(da.currency||'')+') vs '+(db.name||db.sym||b)+' ('+(db.currency||'')+') · '+rows[0].t+' → '+rows[rows.length-1].t+' · beta of '+a+' returns on '+b+' returns.';
       document.getElementById('a').value=da.sym||a; document.getElementById('b').value=db.sym||b;
-    }).catch(function(e){ document.getElementById('note').textContent='failed: '+e.message; });
+    }).catch(function(e){
+      /* name the leg and the board. A reader who types a ticker this terminal
+         does not carry should be told that, not handed the file name that
+         happened to 404. */
+      var miss = /404|did not answer|no file/.test(String(e && e.message))
+        ? 'No stored history on ' + EX + ' for ' + a + ' or ' + b +
+          '. Both legs have to be listings this terminal carries, on the same board.'
+        : 'Could not draw the ratio: ' + (e && e.message ? e.message : 'unknown error');
+      document.getElementById('note').textContent = miss;
+    });
   }
   document.getElementById('go').onclick=graph;
   ['a','b','win'].forEach(function(id){ document.getElementById(id).onkeydown=function(e){ if(e.key==='Enter') graph(); }; });
   document.getElementById('corr').onchange=graph;
   var pa=qs.get('a')||qs.get('sym');
-  if(pa){ document.getElementById('a').value=pa.toUpperCase(); if(qs.get('b')) document.getElementById('b').value=qs.get('b').toUpperCase(); graph(); }
+  if(pa){
+    document.getElementById('a').value = pa.toUpperCase();
+    var pb = qs.get('b');
+    if(pb) document.getElementById('b').value = pb.toUpperCase();
+    /* a ratio needs two legs. With one, the panel waits for the second rather
+       than drawing a failure. */
+    if(document.getElementById('b').value.trim()) graph();
+    else document.getElementById('note').textContent =
+      'A ratio needs two legs. ' + pa.toUpperCase() + ' is loaded as the BUY leg: type a second ' +
+      EX + ' ticker as the SELL leg and press Graph.';
+  }
 })();
 </script></body></html>
