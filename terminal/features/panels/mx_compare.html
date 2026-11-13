@@ -56,7 +56,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261113173139';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261113175331';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compare</title>
@@ -121,6 +121,11 @@
   .chartbox .window .cashnote{color:var(--gold)}
   .notes .wn.cash{color:var(--gold)}
   .notes .wn.cash b{color:var(--gold)}
+  .rangebar{display:inline-flex;gap:4px;align-items:center}
+  .rangebar button{background:var(--bg3);color:var(--tx3);border:1px solid var(--line2);border-radius:2px;
+                   padding:4px 9px;font-family:var(--mono);font-size:10px;cursor:pointer;letter-spacing:.05em}
+  .rangebar button:hover{color:var(--gold);border-color:var(--gold)}
+  .rangebar button.on{color:#00160e;background:var(--acc);border-color:var(--acc);font-weight:700}
   .viewbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:0 0 9px}
   .viewbar button{background:var(--bg3);color:var(--tx2);border:1px solid var(--line2);border-radius:2px;
                   padding:4px 10px;font-family:var(--mono);font-size:10px;cursor:pointer;letter-spacing:.04em}
@@ -181,6 +186,7 @@
   <div class="controls">
     <input class="tk" id="inToks" placeholder="SCOM, KCB, MMF" maxlength="160">
     <button class="go" id="goBtn">COMPARE</button>
+    <span class="rangebar" id="rangebar"></span>
     <span class="hint">Two or more, no upper limit. Tickers, or any fund by name (MANSAX, ETICAMMFKES, NABOKESMMF &hellip; every id in funds_KE.json is a token), or a whole category: MMF, SPECIAL, FIXED, EQUITY, BALANCED.</span>
   </div>
   <div class="peers" id="peers" style="display:none"></div>
@@ -207,6 +213,14 @@ var MAX_SEC = 0;
 var COL = ['#33e29a','#e0a340','#7aa2f7','#f87171','#4dd4e8','#f49ac2','#a3e635',
            '#ff9f5a','#5eead4','#9ca3f7','#fb7185','#38bdf8','#d9f99d','#fdba74'];
 var GOLD = '#f5c542';
+/* THE WINDOW. A comparison is only as honest as the dates it runs between, so
+   the window is a control rather than an accident of which security has the
+   shortest history. MAX is every session the securities share; YTD starts at
+   the first session of this calendar year; 1Y and 3Y count back from the last.
+   The cut happens before anything is rebased, so every line, the cash line and
+   every fund point are measured from the same first day. */
+var RANGES = [['YTD', 'ytd'], ['1Y', '1y'], ['3Y', '3y'], ['MAX', 'max']];
+var RANGE = (Q.get('range') || 'max').toLowerCase();
 var listingCache = {};
 var FX = null, FX_ASOF = '';
 
@@ -783,6 +797,19 @@ function renderChart(secs, series, C, named){
   }
   var A = alignDates(series);
   var dates = A.dates, maps = A.maps;
+  /* the chosen window, cut off the common dates before anything else happens */
+  var rangeFrom = null;
+  if(dates.length > 1 && RANGE !== 'max'){
+    var lastD = dates[dates.length-1];
+    if(RANGE === 'ytd') rangeFrom = lastD.slice(0,4) + '-01-01';
+    else if(RANGE === '1y') rangeFrom = (Number(lastD.slice(0,4)) - 1) + lastD.slice(4);
+    else if(RANGE === '3y') rangeFrom = (Number(lastD.slice(0,4)) - 3) + lastD.slice(4);
+    if(rangeFrom){
+      var cut = dates.filter(function(x){ return x >= rangeFrom; });
+      if(cut.length >= 2) dates = cut;
+      else rangeFrom = null;
+    }
+  }
   if(dates.length < 2){
     NONE.html = '<div class="window">No common price history for these securities.</div>';
     return NONE;
@@ -896,7 +923,8 @@ function renderChart(secs, series, C, named){
   svg += '<text x="'+L+'" y="'+(H-6)+'" fill="#6a6a6a" font-size="9" text-anchor="start">'+pts[0]+'</text>';
   svg += '<text x="'+(W-R)+'" y="'+(H-6)+'" fill="#6a6a6a" font-size="9" text-anchor="end">'+pts[pts.length-1]+'</text>';
   svg += '</svg>';
-  var winTxt = 'common window ' + d0 + ' to ' + dN + ' (' + pts.length + ' points). Each series is rebased to 100 at the start, so a line is percent return, not price; currencies differ across markets, but a return is unit-free.';
+  var winTxt = (rangeFrom ? (RANGE === 'ytd' ? 'this year so far: ' : 'the last ' + RANGE.toUpperCase() + ': ') : 'common window ')
+    + d0 + ' to ' + dN + ' (' + pts.length + ' points). Each series is rebased to 100 at the start, so a line is percent return, not price; currencies differ across markets, but a return is unit-free.';
   if(clampedFrom){
     winTxt += '<br><span style="color:#c48bf7">The securities have price history back to '
             + esc(clampedFrom) + ', but the window starts at ' + esc(d0)
@@ -1707,6 +1735,21 @@ async function compare(tokArg){
 }
 
 /* ---- controls / boot -------------------------------------------------- */
+function paintRange(){
+  var bar = $('rangebar');
+  if(!bar) return;
+  bar.innerHTML = RANGES.map(function(r){
+    return '<button data-range="' + r[1] + '"' + (RANGE === r[1] ? ' class="on"' : '') + '>' + r[0] + '</button>';
+  }).join('');
+  Array.prototype.forEach.call(bar.querySelectorAll('button'), function(b){
+    b.addEventListener('click', function(){
+      RANGE = b.getAttribute('data-range');
+      paintRange();
+      if($('inToks').value.trim()) compare($('inToks').value);
+    });
+  });
+}
+paintRange();
 $('goBtn').addEventListener('click', function(){ compare($('inToks').value); });
 $('inToks').addEventListener('keydown', function(e){ if(e.key==='Enter') $('goBtn').click(); });
 
