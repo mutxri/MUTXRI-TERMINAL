@@ -1,5 +1,5 @@
 <!--
-  mx_compare.html - side-by-side comparison of 2 to 4 securities.
+  mx_compare.html - side-by-side comparison of two or more securities.
 
   A comparison only means something when the numbers stand on the SAME metric,
   the SAME period and the SAME currency. This panel enforces all three:
@@ -41,14 +41,22 @@
     * MONEY   - the whole Kenyan rate surface (mx_curve.html), the context the
       CURVE     cash line is compounded from.
 
-  Usage: mx_compare.html?a=SCOM&b=ABG.JO   (comma or space separated, 2 to 4)
+  Usage: mx_compare.html?a=SCOM&b=ABG.JO   (comma or space separated, two or more)
          mx_compare.html?a=SCOM&b=MANSAX   (a share against a named fund)
          mx_compare.html?sym=SCOM           (deep link: fills A, offers peers)
+  HOW MANY. There is no cap. The comparison used to stop at four, which is a
+  chart convention and not a fact about the data: the window, the rebasing and
+  the table work for any number, so the limit is now the reader's eye. Each
+  security takes its own colour from a fourteen-hue palette that holds no gold
+  (the Treasury bill line) and no violet (a named fund), the header prints each
+  code in the colour of its own line, and the table scrolls sideways in its own
+  box rather than letting a column fall off the panel.
+
   Vanilla JS, single file, no build step. Godel palette, mint accent.
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261113061852';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261113153930';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compare</title>
@@ -136,6 +144,12 @@
   .frame3{width:100%;height:600px;border:1px solid var(--line2);border-radius:2px;background:var(--bg2);display:block}
   .framewhy{color:var(--tx2);font-family:var(--ui);font-size:11px;line-height:1.55;padding:0 0 8px}
   .framewhy b{font-family:var(--mono);color:var(--gold)}
+  .tscroll{overflow-x:auto;overflow-y:visible;scrollbar-width:thin}
+  .tscroll::-webkit-scrollbar{height:7px}
+  .tscroll::-webkit-scrollbar-thumb{background:#2e2e2e;border-radius:4px}
+  .tscroll table{min-width:100%;width:max-content}
+  .tscroll td.item,.tscroll thead th:first-child{position:sticky;left:0;z-index:2;background:var(--bg)}
+  .tscroll tbody tr.rowsec td{background:var(--bg2)}
   table{width:100%;border-collapse:collapse}
   th,td{padding:7px 14px;text-align:right;white-space:nowrap;vertical-align:top}
   th:first-child,td:first-child{text-align:left}
@@ -167,7 +181,7 @@
   <div class="controls">
     <input class="tk" id="inToks" placeholder="SCOM, KCB, MMF" maxlength="160">
     <button class="go" id="goBtn">COMPARE</button>
-    <span class="hint">2 to 4, comma or space separated. Tickers, or a fund: MANSAX, MANSAXUSD, MADISONMMF, or a whole category: MMF, SPECIAL, FIXED, EQUITY, BALANCED.</span>
+    <span class="hint">Two or more, no upper limit. Tickers, or any fund by name (MANSAX, ETICAMMFKES, NABOKESMMF &hellip; every id in funds_KE.json is a token), or a whole category: MMF, SPECIAL, FIXED, EQUITY, BALANCED.</span>
   </div>
   <div class="peers" id="peers" style="display:none"></div>
   <div id="body">
@@ -179,12 +193,19 @@
 'use strict';
 var Q = new URLSearchParams(location.search);
 var EXS = ['NSE','NGX','JSE','EGX'];
-var MAX_SEC = 4;
-/* Four lines on one frame have to be told apart at a glance, and they have to
-   be told apart from the gold benchmark line. Mint, amber, blue, red: the same
-   order the header prints them (.code, .code.c1, .code.c2, .code.c3), so a code
-   at the top and a line in the chart are never different colours. */
-var COL = ['#33e29a','#e0a340','#7aa2f7','#f87171'];
+/* NO CAP. The comparison used to stop at four securities, which is a chart
+   convention and not a fact about the data: the window, the rebasing and the
+   table all work for any number. The only real limit is the eye, so the lines
+   are coloured from a palette wide enough to tell a dozen apart and the
+   colour is repeated nowhere a reader has to guess. */
+var MAX_SEC = 0;
+/* Every line on one frame has to be told apart at a glance, and all of them
+   have to be told apart from the gold benchmark line and from the violet a
+   named fund takes. These fourteen hues are the order the header prints them
+   in, so a code at the top and a line in the chart are never different
+   colours, and gold is not among them. */
+var COL = ['#33e29a','#e0a340','#7aa2f7','#f87171','#4dd4e8','#f49ac2','#a3e635',
+           '#ff9f5a','#5eead4','#9ca3f7','#fb7185','#38bdf8','#d9f99d','#fdba74'];
 var GOLD = '#f5c542';
 var listingCache = {};
 var FX = null, FX_ASOF = '';
@@ -309,7 +330,9 @@ var CIS = null, FUNDS = null;
 /* A fund is a token too. MANSAX publishes a calendar-year net return series,
    so it can be drawn as a line beside a share. A fund that publishes only a
    current yield cannot be - a yield is not a path - and gets a rate card. */
-var FUNDCOL = ['#c48bf7','#f09ad0'];
+/* a fund keeps the violet family whatever else is on the chart, so the reader
+   can see at a glance which lines are funds and which are shares */
+var FUNDCOL = ['#c48bf7','#f09ad0','#b39ddb','#e879f9','#a78bfa','#f0abfc'];
 var NAMED_TOK = { MANSAX:'MANSAX_KES', MANSAXKES:'MANSAX_KES', MANSAXUSD:'MANSAX_USD',
                   MADISONMMF:'MADISON_MMF', MADISONFIXED:'MADISON_FIXED',
                   MADISONSPECIAL:'MADISON_WEALTH_SPECIAL', BRITAMMMF:'BRITAM_MMF' };
@@ -403,13 +426,30 @@ function renderNamed(named, chartFunds){
       out += '<div class="fundwhy" style="border-color:var(--amber)"><b>Not a current rate.</b> '
            + esc(f.stale_why) + '</div>';
     }
+    /* FEES ARE PRINTED AS THE MANAGER NAMES THEM. Every manager uses its own
+       words - a service fee, an annual management fee, an initial fee, a
+       performance charge over a hurdle - so the block prints the keys the
+       record actually carries instead of assuming one manager's shape and
+       leaving empty words where another has nothing. */
     if(f.fees){
-      out += '<div class="fundwhy">Charges: ' + esc(f.fees.financial_services_charge || '')
-           + (f.fees.performance_charge ? ', plus ' + esc(f.fees.performance_charge)
-              + ' (hurdle ' + esc(f.fees.hurdle_rate || '') + ')' : '')
-           + '. Minimum ' + esc(f.fees.minimum_investment || '')
-           + (f.fees.initial_lock_in ? ', locked in for the first ' + esc(f.fees.initial_lock_in) : '')
-           + '. Returns shown are net of the service charge unless the row says otherwise.</div>';
+      var FEEL = {
+        financial_services_charge:'Service charge', service_fee:'Service fee',
+        annual_management_fee:'Annual management fee', initial_fee:'Initial fee',
+        performance_charge:'Performance charge', hurdle_rate:'Hurdle',
+        minimum_investment:'Minimum', minimum_topup:'Minimum top up',
+        initial_lock_in:'Initial lock in'
+      };
+      var bits = [];
+      Object.keys(f.fees).forEach(function(k){
+        var v = f.fees[k];
+        if(v == null || v === '') return;
+        bits.push((FEEL[k] || k.replace(/_/g, ' ')) + ' ' + esc(String(v)));
+      });
+      if(bits.length){
+        out += '<div class="fundwhy">' + bits.join(' &middot; ')
+             + '. A return shown above is net of those charges only where the manager '
+             + 'says so.</div>';
+      }
     }
     if(drawn && f.cumulative_net && f.cumulative_net.note){
       out += '<div class="fundwhy">' + esc(f.cumulative_net.note) + '</div>';
@@ -1366,7 +1406,12 @@ function renderTable(secs){
     if(inner) body += '<tr class="rowsec"><td colspan="'+(secs.length+1)+'">'+esc(g.sec)+'</td></tr>' + inner;
   });
 
-  return { html: '<table>'+head+'<tbody>'+body+'</tbody></table>', cmpRows: cmpRows };
+  /* With the cap gone the table can be wider than the panel, and this skin
+     hides scrollbars, so the overflow is given its own scrolling box: a
+     column must never be cut off where a reader cannot reach it. The metric
+     column stays put while the rest scrolls under it. */
+  return { html: '<div class="tscroll"><table>'+head+'<tbody>'+body+'</tbody></table></div>',
+           cmpRows: cmpRows };
 }
 
 function collectWithheld(secs, rows){
@@ -1460,13 +1505,17 @@ function renderHead(secs, funds){
   var h = '';
   secs.forEach(function(s, i){
     if(i) h += '<span class="vs">vs</span>';
-    h += '<span class="code c'+i+'">'+esc(s.ticker||s.sym)+'</span>'
+    h += '<span class="code" style="color:'+COL[i % COL.length]+'">'+esc(s.ticker||s.sym)+'</span>'
        + '<span class="name">'+esc(s.name||'')+'</span>'
        + '<span class="ex">'+esc(s.ex||'')+'</span>';
   });
+  var nf = -1;
   (funds||[]).forEach(function(f, i){
     if(secs.length || i) h += '<span class="vs">vs</span>';
-    h += '<span class="code '+(f.kind==='named'?'nfund':'fund')+'">'+esc(f.key)+'</span>'
+    if(f.kind === 'named') nf++;
+    h += '<span class="code '+(f.kind==='named'?'nfund':'fund')+'"'
+       + (f.kind==='named' ? ' style="color:'+FUNDCOL[nf % FUNDCOL.length]+'"' : '')
+       + '>'+esc(f.key)+'</span>'
        + '<span class="name">'+esc(f.name||'')+'</span>'
        + '<span class="ex">'+(f.kind==='named'?'FUND':'CIS')+'</span>';
   });
@@ -1495,7 +1544,7 @@ function renderPeers(secs){
       var toks = secs.map(function(s){ return String(s.ticker||s.sym).toUpperCase(); });
       var tk = el.getAttribute('data-tk');
       if(toks.indexOf(tk) >= 0) return;
-      if(toks.length >= MAX_SEC) toks = toks.slice(0, MAX_SEC-1);
+      if(MAX_SEC > 0 && toks.length >= MAX_SEC) toks = toks.slice(0, MAX_SEC-1);
       toks.push(tk);
       compare(toks.join(' '));
     });
@@ -1510,7 +1559,7 @@ function parseToks(v){
 function dedupeCap(toks){
   var out = [];
   toks.forEach(function(t){ if(out.indexOf(t)<0) out.push(t); });
-  return out.slice(0, MAX_SEC);
+  return MAX_SEC > 0 ? out.slice(0, MAX_SEC) : out;
 }
 async function buildSec(stock){
   var an = await loadAnalytics(stock);
