@@ -34,7 +34,12 @@
     PARTNERS    the same file, partners
     HOLDERS     shareholders_<EX>.json, the substantial holder table
     LAWS        gov_laws_KE.json: the Acts whose own ticker list or own sector
-                list names this security
+                list names this security. Every Act is shown WITH THE EXACT
+                CLAUSE that does the thing: the section of the amending Act
+                and, where it rewrites another statute, the provision of that
+                statute as it now reads. The citations were read from the
+                Acts' own text; an instrument with no enacted text to cite
+                prints CLAUSE NOT ON FILE and why, never a guessed number.
     2 LINKS     one recorded link past a ring 1 company, only at depth 2
 
   All four exchange relationship files are read, so a link can cross a board.
@@ -55,11 +60,23 @@
     * pan, zoom, reset, node detail and hover highlighting stay;
     * one line states what this shows and what it does not claim.
 
+  VIEW: MAP or 3D. The turned view draws the SAME model - the same nodes, the
+  same recorded links, the same colours and the same Act marking - on a canvas,
+  with each category given its own cone of directions so six clusters that have
+  to share one circle on the flat map get a cone each. Depth separates the
+  clusters and carries no quantity. The flat ring can only hold the nodes its
+  circumference has room for and counts the rest as dropped; the sphere has
+  room for all of them, so the 3D pass skips that clipping and the header says
+  so. Drag to turn, wheel to zoom, SPIN, RESET, and a click pins a node into
+  NODE DETAIL exactly as on the flat map. One projection, painter's algorithm,
+  no WebGL and no library. __mtPerpState().view3 reports the angle and where
+  every node landed on screen, so the turned view can be checked, not trusted.
+
   Vanilla JS, single file, no build step. Mint on black, Oxygen Mono.
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261113042303';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261113054017';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -155,6 +172,10 @@
      is not a control. Both stay in the markup so nothing that writes to them
      breaks, and neither is drawn. */
   #claim, #sbar{display:none !important}
+  .lawrow .lcl{font-size:7.5px;line-height:1.5;color:var(--warn);margin-top:3px;
+               border-left:2px solid rgba(224,163,65,.5);padding-left:6px}
+  .lawrow .lcl b{color:var(--tx);font-weight:700}
+  .lawrow .lcl .nocl{color:var(--tx3)}
   .lawbasis{font-size:7px;letter-spacing:.06em;color:var(--tx3);padding:5px 8px;line-height:1.5;
     border-top:1px solid var(--line);background:var(--bg)}
   .lawempty{font-size:8px;color:var(--tx3);padding:9px 8px;line-height:1.5}
@@ -201,6 +222,8 @@
   .gwrap{position:absolute;inset:0;overflow:hidden;user-select:none}
   .gwrap svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   .gwrap svg.drag{cursor:grabbing}
+  .gwrap canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+  .gwrap canvas.drag{cursor:grabbing}
   .gsub{position:absolute;left:0;right:0;bottom:0;padding:2px 9px 4px;font-size:7px;
         letter-spacing:.06em;color:#7a7a7a;text-transform:uppercase;background:rgba(0,0,0,.82);
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -346,6 +369,12 @@
         </div>
         <div class="cgrp" id="c_view">
           <span class="cl2">VIEW</span>
+          <button class="kn vw" type="button" data-view="map" aria-pressed="true"
+                  title="the flat radial map">MAP</button>
+          <button class="kn vw" type="button" data-view="3d" aria-pressed="false"
+                  title="the same nodes and the same links, turned: drag to rotate, wheel to zoom">3D</button>
+          <button class="kn" type="button" id="spin3" style="display:none"
+                  title="turn it continuously" aria-pressed="false">SPIN</button>
           <button class="kn z" type="button" id="zout" title="zoom out" aria-label="zoom out">-</button>
           <span class="zk" id="zk">1.0x</span>
           <button class="kn z" type="button" id="zin" title="zoom in" aria-label="zoom in">+</button>
@@ -792,6 +821,11 @@
         t((law.id || '') + '  ' + (law.name || '')) + '</span>' +
       '<span class="abstat">' + t(String(law.status || '').toUpperCase()) + '</span></div>' +
       '<div class="abrow"><span class="abmech" title="' + t(full) + '">' + t(mech) + '</span></div>' +
+      '<div class="abrow"><span class="abmech" style="color:var(--warn)" title="' +
+        t(lawClauses(law).map(function(x){ return x.cite + ' - ' + x.effect; }).join('  |  ')) + '">' +
+        (clauseCite(law) ? 'CLAUSE ' + t(clauseCite(law))
+                         : 'CLAUSE NOT ON FILE: ' + t(law.clauses_not_on_file || 'none recorded')) +
+      '</span></div>' +
       '<div class="abrow abtr">' + tr + '</div>';
   }
 
@@ -1088,6 +1122,8 @@
           name:nd(l.name || l.id || ''),
           code:String(l.id || ''), ex:String(l.exchange || LAW.ex || 'NSE').toUpperCase(),
           link:'Act', reason:cut(l.mechanism || '', 240),
+          clause:clauseCite(l), clauseWhy:(l.clauses_not_on_file || ''),
+          clauseList:lawClauses(l),
           src:(l.source && l.source.name) ? nd(String(l.source.name)) +
               (l.source.retrieved ? ' ' + l.source.retrieved : '') : '',
           colour:(st === 'enacted' ? UP : (st === 'repealed' ? DN : AMB)),
@@ -1596,11 +1632,28 @@
     applyView(svg);
   }
   function zoomBy(f){
+    /* one pair of buttons for both views: in the turned view they move the
+       same zoom the wheel moves, so the reading on the key is never stale */
+    if(V3.on){
+      V3.zoom = Math.max(0.5, Math.min(4.5, V3.zoom * f));
+      var zk3 = document.getElementById('zk');
+      if(zk3) zk3.textContent = V3.zoom.toFixed(1) + 'x';
+      draw3();
+      return;
+    }
     if(!MAP.svg) return;
     var r = MAP.svg.getBoundingClientRect();
     zoomAt(MAP.svg, (r.width || 0) / 2, (r.height || 0) / 2, f);
   }
   function resetView(){
+    if(V3.on){
+      V3.yaw = -0.62; V3.pitch = 0.42; V3.zoom = 1; V3.spin = 0;
+      paintSpin();
+      var zk4 = document.getElementById('zk');
+      if(zk4) zk4.textContent = '1.0x';
+      draw3();
+      return;
+    }
     MAP.k = 1; MAP.x = 0; MAP.y = 0;
     applyView(MAP.svg);
   }
@@ -1763,6 +1816,17 @@
         (n.st === 'direct' ? 'wr' : 'dm') + '" title="' + t(actBasis(n)) + '">' +
         t(actBasis(n)) + '</span></div>';
     }
+    if(n.cat === 'laws'){
+      h += '<div class="srow"><span class="sk">CLAUSE</span><span class="sv ' +
+        (n.clause ? 'wr' : 'dm') + '" title="' +
+        t((n.clauseList || []).map(function(x){ return x.cite + ' - ' + x.effect; }).join('  |  ')
+          || n.clauseWhy) + '">' +
+        t(n.clause || 'NOT ON FILE') + '</span></div>';
+      if(!n.clause && n.clauseWhy){
+        h += '<div class="srow"><span class="sk">WHY</span><span class="sv clip dm" title="' +
+          t(n.clauseWhy) + '">' + t(n.clauseWhy) + '</span></div>';
+      }
+    }
     h += '<div class="srow"><span class="sk">NOTE</span><span class="sv clip" title="' +
       t(n.reason || '') + '">' + t(n.reason || 'none recorded') + '</span></div>';
     h += '<div class="srow"><span class="sk">SOURCE</span><span class="sv dm" title="' +
@@ -1840,6 +1904,30 @@
    or raised is a cost the company bears, a levy removed or an exemption granted
    is relief. Where the verb does not settle it the row says NOT STATED rather
    than guessing. This is not a price view and the panel says so underneath. */
+  /* THE CLAUSE, NAMED. An Act that reaches a company reaches it through one
+     provision, not through its title, so every place this panel names an Act
+     also names the provision: the section of the amending Act and, where it
+     rewrites another statute, the provision of that statute as it now reads.
+     The citations were read from the Acts' own text (gov_laws_KE.json carries
+     the read date). A record with no enacted text to cite says so and why,
+     and no number is ever inferred from a summary. */
+  function lawClauses(l){ return (l && l.clauses) || []; }
+  function clauseCite(l){
+    var c = lawClauses(l);
+    if(!c.length) return '';
+    return c.map(function(x){ return x.cite; }).join(', ');
+  }
+  function clauseHTML(l){
+    var c = lawClauses(l);
+    if(!c.length){
+      var why = (l && l.clauses_not_on_file) || 'no clause is recorded for this instrument';
+      return '<div class="lcl"><span class="nocl"><b>CLAUSE NOT ON FILE.</b> ' + t(why) + '</span></div>';
+    }
+    return '<div class="lcl">' + c.map(function(x){
+      return '<b>' + t(x.cite) + '</b>, ' + t(x.instrument) +
+             (x.effect ? ' <span style="color:var(--tx3)">' + t(x.effect) + '</span>' : '');
+    }).join('<br>') + '</div>';
+  }
   function lawDirection(l){
     var m = String((l && l.mechanism) || '').toLowerCase().replace(/^[\s"'(]+/, '');
     if(/^(imposes|adds|introduces|increases|raises|charges|extends|requires)\b/.test(m)) return {k:'neg', t:'COST'};
@@ -1884,10 +1972,314 @@
                '<div><div class="lh"><span class="lc">' + esc(lawCode(l.id, l.year)) + '</span>' +
                  '<span class="ly">' + esc(String(l.year || '')) +
                    (st && st !== 'enacted' ? ' ' + esc(st.toUpperCase()) : '') + '</span></div>' +
-                 '<div class="lm" title="' + esc(mech) + '">' + esc(mech) + '</div></div>' +
+                 '<div class="lm" title="' + esc(mech) + '">' + esc(mech) + '</div>' +
+                 clauseHTML(l) + '</div>' +
                '<span class="dir ' + d.k + '">' + d.t + '</span></div>';
     }).join('') +
     '<div class="lawbasis">DIRECTION IS READ FROM THE OPERATIVE VERB OF THE ACT: A LEVY IMPOSED IS A COST TO THE COMPANY, A LEVY REMOVED IS RELIEF. IT IS NOT A PRICE VIEW.</div>';
+  }
+
+  /* ---------- the same map, turned ---------------------------------------
+     3D draws the MODEL the flat map draws: the same nodes, the same recorded
+     links, the same colours and the same Act marking. Nothing is added to the
+     graph to fill the third dimension and no position carries a quantity - the
+     depth is there to pull the clusters apart, because six categories that
+     have to share one circle on a flat map get a cone each here, and a link
+     that crosses the middle of the flat map no longer crosses anything.
+     One canvas, one projection, painter's algorithm, no WebGL and no library. */
+  var V3 = {on:false, yaw:-0.62, pitch:0.42, zoom:1, clusters:[], spin:0, cv:null, cx:null,
+            hov:'', pos:null, ticking:false,
+            DPR:Math.min(window.devicePixelRatio || 1, 2)};
+
+  function proj3(p, W, H){
+    var cy = Math.cos(V3.yaw), sy = Math.sin(V3.yaw);
+    var x1 = p.x*cy - p.z*sy, z1 = p.x*sy + p.z*cy;
+    var cp = Math.cos(V3.pitch), sp = Math.sin(V3.pitch);
+    var y1 = p.y*cp - z1*sp, z2 = p.y*sp + z1*cp;
+    var s = Math.min(W, H*1.6) * 0.30 * V3.zoom;
+    /* a weak perspective divide on top of the rotation. Orthographic alone
+       puts a node pointing straight at the reader on top of the centre with
+       nothing to tell them apart; this pulls the near side open and pushes
+       the far side back, which is the whole reason for turning the map. */
+    /* kept weak on purpose: a stronger divide throws the outer shell off the
+       frame on the near side, which is a distortion and not a depth cue */
+    var f = 1 / (1 + 0.15 * z2);
+    return { x: W/2 + x1*s*f, y: H/2 - y1*s*f, d: z2, f: f };
+  }
+  function dir3(az, el, rad){
+    return { x: Math.cos(el)*Math.cos(az)*rad, y: Math.sin(el)*rad,
+             z: Math.cos(el)*Math.sin(az)*rad, az:az, el:el };
+  }
+  /* Each category keeps its own cone of directions, so a cluster reads as a
+     cluster from any angle, and a ring 2 node sits beside the ring 1 node the
+     record was read from rather than anywhere on an outer circle. */
+  function place3(m){
+    var pos = {};
+    pos[m.centre.key] = dir3(0, 0, 0);
+    pos[m.centre.key].n = m.centre;
+    var groups = {}, order = [];
+    m.ring1.forEach(function(it){
+      var k = it.cat || 'other';
+      if(!groups[k]){ groups[k] = []; order.push(k); }
+      groups[k].push(it);
+    });
+    var gN = order.length || 1;
+    V3.clusters = [];
+    order.forEach(function(k, gi){
+      var arr = groups[k], n = arr.length;
+      var az0 = (gi/gN) * Math.PI * 2;
+      /* the cone's own direction, so the cluster can name itself in the air
+         above its nodes instead of the reader counting colours */
+      V3.clusters.push({ k:k, n:n, col:(arr[0] && arr[0].colour) || GREY,
+                           p: dir3(az0, 0.02, 1.34) });
+      var spread = Math.min(0.62, 0.17 * Math.max(1, n - 1));
+      arr.forEach(function(it, i){
+        var az = az0 + (n > 1 ? ((i/(n-1)) - 0.5) * spread : 0);
+        var el = (n > 1 ? (((i % 2) ? 1 : -1) * (0.10 + 0.40 * (i/n))) : 0.06);
+        var p = dir3(az, el, 1.0);
+        p.n = it;
+        pos[it.key] = p;
+      });
+    });
+    var kids = {};
+    m.ring2.forEach(function(it){
+      var par = it.parent || m.centre.key;
+      kids[par] = (kids[par] || 0) + 1;
+      var pp = pos[par] || pos[m.centre.key];
+      var i = kids[par] - 1;
+      var p = dir3((pp.az || 0) + ((i % 3) - 1) * 0.17,
+                   (pp.el || 0) + (((i % 2) ? 1 : -1) * 0.13 + (i > 2 ? 0.1 : 0)), 1.78);
+      p.n = it;
+      pos[it.key] = p;
+    });
+    return pos;
+  }
+  function node3r(n){
+    if(String(n.key || '').indexOf('C:') === 0) return 9.5;
+    return n.hop === 2 ? 3.4 : 5.0;
+  }
+  function dim3(n){
+    /* the Act dims what it does not reach, exactly as the flat map does */
+    if(!G.law || !n.co) return 1;
+    if(n.st === 'direct') return 1;
+    if(n.st === 'hop1') return 0.82;
+    if(n.st === 'hop2') return 0.6;
+    return 0.3;
+  }
+  function draw3(){
+    var cv = V3.cv, cx = V3.cx, m = G.model;
+    if(!cv || !cx || !m) return;
+    var W = cv.clientWidth, H = cv.clientHeight;
+    if(!W || !H) return;
+    cv.width = Math.round(W*V3.DPR); cv.height = Math.round(H*V3.DPR);
+    cx.setTransform(V3.DPR,0,0,V3.DPR,0,0);
+    cx.clearRect(0,0,W,H);
+    var font = "10px 'Oxygen Mono',ui-monospace,Menlo,Consolas,monospace";
+    if(!V3.pos) V3.pos = place3(m);
+    var P = V3.pos, pr = {}, dmin = 1e9, dmax = -1e9;
+    Object.keys(P).forEach(function(k){
+      var q = proj3(P[k], W, H);
+      q.n = P[k].n;
+      pr[k] = q;
+      if(q.d < dmin) dmin = q.d;
+      if(q.d > dmax) dmax = q.d;
+    });
+    /* Three faint great circles on the ring 1 shell and one on the ring 2
+       shell. They carry no data: they are the frame that tells the eye this
+       is a sphere being turned and not a flat star, and they are drawn first
+       so nothing on the graph is obscured by them. */
+    [[1.0, '#1f1f1f', []], [1.78, '#171717', [3,4]]].forEach(function(sh){
+      var rad = sh[0], planes = (rad === 1.0) ? [0,1,2] : [0];
+      planes.forEach(function(pl){
+        cx.beginPath();
+        for(var a=0; a<=64; a++){
+          var th = (a/64) * Math.PI * 2, v;
+          if(pl === 0) v = { x:Math.cos(th)*rad, y:0, z:Math.sin(th)*rad };
+          else if(pl === 1) v = { x:Math.cos(th)*rad, y:Math.sin(th)*rad, z:0 };
+          else v = { x:0, y:Math.sin(th)*rad, z:Math.cos(th)*rad };
+          var q = proj3(v, W, H);
+          if(a) cx.lineTo(q.x, q.y); else cx.moveTo(q.x, q.y);
+        }
+        cx.strokeStyle = sh[1]; cx.lineWidth = 1;
+        cx.setLineDash(sh[2]); cx.stroke(); cx.setLineDash([]);
+      });
+    });
+
+    var dspan = (dmax - dmin) || 1;
+    /* 0 is the farthest thing on screen, 1 the nearest: a node is drawn a
+       little larger and a little brighter as it comes forward, which is the
+       only depth cue an orthographic projection gives for free */
+    function nearD(d){ return (d - dmin) / dspan; }
+
+    /* every link and every node in one list, painted far to near: a larger
+       projected depth is farther away, so it goes down first */
+    var items = [];
+    (m.edges || []).forEach(function(e){
+      var a = pr[e.a], b = pr[e.b];
+      if(!a || !b) return;
+      items.push({ t:'e', d:(a.d + b.d)/2, a:a, b:b, hop:e.hop,
+                   col:(b.n && b.n.colour) || GREY, nb:b.n });
+    });
+    Object.keys(pr).forEach(function(k){ items.push({ t:'n', d:pr[k].d, k:k, p:pr[k], n:pr[k].n }); });
+    items.sort(function(x, y){ return y.d - x.d; });
+
+    var labels = [];
+    items.forEach(function(it){
+      if(it.t === 'e'){
+        var al = 0.5 * dim3(it.nb) * (it.hop === 2 ? 0.6 : 1) * (0.5 + 0.5*nearD(it.b.d));
+        cx.strokeStyle = it.col;
+        cx.globalAlpha = Math.max(0.08, Math.min(0.85, al));
+        cx.lineWidth = it.hop === 2 ? 0.7 : 1.1;
+        cx.beginPath(); cx.moveTo(it.a.x, it.a.y); cx.lineTo(it.b.x, it.b.y); cx.stroke();
+        cx.globalAlpha = 1;
+        return;
+      }
+      var n = it.n, isC = String(n.key || '').indexOf('C:') === 0;
+      var r = node3r(n) * (0.70 + 0.34 * nearD(it.d)) * (it.p.f || 1) * (0.85 + 0.15*V3.zoom);
+      var col = isC ? '#f5c542' : (n.colour || GREY);
+      var a = dim3(n);
+      cx.globalAlpha = a;
+      cx.beginPath(); cx.arc(it.p.x, it.p.y, r, 0, 6.3);
+      cx.fillStyle = col; cx.fill();
+      cx.lineWidth = 1; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.stroke();
+      /* the Act's own marking: the amber halo the flat map puts on a leaf */
+      if(G.law && n.st === 'direct'){
+        cx.beginPath(); cx.arc(it.p.x, it.p.y, r + 3.4, 0, 6.3);
+        cx.strokeStyle = AMB; cx.lineWidth = 1.4; cx.stroke();
+      }
+      if(n.key === G.selKey || n.key === V3.hov){
+        cx.beginPath(); cx.arc(it.p.x, it.p.y, r + 5.2, 0, 6.3);
+        cx.strokeStyle = '#ffffff'; cx.lineWidth = n.key === G.selKey ? 1.6 : 1;
+        cx.stroke();
+      }
+      cx.globalAlpha = 1;
+      /* every node names itself here. The flat map has to drop a hop 2 label
+         for room; the sphere has room, and an unnamed dot is not a record. */
+      var show = true;
+      if(show){
+        labels.push({ txt: isC ? (n.tk || n.name) : leafLabel(n),
+                      x: it.p.x + r + 5, y: it.p.y + 3.2, col: col,
+                      a: isC ? 1 : Math.max(0.42, a * (0.45 + 0.55*nearD(it.d))),
+                      big: isC });
+      }
+    });
+
+    /* the names last, so no node paints over one, and nudged apart: two names
+       on top of each other name nothing */
+    var placed = [];
+
+    /* the cluster names, out at the end of each cone. They are placed first
+       and kept in the same collision set, so a company name is never buried
+       under a category name. */
+    (V3.clusters || []).forEach(function(c){
+      var q = proj3(c.p, W, H);
+      var txt = String(c.k).toUpperCase() + ' ' + c.n;
+      cx.font = "9px 'Oxygen Mono',ui-monospace,Menlo,Consolas,monospace";
+      cx.textAlign = 'center';
+      var w2 = cx.measureText(txt).width;
+      cx.globalAlpha = 0.30 + 0.45 * nearD(q.d);
+      cx.fillStyle = c.col;
+      cx.fillText(txt, q.x, q.y);
+      cx.globalAlpha = 1;
+      placed.push({ x:q.x - w2/2, y:q.y, w:w2 });
+    });
+    labels.forEach(function(L){
+      cx.font = L.big ? "11.5px 'Oxygen Mono',ui-monospace,Menlo,Consolas,monospace" : font;
+      var tw = cx.measureText(L.txt).width, tx = L.x, ty = L.y;
+      if(tx + tw > W - 3) tx = Math.max(3, L.x - tw - (L.big ? 22 : 14));
+      for(var g=0; g<8; g++){
+        var cl = placed.filter(function(p){
+          return Math.abs(p.y - ty) < 11 && tx < p.x + p.w + 6 && p.x < tx + tw + 6;
+        })[0];
+        if(!cl) break;
+        ty = (cl.y + 12 < H - 3) ? cl.y + 12 : Math.max(10, cl.y - 12);
+      }
+      placed.push({x:tx, y:ty, w:tw});
+      cx.globalAlpha = L.a;
+      cx.fillStyle = L.col;
+      cx.textAlign = 'left';
+      cx.fillText(L.txt, tx, ty);
+      cx.globalAlpha = 1;
+    });
+  }
+  function hit3(mx, my, W, H){
+    var P = V3.pos, best = '', bd = 1e9;
+    if(!P) return '';
+    Object.keys(P).forEach(function(k){
+      var q = proj3(P[k], W, H);
+      var dd = (q.x-mx)*(q.x-mx) + (q.y-my)*(q.y-my);
+      if(dd < bd){ bd = dd; best = k; }
+    });
+    return bd < 260 ? best : '';
+  }
+  function mount3(cv){
+    V3.cv = cv; V3.cx = cv.getContext('2d');
+    var dragging = false, lx = 0, ly = 0, moved = false;
+    cv.addEventListener('pointerdown', function(e){
+      dragging = true; moved = false; lx = e.clientX; ly = e.clientY;
+      V3.spin = 0; paintSpin();
+      cv.classList.add('drag'); cv.setPointerCapture(e.pointerId);
+    });
+    cv.addEventListener('pointerup', function(e){
+      dragging = false; cv.classList.remove('drag');
+      if(moved) return;
+      var r = cv.getBoundingClientRect();
+      var k = hit3(e.clientX - r.left, e.clientY - r.top, r.width, r.height);
+      if(k){ G.selKey = k; draw3(); paintSel(); }
+    });
+    cv.addEventListener('pointerleave', function(){
+      dragging = false; cv.classList.remove('drag');
+      if(V3.hov){ V3.hov = ''; draw3(); }
+    });
+    cv.addEventListener('pointermove', function(e){
+      var r = cv.getBoundingClientRect();
+      if(dragging){
+        if(Math.abs(e.clientX - lx) > 2 || Math.abs(e.clientY - ly) > 2) moved = true;
+        V3.yaw += (e.clientX - lx) * 0.0075;
+        V3.pitch = Math.max(-0.55, Math.min(1.25, V3.pitch + (e.clientY - ly) * 0.0055));
+        lx = e.clientX; ly = e.clientY;
+        draw3();
+        return;
+      }
+      var k = hit3(e.clientX - r.left, e.clientY - r.top, r.width, r.height);
+      if(k !== V3.hov){ V3.hov = k; draw3(); }
+    });
+    cv.addEventListener('wheel', function(e){
+      e.preventDefault();
+      V3.zoom = Math.max(0.5, Math.min(4.5, V3.zoom * (e.deltaY > 0 ? 0.9 : 1.1)));
+      var zk = document.getElementById('zk');
+      if(zk) zk.textContent = V3.zoom.toFixed(1) + 'x';
+      draw3();
+    }, {passive:false});
+    if(!V3.ticking){
+      V3.ticking = true;
+      (function tick(){
+        if(V3.on && V3.spin && V3.cv && V3.cv.clientWidth){ V3.yaw += 0.004; draw3(); }
+        requestAnimationFrame(tick);
+      })();
+    }
+    draw3();
+  }
+  function paintSpin(){
+    var b = document.getElementById('spin3');
+    if(b) b.setAttribute('aria-pressed', V3.spin ? 'true' : 'false');
+  }
+  function paintViewBtns(){
+    Array.prototype.forEach.call(document.querySelectorAll('#c_view .vw'), function(b){
+      var on = (b.getAttribute('data-view') === '3d') === !!V3.on;
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    var sp = document.getElementById('spin3');
+    if(sp) sp.style.display = V3.on ? '' : 'none';
+    var zk = document.getElementById('zk');
+    if(zk) zk.textContent = (V3.on ? V3.zoom : MAP.k).toFixed(1) + 'x';
+  }
+  function setView3(on){
+    if(V3.on === !!on) return;
+    V3.on = !!on;
+    V3.pos = null;
+    paintViewBtns();
+    redrawGraph();
   }
 
   function renderMap(box){
@@ -1905,6 +2297,28 @@
       lastW = w; lastH = hh;
       var m = buildRadial(G.row);
       G.model = m;
+      /* THE TURNED VIEW DOES NOT GO THROUGH THE RING LAYOUT. A flat ring can
+         only carry the nodes its circumference has room for, and the rest are
+         counted as dropped on the header. A sphere has room for all of them,
+         so the 3D pass skips that clipping and every node the model holds is
+         drawn and marked drawn, which is why the header reports no drop while
+         it is on. The per-category cap in buildRadial still applies to both
+         views, and NODE DETAIL still reports it. */
+      if(V3.on){
+        m.ring1.concat(m.ring2).forEach(function(it){ it.drawn = true; });
+        m.cats.forEach(function(c){
+          c.drawn = c.items.filter(function(it){ return it.drawn === true; }).length;
+        });
+        trans(m);
+        G.tm = m.tm;
+        wrap.innerHTML = '<canvas class="g3" width="' + w + '" height="' + hh + '"></canvas>';
+        MAP.svg = null;
+        V3.pos = null;
+        mount3(wrap.querySelector('canvas'));
+        meta('rel', headerMeta(m) + ' | TURNED, THE SPHERE CARRIES EVERY NODE');
+        G.geo = null;
+        return;
+      }
       layoutRadial(m, w, hh);
       trans(m);
       G.tm = m.tm;
@@ -1988,6 +2402,11 @@
     if(zi) zi.addEventListener('click', function(){ zoomBy(1.3); });
     var zr = document.getElementById('zrst');
     if(zr) zr.addEventListener('click', function(){ resetView(); });
+    Array.prototype.forEach.call(document.querySelectorAll('#c_view .vw'), function(b){
+      b.addEventListener('click', function(){ setView3(b.getAttribute('data-view') === '3d'); });
+    });
+    var sp3 = document.getElementById('spin3');
+    if(sp3) sp3.addEventListener('click', function(){ V3.spin = V3.spin ? 0 : 1; paintSpin(); });
     var pol = document.getElementById('pol');
     if(pol){
       pol.addEventListener('change', function(){
@@ -2315,6 +2734,25 @@
         types: CATS.map(function(c){ return c.k; })
       },
       geo: geo,
+      /* the turned view answers for itself the same way the flat one does:
+         the angle it is held at, and where every node it placed actually
+         landed on screen, so what is drawn can be checked and not trusted */
+      view3: {
+        on: !!V3.on,
+        yaw: Math.round(V3.yaw * 1000) / 1000,
+        pitch: Math.round(V3.pitch * 1000) / 1000,
+        zoom: Math.round(V3.zoom * 1000) / 1000,
+        spin: !!V3.spin,
+        hover: V3.hov || '',
+        clusters: (V3.clusters || []).map(function(c){ return {key:c.k, nodes:c.n}; }),
+        screen: (V3.on && V3.cv && V3.pos) ? Object.keys(V3.pos).map(function(k){
+          var q = proj3(V3.pos[k], V3.cv.clientWidth, V3.cv.clientHeight);
+          var n = V3.pos[k].n || {};
+          return {key:k, label:n.label || n.tk || '', hop:n.hop || 0,
+                  x:Math.round(q.x), y:Math.round(q.y),
+                  depth:Math.round(q.d * 1000) / 1000};
+        }) : []
+      },
       sel: selInfo(),
       actbar: ab ? ab.textContent.replace(/\s+/g, ' ').trim() : '',
       claim: claim ? claim.textContent.replace(/\s+/g, ' ').trim() : '',

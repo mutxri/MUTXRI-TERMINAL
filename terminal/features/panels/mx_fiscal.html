@@ -39,7 +39,7 @@
   Vanilla JS, terminal tokens, no build step.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261113042303';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261113054017';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MUTXRI TERMINAL - FISCAL</title>
@@ -173,6 +173,11 @@
   .st.withdrawn{color:var(--warn);border-color:#5d4715;border-style:dashed;background:#181204}
   .law-mech{margin:5px 0 0;font-size:11.5px;line-height:1.5;color:var(--tx2)}
   .law-st{margin:4px 0 0;font-size:10.5px;line-height:1.45;color:var(--tx3)}
+  .law-cl{margin:6px 0 0;padding-left:8px;border-left:2px solid rgba(224,163,65,.5);
+          font-size:11px;line-height:1.5;color:var(--tx2)}
+  .law-cl b{color:var(--tx);font-weight:700}
+  .law-cl .ef{color:var(--tx3)}
+  .law-cl.none{border-left-color:rgba(255,255,255,.15);color:var(--tx3)}
   .law.repealed .law-st,.law.withdrawn .law-st{color:var(--tx2)}
   .law-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
   .lab{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;color:var(--tx3);text-transform:uppercase}
@@ -494,6 +499,20 @@ function renderBudget(){
 
 /* ---------- 2. who it reaches ------------------------------------------ */
 
+/* THE CLAUSE. Each record names the provision that actually does the thing the
+   mechanism sentence describes, read from the Act's own text. An instrument
+   with no enacted text to cite prints why, and never a guessed number. */
+function clauseBlock(l){
+  var c = (l && l.clauses) || [];
+  if(!c.length){
+    var why = (l && l.clauses_not_on_file) || '';
+    return why ? '<p class="law-cl none"><b>Clause not on file.</b> ' + esc(why) + '</p>' : '';
+  }
+  return '<p class="law-cl">' + c.map(function(x){
+    return '<b>' + esc(x.cite) + '</b>, ' + esc(x.instrument) +
+           (x.effect ? ' <span class="ef">' + esc(x.effect) + '</span>' : '');
+  }).join('<br>') + '</p>';
+}
 function tickHtml(t, base){
   var B = base || 'tk';
   var T = String(t==null?'':t).toUpperCase();
@@ -647,12 +666,15 @@ function renderLaws(){
 
   h += shown.map(function(l){
     var st = l.status || 'unknown';
+    /* the provision, not just the title: an Act reaches a company through one
+       clause, and the register now carries the clause it was read from */
     var cls = (st === 'repealed') ? 'repealed' : (st === 'withdrawn' ? 'withdrawn' : 'enacted');
     return '<div class="law ' + cls + '" data-status="' + esc(st) + '">' +
       '<div class="law-h"><span class="law-nm">' + esc(l.name) + '</span>' +
         '<span class="yr">' + esc(l.year) + '</span>' +
         '<span class="st ' + cls + '">' + esc(STATUS_LABEL[st] || st.toUpperCase()) + '</span></div>' +
       '<p class="law-mech">' + esc(l.mechanism || '') + '</p>' +
+      clauseBlock(l) +
       (l.status_note ? '<p class="law-st">' + esc(l.status_note) + '</p>' : '') +
       '<div class="law-f"><span class="lab">Sectors</span>' +
         (l.sectors||[]).map(function(s){ return '<span class="sec-chip">' + esc(s) + '</span>'; }).join('') +
