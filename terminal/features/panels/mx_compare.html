@@ -24,13 +24,31 @@
       as a peer's value. A withheld metric renders as "withheld" WITH its own
       reason. A row only one security has is dropped: one value is no comparison.
 
+  What can be compared here is not only shares. A money market, fixed income
+  or special fund is a token too: a category (MMF, SPECIAL, FIXED, EQUITY,
+  BALANCED) brings the regulator's own figures for that category, and a named
+  fund (MANSAX, ETICAWEALTHA, ZIMELESAVINGS and the rest of funds_KE.json)
+  brings its manager's own published numbers, each with the metric its manager
+  labelled it with. Beside them runs the cash line: the same money in the
+  91-day Treasury bill, compounded month by month at the Central Bank of
+  Kenya's own published rate for that month.
+
+  The chart area holds three views of that one window, switched on the bar:
+    * LINES   - the flat rebased chart.
+    * 3D      - the same lanes turned: time along one edge, the series pulled
+                apart in depth, percent return as height. Depth is separation
+                only and carries no quantity.
+    * MONEY   - the whole Kenyan rate surface (mx_curve.html), the context the
+      CURVE     cash line is compounded from.
+
   Usage: mx_compare.html?a=SCOM&b=ABG.JO   (comma or space separated, 2 to 4)
+         mx_compare.html?a=SCOM&b=MANSAX   (a share against a named fund)
          mx_compare.html?sym=SCOM           (deep link: fills A, offers peers)
   Vanilla JS, single file, no build step. Godel palette, mint accent.
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261113032029';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261113041312';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compare</title>
@@ -95,6 +113,29 @@
   .chartbox .window .cashnote{color:var(--gold)}
   .notes .wn.cash{color:var(--gold)}
   .notes .wn.cash b{color:var(--gold)}
+  .viewbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:0 0 9px}
+  .viewbar button{background:var(--bg3);color:var(--tx2);border:1px solid var(--line2);border-radius:2px;
+                  padding:4px 10px;font-family:var(--mono);font-size:10px;cursor:pointer;letter-spacing:.04em}
+  .viewbar button:hover{color:var(--gold);border-color:var(--gold)}
+  .viewbar button.on{color:#140e00;background:var(--gold);border-color:var(--gold);font-weight:700}
+  .viewbar .g3{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:9px;margin-left:3px;
+               border-left:1px solid var(--line2)}
+  .viewbar .sp{color:var(--tx3);font-size:9.5px;margin-left:auto}
+  .stage3{display:grid;grid-template-columns:1fr 244px;border:1px solid var(--line2);border-radius:2px;background:var(--bg2)}
+  @media (max-width:860px){ .stage3{grid-template-columns:1fr} }
+  .cv3{position:relative;min-height:400px;background:#0d0d0d;border-right:1px solid var(--line2)}
+  .cv3 canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+  .cv3 canvas.drag{cursor:grabbing}
+  .rd3{padding:11px 12px}
+  .rd3 h5{margin:0 0 6px;color:var(--tx3);font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:400}
+  .rd3 .dt{color:var(--gold);font-size:13px;font-weight:700;letter-spacing:.03em}
+  .rd3 table{width:100%;border-collapse:collapse;margin-top:5px}
+  .rd3 td{padding:3px 0;font-size:11px;color:var(--tx2);text-align:left;white-space:nowrap;border:0}
+  .rd3 td.v{text-align:right;font-weight:700}
+  .rd3 .h3{color:var(--tx3);font-size:9.5px;line-height:1.55;margin-top:9px;font-family:var(--ui)}
+  .frame3{width:100%;height:600px;border:1px solid var(--line2);border-radius:2px;background:var(--bg2);display:block}
+  .framewhy{color:var(--tx2);font-family:var(--ui);font-size:11px;line-height:1.55;padding:0 0 8px}
+  .framewhy b{font-family:var(--mono);color:var(--gold)}
   table{width:100%;border-collapse:collapse}
   th,td{padding:7px 14px;text-align:right;white-space:nowrap;vertical-align:top}
   th:first-child,td:first-child{text-align:left}
@@ -862,7 +903,31 @@ function renderChart(secs, series, C, named){
     legend += '<span class="li cash"><span class="sw dash"></span>91-day T-bill '+(cl>=0?'+':'')+cl.toFixed(1)+'%'
             + (cash.partial ? ' to '+esc(cash.upto) : '') + '</span>';
   }
+  /* ---- the same window as lanes, for the turnable view -------------------
+     A lane carries exactly the rebased percent return the flat chart draws,
+     taken from the same rebased series. Depth only separates the lanes: it is
+     not a quantity and nothing is rescaled to make room for it. A fund keeps
+     its own sparse annual points and is never filled in between them. */
+  var lanes = [];
+  seriesPct.forEach(function(sp, k){
+    lanes.push({ label: String(secs[k].ticker||secs[k].sym||''), name: secs[k].name || '',
+                 col: COL[k%COL.length], kind:'sec',
+                 p: sp.map(function(v, i){ return { i:i, v:v }; }) });
+  });
+  fundLines.forEach(function(fl){
+    lanes.push({ label: fl.f.key, name: fl.f.name || '', col: fl.col, kind:'fund',
+                 p: fl.xy.map(function(p){ return { i:p.i, v:p.v }; }) });
+  });
+  if(cash.pct){
+    lanes.push({ label:'91d T-BILL', name:'91-day Treasury bill, Central Bank of Kenya',
+                 col: GOLD, kind:'cash',
+                 p: cash.pct.map(function(v, i){ return { i:i, v:v }; }) });
+  }
+
   return {
+    win: '<div class="window">'+winTxt+'</div>',
+    body: svg + '<div class="legend">'+legend+'</div>',
+    v3: { pts: pts, lanes: lanes, lo: lo, hi: hi, from: d0 },
     html: '<div class="window">'+winTxt+'</div>' + svg + '<div class="legend">'+legend+'</div>',
     rets: rets,
     funds: fundLines.map(function(fl){
@@ -873,6 +938,306 @@ function renderChart(secs, series, C, named){
     cash: cash.pct ? { ret: cash.pct[cash.pct.length-1], upto: cash.upto, partial: cash.partial,
                        last: cash.last, retsAt: retsAt, from: d0 } : null
   };
+}
+
+/* ---- the turnable view -------------------------------------------------
+   The flat chart and this one draw the SAME numbers. Nothing here is computed:
+   the lanes arrive already rebased from renderChart, and the third dimension
+   only pulls them apart so four shares, a fund and the Treasury bill can each
+   be followed without crossing. One canvas, one projection, painter's
+   algorithm, no WebGL and no library, same as every other panel here. */
+var V3 = null, c3 = null, x3 = null;
+var yaw3 = -0.62, pitch3 = 0.46, zoom3 = 1, hov3 = -1, wire3 = false, spin3 = 0;
+var DPR3 = Math.min(window.devicePixelRatio || 1, 2);
+var V3VIEWS = { iso:[-0.62,0.46], time:[-1.5707,0.10], series:[0,0.10], top:[-0.62,1.30] };
+var tick3Started = false;
+
+function project3(x, y, z, W, H){
+  var cy = Math.cos(yaw3), sy = Math.sin(yaw3);
+  var x1 = x*cy - z*sy, z1 = x*sy + z*cy;
+  var cp = Math.cos(pitch3), sp = Math.sin(pitch3);
+  var y1 = y*cp - z1*sp, z2 = y*sp + z1*cp;
+  var s = Math.min(W, H*1.5) * 0.42 * zoom3;
+  return { x: W/2 + x1*s, y: H*0.56 - y1*s, d: z2 };
+}
+function shade3(hex, k){
+  var m = /^#?([0-9a-f]{6})$/i.exec(String(hex||''));
+  if(!m) return hex;
+  var n = parseInt(m[1], 16);
+  function c(v){ return Math.max(0, Math.min(255, Math.round(v*k))); }
+  return 'rgb(' + [c((n>>16)&255), c((n>>8)&255), c(n&255)].join(',') + ')';
+}
+function geo3(){
+  var n = V3.pts.length, K = V3.lanes.length;
+  var lo = V3.lo, hi = V3.hi, span = (hi-lo) || 1;
+  var Z = function(k){ return K > 1 ? (k/(K-1))*1.08 - 0.54 : 0; };
+  var Y = function(v){ return ((v-lo)/span)*0.9 - 0.3; };
+  return { n:n, K:K, Z:Z, Y:Y, y0:Y(0),
+           X: function(i){ return n > 1 ? (i/(n-1))*2 - 1 : 0; },
+           hz: K > 1 ? Math.min(0.095, (1.08/(K-1))*0.3) : 0.1 };
+}
+/* a lane's value AT a column, and the last published point up to it. A fund
+   has a point only where it published one, so the readout says which date the
+   figure belongs to rather than pretending the fund reported that month. */
+function laneAt(L, i){
+  for(var k=0;k<L.p.length;k++){ if(L.p[k].i === i) return L.p[k].v; }
+  return null;
+}
+function laneUpTo(L, i){
+  var best = null;
+  L.p.forEach(function(p){ if(p.i <= i && (best == null || p.i > best.i)) best = p; });
+  return best;
+}
+function draw3(){
+  if(!V3 || !c3) return;
+  var W = c3.clientWidth, H = c3.clientHeight;
+  if(!W || !H) return;
+  c3.width = Math.round(W*DPR3); c3.height = Math.round(H*DPR3);
+  x3.setTransform(DPR3,0,0,DPR3,0,0);
+  x3.clearRect(0,0,W,H);
+  var G = geo3(), font = getComputedStyle(document.body).fontFamily;
+
+  /* the back wall, so a height can be read as a number */
+  for(var g=0; g<=5; g++){
+    var gv = V3.lo + (V3.hi-V3.lo)*g/5, gy = G.Y(gv);
+    var a = project3(-1, gy, -0.70, W, H), b = project3(1, gy, -0.70, W, H);
+    x3.strokeStyle = '#1a1a1a'; x3.lineWidth = 1;
+    x3.beginPath(); x3.moveTo(a.x, a.y); x3.lineTo(b.x, b.y); x3.stroke();
+    x3.fillStyle = '#6a6a6a'; x3.font = '9px ' + font; x3.textAlign = 'right';
+    x3.fillText(gv.toFixed(0) + '%', a.x - 5, a.y + 3);
+  }
+  /* zero is the rebase date, not another gridline, so it is drawn apart */
+  var za = project3(-1, G.y0, -0.70, W, H), zb = project3(1, G.y0, -0.70, W, H);
+  x3.strokeStyle = '#3a3a3a'; x3.lineWidth = 1; x3.setLineDash([3,3]);
+  x3.beginPath(); x3.moveTo(za.x, za.y); x3.lineTo(zb.x, zb.y); x3.stroke();
+  x3.setLineDash([]);
+
+  /* Lanes far to near. Each lane is its own slab in depth and the slabs never
+     cross, so ordering the lanes and then the faces inside each lane puts
+     every face in the right place without a depth buffer. A larger projected
+     depth is farther away, so it is painted first. */
+  var order = V3.lanes.map(function(L, k){
+    return { k:k, d: project3(0, 0, G.Z(k), W, H).d };
+  }).sort(function(p, q){ return q.d - p.d; });
+
+  order.forEach(function(o){
+    var L = V3.lanes[o.k], zc = G.Z(o.k), hz = G.hz, quads = [];
+    for(var i=0;i<L.p.length-1;i++){
+      var p = L.p[i], q = L.p[i+1];
+      var x1 = G.X(p.i), x2 = G.X(q.i), y1 = G.Y(p.v), y2 = G.Y(q.v);
+      /* the top of the ribbon, then the two faces dropped to the rebase
+         plane, so a height reads as a distance from zero and not as a line
+         floating in the frame */
+      quads.push({ pts:[[x1,y1,zc-hz],[x2,y2,zc-hz],[x2,y2,zc+hz],[x1,y1,zc+hz]], sh:0.92 });
+      quads.push({ pts:[[x1,G.y0,zc+hz],[x1,y1,zc+hz],[x2,y2,zc+hz],[x2,G.y0,zc+hz]], sh:0.42 });
+      quads.push({ pts:[[x1,G.y0,zc-hz],[x1,y1,zc-hz],[x2,y2,zc-hz],[x2,G.y0,zc-hz]], sh:0.28 });
+    }
+    quads.forEach(function(Q){
+      Q.q = Q.pts.map(function(P){ return project3(P[0], P[1], P[2], W, H); });
+      Q.d = (Q.q[0].d + Q.q[1].d + Q.q[2].d + Q.q[3].d) / 4;
+    });
+    quads.sort(function(p, q){ return q.d - p.d; });
+    quads.forEach(function(Q){
+      x3.beginPath(); x3.moveTo(Q.q[0].x, Q.q[0].y);
+      for(var k2=1;k2<4;k2++) x3.lineTo(Q.q[k2].x, Q.q[k2].y);
+      x3.closePath();
+      if(!wire3){
+        x3.fillStyle = shade3(L.col, Q.sh);
+        x3.globalAlpha = (L.kind === 'cash') ? 0.78 : 0.94;
+        x3.fill();
+        x3.globalAlpha = 1;
+      }
+      x3.strokeStyle = wire3 ? shade3(L.col, 0.85) : 'rgba(0,0,0,.35)';
+      x3.lineWidth = wire3 ? 0.6 : 0.5;
+      x3.stroke();
+    });
+    /* the lane's own line, on its own ribbon */
+    x3.beginPath();
+    L.p.forEach(function(pp, i){
+      var pr = project3(G.X(pp.i), G.Y(pp.v), zc, W, H);
+      if(i) x3.lineTo(pr.x, pr.y); else x3.moveTo(pr.x, pr.y);
+    });
+    x3.strokeStyle = L.col;
+    x3.lineWidth = (L.kind === 'fund') ? 2.1 : 1.7;
+    if(L.kind === 'cash') x3.setLineDash([5,4]);
+    x3.stroke();
+    x3.setLineDash([]);
+    if(L.kind === 'fund'){
+      L.p.forEach(function(pp){
+        var pr = project3(G.X(pp.i), G.Y(pp.v), zc, W, H);
+        x3.beginPath(); x3.arc(pr.x, pr.y, 2.3, 0, 6.3);
+        x3.fillStyle = L.col; x3.fill();
+      });
+    }
+    /* the lane names itself at its own end, kept inside the frame: a label
+       half off the edge names nothing */
+    var endp = L.p[L.p.length-1];
+    var ep = project3(G.X(endp.i), G.Y(endp.v), zc, W, H);
+    var txt = L.label + '  ' + (endp.v>=0?'+':'') + endp.v.toFixed(1) + '%';
+    x3.font = '9.5px ' + font; x3.textAlign = 'left';
+    var tw = x3.measureText(txt).width, tx = ep.x + 6;
+    if(tx + tw > W - 4) tx = Math.max(4, ep.x - 6 - tw);
+    x3.fillStyle = L.col;
+    x3.fillText(txt, tx, Math.max(12, Math.min(H - 5, ep.y - 4)));
+    if(hov3 >= 0){
+      var hv = laneAt(L, hov3);
+      if(hv != null){
+        var hp = project3(G.X(hov3), G.Y(hv), zc, W, H);
+        x3.beginPath(); x3.arc(hp.x, hp.y, 3, 0, 6.3);
+        x3.fillStyle = '#ffffff'; x3.fill();
+      }
+    }
+  });
+
+  /* the years along the time edge */
+  var years = [], seen = {};
+  for(var iy=0; iy<V3.pts.length; iy++){
+    var yr = String(V3.pts[iy]).slice(0,4);
+    if(!seen[yr]){ seen[yr] = 1; years.push({ yr:yr, i:iy }); }
+  }
+  var step = years.length > 14 ? 3 : (years.length > 7 ? 2 : 1);
+  x3.fillStyle = '#a8a8a8'; x3.font = '9px ' + font; x3.textAlign = 'center';
+  years.forEach(function(y, k){
+    if(k % step) return;
+    var pt = project3(G.X(y.i), G.y0, -0.70, W, H);
+    x3.fillText(y.yr, pt.x, pt.y + 13);
+  });
+}
+function read3(){
+  var el = $('rd3');
+  if(!el || !V3) return;
+  var i = (hov3 >= 0 && hov3 < V3.pts.length) ? hov3 : V3.pts.length - 1;
+  var rows = V3.lanes.map(function(L){
+    var v = laneAt(L, i), tail = '';
+    if(v == null){
+      var b = laneUpTo(L, i);
+      if(b){ v = b.v; tail = '<span style="color:var(--tx3)"> to ' + esc(V3.pts[b.i]) + '</span>'; }
+    }
+    return '<tr><td style="color:'+L.col+'">' + esc(L.label) + '</td>'
+         + '<td class="v" style="color:'+L.col+'">'
+         + (v == null ? DASH() : ((v>=0?'+':'') + v.toFixed(1) + '%')) + tail + '</td></tr>';
+  }).join('');
+  el.innerHTML = '<h5>' + (hov3 >= 0 ? 'Hovered column' : 'Window end') + '</h5>'
+    + '<div class="dt">' + esc(V3.pts[i]) + '</div><table>' + rows + '</table>'
+    + '<div class="h3">Height is percent return since <b>' + esc(V3.pts[0]) + '</b>, the same rebase the flat '
+    + 'chart uses. Depth separates the series and carries no quantity. A fund lane steps between the annual '
+    + 'points its manager published, and where it has no point for a column the figure is labelled with the '
+    + 'date it does belong to.</div>';
+}
+function initCanvas3(){
+  var el = $('cv3');
+  if(!el) return;
+  if(c3 === el){ draw3(); return; }
+  c3 = el; x3 = el.getContext('2d');
+  var dragging = false, lx = 0, ly = 0;
+  c3.addEventListener('pointerdown', function(e){
+    dragging = true; lx = e.clientX; ly = e.clientY; spin3 = 0;
+    var sb = $('spin3'); if(sb) sb.classList.remove('on');
+    c3.classList.add('drag'); c3.setPointerCapture(e.pointerId);
+  });
+  c3.addEventListener('pointerup', function(){ dragging = false; c3.classList.remove('drag'); });
+  c3.addEventListener('pointerleave', function(){ dragging = false; c3.classList.remove('drag'); });
+  c3.addEventListener('pointermove', function(e){
+    if(dragging){
+      yaw3 += (e.clientX - lx) * 0.0075;
+      pitch3 = Math.max(-0.2, Math.min(1.35, pitch3 + (e.clientY - ly) * 0.0055));
+      lx = e.clientX; ly = e.clientY;
+      draw3();
+      return;
+    }
+    if(!V3) return;
+    /* the nearest published point on screen, whichever lane it belongs to */
+    var r = c3.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    var G = geo3(), best = -1, bd = 1e9;
+    V3.lanes.forEach(function(L, k){
+      L.p.forEach(function(pp){
+        var pr = project3(G.X(pp.i), G.Y(pp.v), G.Z(k), r.width, r.height);
+        var dd = (pr.x-mx)*(pr.x-mx) + (pr.y-my)*(pr.y-my);
+        if(dd < bd){ bd = dd; best = pp.i; }
+      });
+    });
+    if(bd < 3600 && best !== hov3){ hov3 = best; draw3(); read3(); }
+  });
+  c3.addEventListener('wheel', function(e){
+    e.preventDefault();
+    zoom3 = Math.max(0.45, Math.min(2.6, zoom3 * (e.deltaY > 0 ? 0.92 : 1.08)));
+    draw3();
+  }, {passive:false});
+  if(!tick3Started){
+    tick3Started = true;
+    (function tick(){
+      if(spin3 && c3 && c3.clientWidth){ yaw3 += 0.0045; draw3(); }
+      requestAnimationFrame(tick);
+    })();
+    window.addEventListener('resize', function(){ if(c3 && c3.clientWidth){ draw3(); } });
+  }
+  draw3();
+}
+function viewbarHTML(hasLanes){
+  return '<div class="viewbar">'
+    + '<button data-cv="lines" class="on">LINES</button>'
+    + (hasLanes ? '<button data-cv="surface">3D</button>' : '')
+    + '<button data-cv="curve">MONEY CURVE</button>'
+    + (hasLanes ? '<span class="g3" id="g3" style="display:none">'
+        + '<button data-v3="iso" class="on">ISO</button>'
+        + '<button data-v3="time">TIME</button>'
+        + '<button data-v3="series">SERIES</button>'
+        + '<button data-v3="top">TOP</button>'
+        + '<button id="spin3">SPIN</button>'
+        + '<button id="wire3">WIREFRAME</button></span>' : '')
+    + '<span class="sp">drag to turn &middot; wheel to zoom &middot; hover a point</span>'
+    + '</div>';
+}
+function pane3HTML(hasLanes){
+  if(!hasLanes) return '';
+  return '<div class="pane" id="pn3d" style="display:none">'
+    + '<div class="stage3"><div class="cv3"><canvas id="cv3"></canvas></div>'
+    + '<div class="rd3" id="rd3"></div></div></div>';
+}
+function paneCurveHTML(){
+  return '<div class="pane" id="pnCurve" style="display:none">'
+    + '<div class="framewhy">The whole Kenyan money curve as one surface: the <b>overnight</b> rate and the '
+    + '<b>91</b>, <b>182</b> and <b>364-day</b> Treasury bills along one edge, the months along the other, the '
+    + 'published rate as height. It is the context the gold cash line above is drawn from, so the rate the bill '
+    + 'paid in any month of this window can be read off it directly.</div>'
+    + '<iframe class="frame3" id="curveFrame" title="Kenya money curve" loading="lazy"></iframe></div>';
+}
+function wireViews(v3){
+  V3 = (v3 && v3.lanes && v3.lanes.length) ? v3 : null;
+  var g3 = $('g3');
+  Array.prototype.forEach.call(document.querySelectorAll('[data-cv]'), function(b){
+    b.addEventListener('click', function(){
+      var k = b.getAttribute('data-cv');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-cv]'), function(x){
+        x.classList.toggle('on', x === b);
+      });
+      ['lines','surface','curve'].forEach(function(p){
+        var el = $(p === 'lines' ? 'pnLines' : (p === 'surface' ? 'pn3d' : 'pnCurve'));
+        if(el) el.style.display = (p === k) ? '' : 'none';
+      });
+      if(g3) g3.style.display = (k === 'surface') ? '' : 'none';
+      if(k === 'surface'){ initCanvas3(); read3(); }
+      if(k === 'curve'){
+        var f = $('curveFrame');
+        if(f && !f.getAttribute('src')) f.setAttribute('src', 'mx_curve.html');
+      }
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-v3]'), function(b){
+    b.addEventListener('click', function(){
+      Array.prototype.forEach.call(document.querySelectorAll('[data-v3]'), function(x){
+        x.classList.toggle('on', x === b);
+      });
+      var v = V3VIEWS[b.getAttribute('data-v3')];
+      if(v){ yaw3 = v[0]; pitch3 = v[1]; spin3 = 0; }
+      var sb = $('spin3'); if(sb) sb.classList.remove('on');
+      draw3();
+    });
+  });
+  var sp = $('spin3');
+  if(sp) sp.addEventListener('click', function(){ spin3 = spin3 ? 0 : 1; sp.classList.toggle('on', !!spin3); });
+  var wr = $('wire3');
+  if(wr) wr.addEventListener('click', function(){ wire3 = !wire3; wr.classList.toggle('on', wire3); draw3(); });
 }
 
 /* ---- table ------------------------------------------------------------ */
@@ -1212,7 +1577,20 @@ async function compare(tokArg){
   });
   await loadFunds();
   var chart = renderChart(secs, series, await loadCash(), named);
-  html += '<div class="chartbox">' + chart.html + '</div>';
+  /* One chart area, three ways of looking at the same window: the flat lines,
+     the same lanes turned in three dimensions, and the rate surface the cash
+     line is drawn from. The explanation of the window sits above all three
+     because it is true of all three. */
+  hov3 = -1;
+  var hasLanes = !!(chart.v3 && chart.v3.lanes && chart.v3.lanes.length);
+  if(chart.body){
+    html += '<div class="chartbox">' + viewbarHTML(hasLanes) + chart.win
+          + '<div class="pane" id="pnLines">' + chart.body + '</div>'
+          + pane3HTML(hasLanes) + paneCurveHTML() + '</div>';
+  } else {
+    html += '<div class="chartbox">' + viewbarHTML(false) + chart.html
+          + '<div class="pane" id="pnLines"></div>' + paneCurveHTML() + '</div>';
+  }
   html += renderNamed(named, chart.funds);
   html += renderFunds(funds,
     chart.cash ? chart.cash.ret : null,
@@ -1256,6 +1634,7 @@ async function compare(tokArg){
 
   html += '<div class="verdict">'+verdict(secs, chart.rets, chart.cash, funds, chart.funds)+'</div>';
   $('body').innerHTML = html;
+  wireViews(chart.v3);
   $('status').textContent = 'ready';
 }
 
