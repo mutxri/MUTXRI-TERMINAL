@@ -48,7 +48,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261113041312';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261113042303';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compare</title>
@@ -1020,6 +1020,7 @@ function draw3(){
     return { k:k, d: project3(0, 0, G.Z(k), W, H).d };
   }).sort(function(p, q){ return q.d - p.d; });
 
+  var labels3 = [];
   order.forEach(function(o){
     var L = V3.lanes[o.k], zc = G.Z(o.k), hz = G.hz, quads = [];
     for(var i=0;i<L.p.length-1;i++){
@@ -1069,16 +1070,14 @@ function draw3(){
         x3.fillStyle = L.col; x3.fill();
       });
     }
-    /* the lane names itself at its own end, kept inside the frame: a label
-       half off the edge names nothing */
+    /* the lane names itself at its own end. The label is held for the end of
+       the pass so no later lane paints over it, kept inside the frame, and
+       nudged clear of a label already placed: two names on top of each other
+       name nothing. */
     var endp = L.p[L.p.length-1];
     var ep = project3(G.X(endp.i), G.Y(endp.v), zc, W, H);
-    var txt = L.label + '  ' + (endp.v>=0?'+':'') + endp.v.toFixed(1) + '%';
-    x3.font = '9.5px ' + font; x3.textAlign = 'left';
-    var tw = x3.measureText(txt).width, tx = ep.x + 6;
-    if(tx + tw > W - 4) tx = Math.max(4, ep.x - 6 - tw);
-    x3.fillStyle = L.col;
-    x3.fillText(txt, tx, Math.max(12, Math.min(H - 5, ep.y - 4)));
+    labels3.push({ txt: L.label + '  ' + (endp.v>=0?'+':'') + endp.v.toFixed(1) + '%',
+                   x: ep.x, y: ep.y, col: L.col });
     if(hov3 >= 0){
       var hv = laneAt(L, hov3);
       if(hv != null){
@@ -1087,6 +1086,26 @@ function draw3(){
         x3.fillStyle = '#ffffff'; x3.fill();
       }
     }
+  });
+
+  /* the lane names, after every face is down */
+  x3.font = '9.5px ' + font; x3.textAlign = 'left';
+  var placed = [];
+  labels3.forEach(function(Lb){
+    var tw = x3.measureText(Lb.txt).width;
+    var tx = Lb.x + 6;
+    if(tx + tw > W - 4) tx = Math.max(4, Lb.x - 6 - tw);
+    var ty = Math.max(12, Math.min(H - 5, Lb.y - 4));
+    for(var guard=0; guard<10; guard++){
+      var clash = placed.filter(function(p){
+        return Math.abs(p.y - ty) < 15 && tx < p.x + p.w + 8 && p.x < tx + tw + 8;
+      })[0];
+      if(!clash) break;
+      ty = (clash.y + 16 < H - 5) ? clash.y + 16 : Math.max(12, clash.y - 16);
+    }
+    placed.push({ x:tx, y:ty, w:tw });
+    x3.fillStyle = Lb.col;
+    x3.fillText(Lb.txt, tx, ty);
   });
 
   /* the years along the time edge */
