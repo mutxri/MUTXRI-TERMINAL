@@ -2,7 +2,7 @@
  "ticker": "HBMNG",
  "name": "HBM Nigeria",
  "currency": "NGN",
- "source": "CRON 20261014: FY2025 EPS corrected from 625.0 to 16.9558 (profit 273,120,312,000 divided by 16,107,795,721 ordinary shares, the same share count that reproduces the printed EPS in FY2021 to FY2024; 625.0 was the printed kobo figure stored in naira). | HBM Nigeria Plc consolidated statement of profit or loss for the period ended 30 June 2026 (NGX doclib filing library), group six months column, N'000 scaled to NGN. EPS as printed in kobo converted to naira and confirmed against 16,107,795,721 ordinary shares. Net finance income is stored negative. Operating expenses are selling and distribution plus administrative expenses plus the impairment expense on receivables. | NGX (doclib.ngxgroup.com) | CRON 20260929_003746: Income Tax sign normalised to the dataset convention, the charge stored positive and a credit negative, on 1 period(s), so that the rendered Profit Before Tax less Income Tax equals Net Profit. The required sign is fixed by the direction of the move from Profit Before Tax to Net Profit in the stored rows, and the stored magnitude already agreed with that move.",
+ "source": "CRON 20261014: FY2025 EPS corrected from 625.0 to 16.9558 (profit 273,120,312,000 divided by 16,107,795,721 ordinary shares, the same share count that reproduces the printed EPS in FY2021 to FY2024; 625.0 was the printed kobo figure stored in naira). | HBM Nigeria Plc consolidated statement of profit or loss for the period ended 30 June 2026 (NGX doclib filing library), group six months column, N'000 scaled to NGN. EPS as printed in kobo converted to naira and confirmed against 16,107,795,721 ordinary shares. Net finance income is stored negative. Operating expenses are selling and distribution plus administrative expenses plus the impairment expense on receivables. | NGX (doclib.ngxgroup.com) | CRON 20260929_003746: Income Tax sign normalised to the dataset convention, the charge stored positive and a credit negative, on 1 period(s), so that the rendered Profit Before Tax less Income Tax equals Net Profit. The required sign is fixed by the direction of the move from Profit Before Tax to Net Profit in the stored rows, and the stored magnitude already agreed with that move. | CRON 20261115: the FY2025 and FY2024 columns mixed the Company (separate) column of the audited statement of profit or loss with the Group column: Profit Before Tax came from the Company column while Income Tax and Net Profit came from the Group column, so the column did not add up. Replaced with the audited GROUP figures, printed page 22 (PDF page 22) of the Lafarge Africa Plc Annual Report for the year ended 31 December 2025, N'000: profit before tax 411,316,628 (2024: 152,264,885 after minimum tax of 254,069) and income tax expense 138,196,316 (2024: 52,119,604). Both columns now tie: 411,316,628 less 138,196,316 equals 273,120,312, and 152,264,885 less 52,119,604 equals 100,145,281. The issuer filed this report under its former name Lafarge Africa Plc; it trades as HBMNG after the 2026 renaming. Source: https://doclib.ngxgroup.com/Financial_NewsDocs/Lafarge_Africa_Plc_2025_AFS.pdf | CRON 20261115 open item: Income Tax is still blank for FY2023, FY2022 and FY2021, and the stored Profit Before Tax for those three years does not match the group five-year financial summary on page 104 of the same audited report, which prints 80,694,611 / 69,744,701 / 62,254,478 against the stored 76,361,586 / 71,537,203 / 63,649,528. Net Profit matches both sources exactly for all three years. Filling the tax cells from the summary alone would leave those columns unable to tie, so the three years are left untouched until the FY2023 audited report is read and the restatement is settled.",
  "asOf": "FY2025",
  "statement": "income",
  "statementTitle": "Income Statement",
@@ -66,8 +66,8 @@
    "label": "Profit Before Tax",
    "values": [
     317731603000,
-    393889399000.0,
-    151575260000.0,
+    411316628000,
+    152264885000,
     76361586000.0,
     71537203000.0,
     63649528000.0
@@ -99,7 +99,7 @@
    "label": "Income Tax",
    "values": [
     109384953000,
-    -138196316000.0,
+    138196316000,
     52119604000.0,
     null,
     null,
@@ -238,5 +238,34 @@
  "sharesOutstanding": 16107795721,
  "marketCapSource": "NGX 'List of Equities as of 2026-04-09' (doclib.ngxgroup.com), shares outstanding",
  "reconciliation_note": "Gross Profit - Operating Expenses = Operating Profit (EBIT) does not hold in FY2023, FY2022; the operating expenses for those periods are withheld (see the row note). Gross Profit - Operating Expenses = Operating Profit (EBIT) does not hold in FY2025, FY2024: the filed operating profit is a subtotal that also carries operating income not shown as a separate row in this file, and it ties forward to Profit Before Tax. The figure is corroborated by the statement's own bridge and is shown unchanged.",
- "derivedCellsNote": "Individual blank cells derived from the same file own printed inputs, each tagged derived true with its formula and identity agreement rate."
+ "derivedCellsNote": "Individual blank cells derived from the same file own printed inputs, each tagged derived true with its formula and identity agreement rate.",
+ "repair": [
+  {
+   "at": "20261115_232207",
+   "kind": "column-consistency",
+   "source": "Lafarge Africa Plc FY2025 annual report, page 22",
+   "source_url": "https://doclib.ngxgroup.com/Financial_NewsDocs/Lafarge_Africa_Plc_2025_AFS.pdf",
+   "changes": [
+    {
+     "label": "Profit Before Tax",
+     "period": "FY2025",
+     "old": 393889399000.0,
+     "new": 411316628000
+    },
+    {
+     "label": "Profit Before Tax",
+     "period": "FY2024",
+     "old": 151575260000.0,
+     "new": 152264885000
+    },
+    {
+     "label": "Income Tax",
+     "period": "FY2025",
+     "old": -138196316000.0,
+     "new": 138196316000
+    }
+   ],
+   "note": "CRON 20261115: the FY2025 and FY2024 columns mixed the Company (separate) column of the audited statement of profit or loss with the Group column: Profit Before Tax came from the Company column while Income Tax and Net Profit came from the Group column, so the column did not add up. Replaced with the audited GROUP figures, printed page 22 (PDF page 22) of the Lafarge Africa Plc Annual Report for the year ended 31 December 2025, N'000: profit before tax 411,316,628 (2024: 152,264,885 after minimum tax of 254,069) and income tax expense 138,196,316 (2024: 52,119,604). Both columns now tie: 411,316,628 less 138,196,316 equals 273,120,312, and 152,264,885 less 52,119,604 equals 100,145,281. The issuer filed this report under its former name Lafarge Africa Plc; it trades as HBMNG after the 2026 renaming. Source: https://doclib.ngxgroup.com/Financial_NewsDocs/Lafarge_Africa_Plc_2025_AFS.pdf"
+  }
+ ]
 }
