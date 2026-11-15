@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261116002034';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116003118';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1041,6 +1041,84 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
 /* the seam: every pane meets its neighbour on a single black pixel */
 .wrow > * { border-right: 1px solid #000 !important; }
 .wrow > *:last-child { border-right: 0 !important; }
+
+/* ===== WIREFRAME REGISTER (2026-11-15) =======================================
+   The shell's own surfaces are drawn as a technical plate: hairline rules at low
+   white, square corners, micro labels wide tracked, and the figures carrying the
+   weight. Colour is kept ONLY where it means direction inside the data (a rising
+   and a falling price), because a trading screen that hides direction is not
+   plainer, it is slower to read. Everything decorative - mint borders, gold rings,
+   filled charts, glows - is removed here.
+   Scope: the shell draws the desk windows, the boards, the tape and the MARKET
+   column. The panel iframes carry their own stylesheets and are done separately. */
+:root{
+  --hair: rgba(255,255,255,.10);
+  --hair2: rgba(255,255,255,.055);
+  --ink:#f2f2f2;
+  --dim:#8b8b8b;
+  --faint:#5c5c5c;
+}
+
+/* windows: hairline edge, no ring, no shadow, square */
+.pwin, .rail, .rail.right, .rail.chat, .panel, .chat,
+#rowTop > .rail, #rowTop > .panel, .wrow > .rail, .wrow > .panel{
+  border:1px solid var(--hair) !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#0b0b0b !important;
+}
+.pwin-front{ border-color:rgba(255,255,255,.22) !important; box-shadow:none !important; }
+
+/* window title lines: an index label plus a wide tracked name */
+.pwin-hd{
+  height:24px !important; min-height:24px !important;
+  padding:0 8px !important;
+  background:#0b0b0b !important;
+  border-bottom:1px solid var(--hair) !important;
+  gap:8px;
+}
+.pwin-hd .pw-t,
+.pwin-front > .pwin-hd .pw-t{
+  color:var(--ink) !important;
+  font-size:8px !important;
+  letter-spacing:.30em !important;
+  text-transform:uppercase;
+  font-weight:500 !important;
+}
+.pwin-hd .pw-x{ color:var(--faint) !important; }
+.pwin-hd .pw-x:hover{ color:var(--ink) !important; }
+
+/* desk section labels */
+.eyebrow, .wl-head, .chat-head, .panel-head{
+  color:var(--dim) !important;
+  font-size:8px !important;
+  letter-spacing:.30em !important;
+  text-transform:uppercase;
+  background:#0b0b0b !important;
+  border-bottom:1px solid var(--hair) !important;
+}
+
+/* tables: hairline rows, mono figures, dim micro heads */
+.wl-row, .wl-list > *, .mk-row{
+  border-bottom:1px solid var(--hair2) !important;
+}
+.wl-row:last-child, .mk-row:last-child{ border-bottom:0 !important; }
+
+/* the tape: monochrome separators, direction kept */
+.tape, .tickertape{ border-top:1px solid var(--hair) !important; border-bottom:1px solid var(--hair) !important; }
+
+/* the MARKET column's headings */
+.mki-h{
+  color:var(--dim) !important;
+  font-size:8px !important;
+  letter-spacing:.28em !important;
+  border-bottom:1px solid var(--hair2) !important;
+  padding-bottom:4px !important;
+}
+.mki-row{ border-bottom:1px solid var(--hair2) !important; }
+.mki-row .k{ color:var(--dim) !important; }
+.mki-row .v{ color:var(--ink) !important; }
+.mki-out{ color:var(--faint) !important; }
 </style>
 </head>
 <body>
@@ -7263,7 +7341,7 @@ function mkSvgLine(pts){
          '<stop offset="0%" stop-color="#33e29a" stop-opacity="0.30"/>' +
          '<stop offset="100%" stop-color="#33e29a" stop-opacity="0"/></linearGradient></defs>' +
          '<path d="' + area + '" fill="url(#mkAreaFill)" stroke="none"></path>' +
-         '<path d="' + d + '" fill="none" stroke="#33e29a" stroke-width="1.5" ' +
+         '<path d="' + d + '" fill="none" stroke="rgba(255,255,255,.72)" stroke-width="1.2" ' +
          'vector-effect="non-scaling-stroke" stroke-linejoin="round"></path></svg>';
 }
 function mkChart(box, bars){
@@ -7300,11 +7378,11 @@ function mkChart(box, bars){
         width: w, height: hgt
       });
       var opts = {
-        lineColor:'#33e29a', lineWidth:2,
-        topColor:'rgba(51,226,154,.30)', bottomColor:'rgba(51,226,154,0)',
-        priceLineVisible:true, priceLineColor:'#33e29a', priceLineWidth:1, priceLineStyle:2,
+        lineColor:'rgba(255,255,255,.72)', lineWidth:1,
+        topColor:'rgba(255,255,255,0)', bottomColor:'rgba(255,255,255,0)',
+        priceLineVisible:true, priceLineColor:'rgba(255,255,255,.30)', priceLineWidth:1, priceLineStyle:2,
         crosshairMarkerVisible:true, crosshairMarkerRadius:2,
-        crosshairMarkerBorderColor:'#33e29a', crosshairMarkerBackgroundColor:'#0d0d0d'
+        crosshairMarkerBorderColor:'rgba(255,255,255,.6)', crosshairMarkerBackgroundColor:'#0b0b0b'
       };
       var s = null;
       if(typeof MT_MK.chart.addAreaSeries === 'function'){ s = MT_MK.chart.addAreaSeries(opts); }
