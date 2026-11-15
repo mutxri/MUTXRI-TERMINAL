@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<!--
+  MUTXRI TERMINAL - GEO panel: the land a company's revenue is grown on.
+
+  WHY THIS PANEL EXISTS. Every other panel treats a security as a set of
+  numbers. For an agricultural counter the numbers are grown somewhere, and the
+  weather over that somewhere is the first input to the result. This panel puts
+  the place on screen: where the estates are, what the land temperature does
+  there across the seasons, how much rain actually fell, and the revenue that
+  rain became.
+
+  WHAT IT CLAIMS, AND WHAT IT WILL NOT.
+
+   * Rainfall is MEASURED: ERA5 daily reanalysis at the growing areas, summed
+     over THAT COMPANY'S OWN financial year. The year ends differ and it
+     matters. Williamson and Kapchorua close on 31 March, Sasini on 30
+     September, Kakuzi and Limuru on 31 December. Reading a March-year
+     company's revenue against calendar rainfall offsets the cause from the
+     effect by nine months.
+
+   * The thermal images are a real satellite product, MODIS Aqua land surface
+     temperature from NASA GIBS, not a heat map drawn here. Their dark patches
+     are cloud and missing data. Over a tea belt that is cloudy by nature those
+     gaps are part of the picture and are NOT filled in.
+
+   * NO CORRELATION COEFFICIENT IS SHOWN. Each company has about five annual
+     revenue figures on file, and at n=5 a coefficient of 0.9 falls out of
+     random numbers about one time in twenty five. The two series are drawn
+     against each other and the point count is stated. The reader judges.
+
+   * The coordinates are town or growing-area centroids, not estate boundaries
+     published by anyone, and each location says how it was established: from
+     the company's own material, or from a third party where the company's own
+     source could not be reached.
+
+  AND THE RESULT IS NOT THE INTUITIVE ONE. More rain does mean more leaf, but
+  when rain is good across the whole country every estate plucks at once, the
+  auction price falls, and revenue can fall with it. Williamson and Kapchorua
+  both had their wettest year on file and their weakest revenue in the same
+  year. The panel says this where the data shows it rather than leaving the
+  reader with a chain that points the wrong way.
+
+  A security with no growing areas on file says so and offers the ones that do.
+-->
+<html lang="en">
+<head><script>(function(){var V='20261116021215';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUTXRI TERMINAL - GEO</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://mutxriterminal.com/">
+<style>
+  html{color-scheme:dark;scrollbar-width:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+  :root{
+    --bg:#121212;--bg2:#0a0a0a;--bg3:#141414;--bg4:#1f1f1f;
+    --line:#1a1a1a;--line2:#262626;
+    --tx:#f0f0f0;--tx2:#9a9a9a;--tx3:#6a6a6a;
+    --up:#33e29a;--down:#f87171;--acc:#33e29a;--gold:#f5c542;--blue:#5aa9f8;
+    --violet:#b07cf0;
+    --mono:'Oxygen Mono',ui-monospace,monospace;--ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:transparent;color:var(--tx);font-family:var(--ui);font-size:13px}
+  .wrap{padding:14px}
+  .head{display:flex;align-items:baseline;gap:10px;padding:4px 2px 12px;
+        border-bottom:1px solid var(--line2);flex-wrap:wrap}
+  .ttl{font-size:15px;font-weight:700;letter-spacing:.4px}
+  .sub{font-family:var(--mono);font-size:10px;color:var(--tx3)}
+  .card{border:1px solid var(--line);background:var(--bg3);border-radius:9px;
+        padding:12px 14px;margin-top:12px}
+  .ch{font-family:var(--mono);font-size:9.5px;letter-spacing:1.6px;color:var(--tx3);
+      margin-bottom:9px}
+  .areas{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line2);
+        border-radius:5px;padding:4px 9px;color:var(--tx2);cursor:pointer;background:var(--bg2)}
+  .chip.on{color:var(--violet);border-color:#4a3566;background:#16101d}
+  .chip:hover{border-color:#3a3a3a}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tile{border:1px solid var(--line2);border-radius:7px;overflow:hidden;background:#0d0d0d}
+  .tile img{width:100%;display:block}
+  .tile .cap{padding:6px 9px 8px}
+  .tile .cap b{font-size:11px;letter-spacing:.4px}
+  .tile .cap div{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:3px;line-height:1.45}
+  .note{font-family:var(--mono);font-size:9.5px;color:var(--tx3);line-height:1.6;margin-top:9px}
+  .kv{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+      padding:7px 0;border-bottom:1px solid var(--line)}
+  .kv:last-child{border-bottom:0}
+  .kv .k{font-family:var(--mono);font-size:10px;letter-spacing:1.1px;color:var(--tx3)}
+  .kv .v{font-family:var(--mono);font-size:14px}
+  .big{font-family:var(--mono);font-size:26px;font-weight:700}
+  .warn{color:var(--down)}
+  .mut{color:var(--tx3)}
+  .tag{font-family:var(--mono);font-size:8.5px;border:1px solid #2a5d4a;color:var(--acc);
+       border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+  .tag.amber{border-color:#5d4a1f;color:var(--gold)}
+  .empty{font-family:var(--mono);font-size:11px;color:var(--tx3);line-height:1.7;padding:10px 2px}
+  svg{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <span class="ttl" id="ttl">GEO</span>
+    <span class="sub" id="sub"></span>
+  </div>
+  <div id="body"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var Q  = new URLSearchParams(location.search);
+  var EX  = (Q.get("ex")  || "NSE").toUpperCase();
+  var SYM = (Q.get("sym") || "").toUpperCase();
+  var D = null, area = null;
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function sd(p){ return "../../static_data/" + p; }
+  function fmt(n, dp){
+    if(n == null || isNaN(n)) return "-";
+    return Number(n).toLocaleString(undefined, {minimumFractionDigits: dp||0,
+                                                maximumFractionDigits: dp||0});
+  }
+  function money(v){
+    if(v == null) return "-";
+    return v >= 1e9 ? (v/1e9).toFixed(2) + "B" : Math.round(v/1e6) + "M";
+  }
+
+  fetch(sd("geo_KE.json")).then(function(r){
+    if(!r.ok) throw new Error("geo_KE.json " + r.status);
+    return r.json();
+  }).then(function(j){ D = j; draw(); })
+    .catch(function(e){
+      $("body").innerHTML = '<div class="empty">The geography file could not be read ('
+        + esc(e.message) + '). Nothing is drawn rather than drawn from nothing.</div>';
+    });
+
+  /* ---- the rainfall-against-revenue chart ------------------------------
+     Two series on one frame with independent scales, which is honest only
+     because neither is being multiplied by the other: the shapes are being
+     compared, not a ratio computed. Point count is printed beneath. */
+  function chart(years, w){
+    if(!years || years.length < 2) return "";
+    var H = 150, PL = 44, PR = 46, PT = 14, PB = 26;
+    var iw = w - PL - PR, ih = H - PT - PB;
+    var rr = years.map(function(y){ return y.rain_mm; });
+    var vv = years.map(function(y){ return y.revenue; });
+    var r0 = Math.min.apply(null, rr) * 0.86, r1 = Math.max.apply(null, rr) * 1.06;
+    var v0 = Math.min.apply(null, vv) * 0.82, v1 = Math.max.apply(null, vv) * 1.1;
+    var n = years.length, step = iw / n;
+    var o = "";
+    years.forEach(function(y, i){
+      var bh = (y.rain_mm - r0) / (r1 - r0) * ih;
+      var bx = PL + i * step + step * 0.24;
+      o += '<rect x="' + bx.toFixed(1) + '" y="' + (PT + ih - bh).toFixed(1)
+         + '" width="' + (step * 0.52).toFixed(1) + '" height="' + Math.max(2, bh).toFixed(1)
+         + '" fill="#23506e"/>';
+      o += '<text x="' + (bx + step * 0.26).toFixed(1) + '" y="' + (PT + ih - bh - 4).toFixed(1)
+         + '" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="#5aa9f8">'
+         + fmt(y.rain_mm) + '</text>';
+    });
+    var pts = years.map(function(y, i){
+      return [PL + i * step + step / 2, PT + ih - (y.revenue - v0) / (v1 - v0) * ih];
+    });
+    o += '<path d="' + pts.map(function(p, i){
+      return (i ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1); }).join("")
+      + '" fill="none" stroke="#33e29a" stroke-width="2.4"/>';
+    pts.forEach(function(p, i){
+      var worst = years[i].revenue === Math.min.apply(null, vv);
+      o += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="4.6" fill="'
+         + (worst ? "#f87171" : "#33e29a") + '" stroke="#0d0d0d" stroke-width="2"/>';
+      o += '<text x="' + p[0].toFixed(1) + '" y="' + (p[1] - 10).toFixed(1)
+         + '" text-anchor="middle" font-family="var(--mono)" font-size="9.5" fill="'
+         + (worst ? "#f87171" : "#33e29a") + '">' + money(years[i].revenue) + '</text>';
+    });
+    years.forEach(function(y, i){
+      o += '<text x="' + (PL + i * step + step / 2).toFixed(1) + '" y="' + (H - 8)
+         + '" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="#6a6a6a">FY'
+         + String(y.fy).slice(2) + '</text>';
+    });
+    o += '<text x="4" y="' + (PT + 8) + '" font-family="var(--mono)" font-size="9" fill="#5aa9f8">mm</text>';
+    o += '<text x="' + (w - 40) + '" y="' + (PT + 8)
+       + '" font-family="var(--mono)" font-size="9" fill="#33e29a">revenue</text>';
+    return '<svg width="' + w + '" height="' + H + '">' + o + '</svg>';
+  }
+
+  /* monthly rainfall bars for one growing area */
+  function rainBars(monthly, w){
+    if(!monthly || monthly.length < 12) return "";
+    var last = monthly.slice(-36), H = 72, bw = (w - 8) / last.length;
+    var mx = Math.max.apply(null, last.map(function(r){ return r.rain_mm; })) || 1;
+    var o = "";
+    last.forEach(function(r, i){
+      var bh = Math.max(1, r.rain_mm / mx * (H - 18));
+      var mo = r.m.slice(5);
+      var wet = (mo === "04" || mo === "05");
+      o += '<rect x="' + (4 + i * bw).toFixed(1) + '" y="' + (H - 14 - bh).toFixed(1)
+         + '" width="' + Math.max(1, bw - 1.3).toFixed(1) + '" height="' + bh.toFixed(1)
+         + '" fill="' + (wet ? "#5aa9f8" : "#2f6f93") + '"/>';
+      if(mo === "01")
+        o += '<text x="' + (4 + i * bw - 7).toFixed(1) + '" y="' + (H - 2)
+           + '" font-family="var(--mono)" font-size="8.5" fill="#6a6a6a">' + r.m.slice(0,4) + '</text>';
+    });
+    return '<svg width="' + w + '" height="' + H + '">' + o + '</svg>';
+  }
+
+  function draw(){
+    var c = D.companies[SYM];
+    var W = Math.max(280, (document.body.clientWidth || 760) - 60);
+
+    if(!c){
+      var have = Object.keys(D.companies).sort();
+      $("ttl").textContent = "GEO";
+      $("sub").textContent = EX + (SYM ? " / " + SYM : "");
+      $("body").innerHTML =
+        '<div class="empty">No growing areas are on file for '
+        + esc(SYM || "this security") + '.<br><br>'
+        + 'This panel carries a place only where the company itself names one. '
+        + 'That is true today for the agricultural counters below and for nothing else, '
+        + 'so the absence here is a gap in what has been read, not a statement '
+        + 'about the company.</div>'
+        + '<div class="areas" style="padding:0 2px">'
+        + have.map(function(t){
+            return '<span class="chip" onclick="location.search=\'?ex=NSE&sym=' + t + '\'">'
+                 + t + ' &middot; ' + esc(D.companies[t].crop) + '</span>'; }).join("")
+        + '</div>';
+      return;
+    }
+
+    $("ttl").textContent = c.name;
+    $("sub").textContent = EX + " / " + SYM + "  ·  " + c.crop
+      + "  ·  financial year ends " + c.fy_end;
+    if(!area || c.areas.indexOf(area) < 0) area = c.areas[0];
+
+    var yrs = c.years || [];
+    var last = yrs.length ? yrs[yrs.length - 1] : null;
+    var wettest = yrs.length ? yrs.reduce(function(a, b){
+      return b.rain_mm > a.rain_mm ? b : a; }) : null;
+    var worst = yrs.length ? yrs.reduce(function(a, b){
+      return b.revenue < a.revenue ? b : a; }) : null;
+    var counter = (wettest && worst && wettest.fy === worst.fy);
+
+    var h = "";
+
+    /* ---- the headline, and the counter-intuitive finding where it holds */
+    h += '<div class="card"><div class="ch">RAIN AGAINST THE REVENUE IT BECAME</div>';
+    h += chart(yrs, W - 28);
+    h += '<div class="note">Rainfall summed over this company’s own financial year, '
+       + 'not the calendar year. ' + yrs.length + ' points, so no correlation coefficient '
+       + 'is computed: at this sample size one would be noise.</div>';
+    if(counter){
+      h += '<div class="note warn" style="margin-top:8px">FY' + wettest.fy
+         + ' was the wettest year on file here and the weakest revenue of the '
+         + yrs.length + '. More rain means more leaf, but when the rain is good across '
+         + 'the whole country every estate plucks at once and the auction price falls. '
+         + 'A good year for the crop can be a poor one for the shareholder.</div>';
+    }
+    h += '<div class="note">' + esc(D.other_drivers) + '</div>';
+    h += '</div>';
+
+    if(last){
+      h += '<div class="card"><div class="ch">LATEST FILED YEAR</div>'
+        + '<div class="kv"><span class="k">FINANCIAL YEAR</span><span class="v">FY'
+        + last.fy + '</span></div>'
+        + '<div class="kv"><span class="k">WINDOW</span><span class="v">'
+        + esc(last.window[0]) + " → " + esc(last.window[1]) + '</span></div>'
+        + '<div class="kv"><span class="k">RAINFALL<span class="tag">measured</span></span>'
+        + '<span class="v">' + fmt(last.rain_mm) + ' mm</span></div>'
+        + '<div class="kv"><span class="k">WET DAYS</span><span class="v">'
+        + fmt(last.wet_days) + '</span></div>'
+        + '<div class="kv"><span class="k">REVENUE</span><span class="v">KES '
+        + money(last.revenue) + '</span></div></div>';
+    }
+
+    /* ---- the places themselves */
+    h += '<div class="card"><div class="ch">GROWING AREAS &middot; '
+       + c.areas.length + '</div><div class="areas">'
+       + c.areas.map(function(a){
+           return '<span class="chip' + (a === area ? " on" : "") + '" data-a="'
+                + esc(a) + '">' + esc(a) + '</span>'; }).join("")
+       + '</div><div class="note">' + esc(c.location_basis) + '</div>'
+       + '<div class="note">' + esc(D.coords_basis) + '</div></div>';
+
+    var p = D.places[area];
+    if(p){
+      h += '<div class="card"><div class="ch">' + esc(area.toUpperCase())
+         + ' &middot; LAND SURFACE TEMPERATURE<span class="tag">measured</span></div>'
+         + '<div class="grid2">'
+         + (p.tiles || []).map(function(t){
+             return '<div class="tile"><img src="' + sd(esc(t.file))
+                  + '" alt="' + esc(area + " " + t.caption) + '" loading="lazy">'
+                  + '<div class="cap"><b>' + esc(t.caption.toUpperCase()) + '</b><div>'
+                  + esc(t.date) + '</div></div></div>'; }).join("")
+         + '</div><div class="note">' + esc(D.thermal_source) + '</div>'
+         + '<div class="note">' + esc(D.gaps) + '</div></div>';
+
+      var ser = p.monthly || [];
+      if(ser.length){
+        var wet = ser.reduce(function(a, b){ return b.rain_mm > a.rain_mm ? b : a; });
+        var dry = ser.reduce(function(a, b){ return b.rain_mm < a.rain_mm ? b : a; });
+        h += '<div class="card"><div class="ch">' + esc(area.toUpperCase())
+           + ' &middot; RAINFALL BY MONTH, LAST 3 YEARS</div>'
+           + rainBars(ser, W - 28)
+           + '<div class="kv"><span class="k">WETTEST MONTH ON FILE</span><span class="v">'
+           + esc(wet.m) + ' &middot; ' + fmt(wet.rain_mm) + ' mm</span></div>'
+           + '<div class="kv"><span class="k">DRIEST MONTH ON FILE</span><span class="v">'
+           + esc(dry.m) + ' &middot; ' + fmt(dry.rain_mm) + ' mm</span></div>'
+           + '<div class="note">April and May picked out as the long rains. '
+           + esc(D.weather_source) + '.</div></div>';
+      }
+    }
+
+    $("body").innerHTML = h;
+    Array.prototype.forEach.call(document.querySelectorAll(".chip[data-a]"), function(b){
+      b.addEventListener("click", function(){ area = b.getAttribute("data-a"); draw(); });
+    });
+  }
+
+  window.addEventListener("message", function(e){
+    var d = e && e.data;
+    if(d && d.type === "mt:sym" && d.sym){
+      SYM = String(d.sym).toUpperCase();
+      if(d.ex) EX = String(d.ex).toUpperCase();
+      if(D) draw();
+    }
+  });
+})();
+</script>
+</body>
+</html>
