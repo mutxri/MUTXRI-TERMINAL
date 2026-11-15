@@ -2,7 +2,7 @@
  "ticker": "EGS30201C015.CA",
  "name": "Delta Sugar Co.",
  "currency": "EGP",
- "source": "stockanalysis.com (secondary data provider, figures as reported by that provider, not read from the exchange filing)",
+ "source": "stockanalysis.com (secondary data provider, figures as reported by that provider, not read from the exchange filing) | CRON 20261116: 2 nil Income Tax cells written where profit before tax and net profit are identical and the identity holds in every populated year.",
  "source_url": "https://stockanalysis.com/quote/egx/SUGR/financials/income-statement/",
  "asOf": "2026-09-22",
  "statement": "income",
@@ -81,11 +81,11 @@
   {
    "label": "Income Tax",
    "values": [
-    null,
+    0.0,
     238510000.0,
     480430000.0,
     261170000.00000003,
-    null
+    0.0
    ],
    "source": "identity from the same statement file",
    "source_url": "static_data/financials/EGS30201C015__income.json",
@@ -197,5 +197,23 @@
  ],
  "derivation": {
   "ratios": "derive_ratios.py"
- }
+ },
+ "repairs": [
+  {
+   "date": "20261116",
+   "period": "FY2025",
+   "field": "Income Tax",
+   "value": 0.0,
+   "source": "this file's own printed rows: Profit Before Tax and Net Profit are identical in this period, and Profit Before Tax less Income Tax equals Net Profit in every populated year of the file",
+   "note": "nil tax charge, written only where profit before tax and net profit are exactly equal; a file whose tax charge is genuinely non-zero was never touched by this rule"
+  },
+  {
+   "date": "20261116",
+   "period": "FY2021",
+   "field": "Income Tax",
+   "value": 0.0,
+   "source": "this file's own printed rows: Profit Before Tax and Net Profit are identical in this period, and Profit Before Tax less Income Tax equals Net Profit in every populated year of the file",
+   "note": "nil tax charge, written only where profit before tax and net profit are exactly equal; a file whose tax charge is genuinely non-zero was never touched by this rule"
+  }
+ ]
 }
