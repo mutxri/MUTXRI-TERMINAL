@@ -43,7 +43,7 @@
   A security with no growing areas on file says so and offers the ones that do.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261116021215';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116023408';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - GEO</title>
@@ -287,6 +287,29 @@
        + '</div><div class="note">' + esc(c.location_basis) + '</div>'
        + '<div class="note">' + esc(D.coords_basis) + '</div></div>';
 
+    /* A place is an object, not a label on this company. The question worth
+       asking about one is who ELSE is standing on it: two companies sharing a
+       growing area share the weather that hits it, which is a relationship no
+       shareholder register would ever show. Clicking a neighbour re-centres
+       the panel on them. */
+    var alsoHere = Object.keys(D.companies).filter(function(t){
+      return t !== SYM && D.companies[t].areas.indexOf(area) >= 0;
+    }).sort();
+    h += '<div class="card"><div class="ch">WHO ELSE FARMS ' + esc(area.toUpperCase())
+       + '</div>';
+    if(alsoHere.length){
+      h += '<div class="areas">' + alsoHere.map(function(t){
+        return '<span class="chip" data-go="' + esc(t) + '">' + esc(t) + ' &middot; '
+             + esc(D.companies[t].crop) + '</span>'; }).join("") + '</div>'
+        + '<div class="note">Listed counters sharing this growing area, so the same '
+        + 'weather reaches them. Their financial years differ, so the same rain lands '
+        + 'in different reported years.</div>';
+    } else {
+      h += '<div class="note">No other listed counter on file names ' + esc(area)
+         + '. That is what has been read, not a survey of who farms there.</div>';
+    }
+    h += '</div>';
+
     var p = D.places[area];
     if(p){
       h += '<div class="card"><div class="ch">' + esc(area.toUpperCase())
@@ -319,6 +342,17 @@
     $("body").innerHTML = h;
     Array.prototype.forEach.call(document.querySelectorAll(".chip[data-a]"), function(b){
       b.addEventListener("click", function(){ area = b.getAttribute("data-a"); draw(); });
+    });
+    /* walking to a neighbour: the place stays, the company changes */
+    Array.prototype.forEach.call(document.querySelectorAll(".chip[data-go]"), function(b){
+      b.addEventListener("click", function(){
+        SYM = b.getAttribute("data-go");
+        draw();
+        try{
+          window.parent.postMessage({__mt: "mt:sym", type: "mt:sym", sym: SYM, ex: EX},
+                                    location.origin);
+        }catch(e){}
+      });
     });
   }
 

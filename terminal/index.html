@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261116021215';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116023408';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -9663,7 +9663,6 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
   }
 
   function hookAllFrames(){
-    try{ addLayerButtons(); }catch(e){}
     try{ addMenuButtons(); }catch(e){}
     Array.prototype.forEach.call(document.querySelectorAll('iframe'), function(f){
       hookFrame(f);
@@ -9881,36 +9880,6 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
     const id = paneId(e.target);
     if(id) liftPane(id);
   }, true);
-
-  // the layer body carries two controls: raise to top, send to bottom
-  function addLayerButtons(){
-    Array.prototype.forEach.call(document.querySelectorAll('.pwin'), function(win){
-      const hd = win.querySelector('.pwin-hd');
-      if(!hd || hd.querySelector('.pw-lay')) return;
-      const id = win.getAttribute('data-panelwin');
-      const mk = function(sym, title, fn){
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'pw-lay';
-        b.textContent = sym;
-        b.title = title;
-        b.addEventListener('mousedown', function(ev){ ev.stopPropagation(); });
-        b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn(id); });
-        return b;
-      };
-      const up = mk('\u25B2', 'bring this pane to the top', liftPane);
-      const dn = mk('\u25BC', 'send this pane to the bottom', dropPane);
-      hd.appendChild(up);
-      hd.appendChild(dn);
-    });
-  }
-  try{
-    const st = document.createElement('style');
-    st.textContent = '.pw-lay{background:transparent;border:0;color:#9aa8a1;font-size:7px;line-height:1;' +
-                     'padding:0 2px;cursor:pointer;font-family:inherit}' +
-                     '.pw-lay:hover{color:#33e29a}';
-    document.head.appendChild(st);
-  }catch(e){}
 
   /* ---- the window menu -------------------------------------------------------
      Right click a title line, or press the dots, for the four things a windowed

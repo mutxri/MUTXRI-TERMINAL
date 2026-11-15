@@ -101,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261116021215';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116023408';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -255,6 +255,9 @@
   .gsrow .kd.own{color:#c48bf7;border-color:rgba(196,139,247,.4)}
   .gsrow .pc{margin-left:auto;font-size:8px;color:var(--acc);white-space:nowrap}
   .gsrow .cy{font-size:7.5px;color:var(--tx3);white-space:nowrap}
+  /* a holder's other securities: the only clickable thing in the group tab */
+  .gswhat a.entjump{color:var(--acc);text-decoration:none;border-bottom:1px dotted rgba(51,226,154,.5)}
+  .gswhat a.entjump:hover{color:#fff;border-bottom-color:#fff}
   .gswhat{font-size:7.5px;line-height:1.5;color:var(--tx3);padding:0 8px 5px 8px;
           border-bottom:1px solid rgba(255,255,255,0.05)}
   .gsme{background:rgba(51,226,154,.07)}
@@ -2267,6 +2270,63 @@
     }
   }
 
+  /* ---------------------------------------------------------- the entity layer
+     A holder printed in a register is a row. The same name printed in several
+     registers is an OBJECT, and the only question worth asking about it is what
+     ELSE it touches. entities.json carries that, so these two helpers turn a
+     name into its other holdings and let the row be walked.
+
+     The custody rule from the entity build is carried through unchanged: a
+     nominee or fund manager is where a stake SITS, not who owns it, so its
+     other holdings are labelled custody and never presented as reach. */
+  var ENTIDX = null;
+  function entIndex(){
+    if(ENTIDX) return ENTIDX;
+    ENTIDX = {};
+    var d = DATA.ent;
+    if(!d || !d.entities) return ENTIDX;
+    d.entities.forEach(function(e){
+      if(e.key) ENTIDX[e.key] = e;
+    });
+    return ENTIDX;
+  }
+  function entNorm(name){
+    return String(name || '')
+      .toLowerCase()
+      .replace(/[^\w\s&]/g, ' ')
+      .replace(/(limited|ltd|plc|inc|incorporated|corporation|corp|company|co|s\.?a\.?e|sae|pty|proprietary|holdings?|group)\.?/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  function entFor(name){
+    var i = entIndex();
+    return i[entNorm(name)] || null;
+  }
+  /* The row for a holder, plus what it reaches. `here` is the security being
+     looked at, which is excluded from the list because the reader is already
+     on it. */
+  function holderRow(name, pct, here){
+    var e = entFor(name);
+    var others = e ? (e.securities || []).filter(function(t){ return t !== here; }) : [];
+    var cust = e && e.counts_as_ownership === false;
+    var h = '<div class="gsrow"><span class="kd own">HOLDER</span>' +
+      '<span class="nm">' + esc(name) + '</span>' +
+      (cust ? '<span class="kd jv">CUSTODY</span>' : '') +
+      '<span class="pc">' + (numv(pct) == null ? DASH : numv(pct).toFixed(2) + '%') + '</span></div>';
+    if(others.length){
+      h += '<div class="gswhat" style="padding-left:10px">' +
+        (cust ? 'also holds of record, not as owner: ' : 'also on the register of: ') +
+        others.slice(0, 10).map(function(t){
+          return '<a href="#" class="entjump" data-sym="' + esc(t) + '">' + esc(t) + '</a>';
+        }).join(', ') +
+        (others.length > 10 ? ' and ' + (others.length - 10) + ' more' : '') +
+        '</div>';
+    } else if(e){
+      h += '<div class="gswhat" style="padding-left:10px">on no other register the terminal holds</div>';
+    }
+    return h;
+  }
+
   function renderGroup(row){
     var box = document.getElementById('b_law'), meta = document.getElementById('m_law');
     if(!box) return;
@@ -2304,11 +2364,23 @@
     if(own){
       html.push('<div class="bmsub"><span class="nm">WHO OWNS IT</span>' +
         (ow && ow.asOf ? '<span class="vl">AS AT ' + esc(ow.asOf) + '</span>' : '') + '</div>');
+      var hereSym = rowTicker(row);
       own.slice(0, 12).forEach(function(o){
-        html.push('<div class="gsrow"><span class="kd own">HOLDER</span>' +
-          '<span class="nm">' + esc(o.name) + '</span>' +
-          '<span class="pc">' + (numv(o.pct) == null ? DASH : numv(o.pct).toFixed(2) + '%') + '</span></div>');
+        html.push(holderRow(o.name, o.pct, hereSym));
       });
+      if(DATA.ent){
+        var bridges = own.filter(function(o){
+          var e = entFor(o.name);
+          return e && (e.securities || []).length > 1 && e.counts_as_ownership !== false;
+        }).length;
+        html.push('<div class="gswhat">' + (bridges
+          ? bridges + ' of these holders appear on another register the terminal holds, so '
+            + 'they are links between companies and not only rows here.'
+          : 'None of these holders appears on another register the terminal holds.')
+          + '  |  ' + esc((DATA.ent.basis && DATA.ent.basis.registers) || 0)
+          + ' registers read across the four boards. A custody account is where a stake '
+          + 'sits, not who owns it, and is marked.</div>');
+      }
       if(ow && ow.file && !(g.owners || []).length){
         html.push('<div class="gswhat">' + esc(ow.file) +
           (ow.source && ow.source.note ? '  |  ' + esc(ow.source.note) : '') + '</div>');
@@ -2431,7 +2503,28 @@
       if(s === 'money' || s === 'group' || s === 'laws') BTAB = s;
     }catch(e){}
     paintBTabs();
+    wireEntJumps();
   }
+  /* Walking the graph. A holder's other securities are printed as links, and
+     clicking one re-centres the whole panel on that company: map, money and
+     group all follow. This is the entity layer's only job in this panel, and
+     it is the difference between reading a register and using one.
+     Delegated from the container, because the rows are rebuilt on every
+     render and per-row listeners would be lost each time. */
+  function wireEntJumps(){
+    var box = document.getElementById('b_law');
+    if(!box || box.__entWired) return;
+    box.__entWired = true;
+    box.addEventListener('click', function(ev){
+      var a = ev.target && ev.target.closest && ev.target.closest('a.entjump');
+      if(!a) return;
+      ev.preventDefault();
+      var sym = a.getAttribute('data-sym');
+      var row = sym && findRow(sym, null);
+      if(row) pick(row);
+    });
+  }
+
   /* one broken read blanks one block, never the panel */
   function guardDraw2(fn){
     try{ fn(); }
@@ -3013,10 +3106,15 @@
     J.ceos = getJSON(sd('ceos.json'));
     J.ceosSrc = probeJSON([sd('ceos_sources.json')]);
     J.bm = probeJSON([sd('business_model_' + ex + '.json')]);
+    /* The entity layer: every holder the terminal has on file, with every
+       security it appears on. It is what turns a holder from a row in this
+       company's register into an object you can ask about. Probed, not
+       required: if it is absent the holder rows render exactly as before. */
+    J.ent = probeJSON([sd('entities.json')]);
     J.bal = probeJSON(balPaths(row));
     J.spark = probeJSON(histPaths(row));
 
-    Promise.all([J.rel, J.rell, J.sh, J.idx, J.news, J.ca, J.ceos, J.ceosSrc, J.bal, J.spark, J.bm])
+    Promise.all([J.rel, J.rell, J.sh, J.idx, J.news, J.ca, J.ceos, J.ceosSrc, J.bal, J.spark, J.bm, J.ent])
     .then(function(R){
       if(gen !== GEN) return;
       EXS.forEach(function(e2){
@@ -3046,6 +3144,8 @@
       DATA.spark = (R[9] && R[9].data) || null;
       DATA.sparkSt = DATA.spark ? 'ok' : 'empty';
       DATA.bm = (R[10] && R[10].data) || null;
+      DATA.ent = (R[11] && R[11].data) || null;
+      ENTIDX = null;
       DATA.bmSt = DATA.bm ? 'ok' : 'empty';
       EXS.forEach(function(e2, i){
         var d = R[2] && R[2][i];
