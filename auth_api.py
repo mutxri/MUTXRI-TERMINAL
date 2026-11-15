@@ -10,6 +10,41 @@ _USE_MONGO = False
 _JSON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+# ---- WHO IS ALLOWED TO CREATE AN ACCOUNT -------------------------------------
+# A signup form is the cheapest place to manufacture addresses: a script can post
+# test@example.com or a dotted variant of a real Gmail address and the database
+# fills with accounts nobody can sign into. The classifier lives in
+# cleanup_fakes.py so the same definition is used to purge the old rows and to
+# refuse new ones - one rule, not two that drift.
+try:
+    from cleanup_fakes import classify as _classify_fake, gmail_key as _gmail_key
+except Exception:                                     # pragma: no cover
+    def _classify_fake(email, name=""):
+        return False, ""
+    def _gmail_key(local, dom):
+        return None
+
+
+def _mailbox_key(email):
+    """The identity Google itself uses: dots and +tags are not a new person."""
+    addr = (email or "").lower().strip()
+    if "@" not in addr:
+        return addr
+    local, _, dom = addr.rpartition("@")
+    if dom in ("gmail.com", "googlemail.com"):
+        return "gmail:" + local.split("+", 1)[0].replace(".", "")
+    return dom + ":" + local
+
+
+def _mail_configured():
+    return bool(os.environ.get("MAIL_PASS", "").strip())
+
+
+def _new_code():
+    import random
+    return "%06d" % random.randint(0, 999999)
+
+
 _SESSIONS = {}  # in-process cache only: token -> {email, exp}
 _SESSIONS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sessions.json")
 
@@ -218,6 +253,33 @@ def _find_user(email):
         return dict(u) if u else None
     return _load_json().get(email)
 
+def _all_users():
+    """Every account, whichever store is live. Used by the duplicate-mailbox check
+    and by the fake purge, so neither can quietly see an empty list."""
+    try:
+        if _USE_MONGO:
+            return [dict(u) for u in _DB["users"].find({})]
+        return [dict(v) for v in (_load_json() or {}).values() if isinstance(v, dict)]
+    except Exception:
+        return []
+
+
+def _update_user(email, patch):
+    """Apply a partial change to one account, on either store."""
+    email = (email or "").lower().strip()
+    if _USE_MONGO:
+        _DB["users"].update_one({"email": email}, {"$set": dict(patch)})
+        return True
+    data = _load_json()
+    rec = data.get(email)
+    if not rec:
+        return False
+    rec.update(patch)
+    data[email] = rec
+    _save_json(data)
+    return True
+
+
 def _save_user(record):
     if _USE_MONGO:
         rec = dict(record)
@@ -394,7 +456,7 @@ def oauth_exchange(one_time_code):
 # nothing while the root copy held the only mailer. Ported verbatim from the root file.
 # Needs MAIL_PASS in the environment (Render dashboard); without it the function
 # returns quietly and signup still succeeds.
-def _send_confirmation_email(email, name):
+def _send_confirmation_email(email, name, code=None):
     """Send a confirmation email on signup via Zoho SMTP (env-configured).
 
     Zoho, not SES: the SES account is sandboxed, so it silently rejects any
@@ -422,15 +484,21 @@ def _send_confirmation_email(email, name):
             return
         first = (name or email).split()[0] if (name or "").strip() else email
         first = _html.escape(first)  # never let a user-supplied name inject HTML into the email
+        code_block = ("<p style=\"color:#33e29a;font-size:22px;letter-spacing:6px\">"
+                      + _html.escape(str(code)) + "</p>"
+                      + "<p style=\"color:#9a9a9a\">Enter this code in the terminal to confirm the "
+                        "address belongs to you. It is the only way an account on a made-up address "
+                        "can be stopped, so it is required.</p>") if code else ""
         html = f"""<div style="background:#000;color:#f0f0f0;font-family:monospace;padding:32px">
   <h2 style="color:#33e29a">MUTXRI TERMINAL</h2>
   <p>Hi {first},</p>
   <p>Your MUTXRI TERMINAL account has been created. Welcome.</p>
+  {code_block}
   <p style="color:#9a9a9a">You can now log in at <a href="https://mutxriterminal.com" style="color:#33e29a">mutxriterminal.com</a> and start exploring 938 securities across the NSE, NGX, JSE and EGX.</p>
   <p style="color:#6a6a6a;font-size:12px">This is a confirmation email for your account. No action needed. If you did not create this account, reply and we will remove it.</p>
 </div>"""
         msg = MIMEText(html, "html")
-        msg["Subject"] = "Welcome to MUTXRI TERMINAL - account confirmed"
+        msg["Subject"] = ("MUTXRI TERMINAL - your code is " + str(code)) if code else "Welcome to MUTXRI TERMINAL - account confirmed"
         msg["From"] = sender
         msg["To"] = email
         ctx = ssl.create_default_context()
@@ -450,6 +518,21 @@ def signup(email, password, name="", username="", ip="", user_agent=""):
         return {"ok": False, "error": "A valid email is required"}
     if not password or len(password) < 8:
         return {"ok": False, "error": "Password must be at least 8 characters"}
+    # REFUSE AN ADDRESS NOBODY CAN RECEIVE MAIL AT. Test/disposable domains and
+    # fixture local parts are rejected outright, with the reason, instead of being
+    # written to the user table and cleaned up later.
+    _fake, _why = _classify_fake(email, (name or ""))
+    if _fake:
+        return {"ok": False, "error": "Use an email address you can receive mail at (%s)" % _why}
+    # A dotted or +tagged Gmail address is the SAME mailbox, so it cannot become a
+    # second account: every existing user is compared on the mailbox key, not the
+    # literal string.
+    _my_key = _mailbox_key(email)
+    for _u in _all_users():
+        if _mailbox_key(_u.get("email")) == _my_key:
+            return {"ok": False,
+                    "error": "An account with this email already exists (dots and +tags in a Gmail "
+                             "address are the same mailbox)"}
     _existing = _find_user(email)
     if _existing:
         # Point Google users at the door that actually opens. Deliberately NOT
@@ -472,16 +555,52 @@ def signup(email, password, name="", username="", ip="", user_agent=""):
         "pw": _hash_password(password),
         "created": time.time(),
     }
+    # PROOF OF OWNERSHIP. A code is generated at signup and mailed to the address;
+    # until it comes back the account exists but is marked unverified. A made-up
+    # Gmail address never receives the code, so it can never be used. When no mail
+    # credentials are configured the check cannot run, and the account is marked
+    # verified so a signup still works instead of dead-ending.
+    if _mail_configured():
+        record["verified"] = False
+        record["verify_code"] = _new_code()
+        record["verify_sent"] = time.time()
+    else:
+        record["verified"] = True
     _save_user(record)
     # send the welcome email without letting a mail failure break signup
     try:
-        _send_confirmation_email(email, record["name"])
+        _send_confirmation_email(email, record["name"], code=record.get("verify_code"))
     except Exception:
         pass
     _record_signin(email, record["name"], "password", "signup", ip, user_agent)
     token = _issue_token(email)
     return {"ok": True, "token": token, "email": email, "name": record["name"],
-            "username": record["username"], "owner": _is_owner(email)}
+            "username": record["username"], "owner": _is_owner(email),
+            "verified": bool(record.get("verified")),
+            "verify_required": bool(record.get("verify_code"))}
+
+def verify_signup(email, code):
+    """Confirm the address by the code mailed at signup.
+
+    A made-up Gmail address passes every format test; the only thing it cannot do is
+    receive the code. So the account is created at signup but stays unverified, and
+    this is the call that flips it.
+    """
+    email = (email or "").lower().strip()
+    code = (code or "").strip().replace(" ", "")
+    u = _find_user(email)
+    if not u:
+        return {"ok": False, "error": "No account for that address"}
+    if u.get("verified"):
+        return {"ok": True, "verified": True, "already": True, "email": email}
+    want = str(u.get("verify_code") or "")
+    if not want:
+        return {"ok": False, "error": "No code is outstanding for this account"}
+    if code != want:
+        return {"ok": False, "error": "That code is not right"}
+    _update_user(email, {"verified": True, "verified_at": time.time(), "verify_code": None})
+    return {"ok": True, "verified": True, "email": email, "token": _issue_token(email)}
+
 
 def login(email, password, ip="", user_agent=""):
     email = (email or "").lower().strip()
@@ -495,6 +614,13 @@ def login(email, password, ip="", user_agent=""):
         return {"ok": False, "oauth": u.get("oauth"),
                 "error": "This account was created with %s. Use \"Continue with %s\" to sign in."
                          % (u.get("oauth").title(), u.get("oauth").title())}
+    # AN UNVERIFIED ACCOUNT CANNOT SIGN IN while mail is configured: the address has
+    # not proved it exists. The message names the next step rather than saying the
+    # password is wrong.
+    if u and u.get("verify_code") and not u.get("verified") and _mail_configured():
+        return {"ok": False, "verify_required": True, "email": u.get("email"),
+                "error": "Confirm your email first. Enter the 6-digit code we sent to %s."
+                         % u.get("email")}
     if not u or not _check_password(password, u.get("pw", "")):
         # A missing account skipped the KDF entirely (Python short-circuits the
         # `or`), so a wrong password for a real user took measurably longer than
@@ -686,6 +812,97 @@ def _admin_ok(key, token):
     return _admin_key_ok(key) or _owner_token_ok(token)
 
 
+def admin_purge_fakes(key="", token="", dry=False):
+    """Admin: delete bot and test signups, keep the real accounts.
+
+    Uses the same classifier as cleanup_fakes.py, so the rule that refuses a fake at
+    signup is the rule that removes an old one. Reports what it removed, address by
+    address, because deleting accounts is not something to do silently.
+    """
+    if not _admin_ok(key, token):
+        return {"ok": False, "error": "Unauthorized"}
+    try:
+        import cleanup_fakes as CF
+    except Exception as e:
+        return {"ok": False, "error": "cleanup module unavailable: %s" % e}
+    out = {"ok": True, "dry": bool(dry), "users": [], "signins": 0, "events": 0, "mongo": 0}
+    # users
+    try:
+        rows = _all_users() if "_all_users" in globals() else []
+    except Exception:
+        rows = []
+    seen = {}
+    for u in rows:
+        email = (u.get("email") or "")
+        fake, why = CF.classify(email, u.get("name"))
+        key_g = CF.gmail_key(*((email.lower().rpartition("@")[0], email.lower().rpartition("@")[2])
+                               if "@" in email else ("", "")))
+        if not fake and key_g:
+            if key_g in seen:
+                fake, why = True, "duplicate gmail mailbox of " + seen[key_g]
+            else:
+                seen[key_g] = email
+        if fake:
+            out["users"].append({"email": email, "why": why})
+            if not dry:
+                try:
+                    if _USE_MONGO:
+                        _DB["users"].delete_one({"email": email.lower()})
+                    else:
+                        data = _load_json()
+                        if email.lower() in data:
+                            data.pop(email.lower(), None)
+                            _write_json(data)
+                except Exception as e:
+                    out.setdefault("errors", []).append("%s: %s" % (email, str(e)[:60]))
+    # sign-in rows and login events
+    for path, label, attr in ((_SIGNINS_PATH, "signins.json", "signins"),
+                              (os.path.join(os.path.dirname(os.path.abspath(__file__)), "login_events.json"),
+                               "login_events.json", "events")):
+        try:
+            if not os.path.exists(path):
+                continue
+            with open(path, encoding="utf-8") as fh:
+                d = json.load(fh)
+            rows2 = d.get("items") if isinstance(d, dict) else d
+            keep = []
+            for r in (rows2 or []):
+                em = (r.get("email") if isinstance(r, dict) else "") or ""
+                fake, _ = CF.classify(em, r.get("name") if isinstance(r, dict) else "")
+                if fake:
+                    out[attr] += 1
+                else:
+                    keep.append(r)
+            if not dry and out[attr]:
+                if isinstance(d, dict):
+                    d["items"] = keep
+                else:
+                    d = keep
+                tmp = path + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as fh:
+                    json.dump(d, fh, ensure_ascii=False, indent=1)
+                os.replace(tmp, path)
+        except Exception as e:
+            out.setdefault("errors", []).append("%s: %s" % (label, str(e)[:60]))
+    # the same rule applied to the event log in Mongo
+    if _USE_MONGO and not dry:
+        try:
+            for coll in ("login_events", "signins"):
+                c = _DB[coll]
+                ids = []
+                for r in c.find({}, {"email": 1, "name": 1}):
+                    fake, _ = CF.classify(r.get("email"), r.get("name"))
+                    if fake:
+                        ids.append(r["_id"])
+                if ids:
+                    c.delete_many({"_id": {"$in": ids}})
+                    out["mongo"] += len(ids)
+        except Exception as e:
+            out.setdefault("errors", []).append("mongo: %s" % str(e)[:60])
+    out["removed_total"] = len(out["users"]) + out["signins"] + out["events"] + out["mongo"]
+    return out
+
+
 def admin_list(key, delete_email=None, token=""):
     """Admin: list signed-up users (or delete one with delete_email).
     Authorised by the ADMIN_KEY env var OR a live owner session token.
@@ -771,6 +988,11 @@ def handle_auth(path, q):
         return set_username((q.get("token") or [""])[0], (q.get("username") or [""])[0])
     if action == "name":
         return set_name((q.get("token") or [""])[0], (q.get("name") or [""])[0])
+    if action == "verify":
+        return verify_signup((q.get("email") or [""])[0], (q.get("code") or [""])[0])
+    if action == "purge_fakes":
+        return admin_purge_fakes((q.get("key") or [""])[0], (q.get("token") or [""])[0],
+                                 dry=(q.get("dry") or [""])[0].lower() in ("1", "true", "yes"))
     if action == "me":
         return me((q.get("token") or [""])[0])
     # SIGN-IN COUNTS. Every signup/login/oauth exchange has been recorded for a while,
