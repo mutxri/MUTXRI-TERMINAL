@@ -42,6 +42,31 @@
                 prints CLAUSE NOT ON FILE and why, never a guessed number.
     2 LINKS     one recorded link past a ring 1 company, only at depth 2
 
+  The card under the map holds three readings of the same company, as tabs:
+
+    LAWS                 the Acts, as above.
+    HOW IT MAKES MONEY   the revenue lines, from business_model_<EX>.json. A
+                         product level split such as M-PESA against data exists
+                         only in an issuer's own revenue note, so it is shown
+                         for a security whose report has been read page by page,
+                         with the note and the printed page against every
+                         figure. Otherwise the income statement the terminal
+                         holds is used, and only when its own named lines
+                         reconcile with the revenue it reports; where they do
+                         not, or where the filing gives one figure and no split,
+                         the figure is shown and the absence is stated. Every
+                         security also carries a sector paragraph saying how a
+                         business of that kind earns, marked SECTOR STRUCTURE,
+                         which is a description of an industry and never a
+                         figure from the company.
+    GROUP STRUCTURE      who owns the company, from the issuer's own principal
+                         shareholders table, and what sits under it: the
+                         subsidiaries, associates and ventures with the
+                         percentage each note prints, drawn as the chain the
+                         note draws. Where only a carrying amount is on file the
+                         amount is shown and the missing entity list is said.
+                         Where nothing is on file, that is said.
+
   All four exchange relationship files are read, so a link can cross a board.
 
   Policy behaviour kept: choose an Act and it marks the companies it names
@@ -76,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261115104322';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261115121839';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -182,6 +207,58 @@
                border-left:2px solid rgba(224,163,65,.5);padding-left:6px}
   .lawrow .lcl b{color:var(--tx);font-weight:700}
   .lawrow .lcl .nocl{color:var(--tx3)}
+  /* ---------- HOW IT MAKES MONEY, and what sits under the company ---------
+     A revenue line is a bar, a share and a sentence saying what the line is.
+     The bar is drawn only where the filing gives a share to draw: where it
+     prints one figure and no split, there is a figure and a plain statement
+     that no split exists, and no bar at all. */
+  .bmhead{padding:6px 8px 5px;border-bottom:1px solid var(--line);background:var(--bg2, #0b0b0b)}
+  .bmhead .t{font-size:9px;color:var(--tx);line-height:1.5}
+  .bmhead .s{font-size:7px;letter-spacing:.07em;color:var(--tx3);margin-top:3px;line-height:1.5}
+  .bmtier{display:inline-block;font-size:6.5px;letter-spacing:.12em;padding:1px 5px;margin-right:5px;
+          border:1px solid;vertical-align:1px;white-space:nowrap}
+  .bmtier.note{color:#33e29a;border-color:rgba(51,226,154,.5)}
+  .bmtier.statement{color:#58a6ff;border-color:rgba(88,166,255,.5)}
+  .bmtier.single{color:#e0a340;border-color:rgba(224,163,65,.5)}
+  .bmtier.none{color:var(--tx3);border-color:rgba(255,255,255,.18)}
+  .bmtier.sector{color:#c48bf7;border-color:rgba(196,139,247,.5)}
+  .bmrow{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.05)}
+  .bmrow:last-child{border-bottom:0}
+  .bmrow .l1{display:flex;align-items:baseline;gap:8px;min-width:0}
+  .bmrow .nm{font-size:8.5px;color:var(--tx);font-weight:700;letter-spacing:.04em;
+             white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bmrow .vl{margin-left:auto;font-size:8.5px;color:var(--tx2);white-space:nowrap}
+  .bmrow .pc{font-size:8.5px;color:var(--acc);min-width:46px;text-align:right;white-space:nowrap}
+  .bmrow .gr{font-size:7.5px;white-space:nowrap}
+  .bmrow .gr.up{color:#33e29a}
+  .bmrow .gr.dn{color:#f87171}
+  .bmbar{height:4px;margin-top:4px;background:rgba(255,255,255,.05);position:relative;overflow:hidden}
+  .bmbar i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);display:block}
+  .bmrow .wh{font-size:7.5px;line-height:1.5;color:var(--tx3);margin-top:4px}
+  .bmrow .pr{font-size:7px;color:var(--tx3);letter-spacing:.05em;margin-top:3px}
+  .bmsub{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.05);
+         display:flex;align-items:baseline;gap:8px;background:rgba(255,255,255,.02)}
+  .bmsub .nm{font-size:7.5px;letter-spacing:.1em;color:var(--tx2);text-transform:uppercase}
+  .bmsub .vl{margin-left:auto;font-size:8px;color:var(--tx2)}
+  /* the structure is a chain, so it is drawn as one: an entity sits indented
+     under the entity that holds it, and the percentage printed in the note sits
+     beside it. Nothing is nested that the note does not nest. */
+  .gsrow{display:flex;align-items:baseline;gap:8px;padding:4px 8px;
+         border-bottom:1px solid rgba(255,255,255,0.05);min-width:0}
+  .gsrow:last-child{border-bottom:0}
+  .gsrow .nm{font-size:8px;color:var(--tx);min-width:0;overflow:hidden;text-overflow:ellipsis;
+             white-space:nowrap}
+  .gsrow .kd{font-size:6.5px;letter-spacing:.1em;padding:1px 4px;border:1px solid;white-space:nowrap}
+  .gsrow .kd.sub{color:#33e29a;border-color:rgba(51,226,154,.4)}
+  .gsrow .kd.ass{color:#58a6ff;border-color:rgba(88,166,255,.4)}
+  .gsrow .kd.jv{color:#e0a340;border-color:rgba(224,163,65,.4)}
+  .gsrow .kd.own{color:#c48bf7;border-color:rgba(196,139,247,.4)}
+  .gsrow .pc{margin-left:auto;font-size:8px;color:var(--acc);white-space:nowrap}
+  .gsrow .cy{font-size:7.5px;color:var(--tx3);white-space:nowrap}
+  .gswhat{font-size:7.5px;line-height:1.5;color:var(--tx3);padding:0 8px 5px 8px;
+          border-bottom:1px solid rgba(255,255,255,0.05)}
+  .gsme{background:rgba(51,226,154,.07)}
+  .gsme .nm{color:var(--acc);font-weight:700}
   .lawbasis{font-size:7px;letter-spacing:.06em;color:var(--tx3);padding:5px 8px;line-height:1.5;
     border-top:1px solid var(--line);background:var(--bg)}
   .lawempty{font-size:8px;color:var(--tx3);padding:9px 8px;line-height:1.5}
@@ -416,8 +493,22 @@
       <div class="ch"><span class="cl">NODE DETAIL</span><span class="cm" id="m_sel"></span></div>
       <div class="cb" id="b_sel"></div>
     </div>
+    <!-- THE BOTTOM CARD HOLDS THREE READINGS OF THE SAME COMPANY. The Acts that
+         reach it, where its money actually comes from, and what sits under it.
+         They are tabs rather than three more cards because the panel was already
+         crowded: one body, one at a time, the reader chooses. -->
     <div class="card" id="c_law">
-      <div class="ch"><span class="cl">LAWS ON THIS SECURITY</span><span class="cm" id="m_law"></span></div>
+      <div class="ch">
+        <div class="cgrp" id="c_btab">
+          <button class="kn bt" type="button" data-bt="laws" aria-pressed="true"
+                  title="the Acts whose own text names this security or its sector">LAWS</button>
+          <button class="kn bt" type="button" data-bt="money" aria-pressed="false"
+                  title="the revenue lines the issuer's own filing prints, and what each one is">HOW IT MAKES MONEY</button>
+          <button class="kn bt" type="button" data-bt="group" aria-pressed="false"
+                  title="who owns the company, and the subsidiaries, associates and ventures under it">GROUP STRUCTURE</button>
+        </div>
+        <span class="cm" id="m_law"></span>
+      </div>
       <div class="cb lawbox" id="b_law"></div>
     </div>
   </div>
@@ -860,7 +951,8 @@
               ca:[], caSt:'unread', caErr:'', caFile:'',
               news:[], newsSt:'unread', newsErr:'',
               ceos:{}, ceosSt:'unread', ceosErr:'', ceosSrc:{},
-              bal:null, balSt:'unread', spark:null, sparkSt:'unread'};
+              bal:null, balSt:'unread', spark:null, sparkSt:'unread',
+              bm:null, bmSt:'unread'};
   var G = {hops:1, types:{customers:true, suppliers:true, competitors:true, peers:true, partners:true,
                           holders:true, laws:true},
            cap:60, selKey:'', cat:'', model:null, row:null, rec:null, law:null, tm:null, geo:null};
@@ -2030,6 +2122,326 @@
     if(/\b(and requires|as well as|while also)\b/.test(m)) return {k:'mix', t:'MIXED'};
     return {k:'uns', t:'NOT STATED'};
   }
+  /* ---------- HOW IT MAKES MONEY, and the group under the company ----------
+     Both read business_model_<EX>.json, which is built from what the terminal
+     already holds: the issuer's own revenue note where that report has been
+     read page by page, otherwise the income statement on file, and where the
+     statement gives one figure and no split, that is what it says. The sector
+     paragraph is always marked as a description of an industry, never a figure
+     from this company. */
+  var BTAB = 'laws';
+  function bmRec(row){
+    var d = DATA.bm;
+    if(!d || !d.securities || !row) return null;
+    var s = d.securities;
+    return s[row.ticker] || s[row.sym] || s[rowTicker(row)] || null;
+  }
+  function moneyFmt(v, unitValue, cur){
+    var n = numv(v);
+    if(n == null) return DASH;
+    var abs = n * (numv(unitValue) || 1);
+    var s = abs < 0 ? '-' : '';
+    abs = Math.abs(abs);
+    var u = '';
+    if(abs >= 1e12){ abs = abs / 1e12; u = 'T'; }
+    else if(abs >= 1e9){ abs = abs / 1e9; u = 'B'; }
+    else if(abs >= 1e6){ abs = abs / 1e6; u = 'M'; }
+    else if(abs >= 1e3){ abs = abs / 1e3; u = 'K'; }
+    return (cur ? esc(cur) + ' ' : '') + s + abs.toFixed(abs >= 100 || !u ? 0 : 1) + u;
+  }
+  function growthHTML(v, prior){
+    var a = numv(v), b = numv(prior);
+    if(a == null || b == null || !b) return '';
+    var g = (a - b) / Math.abs(b) * 100;
+    var cls = g >= 0 ? 'up' : 'dn';
+    return '<span class="gr ' + cls + '">' + (g >= 0 ? '+' : '') + g.toFixed(1) + '%</span>';
+  }
+  function tierChip(t, label){
+    return '<span class="bmtier ' + esc(t) + '">' + esc(label) + '</span>';
+  }
+  function renderMoney(row){
+    var box = document.getElementById('b_law'), meta = document.getElementById('m_law');
+    if(!box) return;
+    if(!row){
+      box.innerHTML = '<div class="lawempty">Pick a company to see where its money comes from.</div>';
+      if(meta) meta.textContent = '';
+      return;
+    }
+    var rec = bmRec(row);
+    if(!rec){
+      box.innerHTML = '<div class="lawempty">business_model_' + esc(String(row.ex || '')) +
+        '.json holds no entry for this security, so nothing is claimed about how it earns.</div>';
+      if(meta) meta.textContent = 'NOT ON FILE';
+      return;
+    }
+    var rv = rec.revenue || {tier:'none', note:'No revenue record on file.'};
+    var cur = rv.currency || rec.currency || '';
+    var uv = rv.unitValue || 1;
+    var lines = rv.lines || [];
+    var tot = 0, i;
+    for(i = 0; i < lines.length; i++){
+      var lv = numv(lines[i].value);
+      if(lv != null && lv > 0) tot += lv;
+    }
+    var html = [];
+
+    var tierLabel = {note:'FROM THE REVENUE NOTE', statement:'FROM THE INCOME STATEMENT',
+                     single:'ONE FIGURE, NO SPLIT', none:'NOTHING ON FILE'}[rv.tier] || 'NOTHING ON FILE';
+    html.push('<div class="bmhead">');
+    if(rv.headline) html.push('<div class="t">' + esc(rv.headline) + '</div>');
+    html.push('<div class="s">' + tierChip(rv.tier, tierLabel) +
+      (rv.period ? esc(String(rv.period)) + '  ' : '') +
+      (rv.total != null ? 'TOTAL ' + moneyFmt(rv.total, uv, cur) : '') + '</div>');
+    if(rv.note) html.push('<div class="s">' + esc(rv.note) + '</div>');
+    if(rv.source && rv.source.doc){
+      html.push('<div class="s">READ FROM ' + esc(rv.source.doc) +
+        (rv.source.read ? ', ' + esc(rv.source.read) : '') + '</div>');
+    } else if(rv.file){
+      html.push('<div class="s">' + esc(rv.file) + '</div>');
+    }
+    html.push('</div>');
+
+    if(rec.described && rec.described.text){
+      html.push('<div class="bmrow"><div class="l1"><span class="nm">' +
+        tierChip('single', 'DESCRIPTION ON FILE') + 'WHAT THE COMPANY RECORD SAYS</span></div>' +
+        '<div class="wh">' + esc(rec.described.text) + '</div>' +
+        '<div class="pr">' + esc(rec.described.basis) + '</div></div>');
+    }
+    if(rec.model && rec.model.text){
+      html.push('<div class="bmrow"><div class="l1"><span class="nm">' +
+        tierChip('sector', 'SECTOR STRUCTURE') + 'HOW A BUSINESS OF THIS KIND EARNS</span></div>' +
+        '<div class="wh">' + esc(rec.model.text) + '</div>' +
+        '<div class="pr">' + esc(rec.model.basis) + '</div></div>');
+    }
+
+    lines.forEach(function(l){
+      var share = numv(l.share);
+      if(share == null && tot && numv(l.value) != null) share = numv(l.value) / tot * 100;
+      var w = share == null ? 0 : Math.max(0, Math.min(100, share));
+      html.push('<div class="bmrow"><div class="l1">' +
+        '<span class="nm">' + esc(l.name) + '</span>' +
+        growthHTML(l.value, l.prior) +
+        '<span class="vl">' + moneyFmt(l.value, uv, cur) + '</span>' +
+        '<span class="pc">' + (share == null ? DASH : share.toFixed(1) + '%') + '</span></div>' +
+        (share == null ? '' : '<div class="bmbar"><i style="width:' + w.toFixed(2) + '%"></i></div>') +
+        (l.what ? '<div class="wh">' + esc(l.what) + '</div>' : '') +
+        (l.note ? '<div class="pr">' + esc(l.note) +
+                  (l.page ? ', PAGE ' + esc(String(l.page)) : '') + '</div>' : '') +
+        (l.printedAs && l.printedAs !== l.name ?
+          '<div class="pr">PRINTED AS: ' + esc(l.printedAs) + '</div>' : '') +
+        '</div>');
+    });
+
+    (rv.withheld || []).forEach(function(w){
+      html.push('<div class="bmrow"><div class="l1"><span class="nm">' + esc(w.name) +
+        '</span><span class="vl">' + moneyFmt(w.value, uv, cur) +
+        '</span><span class="pc">' + DASH + '</span></div>' +
+        '<div class="pr">NO SHARE CLAIMED' +
+        (w.printedAs ? '  |  PRINTED AS: ' + esc(w.printedAs) : '') + '</div></div>');
+    });
+
+    (rv.rollups || []).forEach(function(g){
+      html.push('<div class="bmsub"><span class="nm">' + esc(g.name) + '</span>' +
+        growthHTML(g.value, g.prior) +
+        '<span class="vl">' + moneyFmt(g.value, uv, cur) + '</span></div>');
+    });
+
+    if((rv.segments || []).length){
+      html.push('<div class="bmsub"><span class="nm">BY SEGMENT</span></div>');
+      rv.segments.forEach(function(s){
+        html.push('<div class="bmrow"><div class="l1"><span class="nm">' + esc(s.name) +
+          '</span><span class="vl">' + moneyFmt(s.value, uv, cur) + '</span></div>' +
+          (s.what ? '<div class="wh">' + esc(s.what) + '</div>' : '') +
+          (s.note ? '<div class="pr">' + esc(s.note) +
+                    (s.page ? ', PAGE ' + esc(String(s.page)) : '') + '</div>' : '') + '</div>');
+      });
+    }
+
+    if(!lines.length && !(rv.withheld || []).length && rv.tier === 'none'){
+      html.push('<div class="lawempty">' + esc(rv.note || 'Nothing on file.') + '</div>');
+    }
+    box.innerHTML = html.join('');
+    if(meta){
+      meta.textContent = lines.length ? (lines.length + ' REVENUE ' +
+        (lines.length === 1 ? 'LINE' : 'LINES') + ' | ' + tierLabel) : tierLabel;
+    }
+  }
+
+  function renderGroup(row){
+    var box = document.getElementById('b_law'), meta = document.getElementById('m_law');
+    if(!box) return;
+    if(!row){
+      box.innerHTML = '<div class="lawempty">Pick a company to see what sits under it.</div>';
+      if(meta) meta.textContent = '';
+      return;
+    }
+    var rec = bmRec(row);
+    if(!rec){
+      box.innerHTML = '<div class="lawempty">business_model_' + esc(String(row.ex || '')) +
+        '.json holds no entry for this security.</div>';
+      if(meta) meta.textContent = 'NOT ON FILE';
+      return;
+    }
+    var g = rec.group || {tier:'none'};
+    var cur = g.currency || rec.currency || '';
+    var uv = (rec.revenue && rec.revenue.unitValue) || 1;
+    var html = [];
+    var tierLabel = {note:'FROM THE INVESTMENTS AND RELATED PARTY NOTES',
+                     carrying:'CARRYING AMOUNT ONLY, NO ENTITY LIST',
+                     none:'NOTHING ON FILE'}[g.tier] || 'NOTHING ON FILE';
+    html.push('<div class="bmhead"><div class="s">' + tierChip(g.tier, tierLabel) +
+      (g.subsidiariesCarrying != null ? 'SUBSIDIARIES ' + moneyFmt(g.subsidiariesCarrying, uv, cur) + '  ' : '') +
+      (g.associatesCarrying != null ? 'ASSOCIATES ' + moneyFmt(g.associatesCarrying, uv, cur) + '  ' : '') +
+      (g.jvCarrying != null ? 'JOINT VENTURE ' + moneyFmt(g.jvCarrying, uv, cur) : '') + '</div>' +
+      /* with nothing on file the reason is the whole block, and it is printed
+         once, at the foot, rather than here as well */
+      (g.note && g.tier !== 'none' ? '<div class="s">' + esc(g.note) + '</div>' : '') + '</div>');
+
+    /* who owns the company, above it */
+    var own = (g.owners && g.owners.length) ? g.owners : null;
+    var ow = rec.ownersAbove;
+    if(!own && ow && ow.owners && ow.owners.length) own = ow.owners;
+    if(own){
+      html.push('<div class="bmsub"><span class="nm">WHO OWNS IT</span>' +
+        (ow && ow.asOf ? '<span class="vl">AS AT ' + esc(ow.asOf) + '</span>' : '') + '</div>');
+      own.slice(0, 12).forEach(function(o){
+        html.push('<div class="gsrow"><span class="kd own">HOLDER</span>' +
+          '<span class="nm">' + esc(o.name) + '</span>' +
+          '<span class="pc">' + (numv(o.pct) == null ? DASH : numv(o.pct).toFixed(2) + '%') + '</span></div>');
+      });
+      if(ow && ow.file && !(g.owners || []).length){
+        html.push('<div class="gswhat">' + esc(ow.file) +
+          (ow.source && ow.source.note ? '  |  ' + esc(ow.source.note) : '') + '</div>');
+      }
+    }
+
+    /* the company itself, then what it holds, indented under its holder */
+    var ents = g.entities || [];
+    if(ents.length){
+      var me = rec.name || rowTicker(row);
+      html.push('<div class="gsrow gsme"><span class="kd sub">THIS COMPANY</span>' +
+        '<span class="nm">' + esc(me) + '</span></div>');
+      var byHolder = {};
+      ents.forEach(function(e){
+        var h = e.heldBy || me;
+        (byHolder[h] = byHolder[h] || []).push(e);
+      });
+      var seen = {};
+      function kindClass(k){
+        if(k === 'associate') return 'ass';
+        if(k === 'joint venture') return 'jv';
+        return 'sub';
+      }
+      function kindLabel(k){
+        if(k === 'associate') return 'ASSOCIATE';
+        if(k === 'joint venture') return 'JOINT VENTURE';
+        return 'SUBSIDIARY';
+      }
+      function walk(holder, depth){
+        if(seen[holder] || depth > 5) return;
+        seen[holder] = 1;
+        (byHolder[holder] || []).forEach(function(e){
+          var pad = 8 + depth * 12;
+          html.push('<div class="gsrow" style="padding-left:' + pad + 'px">' +
+            '<span class="kd ' + kindClass(e.kind) + '">' + kindLabel(e.kind) + '</span>' +
+            '<span class="nm">' + esc(e.name) + '</span>' +
+            (e.carrying != null ? '<span class="cy">' + moneyFmt(e.carrying, uv, cur) + '</span>' : '') +
+            (e.yearEnd ? '<span class="cy">' + esc(e.yearEnd) + '</span>' : '') +
+            '<span class="pc">' + (numv(e.pct) == null ? 'NO % PRINTED' : numv(e.pct) + '%') +
+            (numv(e.indirect) != null ? ' (' + numv(e.indirect) + '% INDIRECT)' : '') +
+            '</span></div>');
+          if(e.what || e.note){
+            html.push('<div class="gswhat" style="padding-left:' + (pad + 4) + 'px">' +
+              (e.what ? esc(e.what) : '') +
+              (e.note ? '<br>' + esc(e.note) + (e.page ? ', PAGE ' + esc(String(e.page)) : '') : '') +
+              '</div>');
+          }
+          walk(e.name, depth + 1);
+        });
+      }
+      walk(me, 1);
+      /* an entity whose holder is not the company and not another entity on
+         file would otherwise never be drawn; nothing is dropped silently */
+      var drawn = {};
+      html.join('');
+      ents.forEach(function(e){ if(seen[e.heldBy]) drawn[e.name] = 1; });
+      var orphan = ents.filter(function(e){ return !drawn[e.name]; });
+      if(orphan.length){
+        html.push('<div class="bmsub"><span class="nm">HELD THROUGH AN ENTITY NOT IN THIS LIST</span></div>');
+        orphan.forEach(function(e){
+          html.push('<div class="gsrow"><span class="kd ' + kindClass(e.kind) + '">' +
+            kindLabel(e.kind) + '</span><span class="nm">' + esc(e.name) + '</span>' +
+            '<span class="pc">' + (numv(e.pct) == null ? 'NO % PRINTED' : numv(e.pct) + '%') +
+            '</span></div>');
+        });
+      }
+    }
+
+    (g.carryingRows || []).forEach(function(r){
+      html.push('<div class="gsrow"><span class="kd sub">ON THE BALANCE SHEET</span>' +
+        '<span class="nm">' + esc(r.label) + '</span>' +
+        '<span class="cy">' + esc(String(r.period || '')) + '</span>' +
+        '<span class="pc">' + moneyFmt(r.value, 1, cur) + '</span></div>');
+    });
+    if(g.tier === 'carrying' && g.file){
+      html.push('<div class="gswhat">' + esc(g.file) + '</div>');
+    }
+
+    if((g.ncs || []).length){
+      html.push('<div class="bmsub"><span class="nm">OTHERS INSIDE THE GROUP</span></div>');
+      g.ncs.forEach(function(n){
+        html.push('<div class="gsrow"><span class="kd own">NON-CONTROLLING</span>' +
+          '<span class="nm">' + esc(n.name) + '</span>' +
+          '<span class="pc">' + (numv(n.pct) == null ? DASH : numv(n.pct) + '%') + '</span></div>');
+      });
+      if(g.ncsNote) html.push('<div class="gswhat">' + esc(g.ncsNote) + '</div>');
+    }
+
+    /* the head already carries the reason; it is not repeated at the foot */
+    if(g.tier === 'none' && !own){
+      html.push('<div class="lawempty">' + esc(g.note || 'Nothing on file.') + '</div>');
+    }
+    box.innerHTML = html.join('');
+    if(meta){
+      meta.textContent = ents.length ? (ents.length + ' ENTITIES | ' + tierLabel) : tierLabel;
+    }
+  }
+
+  function paintBTabs(){
+    Array.prototype.forEach.call(document.querySelectorAll('#c_btab .bt'), function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-bt') === BTAB ? 'true' : 'false');
+    });
+  }
+  function renderBottom(row){
+    paintBTabs();
+    if(BTAB === 'money'){ renderMoney(row); return; }
+    if(BTAB === 'group'){ renderGroup(row); return; }
+    renderLaws(row);
+  }
+  function wireBTabs(){
+    Array.prototype.forEach.call(document.querySelectorAll('#c_btab .bt'), function(b){
+      b.addEventListener('click', function(){
+        BTAB = b.getAttribute('data-bt') || 'laws';
+        try{ localStorage.setItem('mx.perp.btab', BTAB); }catch(e){}
+        guardDraw2(function(){ renderBottom(G.row); });
+      });
+    });
+    try{
+      var s = localStorage.getItem('mx.perp.btab');
+      if(s === 'money' || s === 'group' || s === 'laws') BTAB = s;
+    }catch(e){}
+    paintBTabs();
+  }
+  /* one broken read blanks one block, never the panel */
+  function guardDraw2(fn){
+    try{ fn(); }
+    catch(e){
+      var box = document.getElementById('b_law');
+      if(box) box.innerHTML = '<div class="lawempty">this block could not be drawn: ' +
+        esc(String((e && e.message) || e)) + '</div>';
+    }
+  }
+
   function renderLaws(row){
     var box = document.getElementById('b_law'), meta = document.getElementById('m_law');
     if(!box) return;
@@ -2420,7 +2832,7 @@
     }
     run();
     PAINT.rel = run;
-    try{ renderLaws(G.row); }catch(e){}
+    guardDraw2(function(){ renderBottom(G.row); });
     paintChips();
     paintSel();
     paintAct();
@@ -2489,6 +2901,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('#c_view .vw'), function(b){
       b.addEventListener('click', function(){ setView3(b.getAttribute('data-view') === '3d'); });
     });
+    wireBTabs();
     var sp3 = document.getElementById('spin3');
     if(sp3) sp3.addEventListener('click', function(){ V3.spin = V3.spin ? 0 : 1; paintSpin(); });
     var pol = document.getElementById('pol');
@@ -2599,10 +3012,11 @@
     J.ca = getJSON(sd(caFileFor(ex)));
     J.ceos = getJSON(sd('ceos.json'));
     J.ceosSrc = probeJSON([sd('ceos_sources.json')]);
+    J.bm = probeJSON([sd('business_model_' + ex + '.json')]);
     J.bal = probeJSON(balPaths(row));
     J.spark = probeJSON(histPaths(row));
 
-    Promise.all([J.rel, J.rell, J.sh, J.idx, J.news, J.ca, J.ceos, J.ceosSrc, J.bal, J.spark])
+    Promise.all([J.rel, J.rell, J.sh, J.idx, J.news, J.ca, J.ceos, J.ceosSrc, J.bal, J.spark, J.bm])
     .then(function(R){
       if(gen !== GEN) return;
       EXS.forEach(function(e2){
@@ -2631,12 +3045,15 @@
       DATA.balSt = DATA.bal ? 'ok' : 'empty';
       DATA.spark = (R[9] && R[9].data) || null;
       DATA.sparkSt = DATA.spark ? 'ok' : 'empty';
+      DATA.bm = (R[10] && R[10].data) || null;
+      DATA.bmSt = DATA.bm ? 'ok' : 'empty';
       EXS.forEach(function(e2, i){
         var d = R[2] && R[2][i];
         DATA.sh[e2] = (d && d.securities) || {};
       });
 
       guardDraw('rel', function(box){ drawRel(box, row, relFile, relRec); });
+      guardDraw2(function(){ renderBottom(row); });
 
       var bits = [];
       if(relFile && relFile.generated) bits.push('LINKS ' + relFile.generated);
