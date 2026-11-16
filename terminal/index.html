@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261116023408';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116031058';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -4353,7 +4353,10 @@ window.MTPanelWins = (function(){
   // One input, two jobs. A panel that reads ?sym= jumps to that security; every
   // other panel filters its own rows. Either way the box does something real, so
   // it is never a control that types into nothing.
-  const SYM_CAPABLE = {chart:1, compare:1, corp:1, financials:1, focus:1,
+  /* GEO reads ?sym= like the rest of these, so typing a ticker in its title
+     line has to jump to that security. Leaving it out meant the box silently
+     fell back to filtering rows in a panel that has no rows to filter. */
+  const SYM_CAPABLE = {chart:1, compare:1, corp:1, financials:1, focus:1, geo:1,
                        holders:1, perplexity:1, tas:1, trade:1, transcript:1};
   const rowBox = {};                     // id -> the list element the filter hides rows in
   const fittedOnce = {};                 // id -> the window has already been fitted to its content
@@ -9337,7 +9340,10 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
      keeps the panel other query parameters, including the exchange. -->
 <script>
 (function(){
-  var SUPPORTED = {chart:1, compare:1, corp:1, financials:1, focus:1,
+  /* GEO belongs here for the same reason it belongs in SYM_CAPABLE: it reads
+     ?sym= on load. Without it the symbol field was hidden on a panel that can
+     use it, so the only way to change company in GEO was to leave the panel. */
+  var SUPPORTED = {chart:1, compare:1, corp:1, financials:1, focus:1, geo:1,
                    holders:1, perplexity:1, tas:1, trade:1, transcript:1};
   function panelKey(src){
     var f = String(src || "").split("?")[0].split("/").pop();
