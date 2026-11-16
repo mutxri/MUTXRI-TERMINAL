@@ -8,7 +8,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261116183812';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116201259';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Financials</title>
@@ -51,6 +51,17 @@
   tbody td{border-bottom:1px solid var(--line);color:var(--tx)}
   tbody tr:hover td{background:var(--bg2)}
   td.item{color:var(--tx2);font-family:var(--ui)}
+  .tr-wrap{border-bottom:1px solid var(--line2);padding:10px 14px 6px;background:var(--bg)}
+  .tr-head{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+  .tr-t{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--acc)}
+  .tr-l{font-family:var(--ui);font-size:12px;color:var(--tx)}
+  .tr-hint{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--tx3);
+           letter-spacing:.04em;text-transform:uppercase}
+  .tr-wrap svg{display:block;width:100%;height:auto}
+  .tr-note{font-family:var(--mono);font-size:9.5px;color:var(--tx3);line-height:1.5;padding:2px 0 2px}
+  tbody tr.pick{cursor:pointer}
+  tbody tr.plotted td{background:rgba(51,226,154,.07)}
+  tbody tr.plotted td.item{color:var(--acc);box-shadow:inset 2px 0 0 var(--acc)}
   tr.total td{color:var(--tx);font-weight:700;border-top:1px solid var(--line2)}
   tr.total td.item{color:var(--tx)}
   .neg{color:var(--down)}
@@ -142,7 +153,7 @@
   // securities that actually have statement files (financials_index.json)
   var SECS = [];
   var state = (function(){
-    var s = {ticker:"",statement:"income",period:"annual",ex:"NSE"};
+    var s = {ticker:"",statement:"income",period:"annual",ex:"NSE",chartKey:null};
     try{
       var q = new URLSearchParams(window.location.search);
       var e = q.get("ex"); if(e) s.ex = e.toUpperCase();
@@ -392,7 +403,149 @@
       return;
     }
 
-    var h='<table><thead><tr><th>'+STMT_TITLE()+(dispTicker?(' &middot; '+esc(dispTicker)):'')+(dispName?(' &middot; '+esc(dispName)):'')+'</th>';
+
+    // ---- TREND -----------------------------------------------------------
+    // One filed row, drawn as a line across the periods on file. Nothing is
+    // modelled, smoothed or forecast: every point is a figure from the table
+    // below it, and a period with no figure leaves a gap rather than a zero.
+    //
+    // Two rules keep the line honest:
+    //   1. Time runs left to right. The table prints newest first, which is
+    //      right for reading a statement and wrong for reading a direction,
+    //      so the chart reverses the periods.
+    //   2. Only periods of the SAME basis are joined. An income statement on
+    //      file can carry "H1 2026" beside five full years; plotting a half
+    //      year next to full years draws a collapse that did not happen. The
+    //      chart plots full years when it has at least two, and says so.
+    function trendRows(per){
+      var full=[], i;
+      for(i=0;i<per.length;i++){
+        if(/^(FY\s*)?(19|20)\d\d$/i.test(String(per[i]).trim())) full.push(i);
+      }
+      if(full.length>=2) return {idx:full, basis:true};
+      var all=[]; for(i=0;i<per.length;i++) all.push(i);
+      return {idx:all, basis:false};
+    }
+
+    function trendChart(key,lbl,per,vals,cur){
+      var series=vals[key]||[];
+      var sel=trendRows(per);
+      var idx=sel.idx.slice().reverse();          // oldest to newest
+      var pts=[],i,k;
+      for(i=0;i<idx.length;i++){
+        var v=series[idx[i]];
+        pts.push({p:per[idx[i]], v:(typeof v==='number'&&isFinite(v))?v:null});
+      }
+      var real=pts.filter(function(o){return o.v!==null;});
+      if(real.length<2){
+        return '<div class="tr-wrap"><div class="tr-head"><span class="tr-t">TREND</span>'+
+               '<span class="tr-l">'+esc(lbl)+'</span></div>'+
+               '<div class="tr-note">Fewer than two periods on file carry a figure for this row, so there is no line to draw. The gap is left as a gap.</div></div>';
+      }
+      var isPct=(key==='roe'||key==='roa'||key==='netMargin'||key==='grossMargin'||key==='opMargin');
+      var isX=(key==='debtToEquity'), isEps=(key==='eps');
+      var maxAbs=Math.max.apply(null,real.map(function(o){return Math.abs(o.v);}))||1;
+      var div=1, suf='';
+      if(!isPct&&!isX&&!isEps){
+        if(maxAbs>=1e12){div=1e12;suf='T';}
+        else if(maxAbs>=1e9){div=1e9;suf='B';}
+        else if(maxAbs>=1e6){div=1e6;suf='M';}
+        else if(maxAbs>=1e3){div=1e3;suf='K';}
+      }
+      var sv=function(v){return v/div;};
+      var lo=Math.min.apply(null,real.map(function(o){return sv(o.v);}));
+      var hi=Math.max.apply(null,real.map(function(o){return sv(o.v);}));
+      if(lo>0) lo=0;                 // a money line is read against zero
+      if(hi<0) hi=0;
+      if(lo===hi){lo-=1;hi+=1;}
+      var pad=(hi-lo)*0.14; lo-=pad; hi+=pad;
+
+      var W=900,H=250,PL=72,PR=58,PT=18,PB=30;
+      var x=function(j){ return pts.length<2?PL:PL+(W-PL-PR)*(j/(pts.length-1)); };
+      var y=function(v){ return PT+(H-PT-PB)*(1-(v-lo)/(hi-lo)); };
+      var fmtP=function(v){
+        if(isPct) return v.toFixed(1)+'%';
+        if(isX) return v.toFixed(2)+'x';
+        if(isEps) return v.toFixed(2);
+        return (Math.abs(v)>=100?v.toFixed(0):v.toFixed(1))+suf;
+      };
+
+      var g='',vv,yy;
+      for(k=0;k<=4;k++){
+        vv=lo+(hi-lo)*(k/4); yy=y(vv);
+        g+='<line x1="'+PL+'" y1="'+yy.toFixed(1)+'" x2="'+(W-PR)+'" y2="'+yy.toFixed(1)+
+           '" stroke="#1a1a1a" stroke-width="1"/>'+
+           '<text x="'+(PL-8)+'" y="'+(yy+3.5).toFixed(1)+'" fill="#6a6a6a" font-size="11" '+
+           'font-family="Oxygen Mono, monospace" text-anchor="end">'+esc(fmtP(vv))+'</text>';
+      }
+      var zero='';
+      if(lo<0&&hi>0){
+        zero='<line x1="'+PL+'" y1="'+y(0).toFixed(1)+'" x2="'+(W-PR)+'" y2="'+y(0).toFixed(1)+
+             '" stroke="#5a5a5a" stroke-width="1" stroke-dasharray="5 4"/>'+
+             '<text x="'+(W-PR+6)+'" y="'+(y(0)+3.5).toFixed(1)+'" fill="#6a6a6a" font-size="10" '+
+             'font-family="Oxygen Mono, monospace">0</text>';
+      }
+      var d='',pen=false;
+      for(k=0;k<pts.length;k++){
+        if(pts[k].v===null){pen=false;continue;}
+        d+=(pen?'L':'M')+x(k).toFixed(1)+' '+y(sv(pts[k].v)).toFixed(1)+' ';
+        pen=true;
+      }
+      var first=real[0].v, last=real[real.length-1].v;
+      // Red when the line ENDS below zero as well as when it ends lower than
+      // it started. A loss that narrowed is still a loss, so a five year line
+      // that never crosses zero must not read as a green one.
+      var col=(last<0||last<first)?'#f87171':'#33e29a';
+      var dots='',labs='',ticks='';
+      for(k=0;k<pts.length;k++){
+        ticks+='<text x="'+x(k).toFixed(1)+'" y="'+(H-8)+'" fill="#6a6a6a" font-size="11" '+
+               'font-family="Oxygen Mono, monospace" text-anchor="middle">'+esc(pts[k].p)+'</text>';
+        if(pts[k].v===null) continue;
+        var px=x(k), py=y(sv(pts[k].v)), dcol=(pts[k].v<0)?'#f87171':col;
+        dots+='<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="3.2" fill="'+dcol+'"/>';
+        var isF=(k===0), isL=(k===pts.length-1);
+        // end labels anchor INWARD so neither one is clipped by the viewBox
+        labs+='<text x="'+(isF?(px+8):isL?(px-8):px).toFixed(1)+'" y="'+(py-11).toFixed(1)+
+              '" fill="'+dcol+'" font-size="12" font-family="Oxygen Mono, monospace" '+
+              'text-anchor="'+(isF?'start':isL?'end':'middle')+'">'+esc(fmtP(sv(pts[k].v)))+'</text>';
+      }
+      var scaleWord={T:'trillions',B:'billions',M:'millions',K:'thousands'}[suf]||'units';
+      var unit=isPct?'per cent':isX?'times':isEps?('per share'+(cur?', '+cur:'')):
+               ((cur?cur+' ':'')+scaleWord);
+      var gaps=pts.length-real.length;
+      var note=unit+'. '+
+               (sel.basis?'Full years only, so a half year on file is not joined to them. ':'')+
+               (gaps?(gaps+' period'+(gaps>1?'s':'')+' carry no figure for this row and are left as gaps. '):'')+
+               'Every point is a figure from the table below.';
+      return '<div class="tr-wrap"><div class="tr-head"><span class="tr-t">TREND</span>'+
+        '<span class="tr-l">'+esc(lbl)+'</span>'+
+        '<span class="tr-hint">click any row below to plot it</span></div>'+
+        '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(lbl+' by period')+'">'+
+        g+zero+'<path d="'+d.replace(/\s+$/,'')+'" fill="none" stroke="'+col+
+        '" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>'+
+        dots+labs+ticks+'</svg><div class="tr-note">'+esc(note)+'</div></div>';
+    }
+
+    // the plotted row: whatever was last clicked on this statement, else the
+    // first row that actually carries two figures
+    var ck=state.chartKey, ckOK=false, q;
+    for(q=0;q<sch.length;q++) if(sch[q][0]===ck) ckOK=true;
+    if(!ckOK){
+      ck=null;
+      var prefer={income:['revenue','netProfit'],balance:['totalEquity','totalAssets'],
+                  cashflow:['operatingCashFlow','freeCashFlow']}[state.statement]||[];
+      var cand=prefer.concat(sch.map(function(z){return z[0];}));
+      for(q=0;q<cand.length;q++){
+        var cs=vals[cand[q]]||[], n=0;
+        for(var q3=0;q3<cs.length;q3++) if(typeof cs[q3]==='number'&&isFinite(cs[q3])) n++;
+        if(n>=2){ ck=cand[q]; break; }
+      }
+    }
+    var ckLbl='';
+    for(q=0;q<sch.length;q++) if(sch[q][0]===ck) ckLbl=sch[q][1];
+
+    var h=(ck?trendChart(ck,ckLbl,per,vals,cur):'');
+    h+='<table><thead><tr><th>'+STMT_TITLE()+(dispTicker?(' &middot; '+esc(dispTicker)):'')+(dispName?(' &middot; '+esc(dispName)):'')+'</th>';
     for(var i=0;i<per.length;i++)h+='<th>'+esc(per[i])+'</th>';
     h+='</tr></thead><tbody>';
     for(var r=0;r<sch.length;r++){
@@ -400,7 +553,7 @@
       var dv = derivedSet[key]
         ? '<span title="'+esc('derived: '+(derivedFrom[key]||'computed from filed values'))+'" style="color:var(--tx3);font-style:italic">&#8776;</span> '
         : '';
-      h+='<tr class="'+(isTot?'total':'')+'"><td class="item">'+dv+esc(lbl)+'</td>';
+      h+='<tr data-k="'+esc(key)+'" class="pick '+(isTot?'total ':'')+(key===ck?'plotted':'')+'"><td class="item">'+dv+esc(lbl)+'</td>';
       for(var c=0;c<per.length;c++){
         var v=series[c];
         var disp;
@@ -526,7 +679,10 @@
     })(0);
   }
 
-  function render(rec){ PENDING=false; renderScaffold(rec); loadAnalysis(); }
+  // LAST_REC lets a row click redraw the chart from the record already in
+  // hand, so picking a line never refetches the statement.
+  var LAST_REC=null;
+  function render(rec){ PENDING=false; LAST_REC=rec; renderScaffold(rec); loadAnalysis(); }
   function STMT_TITLE(){return {income:"Income Statement",balance:"Balance Sheet",
     cashflow:"Cash Flow Statement"}[state.statement];}
 
@@ -708,11 +864,23 @@
   }
 
   // ---- controls ----
+  // Clicking a statement row plots it. The chart is the same figures as the
+  // table, so the pick is stored per statement and cleared when the statement
+  // changes: a key from the income statement means nothing on a balance sheet.
+  document.getElementById("body").addEventListener("click",function(e){
+    var tr=e.target&&e.target.closest?e.target.closest("tr[data-k]"):null;
+    if(!tr) return;
+    var k=tr.getAttribute("data-k");
+    if(!k||k===state.chartKey) return;
+    state.chartKey=k;
+    render(LAST_REC);
+  });
+
   Array.prototype.forEach.call(document.querySelectorAll('.seg button'),function(b){
     b.addEventListener("click",function(){
       Array.prototype.forEach.call(document.querySelectorAll('.seg button'),function(x){
         x.setAttribute("aria-pressed", x===b ? "true":"false");});
-      state.statement=b.getAttribute("data-st");load();
+      state.statement=b.getAttribute("data-st");state.chartKey=null;load();
     });
   });
   document.getElementById("period").addEventListener("change",function(e){
