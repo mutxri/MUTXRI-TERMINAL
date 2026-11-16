@@ -101,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261116031856';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116032319';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -2375,10 +2375,20 @@
            immediately above: the link came from a custody account, which the
            count excludes on purpose. One sentence contradicting the screen is
            worse than no sentence, so both are stated separately. */
+        /* The row and this summary must measure the same thing. The row asks
+           "what else does this name touch, other than the company I am on";
+           the summary first asked "does this name appear on more than one
+           register" and those are not the same question. Safaricom's register
+           names the state holder one way and Uchumi's names it another, so the
+           entity record carried UCHM alone: the row drew a link to UCHM while
+           the summary, seeing a single security, reported none. Both now count
+           the OTHER securities. */
         var bridgeOwn = 0, bridgeCust = 0;
         own.forEach(function(o){
           var e = entFor(o.name);
-          if(!e || (e.securities || []).length <= 1) return;
+          if(!e) return;
+          var others = (e.securities || []).filter(function(t){ return t !== hereSym; });
+          if(!others.length) return;
           if(e.counts_as_ownership === false) bridgeCust++; else bridgeOwn++;
         });
         var line = [];
