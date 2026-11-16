@@ -101,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261116204920';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116205648';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -228,6 +228,8 @@
 .lawbox{overflow-y:auto;padding:0}
   .lawrow{display:grid;grid-template-columns:1fr auto;gap:6px;padding:4px 8px;
     border-bottom:1px solid rgba(255,255,255,0.05);align-items:baseline}
+  /* the header row of the holder list: a label line, not a record */
+  .lawrow.hd .lt,.lawrow.hd .ls{color:var(--tx3);font-size:8px;letter-spacing:.16em}
   .lawrow:last-child{border-bottom:0}
   .lawrow .lh{display:flex;align-items:baseline;gap:6px;min-width:0}
   .lawrow .lc{font-size:8px;letter-spacing:.1em;color:var(--tx2);white-space:nowrap}
@@ -574,6 +576,8 @@
                   title="the revenue lines the issuer's own filing prints, and what each one is">HOW IT MAKES MONEY</button>
           <button class="kn bt" type="button" data-bt="group" aria-pressed="false"
                   title="who owns the company, and the subsidiaries, associates and ventures under it">GROUP STRUCTURE</button>
+          <button class="kn bt" type="button" data-bt="share" aria-pressed="false"
+                  title="the substantial holder table, from the issuer's own report">SHAREHOLDERS</button>
         </div>
         <span class="cm" id="m_law"></span>
       </div>
@@ -2676,6 +2680,7 @@
     paintBTabs();
     if(BTAB === 'money'){ renderMoney(row); return; }
     if(BTAB === 'group'){ renderGroup(row); return; }
+    if(BTAB === 'share'){ renderShare(row); return; }
     renderLaws(row);
   }
   function wireBTabs(){
@@ -2688,7 +2693,7 @@
     });
     try{
       var s = localStorage.getItem('mx.perp.btab');
-      if(s === 'money' || s === 'group' || s === 'laws') BTAB = s;
+      if(s === 'money' || s === 'group' || s === 'share' || s === 'laws') BTAB = s;
     }catch(e){}
     paintBTabs();
     wireEntJumps();
@@ -2721,6 +2726,54 @@
       if(box) box.innerHTML = '<div class="lawempty">this block could not be drawn: ' +
         esc(String((e && e.message) || e)) + '</div>';
     }
+  }
+
+  /* SHAREHOLDERS: the substantial holder table the issuer prints, as rows.
+     Same document the HOLDERS map category reads, read the same way, so the list
+     and the nodes can never disagree. A column the record does not print is not
+     drawn at all; a record that is not held says so instead of showing an empty
+     table. */
+  function renderShare(row){
+    var box = document.getElementById('b_law'), meta = document.getElementById('m_law');
+    if(!box) return;
+    var ex = String((row && row.exchange) || G.ex || EXS[0] || 'NSE').toUpperCase();
+    var tk = rowTicker(row);
+    var sym = String((row && row.sym) || tk).toUpperCase();
+    var sh = (DATA.sh && DATA.sh[ex]) || {};
+    var srec = sh[tk] || sh[sym] || null;
+    if(!srec){
+      EXS.forEach(function(e2){
+        if(srec || e2 === ex) return;
+        var alt = (DATA.sh && DATA.sh[e2]) || {};
+        srec = alt[tk] || null;
+      });
+    }
+    if(meta) meta.textContent = 'substantial holders' + (srec && srec.asOf ? ' as at ' + nd(srec.asOf) : '');
+    var hs = (srec && srec.substantial) || [];
+    if(!srec || !hs.length){
+      box.innerHTML = '<div class="lawrow"><div class="lt">' +
+        (srec ? 'the holder record for ' + esc(tk) + ' names no substantial holder'
+              : 'no substantial holder table is held for ' + esc(tk)) +
+        '</div><div class="ls">' + (srec && srec.asOf ? 'as at ' + esc(nd(srec.asOf)) : '') +
+        '</div></div>';
+      return;
+    }
+    var hasPct = hs.some(function(h){ return h.pct != null; });
+    var hasSh = hs.some(function(h){ return h.holding != null; });
+    var h = '<div class="lawrow hd"><div class="lt">HOLDER</div><div class="ls">' +
+            (hasPct ? '%' : '') + (hasSh ? ' SHARES' : '') + '</div></div>';
+    hs.forEach(function(x){
+      var right = '';
+      if(hasPct) right += (x.pct == null ? '' : Number(x.pct).toFixed(2) + '%');
+      if(hasSh) right += (right ? ' &middot; ' : '') +
+        (x.holding == null ? '' : fmtBig(x.holding) + ' SH');
+      h += '<div class="lawrow"><div class="lt">' + esc(nd(x.name || '')) +
+           '</div><div class="ls">' + (right || 'holding on file') + '</div></div>';
+    });
+    var src = (srec.source && (srec.source.note || srec.source.via)) || '';
+    if(src) h += '<div class="lawrow"><div class="lt" style="color:var(--tx3)">SOURCE</div>' +
+                 '<div class="ls" style="color:var(--tx3)">' + esc(nd(src).slice(0, 90)) + '</div></div>';
+    box.innerHTML = h;
   }
 
   function renderLaws(row){

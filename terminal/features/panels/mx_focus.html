@@ -46,7 +46,7 @@
   labels), no provider credits, no injected LIVE/EOD badges, no build step.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261116204920';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116205648';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - FOCUS</title>
@@ -324,6 +324,20 @@
     }
     return next();
   }
+  // The substantial holder table, one file per exchange. Cached because every
+  // selection on the same board reads the same document. The record is located with
+  // holderRec(), the same key walk the HOLDERS panel uses, so both panels agree on
+  // which record belongs to a security.
+  var SH_MEM = {};
+  function getHolders(board, sym, row){
+    var u = "shareholders_" + EX + ".json";
+    if(!Object.prototype.hasOwnProperty.call(SH_MEM, u)){
+      SH_MEM[u] = get(BASE + u).catch(function(){ return null; });
+    }
+    return SH_MEM[u].then(function(f){ return holderRec(f, row, sym); })
+                     .catch(function(){ return null; });
+  }
+
   // everything the blocks need, fetched once for the security being shown
   function loadExtras(board, sym){
     // Only the history is fetched now. The shareholders_<EX>.json and analytics/<KEY>.json
@@ -335,7 +349,9 @@
     // caveat, which is a real statement about the quote.
     var row = board ? matchRow(board.stocks || [], sym) : null;
     var out = { row: row, hist: null, hold: null, ana: null };
-    return getHist(row, sym).then(function(h){ out.hist = h; return out; });
+    return Promise.all([getHist(row, sym), getHolders(board, sym, row)]).then(function(r){
+      out.hist = r[0]; out.hold = r[1]; return out;
+    });
   }
 
   // ---- the selection handed over by the shell -----------------------------
@@ -693,7 +709,16 @@
     // (blockHolders / blockMultiples / blockHistory) are left in place, unused.
     // The panel is the quote card and nothing else.
     var box = $("fxBlocks");
-    if(box) box.innerHTML = "";
+    if(!box) return;
+    // Owner, 2026-11-16: the shareholders list goes back in. Only that block: the
+    // quote card and the holder table, nothing else, so the 2026-10-14 removal of
+    // TOP HOLDERS / MULTIPLES / PRICE HISTORY stands for those three.
+    var h = blockHolders(hold);
+    if(!h && (row || sym)){
+      h = '<div class="fx-blk"><div class="fx-blk-h"><span>Top holders</span><i>not on file</i></div>' +
+          '<div class="fx-src">no substantial holder table is held for this security</div></div>';
+    }
+    box.innerHTML = h;
     return;
   }
 
