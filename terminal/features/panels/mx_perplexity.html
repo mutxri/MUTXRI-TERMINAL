@@ -101,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261116032319';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116033523';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -255,6 +255,24 @@
   .gsrow .kd.own{color:#c48bf7;border-color:rgba(196,139,247,.4)}
   .gsrow .pc{margin-left:auto;font-size:8px;color:var(--acc);white-space:nowrap}
   .gsrow .cy{font-size:7.5px;color:var(--tx3);white-space:nowrap}
+  /* ---- the ontology idiom, brought into this panel ----------------------
+     A trail of how the reader got here, and every claim rendered as a card
+     that carries its source and a badge saying what KIND of claim it is. A
+     figure read off a filing and an inference drawn from two of them are not
+     the same sort of statement and must not look alike. */
+  .ptrail{display:flex;align-items:center;gap:5px;padding:4px 8px 8px;flex-wrap:wrap}
+  .ptrail .cr{font-family:var(--mono);font-size:7.5px;color:var(--tx3);
+    border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:2px 6px;cursor:pointer}
+  .ptrail .cr:hover{color:var(--tx2);border-color:rgba(255,255,255,.25)}
+  .ptrail .cr.on{color:var(--acc);border-color:rgba(51,226,154,.45);
+    background:rgba(51,226,154,.07);cursor:default}
+  .ptrail .sp{color:rgba(255,255,255,.2);font-size:8px}
+  .bmbadge{font-family:var(--mono);font-size:6.5px;border:1px solid;border-radius:3px;
+    padding:1px 4px;margin-left:5px;vertical-align:middle;letter-spacing:.06em}
+  .bmbadge.meas{color:#33e29a;border-color:rgba(51,226,154,.4)}
+  .bmbadge.filed{color:#58a6ff;border-color:rgba(88,166,255,.4)}
+  .bmbadge.obs{color:#e0a340;border-color:rgba(224,163,65,.4)}
+  .bmbadge.cust{color:var(--tx3);border-color:rgba(255,255,255,.18)}
   /* a holder's other securities: the only clickable thing in the group tab */
   .gswhat a.entjump{color:var(--acc);text-decoration:none;border-bottom:1px dotted rgba(51,226,154,.5)}
   .gswhat a.entjump:hover{color:#fff;border-bottom-color:#fff}
@@ -512,6 +530,7 @@
         </div>
         <span class="cm" id="m_law"></span>
       </div>
+      <div class="ptrail" id="p_trail"></div>
       <div class="cb lawbox" id="b_law"></div>
     </div>
   </div>
@@ -2506,7 +2525,42 @@
       b.setAttribute('aria-pressed', b.getAttribute('data-bt') === BTAB ? 'true' : 'false');
     });
   }
+  /* The trail. A reader who arrives at Co-operative Bank from Safaricom via a
+     holder has walked a path, and the path is part of the finding: it is how
+     you know those two companies are connected at all. Capped at six, because
+     beyond that it stops being a route and becomes a history. */
+  var PTRAIL = [];
+  function pushTrail(sym, label){
+    if(!sym) return;
+    var k = -1;
+    PTRAIL.forEach(function(t, i){ if(t.sym === sym) k = i; });
+    if(k >= 0) PTRAIL = PTRAIL.slice(0, k + 1);
+    else PTRAIL.push({sym: sym, label: label || sym});
+    if(PTRAIL.length > 6) PTRAIL = PTRAIL.slice(-6);
+  }
+  function drawTrail(){
+    var el = document.getElementById('p_trail');
+    if(!el) return;
+    if(PTRAIL.length < 2){ el.innerHTML = ''; return; }
+    el.innerHTML = PTRAIL.map(function(t, i){
+      var on = i === PTRAIL.length - 1;
+      return (i ? '<span class="sp">&rsaquo;</span>' : '')
+        + '<span class="cr' + (on ? ' on' : '') + '" data-sym="' + esc(t.sym) + '">'
+        + esc(t.label) + '</span>';
+    }).join('');
+    if(el.__wired) return;
+    el.__wired = true;
+    el.addEventListener('click', function(ev){
+      var b = ev.target && ev.target.closest && ev.target.closest('.cr');
+      if(!b || b.classList.contains('on')) return;
+      var row = findRow(b.getAttribute('data-sym'), null);
+      if(row) pick(row);
+    });
+  }
+
   function renderBottom(row){
+    pushTrail(rowTicker(row), rowTicker(row));
+    drawTrail();
     paintBTabs();
     if(BTAB === 'money'){ renderMoney(row); return; }
     if(BTAB === 'group'){ renderGroup(row); return; }

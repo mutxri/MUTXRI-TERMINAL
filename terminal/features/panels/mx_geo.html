@@ -43,7 +43,7 @@
   A security with no growing areas on file says so and offers the ones that do.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261116032319';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261116033523';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - GEO</title>
@@ -62,49 +62,91 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:transparent;color:var(--tx);font-family:var(--ui);font-size:13px}
-  .wrap{padding:14px}
-  .head{display:flex;align-items:baseline;gap:10px;padding:4px 2px 12px;
-        border-bottom:1px solid var(--line2);flex-wrap:wrap}
-  .ttl{font-size:15px;font-weight:700;letter-spacing:.4px}
-  .sub{font-family:var(--mono);font-size:10px;color:var(--tx3)}
+  /* ---- the ontology workspace -------------------------------------------
+     Three columns, because that is the shape of the work: what this object
+     links to, the object itself, and the evidence for every claim on screen.
+     The right column is the point. A panel that cannot show its sources is a
+     picture; the provenance is what makes it usable. */
+  .trail{display:flex;align-items:center;gap:6px;padding:6px 2px 10px;flex-wrap:wrap}
+  .crumb{font-family:var(--mono);font-size:9.5px;color:var(--tx3);border:1px solid var(--line2);
+         border-radius:5px;padding:3px 8px;white-space:nowrap;cursor:pointer;background:var(--bg2)}
+  .crumb:hover{border-color:#3a3a3a;color:var(--tx2)}
+  .crumb.on{color:var(--acc);border-color:#2a5d4a;background:#0d1a15;cursor:default}
+  .crumb .sep{color:#3a3a3a}
+  .ws{display:grid;grid-template-columns:190px minmax(0,1fr) 300px;gap:12px;align-items:start}
+  @media(max-width:1000px){.ws{grid-template-columns:170px minmax(0,1fr)}
+                           .ws .col3{grid-column:1/-1}}
+  @media(max-width:700px){.ws{grid-template-columns:1fr}}
+  .col{min-width:0}
+  .ch{font-family:var(--mono);font-size:9px;letter-spacing:1.7px;color:var(--tx3);
+      margin:0 0 8px;padding-left:2px}
   .card{border:1px solid var(--line);background:var(--bg3);border-radius:9px;
-        padding:12px 14px;margin-top:12px}
-  .ch{font-family:var(--mono);font-size:9.5px;letter-spacing:1.6px;color:var(--tx3);
-      margin-bottom:9px}
-  .areas{display:flex;flex-wrap:wrap;gap:7px}
-  .chip{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line2);
-        border-radius:5px;padding:4px 9px;color:var(--tx2);cursor:pointer;background:var(--bg2)}
-  .chip.on{color:var(--violet);border-color:#4a3566;background:#16101d}
-  .chip:hover{border-color:#3a3a3a}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .tile{border:1px solid var(--line2);border-radius:7px;overflow:hidden;background:#0d0d0d}
+        padding:12px 14px;margin-bottom:12px}
+  /* left rail: what this object links to */
+  .lk{padding:7px 8px;border-bottom:1px solid var(--line);cursor:pointer;line-height:1.35}
+  .lk:last-child{border-bottom:0}
+  .lk:hover{background:#171717}
+  .lk .nm{font-size:11.5px;color:var(--tx)}
+  .lk .rel{font-family:var(--mono);font-size:8.5px;color:var(--tx3);margin-top:2px}
+  .lk.on{background:#16101d}
+  .lk.on .nm{color:var(--violet)}
+  .kindrow{display:flex;justify-content:space-between;padding:5px 8px;font-size:11px}
+  .kindrow .n{font-family:var(--mono);font-size:10px;color:var(--tx3)}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:7px}
+  /* right rail: evidence, one card per fact, each with its source */
+  .ev{border:1px solid #171717;background:#0e0e0e;border-radius:7px;padding:9px 11px;
+      margin-bottom:8px}
+  .ev .k{font-family:var(--mono);font-size:8.5px;letter-spacing:1.2px;color:var(--tx3)}
+  .ev .v{font-size:14px;margin-top:3px;font-family:var(--mono)}
+  .ev .s{font-family:var(--mono);font-size:8.5px;color:#6a6a6a;margin-top:6px;line-height:1.5;
+         border-top:1px solid #171717;padding-top:5px}
+  .badge{font-family:var(--mono);font-size:7.5px;border:1px solid;border-radius:3px;
+         padding:1px 4px;margin-left:5px;vertical-align:middle}
+  .badge.meas{color:var(--acc);border-color:#2a5d4a}
+  .badge.stat{color:var(--tx3);border-color:#333}
+  .badge.obs{color:var(--gold);border-color:#5d4a1f}
+  .hero{font-size:17px;font-weight:700;letter-spacing:.3px}
+  .herosub{font-family:var(--mono);font-size:9.5px;color:var(--tx3);margin-top:3px}
+  .tile{border:1px solid var(--line2);border-radius:7px;overflow:hidden;background:#0d0d0d;
+        margin-bottom:9px}
   .tile img{width:100%;display:block}
   .tile .cap{padding:6px 9px 8px}
-  .tile .cap b{font-size:11px;letter-spacing:.4px}
-  .tile .cap div{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:3px;line-height:1.45}
-  .note{font-family:var(--mono);font-size:9.5px;color:var(--tx3);line-height:1.6;margin-top:9px}
-  .kv{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
-      padding:7px 0;border-bottom:1px solid var(--line)}
-  .kv:last-child{border-bottom:0}
-  .kv .k{font-family:var(--mono);font-size:10px;letter-spacing:1.1px;color:var(--tx3)}
-  .kv .v{font-family:var(--mono);font-size:14px}
-  .big{font-family:var(--mono);font-size:26px;font-weight:700}
+  .tile .cap b{font-size:10.5px;letter-spacing:.3px}
+  .tile .cap div{font-family:var(--mono);font-size:8.5px;color:var(--tx3);margin-top:3px}
+  .note{font-family:var(--mono);font-size:9px;color:var(--tx3);line-height:1.6;margin-top:8px}
   .warn{color:var(--down)}
-  .mut{color:var(--tx3)}
-  .tag{font-family:var(--mono);font-size:8.5px;border:1px solid #2a5d4a;color:var(--acc);
-       border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle}
-  .tag.amber{border-color:#5d4a1f;color:var(--gold)}
-  .empty{font-family:var(--mono);font-size:11px;color:var(--tx3);line-height:1.7;padding:10px 2px}
+  .empty{font-family:var(--mono);font-size:10.5px;color:var(--tx3);line-height:1.8;padding:8px 2px}
+  .chip{font-family:var(--mono);font-size:10px;border:1px solid var(--line2);border-radius:5px;
+        padding:4px 9px;color:var(--tx2);cursor:pointer;background:var(--bg2);display:inline-block;
+        margin:0 6px 6px 0}
+  .chip:hover{border-color:#3a3a3a}
   svg{display:block}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="head">
-    <span class="ttl" id="ttl">GEO</span>
-    <span class="sub" id="sub"></span>
+  <div class="trail" id="trail"></div>
+  <div class="ws">
+    <div class="col col1">
+      <div class="card" style="padding:9px 6px">
+        <div class="ch" style="padding-left:8px">OBJECT TYPES</div>
+        <div id="kinds"></div>
+      </div>
+      <div class="card" style="padding:9px 6px">
+        <div class="ch" style="padding-left:8px">LINKS FROM HERE</div>
+        <div id="links"></div>
+      </div>
+    </div>
+    <div class="col col2" id="centre"></div>
+    <div class="col col3">
+      <div class="card">
+        <div class="hero" id="hero"></div>
+        <div class="herosub" id="herosub"></div>
+      </div>
+      <div class="ch">EVIDENCE</div>
+      <div id="facts"></div>
+    </div>
   </div>
-  <div id="body"></div>
 </div>
 
 <script>
@@ -210,33 +252,83 @@
     return '<svg width="' + w + '" height="' + H + '">' + o + '</svg>';
   }
 
+  /* ---- the workspace -----------------------------------------------------
+     Three columns filled from one object. `trail` is how you got here, which
+     matters because the panel is walked rather than read: place to company to
+     neighbour and back. Facts carry a badge saying what KIND of claim each is,
+     because "1,772 mm" and "the wettest year had the weakest revenue" are not
+     the same sort of statement and should not look alike. */
+  var TRAIL = [];
+
+  function pushTrail(kind, id, label){
+    var k = -1;
+    TRAIL.forEach(function(t, i){ if(t.kind === kind && t.id === id) k = i; });
+    if(k >= 0) TRAIL = TRAIL.slice(0, k + 1);
+    else TRAIL.push({kind: kind, id: id, label: label});
+    if(TRAIL.length > 6) TRAIL = TRAIL.slice(-6);
+  }
+
+  function drawTrail(){
+    $("trail").innerHTML = TRAIL.map(function(t, i){
+      var on = i === TRAIL.length - 1;
+      return (i ? '<span class="sep">&rsaquo;</span>' : "")
+        + '<span class="crumb' + (on ? " on" : "") + '" data-tk="' + esc(t.kind)
+        + '" data-ti="' + esc(t.id) + '">' + esc(t.label) + '</span>';
+    }).join("");
+    Array.prototype.forEach.call($("trail").querySelectorAll(".crumb"), function(b){
+      b.addEventListener("click", function(){
+        var k = b.getAttribute("data-tk"), id = b.getAttribute("data-ti");
+        if(k === "sec"){ SYM = id; area = null; }
+        else { area = id; }
+        draw();
+      });
+    });
+  }
+
+  function ev(k, v, src, badge){
+    return '<div class="ev"><div class="k">' + esc(k)
+      + (badge ? '<span class="badge ' + badge[0] + '">' + esc(badge[1]) + '</span>' : "")
+      + '</div><div class="v">' + esc(v) + '</div>'
+      + (src ? '<div class="s">' + esc(src) + '</div>' : "") + '</div>';
+  }
+
+  function kinds(){
+    var np = Object.keys(D.places).length, nc = Object.keys(D.companies).length;
+    $("kinds").innerHTML =
+      '<div class="kindrow"><span><span class="dot" style="background:#f0f0f0"></span>security</span>'
+      + '<span class="n">' + nc + '</span></div>'
+      + '<div class="kindrow"><span><span class="dot" style="background:#b07cf0"></span>place</span>'
+      + '<span class="n">' + np + '</span></div>';
+  }
+
   function draw(){
     var c = D.companies[SYM];
-    var W = Math.max(280, (document.body.clientWidth || 760) - 60);
+    kinds();
 
     if(!c){
-      var have = Object.keys(D.companies).sort();
-      $("ttl").textContent = "GEO";
-      $("sub").textContent = EX + (SYM ? " / " + SYM : "");
-      $("body").innerHTML =
-        '<div class="empty">No growing areas are on file for '
-        + esc(SYM || "this security") + '.<br><br>'
-        + 'This panel carries a place only where the company itself names one. '
-        + 'That is true today for the agricultural counters below and for nothing else, '
-        + 'so the absence here is a gap in what has been read, not a statement '
-        + 'about the company.</div>'
-        + '<div class="areas" style="padding:0 2px">'
-        + have.map(function(t){
-            return '<span class="chip" onclick="location.search=\'?ex=NSE&sym=' + t + '\'">'
-                 + t + ' &middot; ' + esc(D.companies[t].crop) + '</span>'; }).join("")
-        + '</div>';
+      TRAIL = [];
+      drawTrail();
+      $("hero").textContent = SYM || "GEO";
+      $("herosub").textContent = EX + " / no growing areas on file";
+      $("facts").innerHTML = ev("COVERAGE", Object.keys(D.companies).length + " securities",
+        "A place is carried only where the company itself names one. That is true today "
+        + "for the agricultural counters and nothing else, so an absence here is a gap in "
+        + "what has been read, not a statement about the company.", ["stat", "stated"]);
+      $("links").innerHTML = Object.keys(D.companies).sort().map(function(t){
+        return '<div class="lk" data-go="' + esc(t) + '"><div class="nm">' + esc(t)
+             + '</div><div class="rel">' + esc(D.companies[t].crop) + '</div></div>';
+      }).join("");
+      $("centre").innerHTML = '<div class="card"><div class="empty">'
+        + 'No growing areas are on file for ' + esc(SYM || "this security") + '.<br><br>'
+        + 'Pick one of the securities on the left that does have them.</div></div>';
+      wire();
       return;
     }
 
-    $("ttl").textContent = c.name;
-    $("sub").textContent = EX + " / " + SYM + "  ·  " + c.crop
-      + "  ·  financial year ends " + c.fy_end;
     if(!area || c.areas.indexOf(area) < 0) area = c.areas[0];
+    pushTrail("sec", SYM, SYM);
+    pushTrail("place", area, area);
+    drawTrail();
 
     var yrs = c.years || [];
     var last = yrs.length ? yrs[yrs.length - 1] : null;
@@ -245,106 +337,100 @@
     var worst = yrs.length ? yrs.reduce(function(a, b){
       return b.revenue < a.revenue ? b : a; }) : null;
     var counter = (wettest && worst && wettest.fy === worst.fy);
+    var p = D.places[area];
+    var ser = (p && p.monthly) || [];
 
-    var h = "";
+    /* -------- hero and evidence -------- */
+    $("hero").textContent = c.name;
+    $("herosub").textContent = EX + " / " + SYM + "  ·  " + c.crop
+      + "  ·  FY ends " + c.fy_end;
 
-    /* ---- the headline, and the counter-intuitive finding where it holds */
-    h += '<div class="card"><div class="ch">RAIN AGAINST THE REVENUE IT BECAME</div>';
-    h += chart(yrs, W - 28);
-    h += '<div class="note">Rainfall summed over this company’s own financial year, '
-       + 'not the calendar year. ' + yrs.length + ' points, so no correlation coefficient '
-       + 'is computed: at this sample size one would be noise.</div>';
-    if(counter){
-      h += '<div class="note warn" style="margin-top:8px">FY' + wettest.fy
-         + ' was the wettest year on file here and the weakest revenue of the '
-         + yrs.length + '. More rain means more leaf, but when the rain is good across '
-         + 'the whole country every estate plucks at once and the auction price falls. '
-         + 'A good year for the crop can be a poor one for the shareholder.</div>';
-    }
-    h += '<div class="note">' + esc(D.other_drivers) + '</div>';
-    h += '</div>';
-
+    var f = "";
     if(last){
-      h += '<div class="card"><div class="ch">LATEST FILED YEAR</div>'
-        + '<div class="kv"><span class="k">FINANCIAL YEAR</span><span class="v">FY'
-        + last.fy + '</span></div>'
-        + '<div class="kv"><span class="k">WINDOW</span><span class="v">'
-        + esc(last.window[0]) + " → " + esc(last.window[1]) + '</span></div>'
-        + '<div class="kv"><span class="k">RAINFALL<span class="tag">measured</span></span>'
-        + '<span class="v">' + fmt(last.rain_mm) + ' mm</span></div>'
-        + '<div class="kv"><span class="k">WET DAYS</span><span class="v">'
-        + fmt(last.wet_days) + '</span></div>'
-        + '<div class="kv"><span class="k">REVENUE</span><span class="v">KES '
-        + money(last.revenue) + '</span></div></div>';
+      f += ev("RAINFALL FY" + last.fy, fmt(last.rain_mm) + " mm",
+        D.weather_source + ". Summed over this company's own financial year, "
+        + last.window[0] + " to " + last.window[1] + ".", ["meas", "measured"]);
+      f += ev("REVENUE FY" + last.fy, "KES " + money(last.revenue),
+        "The issuer's filed statement for the year ended " + last.window[1] + ".",
+        ["stat", "stated"]);
+      f += ev("WET DAYS FY" + last.fy, fmt(last.wet_days) + " days",
+        "Days of 1 mm or more at the growing areas.", ["meas", "measured"]);
     }
+    if(counter){
+      f += ev("WHAT THE SERIES SHOWS",
+        "wettest year, weakest revenue",
+        "FY" + wettest.fy + " was the wettest year on file here and the weakest revenue of "
+        + "the " + yrs.length + ". More rain means more leaf, but when rain is good across "
+        + "the whole country every estate plucks at once and the auction price falls.",
+        ["obs", "observation"]);
+    }
+    f += ev("POINTS ON FILE", yrs.length + " financial years",
+      D.no_coefficient, ["stat", "stated"]);
+    if(ser.length){
+      var wet = ser.reduce(function(a, b){ return b.rain_mm > a.rain_mm ? b : a; });
+      var dry = ser.reduce(function(a, b){ return b.rain_mm < a.rain_mm ? b : a; });
+      f += ev("WETTEST MONTH AT " + area.toUpperCase(),
+        wet.m + "  " + fmt(wet.rain_mm) + " mm", D.weather_source, ["meas", "measured"]);
+      f += ev("DRIEST MONTH AT " + area.toUpperCase(),
+        dry.m + "  " + fmt(dry.rain_mm) + " mm", D.weather_source, ["meas", "measured"]);
+    }
+    f += ev("WHERE " + area.toUpperCase() + " IS",
+      p ? p.lat.toFixed(4) + ", " + p.lon.toFixed(4) : "-",
+      D.coords_basis + " " + c.location_basis, ["stat", "stated"]);
+    f += ev("OTHER DRIVERS", "not only the weather", D.other_drivers, ["stat", "stated"]);
+    $("facts").innerHTML = f;
 
-    /* ---- the places themselves */
-    h += '<div class="card"><div class="ch">GROWING AREAS &middot; '
-       + c.areas.length + '</div><div class="areas">'
-       + c.areas.map(function(a){
-           return '<span class="chip' + (a === area ? " on" : "") + '" data-a="'
-                + esc(a) + '">' + esc(a) + '</span>'; }).join("")
-       + '</div><div class="note">' + esc(c.location_basis) + '</div>'
-       + '<div class="note">' + esc(D.coords_basis) + '</div></div>';
-
-    /* A place is an object, not a label on this company. The question worth
-       asking about one is who ELSE is standing on it: two companies sharing a
-       growing area share the weather that hits it, which is a relationship no
-       shareholder register would ever show. Clicking a neighbour re-centres
-       the panel on them. */
+    /* -------- left rail: what this object links to -------- */
     var alsoHere = Object.keys(D.companies).filter(function(t){
       return t !== SYM && D.companies[t].areas.indexOf(area) >= 0;
     }).sort();
-    h += '<div class="card"><div class="ch">WHO ELSE FARMS ' + esc(area.toUpperCase())
-       + '</div>';
-    if(alsoHere.length){
-      h += '<div class="areas">' + alsoHere.map(function(t){
-        return '<span class="chip" data-go="' + esc(t) + '">' + esc(t) + ' &middot; '
-             + esc(D.companies[t].crop) + '</span>'; }).join("") + '</div>'
-        + '<div class="note">Listed counters sharing this growing area, so the same '
-        + 'weather reaches them. Their financial years differ, so the same rain lands '
-        + 'in different reported years.</div>';
-    } else {
-      h += '<div class="note">No other listed counter on file names ' + esc(area)
-         + '. That is what has been read, not a survey of who farms there.</div>';
+    var l = c.areas.map(function(a){
+      return '<div class="lk' + (a === area ? " on" : "") + '" data-a="' + esc(a) + '">'
+        + '<div class="nm">' + esc(a) + '</div><div class="rel">farms at</div></div>';
+    }).join("");
+    l += alsoHere.map(function(t){
+      return '<div class="lk" data-go="' + esc(t) + '"><div class="nm">' + esc(t)
+        + '</div><div class="rel">also farms ' + esc(area) + '</div></div>';
+    }).join("");
+    $("links").innerHTML = l;
+
+    /* -------- centre: the object itself -------- */
+    var W = Math.max(260, ($("centre").clientWidth || 520) - 30);
+    var h = '<div class="card"><div class="ch">RAIN AGAINST THE REVENUE IT BECAME</div>'
+      + chart(yrs, W)
+      + '<div class="note">' + esc(yrs.length) + ' points, so no correlation coefficient '
+      + 'is computed: at this sample size one would be noise.</div>';
+    if(counter){
+      h += '<div class="note warn">FY' + wettest.fy + ' was the wettest year on file here '
+         + 'and the weakest revenue of the ' + yrs.length + '. A good year for the crop can '
+         + 'be a poor one for the shareholder.</div>';
     }
     h += '</div>';
 
-    var p = D.places[area];
-    if(p){
+    if(p && (p.tiles || []).length){
       h += '<div class="card"><div class="ch">' + esc(area.toUpperCase())
-         + ' &middot; LAND SURFACE TEMPERATURE<span class="tag">measured</span></div>'
-         + '<div class="grid2">'
-         + (p.tiles || []).map(function(t){
-             return '<div class="tile"><img src="' + sd(esc(t.file))
-                  + '" alt="' + esc(area + " " + t.caption) + '" loading="lazy">'
-                  + '<div class="cap"><b>' + esc(t.caption.toUpperCase()) + '</b><div>'
-                  + esc(t.date) + '</div></div></div>'; }).join("")
-         + '</div><div class="note">' + esc(D.thermal_source) + '</div>'
+         + ' &middot; LAND SURFACE TEMPERATURE</div>'
+         + p.tiles.map(function(t){
+             return '<div class="tile"><img src="' + sd(esc(t.file)) + '" alt="'
+                  + esc(area + " " + t.caption) + '" loading="lazy"><div class="cap"><b>'
+                  + esc(t.caption.toUpperCase()) + '</b><div>' + esc(t.date)
+                  + '</div></div></div>'; }).join("")
          + '<div class="note">' + esc(D.gaps) + '</div></div>';
-
-      var ser = p.monthly || [];
-      if(ser.length){
-        var wet = ser.reduce(function(a, b){ return b.rain_mm > a.rain_mm ? b : a; });
-        var dry = ser.reduce(function(a, b){ return b.rain_mm < a.rain_mm ? b : a; });
-        h += '<div class="card"><div class="ch">' + esc(area.toUpperCase())
-           + ' &middot; RAINFALL BY MONTH, LAST 3 YEARS</div>'
-           + rainBars(ser, W - 28)
-           + '<div class="kv"><span class="k">WETTEST MONTH ON FILE</span><span class="v">'
-           + esc(wet.m) + ' &middot; ' + fmt(wet.rain_mm) + ' mm</span></div>'
-           + '<div class="kv"><span class="k">DRIEST MONTH ON FILE</span><span class="v">'
-           + esc(dry.m) + ' &middot; ' + fmt(dry.rain_mm) + ' mm</span></div>'
-           + '<div class="note">April and May picked out as the long rains. '
-           + esc(D.weather_source) + '.</div></div>';
-      }
     }
+    if(ser.length){
+      h += '<div class="card"><div class="ch">' + esc(area.toUpperCase())
+         + ' &middot; RAINFALL BY MONTH, LAST 3 YEARS</div>' + rainBars(ser, W)
+         + '<div class="note">April and May picked out as the long rains.</div></div>';
+    }
+    $("centre").innerHTML = h;
+    wire();
+  }
 
-    $("body").innerHTML = h;
-    Array.prototype.forEach.call(document.querySelectorAll(".chip[data-a]"), function(b){
+  function wire(){
+    Array.prototype.forEach.call(document.querySelectorAll(".lk[data-a]"), function(b){
       b.addEventListener("click", function(){ area = b.getAttribute("data-a"); draw(); });
     });
-    /* walking to a neighbour: the place stays, the company changes */
-    Array.prototype.forEach.call(document.querySelectorAll(".chip[data-go]"), function(b){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-go]"), function(b){
       b.addEventListener("click", function(){
         SYM = b.getAttribute("data-go");
         draw();
