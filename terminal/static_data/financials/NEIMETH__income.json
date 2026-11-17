@@ -116,7 +116,7 @@
   {
    "label": "Operating Expenses",
    "values": [
-    1368179000.0,
+    1235146000.0,
     685956000,
     435037000.0,
     1938836000.0,
@@ -134,7 +134,7 @@
   {
    "label": "Net Margin (%)",
    "values": [
-    null,
+    6.2,
     5.67,
     13.25,
     -19.74,
@@ -176,7 +176,7 @@
   {
    "label": "Gross Margin (%)",
    "values": [
-    null,
+    50.41,
     49.69,
     41.66,
     43.65,
@@ -190,7 +190,7 @@
   {
    "label": "Operating Margin (%)",
    "values": [
-    null,
+    29.86,
     30.97,
     35.76,
     0.42,
@@ -231,7 +231,7 @@
   {
    "label": "EPS",
    "values": [
-    76.30000000000001,
+    0.0763,
     0.0486,
     0.228502,
     -0.207187,
@@ -240,7 +240,23 @@
     0.063321
    ],
    "derived": true,
-   "formula": "Net Profit / weighted average shares implied by the company's own reported EPS"
+   "formula": "Net Profit / weighted average shares implied by the company's own reported EPS",
+   "unitGuard": [
+    {
+     "period": "9M 2026",
+     "before": 76.30000000000001,
+     "after": 0.0763,
+     "factor": 875.37288,
+     "power": 1000.0,
+     "how": "divide",
+     "implied": 0.087163,
+     "netProfit": 372456000.0,
+     "shares": 4273104607,
+     "sharesSource": "the statement file's sharesOutstanding",
+     "reason": "unit guard: the EPS row for 9M 2026 read 76.3 against 0.0871629 for that period's net profit divided by the shares on file, a factor of 875.4, which is the 1000x multiple of a per-share figure printed in a sub-unit (kobo / cents / a thousandth). Normalised to 0.0763, the unit the price is quoted in."
+    }
+   ],
+   "unitGuardBasis": "factor = stored EPS / (the same period's net profit / shares on file); a factor within 15% of a power of ten (or its reciprocal) whose corrected value lands within 2.0x of the triangle is a UNIT error and is normalised; a stored cell of the opposite sign to the period's net profit whose magnitude is beyond 5.0x is WITHHELD with both figures named; every other cell is left exactly as filed"
   }
  ],
  "derivation": {
@@ -252,5 +268,13 @@
  "sharesOutstanding": 4273104607,
  "marketCapSource": "NGX 'List of Equities as of 2026-04-09' (doclib.ngxgroup.com), shares outstanding",
  "reconciliation_note": "Gross Profit - Operating Expenses = Operating Profit (EBIT) does not hold in FY2025, FY2024; the operating expenses for those periods are withheld (see the row note).",
- "derivedCellsNote": "Individual blank cells derived from the same file own printed inputs, each tagged derived true with its formula and identity agreement rate."
+ "derivedCellsNote": "Individual blank cells derived from the same file own printed inputs, each tagged derived true with its formula and identity agreement rate.",
+ "unitNormalised": {
+  "factor": 1,
+  "epsFactor": 1000,
+  "asPrinted": "base currency",
+  "basis": "market-cap anchored: cap 3.18346e+10, net profit 3.72456e+08, revenue 6.00957e+09; at x1 P/E 85.47, P/S 5.297",
+  "appliedAt": "2026-11-17T18:20:20",
+  "sections": []
+ }
 }
