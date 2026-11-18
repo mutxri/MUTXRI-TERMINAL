@@ -1,28 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261118193401';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
+<head><script>(function(){var V='20261118230334';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MUTXRI TERMINAL - GLOBE</title>
 <!--
-  GLOBE - the God's Eye View app, framed inside the terminal.
+  GLOBE - the God's Eye View instrument, whole, inside the terminal.
 
-  The panel mounts the real God's Eye View build (MIT, Bilawal Sidhu) at
-  ../../globe/ in its own embed mode (?embed=1) and drives it through the app's own
-  embed contract: the app announces {type:'gev:ready'} and this page posts
-  {type:'gev:view', id, view} with a camera {lat, lon, altitude_m, heading_deg,
-  pitch_deg}; the app answers {type:'gev:view-applied'}.
+  THE APP IS NOT TRIMMED. An earlier version framed the build in its own embed
+  mode (?embed=1), which the app documents as "only the globe": no HUD, no search,
+  no data layers, no stories, no CCTV, no share link. That was a viewport, not the
+  instrument. This panel mounts the build in FULL mode, so every feature is there.
 
-  WHERE THE CAMERA OPENS, in order: a land site for the security being read
-  (static_data/land_<EX>.json), then that company's main office
-  (static_data/offices_<EX>.json). With neither on file the app STILL OPENS - the
-  whole instrument, free to pan and zoom - and the footer says plainly that the
-  camera is at the app's own default.
+  What the panel adds is the terminal's context, not a replacement for any of it:
 
-  A MISSING RECORD NEVER COVERS THE GLOBE. An earlier version put an empty state
-  over the frame whenever a security had no land record, which read as "the globe
-  is broken" while the globe was fine: the shell handed the exchange code over as
-  the ticker, so nothing matched. The build is now mounted once, unconditionally,
-  and a record only decides where the camera starts.
+    PLACE      every site this security has on file from static_data/land_<EX>.json
+               and its main office from offices_<EX>.json, then every other
+               security on the board that has a record, so a reader can move from
+               Sasini's tea estates to KenGen's geothermal fields in one choice.
+    FIND       types into the app's own "Search any location" box and presses
+               Enter, so the app's gazetteer does the work, not a list of mine.
+    COPY LINK  the terminal URL for the view on screen, built from the app's live
+               share hash, so a reader can send someone exactly this.
+    STORIES    opens the app's own stories.
+    RECENTRE   returns to the chosen place after free panning.
+
+  The camera is seeded through the app's own share-link hash (v=2&lat&lon&alt&
+  heading&pitch&roll&style), which it restores on load. Full mode has no
+  postMessage contract, and a hash is the app's own documented way in.
+
+  Two things the app opens with are dismissed on load because they cover the globe
+  in a panel this size: the "Choose your first view" welcome and the Stories
+  popover. Both stay reachable from the app's own controls afterwards.
 -->
 <style>
   :root{
@@ -33,39 +41,47 @@
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--tx);font-family:var(--ui);height:100vh;overflow:hidden}
   .gl{display:flex;flex-direction:column;height:100%}
-  .bar{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--panel);
+  .bar{display:flex;align-items:center;gap:8px;padding:5px 9px;background:var(--panel);
        border-bottom:1px solid var(--line);flex:0 0 auto}
   .tkr{font-family:var(--mono);font-size:11px;color:var(--tx);letter-spacing:.08em}
   .ex{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.16em}
-  select,.btn{background:#111;color:var(--tx2);border:1px solid var(--line2);border-radius:2px;
-        font-family:var(--mono);font-size:10px;padding:3px 6px;outline:none;max-width:300px}
-  .btn{cursor:pointer}
+  select,.btn,input.go{background:#111;color:var(--tx2);border:1px solid var(--line2);
+        border-radius:2px;font-family:var(--mono);font-size:10px;padding:3px 6px;outline:none}
+  select{max-width:290px}
+  input.go{width:150px}
+  input.go:focus{border-color:var(--acc)}
+  .btn{cursor:pointer;white-space:nowrap}
   .btn:hover{border-color:var(--acc);color:var(--tx)}
-  .pos{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.06em;
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:44%}
+  .btn.on{border-color:var(--acc);color:var(--acc)}
+  .pos{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.05em;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%}
   .frame{position:relative;flex:1 1 auto;min-height:0;background:#050505}
   iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
   .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
          justify-content:center;gap:8px;text-align:center;padding:24px;background:#050505}
   .empty .h{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--warn)}
-  .empty .b{font-family:var(--ui);font-size:12px;color:var(--tx2);max-width:480px;line-height:1.5}
+  .empty .b{font-family:var(--ui);font-size:12px;color:var(--tx2);max-width:500px;line-height:1.55}
   .empty code{font-family:var(--mono);font-size:10px;color:var(--acc)}
-  .foot{flex:0 0 auto;padding:4px 10px;border-top:1px solid var(--line);font-family:var(--mono);
-        font-size:8.5px;color:var(--tx3);letter-spacing:.05em;display:flex;gap:14px;flex-wrap:wrap}
+  .foot{flex:0 0 auto;padding:3px 9px;border-top:1px solid var(--line);font-family:var(--mono);
+        font-size:8.5px;color:var(--tx3);letter-spacing:.04em;display:flex;gap:12px;flex-wrap:wrap}
   .foot b{color:var(--tx2);font-weight:400}
 </style>
 </head>
 <body>
-<div class="gl" id="gl">
+<div class="gl">
   <div class="bar">
     <span class="tkr" id="tkr">GLOBE</span>
     <span class="ex" id="ex">-</span>
     <select id="site" title="what the camera opens on"></select>
+    <input class="go" id="find" type="search" placeholder="find a place" title="searches the app's own gazetteer">
     <button class="btn" id="reload" type="button" title="re-centre on the chosen place">RECENTRE</button>
+    <button class="btn" id="copy" type="button" title="copy this view as a terminal link">COPY LINK</button>
+    <button class="btn" id="story" type="button" title="open the app's stories">STORIES</button>
+    <button class="btn" id="open" type="button" title="open the instrument in its own window">OPEN</button>
     <span class="pos" id="pos">-</span>
   </div>
   <div class="frame" id="frame">
-    <iframe id="gev" title="God's Eye View" allow="fullscreen; clipboard-write"></iframe>
+    <iframe id="gev" title="God's Eye View" allow="fullscreen; clipboard-write; microphone"></iframe>
     <div class="empty" id="empty" style="display:none">
       <div class="h" id="emptyHead">THE GLOBE BUILD IS NOT REACHABLE</div>
       <div class="b" id="emptyBody"></div>
@@ -74,7 +90,9 @@
   <div class="foot">
     <span id="srcLine">land file</span>
     <span id="camLine"></span>
-    <span>imagery and layers: God's Eye View (MIT), Bilawal Sidhu</span>
+    <span id="hashLine"></span>
+    <span id="capLine"></span>
+    <span>the whole instrument: God's Eye View (MIT), Bilawal Sidhu</span>
   </div>
 </div>
 <script>
@@ -85,7 +103,15 @@
   // The shell passes the exchange code through as the ticker when nothing is
   // selected. That is not a security, and must not be treated as a missing one.
   if(SYM === EX || SYM === 'NSE' || SYM === 'NGX' || SYM === 'JSE' || SYM === 'EGX') SYM = '';
-  var GEV_BASE = window.GEV_BASE || '../../globe/';
+  // WHERE THE INSTRUMENT COMES FROM. The static build in globe/ draws imagery,
+  // terrain and the globe, but every data layer it offers - live ships, the public
+  // camera packs, weather, quakes, place search - is served by the app's own Node
+  // server at /api. A static host has no /api, which is why those layers came up
+  // empty. Point the panel at a running server with ?gev=https://host/ (or set
+  // window.GEV_BASE) and the same panel gets the whole instrument.
+  var GEV_BASE = Q.get('gev') || window.GEV_BASE || '../../globe/';
+  if(GEV_BASE.slice(-1) !== '/') GEV_BASE += '/';
+  var GEV_API = Q.get('gevapi') || window.GEV_API || GEV_BASE;
   var ALT_LAND = Number(Q.get('alt') || 14000);
   var ALT_OFFICE = Number(Q.get('altoffice') || 2600);
   var PITCH = Number(Q.get('pitch') || -58);
@@ -95,81 +121,209 @@
   var elSel = document.getElementById('site');
   var elPos = document.getElementById('pos');
   var elCam = document.getElementById('camLine');
+  var elHash = document.getElementById('hashLine');
+  var elFind = document.getElementById('find');
   var frame = document.getElementById('gev');
   var empty = document.getElementById('empty');
   var emptyHead = document.getElementById('emptyHead');
   var emptyBody = document.getElementById('emptyBody');
   var srcLine = document.getElementById('srcLine');
+  var btnCopy = document.getElementById('copy');
 
-  var VIEW_ID = 0, frameReady = false, pending = null, places = [];
+  // A view handed back through COPY LINK arrives as ?view= and is passed to the
+  // frame untouched, because the app restores its own hash natively.
+  var SEED = Q.get('view') || '';
+  var places = [], chosen = 0, mounted = false;
   var GEV_ORIGIN = location.origin;
   try{ GEV_ORIGIN = new URL(GEV_BASE, location.href).origin; }catch(e){}
 
   elTkr.textContent = SYM || 'GLOBE';
   elEx.textContent = EX;
 
-  function viewFor(place){
-    return {
-      camera: {
-        lat: Number(place.lat), lon: Number(place.lon),
-        altitude_m: Math.round(place.alt || ALT_LAND),
-        heading_deg: 0, pitch_deg: Math.round(PITCH)
-      },
-      layers: [], style: 'normal'
-    };
+  /* ---- the camera, expressed as the app's own share hash ------------------ */
+  function hashFor(place){
+    var alt = Math.round(place.alt || ALT_LAND);
+    return 'v=2&lat=' + Number(place.lat).toFixed(5) + '&lon=' + Number(place.lon).toFixed(5) +
+           '&alt=' + alt + '&heading=0&pitch=' + Math.round(PITCH) + '&roll=0&style=normal';
   }
 
-  function postView(place){
-    if(!place || place.lat == null) return;
-    pending = place;
-    if(!frameReady) return;                 // the app has not announced itself yet
-    try{
-      frame.contentWindow.postMessage({ type:'gev:view', id:++VIEW_ID, view:viewFor(place) },
-                                      GEV_ORIGIN);
-    }catch(e){}
-  }
-
-  window.addEventListener('message', function(ev){
-    if(!frame.contentWindow || ev.source !== frame.contentWindow) return;
-    var d = ev.data || {};
-    if(d.type === 'gev:ready'){
-      frameReady = true;
-      if(pending) postView(pending);
-    }
-  });
-
-  function setPos(place){
-    elPos.textContent = Number(place.lat).toFixed(5) + ', ' + Number(place.lon).toFixed(5) +
-                        '  ' + Math.round((place.alt || ALT_LAND) / 1000) + ' KM OUT';
-    elCam.innerHTML = '<b>' + place.kind + '</b> ' + (place.label || '');
-  }
-
-  function showEmpty(head, body, code){
-    emptyHead.textContent = head;
-    emptyBody.innerHTML = body + (code ? '<br><br><code>' + code + '</code>' : '');
-    empty.style.display = 'flex';
-  }
-
-  // MOUNT THE APP - the whole point of the panel, so it happens whether or not this
-  // security has a record. The record only decides where the camera starts.
-  var MOUNT_TRIES = 0;
-  function mountApp(){
+  /* ---- mounting ---------------------------------------------------------- */
+  function mount(place){
     empty.style.display = 'none';
-    if(frame.src && frame.src !== 'about:blank' && MOUNT_TRIES > 0) return;
-    MOUNT_TRIES++;
-    // A cache-buster on the framed app: the host serves these files with a
-    // ten-minute cache, and an error page served in that window must not stick.
-    frame.src = GEV_BASE + '?embed=1&r=' + Date.now();
+    // A cache buster before the hash: the host serves these files on a ten
+    // minute cache and an error page served in that window must not stick.
+    frame.src = GEV_BASE + '?full=1&r=' + Date.now() + (place ? '#' + hashFor(place) : '');
+    mounted = true;
+    if(place){
+      elPos.textContent = Number(place.lat).toFixed(5) + ', ' + Number(place.lon).toFixed(5) +
+                          '  ' + Math.round((place.alt || ALT_LAND) / 1000) + ' KM OUT';
+      elCam.innerHTML = '<b>' + place.kind + '</b> ' + (place.label || '');
+      elHash.textContent = place.note || '';
+    }
   }
 
-  function fillSelect(){
-    elSel.innerHTML = '';
-    places.forEach(function(pl, i){
-      var o = document.createElement('option');
-      o.value = String(i);
-      o.textContent = pl.kind + ' - ' + pl.label;
-      elSel.appendChild(o);
+  /* ---- inside the app: welcome, stories, search, share hash -------------- */
+  function doc(){ try{ return frame.contentDocument; }catch(e){ return null; } }
+
+  function press(el){
+    if(!el) return false;
+    try{ el.scrollIntoView({ block: 'center' }); }catch(e){}
+    try{ el.click(); return true; }catch(e){ return false; }
+  }
+
+  function byText(sel, re){
+    var d = doc(); if(!d) return null;
+    var list = d.querySelectorAll(sel);
+    for(var i = 0; i < list.length; i++){
+      var t = (list[i].textContent || '').replace(/\s+/g, ' ').trim();
+      if(re.test(t)) return list[i];
+    }
+    return null;
+  }
+
+  // The welcome and the Stories popover both sit over the globe. Dismiss them,
+  // and tick the app's own "Don't show this again" so later loads open clean.
+  function settle(){
+    setTimeout(function(){
+      var walk = byText('button', /^EXPLORE MANUALLY$/i);
+      if(walk){
+        var cb = doc() && doc().querySelector('input[type=checkbox]');
+        if(cb && !cb.checked){ try{ cb.click(); }catch(e){} }
+        press(walk);
+      }
+      setTimeout(function(){ press(byText('button', /^NOT NOW$/i)); }, 700);
+      watchHash();
+    }, 9000);
+  }
+
+  // The app writes the camera into its own location.hash whenever it moves, so
+  // the panel can always say where the view is and hand it to someone else.
+  var lastHash = '';
+  var hashTimer = null;
+  function watchHash(){
+    if(hashTimer) return;
+    hashTimer = setInterval(function(){
+      try{
+        var h = frame.contentWindow.location.hash.replace(/^#/, '');
+        if(h && h !== lastHash){
+          lastHash = h;
+          var m = {};
+          h.split('&').forEach(function(kv){ var p = kv.split('='); m[p[0]] = p[1]; });
+          if(m.lat && m.lon){
+            elPos.textContent = Number(m.lat).toFixed(5) + ', ' + Number(m.lon).toFixed(5) +
+                                (m.alt ? '  ' + Math.round(Number(m.alt) / 1000) + ' KM OUT' : '');
+          }
+        }
+      }catch(e){}
+    }, 1200);
+  }
+
+  /* ---- the app's own gazetteer, driven from this bar --------------------- */
+  function searchApp(text){
+    var d = doc(); if(!d || !text) return false;
+    var input = d.querySelector('input[placeholder*="Search any location" i]');
+    if(!input) return false;
+    try{
+      var Win = d.defaultView;
+      input.focus();
+      var setter = Object.getOwnPropertyDescriptor(Win.HTMLInputElement.prototype, 'value').set;
+      setter.call(input, text);
+      input.dispatchEvent(new Win.Event('input', { bubbles: true }));
+      ['keydown', 'keypress', 'keyup'].forEach(function(t){
+        input.dispatchEvent(new Win.KeyboardEvent(t, { key: 'Enter', code: 'Enter',
+          keyCode: 13, which: 13, bubbles: true }));
+      });
+      return true;
+    }catch(e){ return false; }
+  }
+
+  /* ---- what the panel offers to fly to ----------------------------------- */
+  function loadAll(){
+    srcLine.textContent = 'land_' + EX + '.json  offices_' + EX + '.json';
+    Promise.all([
+      fetch('../../static_data/land_' + EX + '.json').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
+      fetch('../../static_data/offices_' + EX + '.json').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+    ]).then(function(res){
+      var land = res[0], off = res[1];
+      var mine = [], others = [];
+      var recs = (land && land.securities) || {};
+      Object.keys(recs).forEach(function(sec){
+        (recs[sec].sites || []).forEach(function(s){
+          var pn = s.pin || {};
+          if(pn.lat == null) return;
+          var pl = { kind: 'LAND', sec: sec,
+                     label: (sec ? sec + ' · ' : '') + s.site + (s.county ? '  (' + s.county + ')' : ''),
+                     lat: pn.lat, lon: pn.lon, alt: ALT_LAND,
+                     note: pn.precision ? 'pin precision: ' + pn.precision : '' };
+          (sec === SYM ? mine : others).push(pl);
+        });
+      });
+      var orecs = (off && off.securities) || {};
+      // A filed address and a gazetteer match are different facts and are labelled
+      // differently. Records built from a filing keep the wording MAIN OFFICE; a
+      // match against OpenStreetMap is a LOCATION, and the footer says so, because
+      // a branch in the right town is not proof of a head office.
+      function officePlace(sec, o, mineIt){
+        var gaz = (o.source === 'nominatim');
+        return {
+          kind: (gaz ? 'LOCATION' : 'MAIN OFFICE'), sec: sec,
+          label: (mineIt ? '' : sec + ' · ') + (o.address || '') + (o.city ? '  (' + o.city + ')' : ''),
+          lat: o.lat, lon: o.lon, alt: ALT_OFFICE,
+          note: (gaz ? 'OpenStreetMap match (' + String(o.precision || 'type not stated').replace(/^gazetteer match, /, '') + '), not a filed address'
+                      : 'filed address, ' + (o.precision || 'source not stated'))
+        };
+      }
+      if(orecs[SYM] && orecs[SYM].lat != null) mine.push(officePlace(SYM, orecs[SYM], true));
+      Object.keys(orecs).forEach(function(sec){
+        if(sec === SYM) return;
+        var o = orecs[sec];
+        if(o.lat == null) return;
+        others.push(officePlace(sec, o, false));
+      });
+      places = mine.concat(others);
+      fillSelect(mine.length);
+      if(SEED){
+        // A view handed back through COPY LINK wins over the default place: the
+        // app restores its own hash, so the camera lands where the sender stood.
+        frame.src = GEV_BASE + '?full=1&r=' + Date.now() + '#' + SEED;
+        mounted = true;
+        settle();
+      }else if(places.length){
+        elSel.value = '0';
+        chosen = 0;
+        mount(places[0]);
+        settle();
+      }else{
+        mount(null);
+        settle();
+        elPos.textContent = 'camera at the app default';
+        elCam.innerHTML = SYM
+          ? 'no land record or main office on file for <b>' + SYM + '</b> - the instrument is open'
+          : 'no security selected - the instrument is open';
+      }
     });
+  }
+
+  function opt(pl, i){
+    var o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = pl.kind + ' - ' + pl.label;
+    return o;
+  }
+  function fillSelect(mineCount){
+    elSel.innerHTML = '';
+    if(mineCount){
+      var g1 = document.createElement('optgroup');
+      g1.label = (SYM || 'THIS SECURITY') + ' - assets on file';
+      places.slice(0, mineCount).forEach(function(pl, i){ g1.appendChild(opt(pl, i)); });
+      elSel.appendChild(g1);
+    }
+    if(places.length > mineCount){
+      var g2 = document.createElement('optgroup');
+      g2.label = 'REST OF THE ' + EX + ' BOARD';
+      for(var i = mineCount; i < places.length; i++) g2.appendChild(opt(places[i], i));
+      elSel.appendChild(g2);
+    }
     if(!places.length){
       var o2 = document.createElement('option');
       o2.textContent = 'no place on file';
@@ -180,108 +334,138 @@
   function choose(i){
     var pl = places[i];
     if(!pl) return;
-    postView(pl);
-    setPos(pl);
+    chosen = i;
+    mount(pl);          // full mode has no camera postMessage: a hash reload is the way in
+    settle();
   }
 
-  function loadAll(){
-    var landUrl = '../../static_data/land_' + EX + '.json';
-    var offUrl  = '../../static_data/offices_' + EX + '.json';
-    srcLine.textContent = 'land_' + EX + '.json  offices_' + EX + '.json';
-    Promise.all([
-      fetch(landUrl).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
-      fetch(offUrl).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
-    ]).then(function(res){
-      var land = res[0], off = res[1];
-      places = [];
-      var lrec = land && land.securities ? land.securities[SYM] : null;
-      if(lrec && (lrec.sites || []).length){
-        lrec.sites.forEach(function(s){
-          var pn = s.pin || {};
-          if(pn.lat == null) return;
-          places.push({kind:'LAND', label:s.site + (s.county ? '  (' + s.county + ')' : ''),
-                       lat:pn.lat, lon:pn.lon, alt:ALT_LAND, note:pn.precision});
-        });
-      }
-      var orec = off && off.securities ? off.securities[SYM] : null;
-      if(orec && orec.lat != null){
-        places.push({kind:'MAIN OFFICE', label:orec.address + (orec.city ? '  (' + orec.city + ')' : ''),
-                     lat:orec.lat, lon:orec.lon, alt:ALT_OFFICE, note:orec.precision});
-      }
-      fillSelect();
-      if(places.length){
-        elSel.value = '0';
-        choose(0);
-      }else{
-        elPos.textContent = 'camera at the app default';
-        elCam.innerHTML = SYM
-          ? 'no land record or main office on file for <b>' + SYM + '</b> - the instrument is open'
-          : 'no security selected - the instrument is open';
-      }
-    });
+  /* ---- reachability, then mount ------------------------------------------ */
+  function showEmpty(head, body, code){
+    emptyHead.textContent = head;
+    emptyBody.innerHTML = body + (code ? '<br><br><code>' + code + '</code>' : '');
+    empty.style.display = 'flex';
   }
 
-  // Is the build reachable? Only a real miss shows the empty state, and it names
-  // the path it asked for so the fault is visible rather than mysterious.
   fetch(GEV_BASE + 'index.html').then(function(r){
     if(!r.ok) throw 0;
-    mountApp();
-    watchGlobe();
     loadAll();
   }).catch(function(){
     showEmpty('THE GLOBE BUILD IS NOT REACHABLE',
               'The God\u2019s Eye View build was not found at this path, so there is nothing to frame yet. ' +
-              'When it is present this panel opens the full app - flights, ships, satellites, earthquakes, ' +
-              'public cameras - on the place you pick.',
+              'When it is present this panel opens the whole instrument - live aircraft and ships, ' +
+              'satellites, earthquakes and fires, public cameras, street level and stories - on the place you pick.',
               GEV_BASE);
     loadAll();
   });
 
-  // WATCHDOG. The framed app is same-origin, so this page can look inside it. If
-  // no canvas appears, the frame is almost certainly showing a host error page
-  // (GitHub Pages serves its own crash page when it is unhealthy) rather than the
-  // app. Retry once with a fresh URL, then say so in our own words instead of
-  // leaving someone else's error screen sitting in the panel.
+  /* ---- watchdog: a canvas, or our own words instead of a host error page -- */
   var WATCH = { tries: 0 };
   function watchGlobe(){
     setTimeout(function(){
-      var doc = null;
-      try{ doc = frame.contentDocument; }catch(e){}
-      if(!doc) return;
-      var canvases = doc.querySelectorAll('canvas').length;
-      var title = (doc.title || '');
-      if(canvases > 0) return;                     // the app is up
+      var d = doc();
+      if(!d) return;
+      if(d.querySelectorAll('canvas').length > 0) return;
       if(WATCH.tries < 1){
         WATCH.tries++;
-        frame.src = GEV_BASE + '?embed=1&retry=' + Date.now();
+        mount(places[chosen] || null);
+        settle();
         watchGlobe();
         return;
       }
       showEmpty('THE GLOBE DID NOT START',
-                'The app in this frame did not produce a canvas' +
-                (title && !/God/i.test(title) ? ', and the page it loaded calls itself "' + title.slice(0, 40) + '"' : '') +
-                '. That is usually the host serving an error page rather than the build: reload the panel in a moment, ' +
-                'and the instrument comes back with no change on your side.');
+                'The app in this frame did not produce a canvas. That is usually the host serving an error ' +
+                'page rather than the build: press RECENTRE in a moment and the instrument comes back.');
       elCam.innerHTML = 'the framed app did not start; use RECENTRE to try again';
-    }, 22000);
+    }, 24000);
   }
 
+  /* ---- what this instance can actually do -------------------------------- */
+  // A layer that cannot load must not look like a layer that found nothing. This
+  // asks the server what keys it holds and how many camera pins it can serve, and
+  // prints the answer, so an empty map is explained rather than mysterious.
+  function capability(){
+    var elCap = document.getElementById('capLine');
+    Promise.all([
+      fetch(GEV_API + 'api/setup/status', { cache: 'no-store' })
+        .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
+      fetch(GEV_API + 'api/cctv/sources', { cache: 'no-store' })
+        .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+    ]).then(function(res){
+      var st = res[0], cams = res[1], bits = [];
+      if(!st && !cams){
+        elCap.innerHTML = '<b>no data server</b> at this address: imagery and terrain work, ' +
+                          'but live ships, camera packs, weather and place search cannot load';
+        return;
+      }
+      if(cams && cams.trimmedPacks){
+        var packs = cams.trimmedPacks.map(function(t){ return t.pack + ' (' + t.served + ')'; });
+        var total = cams.trimmedPacks.reduce(function(a, t){ return a + (t.served || 0); }, 0);
+        bits.push('<b>cameras</b> ' + total.toLocaleString() + ' pins: ' + packs.slice(0, 5).join(', '));
+      }
+      if(st && st.keys){
+        var ais = st.keys.filter(function(k){
+          return (k.envVars || []).some(function(v){ return /AISSTREAM/i.test(v); });
+        })[0];
+        bits.push('<b>live ships</b> ' + (!ais ? 'not offered by this build'
+                  : (ais.set ? 'key set' : 'AISSTREAM_API_KEY not set, so the feed stays empty')));
+      }
+      elCap.innerHTML = bits.join('  ·  ') || 'server reachable, no layer status reported';
+    });
+  }
+
+  /* ---- controls ---------------------------------------------------------- */
   document.getElementById('reload').onclick = function(){
-    // If the frame never produced a canvas, re-mount it rather than only re-posting
-    // a camera; otherwise just recentre.
-    var doc = null;
-    try{ doc = frame.contentDocument; }catch(e){}
-    if(!doc || !doc.querySelectorAll('canvas').length){
-      MOUNT_TRIES = 0;
-      WATCH.tries = 0;
-      mountApp();
-      watchGlobe();
-      return;
+    var d = doc();
+    if(!d || !d.querySelectorAll('canvas').length){
+      WATCH.tries = 0; mount(places[chosen] || null); settle(); watchGlobe(); return;
     }
-    var i = Number(elSel.value);
-    if(!isNaN(i) && places[i]) choose(i);
+    if(places[chosen]) choose(chosen);
   };
+
   elSel.onchange = function(){ choose(Number(elSel.value)); };
+
+  elFind.addEventListener('keydown', function(ev){
+    if(ev.key !== 'Enter') return;
+    ev.preventDefault();
+    if(!searchApp(elFind.value.trim())) elPos.textContent = 'the app search box was not found';
+  });
+
+  // THE INSTRUMENT AT ITS OWN ORIGIN. The app's own server refuses to be framed
+  // (X-Frame-Options DENY, and a content security policy with frame-ancestors
+  // none), and the data layers live on that server, so a framed copy can never
+  // have the ships, the camera packs or the weather. This button opens the same
+  // place at full strength in its own window.
+  document.getElementById('open').onclick = function(){
+    var pl = places[chosen];
+    var url = GEV_BASE + (pl ? '#' + hashFor(pl) : '');
+    window.open(url, '_blank', 'noopener');
+  };
+
+  document.getElementById('story').onclick = function(){
+    if(press(byText('button', /^STORIES$/i))) return;
+    elPos.textContent = 'the stories button was not found';
+  };
+
+  btnCopy.onclick = function(){
+    var h = '';
+    try{ h = frame.contentWindow.location.hash.replace(/^#/, ''); }catch(e){}
+    var url = location.origin + location.pathname + '?ex=' + EX + (SYM ? '&sym=' + SYM : '') +
+              (h ? '&view=' + encodeURIComponent(h) : '');
+    function done(ok){
+      btnCopy.textContent = ok ? 'COPIED' : 'COPY FAILED';
+      btnCopy.classList.toggle('on', ok);
+      setTimeout(function(){ btnCopy.textContent = 'COPY LINK'; btnCopy.classList.remove('on'); }, 1600);
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(function(){ done(true); }, function(){ done(false); });
+    }else{
+      try{
+        var ta = document.createElement('textarea');
+        ta.value = url; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove(); done(true);
+      }catch(e){ done(false); }
+    }
+  };
 
   // A host may hand over a different security without reloading the frame.
   window.showGlobe = function(ticker, ex){
@@ -292,6 +476,9 @@
     elEx.textContent = EX;
     loadAll();
   };
+
+  watchGlobe();
+  capability();
 })();
 </script>
 </body>
