@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261118071023';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261118073205';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MUTXRI TERMINAL - GLOBE</title>
@@ -153,10 +153,14 @@
 
   // MOUNT THE APP - the whole point of the panel, so it happens whether or not this
   // security has a record. The record only decides where the camera starts.
+  var MOUNT_TRIES = 0;
   function mountApp(){
     empty.style.display = 'none';
-    if(frame.src && frame.src !== 'about:blank') return;
-    frame.src = GEV_BASE + '?embed=1';
+    if(frame.src && frame.src !== 'about:blank' && MOUNT_TRIES > 0) return;
+    MOUNT_TRIES++;
+    // A cache-buster on the framed app: the host serves these files with a
+    // ten-minute cache, and an error page served in that window must not stick.
+    frame.src = GEV_BASE + '?embed=1&r=' + Date.now();
   }
 
   function fillSelect(){
@@ -223,6 +227,7 @@
   fetch(GEV_BASE + 'index.html').then(function(r){
     if(!r.ok) throw 0;
     mountApp();
+    watchGlobe();
     loadAll();
   }).catch(function(){
     showEmpty('THE GLOBE BUILD IS NOT REACHABLE',
@@ -233,7 +238,47 @@
     loadAll();
   });
 
+  // WATCHDOG. The framed app is same-origin, so this page can look inside it. If
+  // no canvas appears, the frame is almost certainly showing a host error page
+  // (GitHub Pages serves its own crash page when it is unhealthy) rather than the
+  // app. Retry once with a fresh URL, then say so in our own words instead of
+  // leaving someone else's error screen sitting in the panel.
+  var WATCH = { tries: 0 };
+  function watchGlobe(){
+    setTimeout(function(){
+      var doc = null;
+      try{ doc = frame.contentDocument; }catch(e){}
+      if(!doc) return;
+      var canvases = doc.querySelectorAll('canvas').length;
+      var title = (doc.title || '');
+      if(canvases > 0) return;                     // the app is up
+      if(WATCH.tries < 1){
+        WATCH.tries++;
+        frame.src = GEV_BASE + '?embed=1&retry=' + Date.now();
+        watchGlobe();
+        return;
+      }
+      showEmpty('THE GLOBE DID NOT START',
+                'The app in this frame did not produce a canvas' +
+                (title && !/God/i.test(title) ? ', and the page it loaded calls itself "' + title.slice(0, 40) + '"' : '') +
+                '. That is usually the host serving an error page rather than the build: reload the panel in a moment, ' +
+                'and the instrument comes back with no change on your side.');
+      elCam.innerHTML = 'the framed app did not start; use RECENTRE to try again';
+    }, 22000);
+  }
+
   document.getElementById('reload').onclick = function(){
+    // If the frame never produced a canvas, re-mount it rather than only re-posting
+    // a camera; otherwise just recentre.
+    var doc = null;
+    try{ doc = frame.contentDocument; }catch(e){}
+    if(!doc || !doc.querySelectorAll('canvas').length){
+      MOUNT_TRIES = 0;
+      WATCH.tries = 0;
+      mountApp();
+      watchGlobe();
+      return;
+    }
     var i = Number(elSel.value);
     if(!isNaN(i) && places[i]) choose(i);
   };
