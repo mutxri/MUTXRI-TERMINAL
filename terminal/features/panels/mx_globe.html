@@ -1,24 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261118065501';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261118065942';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MUTXRI TERMINAL - GLOBE</title>
 <!--
   GLOBE - the God's Eye View app, framed inside the terminal.
 
-  This panel does not reimplement a globe. It mounts the real God's Eye View
-  build (MIT, Bilawal Sidhu) at ../../globe/ in its own embed mode (?embed=1), then
-  drives it through the app's own embed contract: the app announces {type:'gev:ready'}
-  and the host posts {type:'gev:view', id, view} with a camera {lat, lon,
-  altitude_m, heading_deg, pitch_deg}. The app answers {type:'gev:view-applied'}.
-  Posting the view is what makes the frame follow the security being read; a hash
-  pose alone is only what the app writes for its own share links.
+  The panel mounts the real God's Eye View build (MIT, Bilawal Sidhu) at
+  ../../globe/ in its own embed mode (?embed=1) and drives it through the app's own
+  embed contract: the app announces {type:'gev:ready'} and this page posts
+  {type:'gev:view', id, view} with a camera {lat, lon, altitude_m, heading_deg,
+  pitch_deg}; the app answers {type:'gev:view-applied'}.
 
-  Where the camera points comes from the same land file the LAND tab reads
-  (static_data/land_<EX>.json), so selecting Sasini's Kipkebe estate here lands on
-  the same coordinate the terminal prints there. If the globe build is not mounted,
-  the panel says so instead of framing a blank page.
+  WHERE THE CAMERA OPENS, in order: a land site for the security being read
+  (static_data/land_<EX>.json), then that company's main office
+  (static_data/offices_<EX>.json). With neither on file the app STILL OPENS - the
+  whole instrument, free to pan and zoom - and the footer says plainly that the
+  camera is at the app's own default.
+
+  A MISSING RECORD NEVER COVERS THE GLOBE. An earlier version put an empty state
+  over the frame whenever a security had no land record, which read as "the globe
+  is broken" while the globe was fine: the shell handed the exchange code over as
+  the ticker, so nothing matched. The build is now mounted once, unconditionally,
+  and a record only decides where the camera starts.
 -->
 <style>
   :root{
@@ -34,19 +39,21 @@
   .tkr{font-family:var(--mono);font-size:11px;color:var(--tx);letter-spacing:.08em}
   .ex{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.16em}
   select,.btn{background:#111;color:var(--tx2);border:1px solid var(--line2);border-radius:2px;
-        font-family:var(--mono);font-size:10px;padding:3px 6px;outline:none}
+        font-family:var(--mono);font-size:10px;padding:3px 6px;outline:none;max-width:300px}
   .btn{cursor:pointer}
   .btn:hover{border-color:var(--acc);color:var(--tx)}
-  .pos{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.06em}
+  .pos{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.06em;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:44%}
   .frame{position:relative;flex:1 1 auto;min-height:0;background:#050505}
   iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
   .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-         justify-content:center;gap:8px;text-align:center;padding:24px}
+         justify-content:center;gap:8px;text-align:center;padding:24px;background:#050505}
   .empty .h{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--warn)}
-  .empty .b{font-family:var(--ui);font-size:12px;color:var(--tx2);max-width:460px;line-height:1.5}
+  .empty .b{font-family:var(--ui);font-size:12px;color:var(--tx2);max-width:480px;line-height:1.5}
   .empty code{font-family:var(--mono);font-size:10px;color:var(--acc)}
   .foot{flex:0 0 auto;padding:4px 10px;border-top:1px solid var(--line);font-family:var(--mono);
-        font-size:8.5px;color:var(--tx3);letter-spacing:.05em;display:flex;gap:12px}
+        font-size:8.5px;color:var(--tx3);letter-spacing:.05em;display:flex;gap:14px;flex-wrap:wrap}
+  .foot b{color:var(--tx2);font-weight:400}
 </style>
 </head>
 <body>
@@ -54,20 +61,20 @@
   <div class="bar">
     <span class="tkr" id="tkr">GLOBE</span>
     <span class="ex" id="ex">-</span>
-    <select id="site" title="where the camera starts"></select>
-    <button class="btn" id="reload" type="button" title="reload the globe at the chosen place">RECENTRE</button>
+    <select id="site" title="what the camera opens on"></select>
+    <button class="btn" id="reload" type="button" title="re-centre on the chosen place">RECENTRE</button>
     <span class="pos" id="pos">-</span>
   </div>
   <div class="frame" id="frame">
-    <iframe id="gev" title="God's Eye View" allow="fullscreen; clipboard-write"
-            referrerpolicy="no-referrer-when-downgrade"></iframe>
+    <iframe id="gev" title="God's Eye View" allow="fullscreen; clipboard-write"></iframe>
     <div class="empty" id="empty" style="display:none">
-      <div class="h">THE GLOBE BUILD IS NOT MOUNTED</div>
+      <div class="h" id="emptyHead">THE GLOBE BUILD IS NOT REACHABLE</div>
       <div class="b" id="emptyBody"></div>
     </div>
   </div>
   <div class="foot">
     <span id="srcLine">land file</span>
+    <span id="camLine"></span>
     <span>imagery and layers: God's Eye View (MIT), Bilawal Sidhu</span>
   </div>
 </div>
@@ -76,148 +83,170 @@
   var Q = new URLSearchParams(location.search);
   var EX = (Q.get('ex') || 'NSE').toUpperCase();
   var SYM = (Q.get('sym') || Q.get('ticker') || '').toUpperCase();
-  // Where the God's Eye View build lives. A host can override it before this
-  // script runs; by default it sits beside the panels in the deployed tree.
+  // The shell passes the exchange code through as the ticker when nothing is
+  // selected. That is not a security, and must not be treated as a missing one.
+  if(SYM === EX || SYM === 'NSE' || SYM === 'NGX' || SYM === 'JSE' || SYM === 'EGX') SYM = '';
   var GEV_BASE = window.GEV_BASE || '../../globe/';
-  var ALT = Number(Q.get('alt') || 14000);      // metres above the ground
-  var PITCH = Number(Q.get('pitch') || -58);    // looking down at the land
+  var ALT_LAND = Number(Q.get('alt') || 14000);
+  var ALT_OFFICE = Number(Q.get('altoffice') || 2600);
+  var PITCH = Number(Q.get('pitch') || -58);
 
   var elTkr = document.getElementById('tkr');
   var elEx  = document.getElementById('ex');
   var elSel = document.getElementById('site');
   var elPos = document.getElementById('pos');
+  var elCam = document.getElementById('camLine');
   var frame = document.getElementById('gev');
   var empty = document.getElementById('empty');
+  var emptyHead = document.getElementById('emptyHead');
   var emptyBody = document.getElementById('emptyBody');
   var srcLine = document.getElementById('srcLine');
+
+  var VIEW_ID = 0, frameReady = false, pending = null, places = [];
+  var GEV_ORIGIN = location.origin;
+  try{ GEV_ORIGIN = new URL(GEV_BASE, location.href).origin; }catch(e){}
 
   elTkr.textContent = SYM || 'GLOBE';
   elEx.textContent = EX;
 
-  var VIEW_ID = 0;
-  var pendingSite = null;
-  var frameReady = false;
-
-  function viewFor(site){
+  function viewFor(place){
     return {
       camera: {
-        lat: Number(site.lat),
-        lon: Number(site.lon),
-        altitude_m: Math.round(ALT),
-        heading_deg: 0,
-        pitch_deg: Math.round(PITCH)
+        lat: Number(place.lat), lon: Number(place.lon),
+        altitude_m: Math.round(place.alt || ALT_LAND),
+        heading_deg: 0, pitch_deg: Math.round(PITCH)
       },
-      layers: [],
-      style: 'normal'
+      layers: [], style: 'normal'
     };
   }
 
-  function postView(site){
-    if(!site || site.lat == null) return;
-    pendingSite = site;
-    if(!frameReady) return;              // the app has not announced itself yet
+  function postView(place){
+    if(!place || place.lat == null) return;
+    pending = place;
+    if(!frameReady) return;                 // the app has not announced itself yet
     try{
-      frame.contentWindow.postMessage({ type: 'gev:view', id: ++VIEW_ID, view: viewFor(site) },
-                                      new URL(frame.src).origin);
-    }catch(e){ /* the frame is not same-origin readable; the src origin rules */ }
+      frame.contentWindow.postMessage({ type:'gev:view', id:++VIEW_ID, view:viewFor(place) },
+                                      GEV_ORIGIN);
+    }catch(e){}
   }
 
-  // The app tells the host when it can take a view, and confirms each one.
   window.addEventListener('message', function(ev){
-    var d = ev.data || {};
     if(!frame.contentWindow || ev.source !== frame.contentWindow) return;
+    var d = ev.data || {};
     if(d.type === 'gev:ready'){
       frameReady = true;
-      if(pendingSite) postView(pendingSite);
-      return;
-    }
-    if(d.type === 'gev:view-applied' && d.id){
-      elPos.setAttribute('data-applied', d.ok ? 'ok' : 'failed');
+      if(pending) postView(pending);
     }
   });
 
-  function showEmpty(msg, code){
-    frame.style.display = 'none';
+  function setPos(place){
+    elPos.textContent = Number(place.lat).toFixed(5) + ', ' + Number(place.lon).toFixed(5) +
+                        '  ' + Math.round((place.alt || ALT_LAND) / 1000) + ' KM OUT';
+    elCam.innerHTML = '<b>' + place.kind + '</b> ' + (place.label || '');
+  }
+
+  function showEmpty(head, body, code){
+    emptyHead.textContent = head;
+    emptyBody.innerHTML = body + (code ? '<br><br><code>' + code + '</code>' : '');
     empty.style.display = 'flex';
-    emptyBody.innerHTML = msg + (code ? '<br><br><code>' + code + '</code>' : '');
   }
 
-  function mount(site){
-    if(!site || site.lat == null || site.lon == null){
-      showEmpty('This security has no land record with a coordinate, so there is nowhere to point the camera.');
-      return;
-    }
-    frame.style.display = 'block';
+  // MOUNT THE APP - the whole point of the panel, so it happens whether or not this
+  // security has a record. The record only decides where the camera starts.
+  function mountApp(){
     empty.style.display = 'none';
-    if(!frame.src || frame.src === 'about:blank'){
-      frame.src = GEV_BASE + '?embed=1';   // load once; the pose arrives by message
-    }
-    postView(site);
-    elPos.textContent = Number(site.lat).toFixed(5) + ', ' + Number(site.lon).toFixed(5) +
-                        '  ' + Math.round(ALT / 1000) + ' KM OUT';
+    if(frame.src && frame.src !== 'about:blank') return;
+    frame.src = GEV_BASE + '?embed=1';
   }
 
-  // Is the build actually there? A framed 404 renders as a blank pane, so ask first.
-  fetch(GEV_BASE + 'index.html', {method:'GET'}).then(function(r){
-    if(!r.ok) throw 0;
-    return r.text();
-  }).then(function(){
-    loadSites();
-  }).catch(function(){
-    showEmpty('The God\u2019s Eye View build is not present at this path yet, so the panel has nothing to frame. ' +
-              'Once it is built and copied in, this panel opens the full app: flights, ships, satellites, ' +
-              'earthquakes, public cameras, the bloom and FLIR looks, all of it, centred on the place you pick.',
-              GEV_BASE);
-    loadSites(true);
-  });
+  function fillSelect(){
+    elSel.innerHTML = '';
+    places.forEach(function(pl, i){
+      var o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = pl.kind + ' - ' + pl.label;
+      elSel.appendChild(o);
+    });
+    if(!places.length){
+      var o2 = document.createElement('option');
+      o2.textContent = 'no place on file';
+      elSel.appendChild(o2);
+    }
+  }
 
-  function loadSites(noMount){
-    var url = '../../static_data/land_' + EX + '.json';
-    srcLine.textContent = 'land_' + EX + '.json' + (SYM ? ' \u00b7 ' + SYM : '');
-    fetch(url).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(f){
-      var rec = (f.securities || {})[SYM];
-      if(!rec || !(rec.sites || []).length){
-        elSel.innerHTML = '<option>no site on file</option>';
-        if(!noMount) showEmpty('No land record is held for ' + (SYM || 'this security') + ' in land_' + EX + '.json.');
-        return;
+  function choose(i){
+    var pl = places[i];
+    if(!pl) return;
+    postView(pl);
+    setPos(pl);
+  }
+
+  function loadAll(){
+    var landUrl = '../../static_data/land_' + EX + '.json';
+    var offUrl  = '../../static_data/offices_' + EX + '.json';
+    srcLine.textContent = 'land_' + EX + '.json  offices_' + EX + '.json';
+    Promise.all([
+      fetch(landUrl).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
+      fetch(offUrl).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+    ]).then(function(res){
+      var land = res[0], off = res[1];
+      places = [];
+      var lrec = land && land.securities ? land.securities[SYM] : null;
+      if(lrec && (lrec.sites || []).length){
+        lrec.sites.forEach(function(s){
+          var pn = s.pin || {};
+          if(pn.lat == null) return;
+          places.push({kind:'LAND', label:s.site + (s.county ? '  (' + s.county + ')' : ''),
+                       lat:pn.lat, lon:pn.lon, alt:ALT_LAND, note:pn.precision});
+        });
       }
-      window.__sites = rec.sites;
-      elSel.innerHTML = '';
-      rec.sites.forEach(function(s, i){
-        var pn = s.pin || {};
-        var o = document.createElement('option');
-        o.value = String(i);
-        o.textContent = s.site + (pn.lat != null ? '  (' + Number(pn.lat).toFixed(3) + ', ' + Number(pn.lon).toFixed(3) + ')' : '');
-        o.disabled = pn.lat == null;
-        elSel.appendChild(o);
-      });
-      var first = rec.sites.findIndex(function(s){ return s.pin && s.pin.lat != null; });
-      if(first >= 0){ elSel.value = String(first); if(!noMount) mount(rec.sites[first].pin); }
-      else if(!noMount) showEmpty('No site on file for ' + SYM + ' carries a coordinate.');
-      elSel.onchange = function(){
-        var s = rec.sites[Number(elSel.value)];
-        if(s && s.pin) mount(s.pin);
-      };
-    }).catch(function(){
-      elSel.innerHTML = '<option>land file not readable</option>';
-      srcLine.textContent = url;
+      var orec = off && off.securities ? off.securities[SYM] : null;
+      if(orec && orec.lat != null){
+        places.push({kind:'MAIN OFFICE', label:orec.address + (orec.city ? '  (' + orec.city + ')' : ''),
+                     lat:orec.lat, lon:orec.lon, alt:ALT_OFFICE, note:orec.precision});
+      }
+      fillSelect();
+      if(places.length){
+        elSel.value = '0';
+        choose(0);
+      }else{
+        elPos.textContent = 'camera at the app default';
+        elCam.innerHTML = SYM
+          ? 'no land record or main office on file for <b>' + SYM + '</b> - the instrument is open'
+          : 'no security selected - the instrument is open';
+      }
     });
   }
 
-  document.getElementById('reload').onclick = function(){
-    var o = elSel.options[elSel.selectedIndex];
-    if(!o) return;
-    var sel = window.__sites && window.__sites[Number(o.value)];
-    if(sel && sel.pin) postView(sel.pin);
-  };
+  // Is the build reachable? Only a real miss shows the empty state, and it names
+  // the path it asked for so the fault is visible rather than mysterious.
+  fetch(GEV_BASE + 'index.html').then(function(r){
+    if(!r.ok) throw 0;
+    mountApp();
+    loadAll();
+  }).catch(function(){
+    showEmpty('THE GLOBE BUILD IS NOT REACHABLE',
+              'The God\u2019s Eye View build was not found at this path, so there is nothing to frame yet. ' +
+              'When it is present this panel opens the full app - flights, ships, satellites, earthquakes, ' +
+              'public cameras - on the place you pick.',
+              GEV_BASE);
+    loadAll();
+  });
 
-  // The shell may hand over a different security without reloading the frame.
+  document.getElementById('reload').onclick = function(){
+    var i = Number(elSel.value);
+    if(!isNaN(i) && places[i]) choose(i);
+  };
+  elSel.onchange = function(){ choose(Number(elSel.value)); };
+
+  // A host may hand over a different security without reloading the frame.
   window.showGlobe = function(ticker, ex){
     if(ticker) SYM = String(ticker).toUpperCase();
     if(ex) EX = String(ex).toUpperCase();
+    if(SYM === EX) SYM = '';
     elTkr.textContent = SYM || 'GLOBE';
     elEx.textContent = EX;
-    loadSites();
+    loadAll();
   };
 })();
 </script>
