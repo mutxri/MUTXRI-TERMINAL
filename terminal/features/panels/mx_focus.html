@@ -46,7 +46,7 @@
   labels), no provider credits, no injected LIVE/EOD badges, no build step.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261118062406';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261118063040';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - FOCUS</title>
@@ -710,16 +710,29 @@
     // The panel is the quote card and nothing else.
     var box = $("fxBlocks");
     if(!box) return;
-    // An edit on 2026-11-16 put a TOP HOLDERS table back into this panel. The
-    // owner, asked directly, said FOCUS should show the price and nothing else,
-    // so it is removed again and the 2026-10-14 decision stands whole. FOCUS is
-    // the quote card: ticker, price, and what the price did today. The register
-    // is PERPLEXITY's job and it draws it properly there.
+    // SHAREHOLDERS, restored on the owner's instruction: "add this shareholders
+    // list to market panel and perp panel". Only this block - the quote card plus
+    // the holder table - so the 2026-10-14 removal of TOP HOLDERS / MULTIPLES /
+    // PRICE HISTORY stands for those three.
     //
-    // The re-added block could not have worked in any case: it printed "not on
-    // file" for every security whose record the panel had not matched, which
-    // was a claim about the terminal rather than about the company.
-    box.innerHTML = "";
+    // The earlier attempt at this printed "not on file" for any security whose
+    // rows were filtered out by plausibleHolder(), which said something about our
+    // matching rather than about the company. Three states are separated here:
+    //   record absent      -> the terminal holds no holder table for this security
+    //   record present, no plausible row -> the record names none, dated as it is
+    //   rows               -> the table
+    var hh = blockHolders(hold);
+    if(!hh){
+      if(hold){
+        hh = '<div class="fx-blk"><div class="fx-blk-h"><span>Top holders</span><i>none named</i></div>' +
+             '<div class="fx-src">the holder record for this security names no substantial holder' +
+             (hold.asOf ? ' &middot; ' + esc(String(hold.asOf)) : '') + '</div></div>';
+      } else if(row || sym){
+        hh = '<div class="fx-blk"><div class="fx-blk-h"><span>Top holders</span><i>not on file</i></div>' +
+             '<div class="fx-src">no substantial holder table is held for this security</div></div>';
+      }
+    }
+    box.innerHTML = hh || "";
     return;
   }
 
