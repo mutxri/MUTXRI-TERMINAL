@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script>(function(){var V='20261118061835';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MUTXRI TERMINAL - GLOBE</title>
+<!--
+  GLOBE - the God's Eye View app, framed inside the terminal.
+
+  This panel does not reimplement a globe. It mounts the real God's Eye View
+  build (MIT, Bilawal Sidhu) at ../../globe/ in its own embed mode (?embed=1), then
+  drives it through the app's own embed contract: the app announces {type:'gev:ready'}
+  and the host posts {type:'gev:view', id, view} with a camera {lat, lon,
+  altitude_m, heading_deg, pitch_deg}. The app answers {type:'gev:view-applied'}.
+  Posting the view is what makes the frame follow the security being read; a hash
+  pose alone is only what the app writes for its own share links.
+
+  Where the camera points comes from the same land file the LAND tab reads
+  (static_data/land_<EX>.json), so selecting Sasini's Kipkebe estate here lands on
+  the same coordinate the terminal prints there. If the globe build is not mounted,
+  the panel says so instead of framing a blank page.
+-->
+<style>
+  :root{
+    --bg:#000; --panel:#0b0b0b; --line:#1a1a1a; --line2:#262626;
+    --tx:#f5f5f5; --tx2:#d2d2d2; --tx3:#a8a8a8; --acc:#33e29a; --warn:#f5c542;
+    --mono:'Oxygen Mono',ui-monospace,monospace; --ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--tx);font-family:var(--ui);height:100vh;overflow:hidden}
+  .gl{display:flex;flex-direction:column;height:100%}
+  .bar{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--panel);
+       border-bottom:1px solid var(--line);flex:0 0 auto}
+  .tkr{font-family:var(--mono);font-size:11px;color:var(--tx);letter-spacing:.08em}
+  .ex{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.16em}
+  select,.btn{background:#111;color:var(--tx2);border:1px solid var(--line2);border-radius:2px;
+        font-family:var(--mono);font-size:10px;padding:3px 6px;outline:none}
+  .btn{cursor:pointer}
+  .btn:hover{border-color:var(--acc);color:var(--tx)}
+  .pos{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.06em}
+  .frame{position:relative;flex:1 1 auto;min-height:0;background:#050505}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+  .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+         justify-content:center;gap:8px;text-align:center;padding:24px}
+  .empty .h{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--warn)}
+  .empty .b{font-family:var(--ui);font-size:12px;color:var(--tx2);max-width:460px;line-height:1.5}
+  .empty code{font-family:var(--mono);font-size:10px;color:var(--acc)}
+  .foot{flex:0 0 auto;padding:4px 10px;border-top:1px solid var(--line);font-family:var(--mono);
+        font-size:8.5px;color:var(--tx3);letter-spacing:.05em;display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div class="gl" id="gl">
+  <div class="bar">
+    <span class="tkr" id="tkr">GLOBE</span>
+    <span class="ex" id="ex">-</span>
+    <select id="site" title="where the camera starts"></select>
+    <button class="btn" id="reload" type="button" title="reload the globe at the chosen place">RECENTRE</button>
+    <span class="pos" id="pos">-</span>
+  </div>
+  <div class="frame" id="frame">
+    <iframe id="gev" title="God's Eye View" allow="fullscreen; clipboard-write"
+            referrerpolicy="no-referrer-when-downgrade"></iframe>
+    <div class="empty" id="empty" style="display:none">
+      <div class="h">THE GLOBE BUILD IS NOT MOUNTED</div>
+      <div class="b" id="emptyBody"></div>
+    </div>
+  </div>
+  <div class="foot">
+    <span id="srcLine">land file</span>
+    <span>imagery and layers: God's Eye View (MIT), Bilawal Sidhu</span>
+  </div>
+</div>
+<script>
+(function(){
+  var Q = new URLSearchParams(location.search);
+  var EX = (Q.get('ex') || 'NSE').toUpperCase();
+  var SYM = (Q.get('sym') || Q.get('ticker') || '').toUpperCase();
+  // Where the God's Eye View build lives. A host can override it before this
+  // script runs; by default it sits beside the panels in the deployed tree.
+  var GEV_BASE = window.GEV_BASE || '../../globe/';
+  var ALT = Number(Q.get('alt') || 14000);      // metres above the ground
+  var PITCH = Number(Q.get('pitch') || -58);    // looking down at the land
+
+  var elTkr = document.getElementById('tkr');
+  var elEx  = document.getElementById('ex');
+  var elSel = document.getElementById('site');
+  var elPos = document.getElementById('pos');
+  var frame = document.getElementById('gev');
+  var empty = document.getElementById('empty');
+  var emptyBody = document.getElementById('emptyBody');
+  var srcLine = document.getElementById('srcLine');
+
+  elTkr.textContent = SYM || 'GLOBE';
+  elEx.textContent = EX;
+
+  var VIEW_ID = 0;
+  var pendingSite = null;
+  var frameReady = false;
+
+  function viewFor(site){
+    return {
+      camera: {
+        lat: Number(site.lat),
+        lon: Number(site.lon),
+        altitude_m: Math.round(ALT),
+        heading_deg: 0,
+        pitch_deg: Math.round(PITCH)
+      },
+      layers: [],
+      style: 'normal'
+    };
+  }
+
+  function postView(site){
+    if(!site || site.lat == null) return;
+    pendingSite = site;
+    if(!frameReady) return;              // the app has not announced itself yet
+    try{
+      frame.contentWindow.postMessage({ type: 'gev:view', id: ++VIEW_ID, view: viewFor(site) },
+                                      new URL(frame.src).origin);
+    }catch(e){ /* the frame is not same-origin readable; the src origin rules */ }
+  }
+
+  // The app tells the host when it can take a view, and confirms each one.
+  window.addEventListener('message', function(ev){
+    var d = ev.data || {};
+    if(!frame.contentWindow || ev.source !== frame.contentWindow) return;
+    if(d.type === 'gev:ready'){
+      frameReady = true;
+      if(pendingSite) postView(pendingSite);
+      return;
+    }
+    if(d.type === 'gev:view-applied' && d.id){
+      elPos.setAttribute('data-applied', d.ok ? 'ok' : 'failed');
+    }
+  });
+
+  function showEmpty(msg, code){
+    frame.style.display = 'none';
+    empty.style.display = 'flex';
+    emptyBody.innerHTML = msg + (code ? '<br><br><code>' + code + '</code>' : '');
+  }
+
+  function mount(site){
+    if(!site || site.lat == null || site.lon == null){
+      showEmpty('This security has no land record with a coordinate, so there is nowhere to point the camera.');
+      return;
+    }
+    frame.style.display = 'block';
+    empty.style.display = 'none';
+    if(!frame.src || frame.src === 'about:blank'){
+      frame.src = GEV_BASE + '?embed=1';   // load once; the pose arrives by message
+    }
+    postView(site);
+    elPos.textContent = Number(site.lat).toFixed(5) + ', ' + Number(site.lon).toFixed(5) +
+                        '  ' + Math.round(ALT / 1000) + ' KM OUT';
+  }
+
+  // Is the build actually there? A framed 404 renders as a blank pane, so ask first.
+  fetch(GEV_BASE + 'index.html', {method:'GET'}).then(function(r){
+    if(!r.ok) throw 0;
+    return r.text();
+  }).then(function(){
+    loadSites();
+  }).catch(function(){
+    showEmpty('The God\u2019s Eye View build is not present at this path yet, so the panel has nothing to frame. ' +
+              'Once it is built and copied in, this panel opens the full app: flights, ships, satellites, ' +
+              'earthquakes, public cameras, the bloom and FLIR looks, all of it, centred on the place you pick.',
+              GEV_BASE);
+    loadSites(true);
+  });
+
+  function loadSites(noMount){
+    var url = '../../static_data/land_' + EX + '.json';
+    srcLine.textContent = 'land_' + EX + '.json' + (SYM ? ' \u00b7 ' + SYM : '');
+    fetch(url).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(f){
+      var rec = (f.securities || {})[SYM];
+      if(!rec || !(rec.sites || []).length){
+        elSel.innerHTML = '<option>no site on file</option>';
+        if(!noMount) showEmpty('No land record is held for ' + (SYM || 'this security') + ' in land_' + EX + '.json.');
+        return;
+      }
+      window.__sites = rec.sites;
+      elSel.innerHTML = '';
+      rec.sites.forEach(function(s, i){
+        var pn = s.pin || {};
+        var o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = s.site + (pn.lat != null ? '  (' + Number(pn.lat).toFixed(3) + ', ' + Number(pn.lon).toFixed(3) + ')' : '');
+        o.disabled = pn.lat == null;
+        elSel.appendChild(o);
+      });
+      var first = rec.sites.findIndex(function(s){ return s.pin && s.pin.lat != null; });
+      if(first >= 0){ elSel.value = String(first); if(!noMount) mount(rec.sites[first].pin); }
+      else if(!noMount) showEmpty('No site on file for ' + SYM + ' carries a coordinate.');
+      elSel.onchange = function(){
+        var s = rec.sites[Number(elSel.value)];
+        if(s && s.pin) mount(s.pin);
+      };
+    }).catch(function(){
+      elSel.innerHTML = '<option>land file not readable</option>';
+      srcLine.textContent = url;
+    });
+  }
+
+  document.getElementById('reload').onclick = function(){
+    var o = elSel.options[elSel.selectedIndex];
+    if(!o) return;
+    var sel = window.__sites && window.__sites[Number(o.value)];
+    if(sel && sel.pin) postView(sel.pin);
+  };
+
+  // The shell may hand over a different security without reloading the frame.
+  window.showGlobe = function(ticker, ex){
+    if(ticker) SYM = String(ticker).toUpperCase();
+    if(ex) EX = String(ex).toUpperCase();
+    elTkr.textContent = SYM || 'GLOBE';
+    elEx.textContent = EX;
+    loadSites();
+  };
+})();
+</script>
+</body>
+</html>

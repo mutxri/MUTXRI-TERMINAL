@@ -1,0 +1,1 @@
+import{c3 as a,c4 as s,l as e}from"./index-C_uWHfuL.js";const n=new URL("/terminal/globe/assets/imaging_sensors-BRNwJQTa.json",import.meta.url),r=a(async()=>s(await e(n)));export{r as loadImagingSensors};
