@@ -1,10 +1,10 @@
 {
- "checkedAt": "2026-11-20T10:47:03+00:00",
+ "checkedAt": "2026-11-20T18:14:38+00:00",
  "exchanges": {
   "NSE": {
    "exchange": "NSE",
-   "expectedSession": "2026-11-19",
-   "observedSession": "2026-11-19",
+   "expectedSession": "2026-11-20",
+   "observedSession": "2026-11-20",
    "status": "current",
    "sessionsBehind": 0,
    "securities": 73,
@@ -23,16 +23,16 @@
    "future": [],
    "integrity": {},
    "integrityExamples": [],
-   "snapshotAsOf": "NSE 20/11/2026 13:38 GMT+3 (open)",
+   "snapshotAsOf": "2026-11-20",
    "snapshotAgrees": true,
    "note": null
   },
   "NGX": {
    "exchange": "NGX",
-   "expectedSession": "2026-11-19",
+   "expectedSession": "2026-11-20",
    "observedSession": "2026-11-19",
-   "status": "current",
-   "sessionsBehind": 0,
+   "status": "behind",
+   "sessionsBehind": 1,
    "securities": 394,
    "counts": {
     "current": 125,
@@ -72,95 +72,66 @@
    "future": [],
    "integrity": {},
    "integrityExamples": [],
-   "snapshotAsOf": "2026-11-18",
-   "snapshotAgrees": false,
-   "note": null
+   "snapshotAsOf": "2026-11-19",
+   "snapshotAgrees": true,
+   "note": "no security has the 2026-11-20 session yet - either it has not been fetched or it was a market holiday (holidays are not modelled)"
   },
   "JSE": {
    "exchange": "JSE",
-   "expectedSession": "2026-11-19",
+   "expectedSession": "2026-11-20",
    "observedSession": "2026-11-20",
    "status": "current",
    "sessionsBehind": 0,
    "securities": 366,
    "counts": {
-    "current": 191,
-    "lagging": 68,
-    "illiquid": 73,
+    "current": 225,
+    "lagging": 39,
+    "illiquid": 68,
     "dormant": 33,
     "nodata": 1,
     "future": 0
    },
-   "currentPct": 57.5,
+   "currentPct": 67.8,
    "lagging": [
-    "ABAM1.JO",
     "ACS.JO",
     "ACT.JO",
-    "ADXOPP.JO",
     "AFEP.JO",
     "AMC012.JO",
-    "APH.JO",
-    "BCF.JO",
     "BIK.JO",
-    "CAT.JO",
     "CCC.JO",
     "CCMGCZ.JO",
     "CKS.JO",
-    "CNP.JO",
     "CPIP.JO",
     "CPP.JO",
     "ENX.JO",
     "EUZ.JO",
-    "EXP.JO",
-    "FNBGSE.JO",
-    "FNBLSP.JO",
     "FTA.JO",
     "FTH.JO",
     "GML.JO",
-    "GPL.JO",
-    "GRSP.JO",
     "HET.JO",
     "INPPR.JO",
     "ISA.JO",
     "ISB.JO",
-    "KP2.JO",
-    "KRO.JO",
-    "MCZ.JO",
     "MHB.JO",
-    "MPT.JO",
-    "MST.JO",
-    "NTCP.JO",
     "NVS.JO",
-    "NWL.JO",
     "OAO.JO",
     "OAS.JO",
-    "PCMCOP.JO",
     "PMV.JO",
     "PPR.JO",
-    "PROWWF.JO",
     "PWR.JO",
-    "QFH.JO",
     "RHB.JO",
     "SAALG.JO",
-    "SBP.JO",
     "SDL.JO",
-    "SHG.JO",
     "SLG.JO",
-    "SNV.JO",
     "SOH.JO",
-    "SOLBE1.JO",
     "SRI.JO",
-    "SSK.JO",
     "TEX.JO",
     "TLM.JO",
     "TMT.JO",
     "TPC.JO",
     "TRL.JO",
-    "UEFPCA.JO",
-    "UNPWGP.JO",
     "UOMWPA.JO",
-    "VUN.JO",
-    "WVR.JO"
+    "VUN.JO"
    ],
    "future": [],
    "integrity": {},
@@ -196,5 +167,120 @@
    "note": null
   }
  },
- "allCurrent": true
+ "allCurrent": false,
+ "run": {
+  "startedAt": "2026-11-20T18:09:23+00:00",
+  "seconds": 323.3,
+  "exchanges": [
+   "NSE",
+   "NGX",
+   "JSE",
+   "EGX"
+  ],
+  "collected": [
+   "NSE",
+   "NGX",
+   "JSE",
+   "EGX"
+  ],
+  "steps": [
+   {
+    "step": "NSE IR feed backfill (merges)",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 31.2,
+    "tail": [
+     "  NSE: 3046 bars",
+     "  KQ: 7484 bars",
+     "DONE: 22/22 symbols"
+    ]
+   },
+   {
+    "step": "NSE official board",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 3.4,
+    "tail": [
+     "dropped delisted codes the feed still echoes: ['FAHR', 'NBK']",
+     "DONE: 72 stocks -> market_NSE.json (official NSE feed)",
+     "     35 rows had a stale today_open outside their own range and were clamped to a real print; 0 rows written with open outside [low, high]"
+    ]
+   },
+   {
+    "step": "NSE board bar -> archive",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 7.2,
+    "tail": [
+     "NSE 2026-11-20: 0 bars appended, 70 refreshed, 2 securities with no traded price skipped, 69 priced from TradingView"
+    ]
+   },
+   {
+    "step": "NGX official price lists",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 13.9,
+    "tail": [
+     "  16-11-2026: 0 securities",
+     "",
+     "DONE: 1 days fetched, 0 symbols with >=2 bars saved"
+    ]
+   },
+   {
+    "step": "JSE/EGX Yahoo top-up",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 245.1,
+    "tail": [
+     "  600 topped up | daily 597 kept 3",
+     "  650 topped up | daily 617 kept 3",
+     "DONE: daily 627 written, max 0 written, 52 no-data, 3 kept (fetch was worse)"
+    ]
+   },
+   {
+    "step": "label history basis",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 15.6,
+    "tail": []
+   },
+   {
+    "step": "rebuild market snapshots",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 14.3,
+    "tail": [
+     "NSE: 66/66 covered | sessions 2026-11-20 .. 2026-11-20 (1 distinct) -> market_NSE.json",
+     "TOTAL: 842/894",
+     "marketcap_sources.json regenerated: 937 decided (set 555, withhold 382) stamp 2026-11-20T21:13:44.352310"
+    ]
+   },
+   {
+    "step": "retry 40 lagging JSE/EGX securities",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 16.8,
+    "tail": [
+     "daily 40 written, 0 kept, 0 no-data"
+    ],
+    "outcome": {
+     "retried": 40,
+     "recovered": 0,
+     "stillLagging": 40
+    }
+   },
+   {
+    "step": "rebuild market snapshots",
+    "rc": 0,
+    "attempt": 1,
+    "seconds": 14.8,
+    "tail": [
+     "NSE: 66/66 covered | sessions 2026-11-20 .. 2026-11-20 (1 distinct) -> market_NSE.json",
+     "TOTAL: 842/894",
+     "marketcap_sources.json regenerated: 937 decided (set 555, withhold 382) stamp 2026-11-20T21:14:24.159641"
+    ]
+   }
+  ],
+  "failedSteps": []
+ }
 }
