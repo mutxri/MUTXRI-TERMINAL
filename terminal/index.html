@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261120221113';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261121001938';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -566,6 +566,12 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
 .rail.right{border-right:0;border-left:1px solid var(--line2)}
+.rm-at{color:#33e29a}
+.rm-at.me{color:#000;background:#33e29a;border-radius:3px;padding:0 3px}
+.at-box{position:fixed;z-index:9999;background:#0b0b0b;border:1px solid #2a2a2a;border-radius:6px;
+  box-shadow:0 8px 24px rgba(0,0,0,.6);overflow:hidden;font-family:var(--mono);font-size:11px}
+.at-item{padding:6px 10px;color:#bdbdbd;cursor:pointer;letter-spacing:.04em}
+.at-item.on{background:#14231c;color:#33e29a}
 .eyebrow{color:var(--tx3);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
   padding:var(--s3) var(--s4) var(--s2)}
 
@@ -8288,6 +8294,94 @@ function renderStockInfo(d, sym){
     try{ return new Date(ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}); }
     catch(e){ return ''; }
   }
+  // @MENTIONS IN THE ROOM. A handle is drawn in mint and lit brighter when it is
+  // you, so a reader can see at a glance that a message was aimed at them. The
+  // picker lists the people who have actually spoken in this room, because that is
+  // the only list of handles the room can honestly offer: there is no public member
+  // directory, and inventing one would let people mention names that do not exist.
+  // The capture keeps whatever came before the @ so it can be put back:
+  // without it "someone@example.com" draws its domain as a mention.
+  const AT_RE = /(^|[^A-Za-z0-9_.\-@])@([A-Za-z0-9_.\-]{2,32})/g;
+  function fmtText(t){
+    var out = esc(t);
+    if(out.indexOf('@') === -1) return out;
+    return out.replace(AT_RE, function(all, pre, h){
+      var mine = me && h.toLowerCase() === String(me).toLowerCase();
+      return pre + '<span class="rm-at' + (mine ? ' me' : '') + '">@' + h + '</span>';
+    });
+  }
+  function roomHandles(){
+    var seenH = {}, out = [];
+    for(var i = roomSeenList.length - 1; i >= 0 && out.length < 60; i--){
+      var n = roomSeenList[i];
+      if(!n || seenH[n.toLowerCase()]) continue;
+      seenH[n.toLowerCase()] = 1;
+      out.push(n);
+    }
+    return out;
+  }
+  var roomSeenList = [];
+  var atBox = null, atIdx = 0, atItems = [], atStart = -1;
+  function closeAt(){ if(atBox){ atBox.remove(); atBox = null; } atItems = []; atIdx = 0; atStart = -1; }
+  function paintAt(){
+    if(!atBox) return;
+    atBox.innerHTML = '';
+    atItems.forEach(function(n, i){
+      var d = document.createElement('div');
+      d.className = 'at-item' + (i === atIdx ? ' on' : '');
+      d.textContent = '@' + n;
+      d.addEventListener('mousedown', function(e){ e.preventDefault(); takeAt(n); });
+      atBox.appendChild(d);
+    });
+  }
+  function openAt(prefix, startIdx){
+    var pool = roomHandles().filter(function(n){
+      return n.toLowerCase().indexOf(prefix.toLowerCase()) === 0 &&
+             n.toLowerCase() !== String(me || '').toLowerCase();
+    }).slice(0, 6);
+    if(!pool.length){ closeAt(); return; }
+    atItems = pool; atIdx = 0; atStart = startIdx;
+    if(!atBox){
+      atBox = document.createElement('div');
+      atBox.className = 'at-box';
+      document.body.appendChild(atBox);
+      var r = input.getBoundingClientRect();
+      atBox.style.left = Math.round(r.left) + 'px';
+      atBox.style.width = Math.round(Math.min(220, r.width)) + 'px';
+      atBox.style.top = Math.round(r.top - 8) + 'px';
+      atBox.style.transform = 'translateY(-100%)';
+    }
+    paintAt();
+  }
+  function takeAt(handle){
+    var v = input.value, caret = input.selectionStart;
+    var head = v.slice(0, atStart), tail = v.slice(caret);
+    input.value = head + '@' + handle + ' ' + tail.replace(/^\s+/, '');
+    var pos = (head + '@' + handle + ' ').length;
+    input.setSelectionRange(pos, pos);
+    closeAt();
+    input.focus();
+  }
+  function atScan(){
+    var v = input.value, caret = input.selectionStart;
+    var upto = v.slice(0, caret);
+    var m = /(^|\s)@([A-Za-z0-9_.\-]{0,32})$/.exec(upto);
+    if(!m){ closeAt(); return; }
+    var prefix = m[2] || '';
+    var startIdx = caret - prefix.length - 1;
+    if(!roomHandles().length){ closeAt(); return; }   // nobody has spoken yet
+    openAt(prefix, startIdx);
+  }
+  input.addEventListener('input', function(){ atScan(); });
+  input.addEventListener('blur', function(){ setTimeout(closeAt, 120); });
+  input.addEventListener('keydown', function(e){
+    if(!atBox) return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); atIdx = (atIdx + 1) % atItems.length; paintAt(); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); atIdx = (atIdx - 1 + atItems.length) % atItems.length; paintAt(); }
+    else if(e.key === 'Enter' || e.key === 'Tab'){ e.preventDefault(); takeAt(atItems[atIdx]); }
+    else if(e.key === 'Escape'){ closeAt(); }
+  }, true);
+
   function drawMsg(m){
     if(!m || !m.id || seen[m.id]) return;
     seen[m.id] = 1;
@@ -8299,11 +8393,12 @@ function renderStockInfo(d, sym){
       (m.ctx ? '<span class="rm-ctx">' + esc(m.ctx) + '</span>' : '') +
       '<span>' + stamp(m.ts) + '</span>' +
       (mine ? '<button class="rm-x" type="button" title="Delete">\u2715</button>' : '') +
-      '</div><div class="rm-t">' + esc(m.text || '') + '</div>';
+      '</div><div class="rm-t">' + fmtText(m.text || '') + '</div>';
     const atBottom = roomLog.scrollHeight - roomLog.scrollTop - roomLog.clientHeight < 60;
     roomLog.appendChild(el);
     if(atBottom || mine) roomLog.scrollTop = roomLog.scrollHeight;
     if(m.ts > lastTs) lastTs = m.ts;
+    if(m.name && roomSeenList.indexOf(m.name) === -1) roomSeenList.push(m.name);
   }
   function drawMine(text, ctx, ts){
     // Optimistic echo: render the sender's own message instantly (mine=true)
