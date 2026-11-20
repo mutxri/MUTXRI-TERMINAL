@@ -383,6 +383,7 @@ except Exception as _ae:
 try:
     import chat_room
     chat_room.init(_mongo_db, _mongo_ok)
+
 except Exception as _ce:
     chat_room = None
     print("chat_room init failed:", str(_ce)[:60])
@@ -1642,6 +1643,35 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Vary", "Origin")
         self.end_headers()
+
+# MENTIONS. The room calls this after a message is stored, never before, so a mail
+# problem can never fail a message that was already accepted. A handle is matched
+# against the account's username first and its email local part second, because the
+# room shows the username when there is one and the email prefix otherwise.
+def _notify_mentions(handles, msg):
+    try:
+        wanted = set(h.lower() for h in handles)
+        sender_email = (msg.get("email") or "").lower().strip()
+        recipients, seen = [], set()
+        for u in auth_api._all_users():
+            email = (u.get("email") or "").lower().strip()
+            if not email or email == sender_email:
+                continue                      # never mail the sender themselves
+            handle = (u.get("username") or "").lower().strip() or email.split("@")[0]
+            if handle in wanted and email not in seen:
+                seen.add(email)
+                recipients.append((email, u.get("name") or ""))
+        for email, name in recipients[:8]:
+            auth_api.send_mention_email(email, name, msg.get("name") or "someone",
+                                        msg.get("room") or "main", msg.get("text") or "")
+        if recipients:
+            print("[chat] mention email sent to %d of %d handles"
+                  % (len(recipients), len(handles)), flush=True)
+    except Exception as e:
+        print("[chat] mention notify error: %s" % str(e)[:140], flush=True)
+
+
+chat_room.set_notifier(_notify_mentions)
 
 if __name__ == "__main__":
     print(f"AFRI Terminal server on http://{HOST}:{PORT}/  (Ctrl+C to stop)")
