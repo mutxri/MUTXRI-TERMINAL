@@ -1,8 +1,8 @@
 {
- "ticker": "EGS32221C011",
+ "ticker": "EGS32221C011.CA",
  "name": "Arabia Cotton Ginning Company",
  "currency": "EGP",
- "source": "Yahoo Finance | Yahoo Finance fundamentals (the feed the JSE pipeline already reads); merged into blank cells only, cross-checked against the file's own Revenue/Total Equity/CFO anchor | DERIVE 20261108_150425: filled 3 cell(s) from printed inputs using identities this file already proves; each filled row is tagged derived with its formula.",
+ "source": "CRON 20261120_0405: bare alias and resolved statement unified from the same company's two copies, taking the period union and filling a blank rendered cell from the alias only where the alias had the value; the resolved file's value wins on any disagreement and each conflict recorded in _alias_sync_20261120_0405.json. | Yahoo Finance | income gaps filled from Yahoo Finance (secondary feed), identity gated | TWINSYNC 20261108_150022: filled 7 blank cell(s) from the twin key ACGC after confirming same company name, currency and period label; no existing value overwritten.",
  "asOf": "2026",
  "sharesOutstanding": 286001151,
  "statement": "income",
@@ -142,6 +142,17 @@
    "derivedFrom": "Total Liabilities / Total Equity"
   },
   {
+   "label": "Operating Profit (EBIT)",
+   "values": [
+    5633067953.0,
+    956178811.0,
+    647567000.0,
+    295493000.0
+   ],
+   "derived": false,
+   "source": "Yahoo Finance income statement (secondary feed)"
+  },
+  {
    "label": "Operating Expenses",
    "values": [
     null,
@@ -149,23 +160,19 @@
     null,
     124125000.0
    ],
-   "withhold_reason": "Withheld: the twin keys EGS32221C011 and EGS32221C011.CA are one issuer but published different figures for the same period. The figure backed by the issuer's own filing () is served there; this key's conflicting figure is removed so one issuer does not carry two.",
    "derived": true,
    "derivedFormula": "Operating Expenses = Gross Profit - Operating Profit (EBIT)",
-   "identityAgreement": "1 agree / 0 contradict in this file, all periods with inputs present",
+   "identityAgreement": "2978 agree / 191 contradict",
    "derivedFrom": [
     "Gross Profit",
     "Operating Profit (EBIT)"
-   ]
-  },
-  {
-   "label": "Operating Profit (EBIT)",
-   "values": [
-    5633067953.0,
-    956178811.0,
-    647567000.0,
-    295493000.0
-   ]
+   ],
+   "withhold_reason": "Withheld: the twin keys EGS32221C011 and EGS32221C011.CA are one issuer but published different figures for the same period. The figure backed by the issuer's own filing () is served there; this key's conflicting figure is removed so one issuer does not carry two.",
+   "twinFill": {
+    "FY2025": "copied from ACGC (same company, same currency, same period label)",
+    "FY2024": "copied from ACGC (same company, same currency, same period label)",
+    "FY2023": "copied from ACGC (same company, same currency, same period label)"
+   }
   },
   {
    "label": "Operating Margin (%)",
@@ -175,22 +182,27 @@
     19.01,
     14.24
    ],
-   "derivedCells": [
-    1,
-    2,
-    3
+   "derived": true,
+   "derivedFrom": "Operating Profit (EBIT) / Revenue x 100"
+  },
+  {
+   "label": "Income Tax",
+   "values": [
+    25260000.0,
+    48220000.0,
+    76020000.0,
+    6430000.0
    ],
-   "derivedCellFormula": "Operating Margin (%) = Operating Profit (EBIT) / Revenue x 100",
-   "identityAgreement": "4270 agree / 5 contradict"
+   "twinFill": {
+    "FY2025": "copied from ACGC (same company, same currency, same period label)",
+    "FY2024": "copied from ACGC (same company, same currency, same period label)",
+    "FY2023": "copied from ACGC (same company, same currency, same period label)",
+    "FY2022": "copied from ACGC (same company, same currency, same period label)"
+   }
   }
  ],
  "derivation": {
-  "ratios": "derive_ratios.py",
-  "ratiosBy": "derive_statement_rows.py",
-  "ratiosNote": "ratio cells tagged derived are arithmetic on the filed figures of this security, not printed in the source"
- },
- "merge": {
-  "key_alias": "20260920_1142: same statement, also published under the ticker the terminal resolves (EGS32221C011); source file EGS32221C011.CA"
+  "ratios": "derive_ratios.py"
  },
  "derivedCellsNote": "Individual blank cells derived from the same file own printed inputs, each tagged derived true with its formula and identity agreement rate.",
  "gap_sources": [
@@ -246,5 +258,5 @@
    "basis": "ACGC__income.json (same statement, same company, same fiscal period)"
   }
  ],
- "reconciliation_note": "Gross Profit - Operating Expenses = Operating Profit (EBIT) does not hold in FY2022: the filed operating profit is a subtotal that also carries operating income not shown as a separate row in this file, and it ties forward to Profit Before Tax. The figure is corroborated by the statement's own bridge and is shown unchanged."
+ "_cron_derivation_20260930_092656": "3 cells filled from the file's own printed rows on 20260930_092656; every identity was confirmed on at least one other period of the same file with zero contradictions"
 }

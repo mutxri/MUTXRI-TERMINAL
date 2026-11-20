@@ -1,8 +1,8 @@
 {
- "ticker": "SPG",
+ "ticker": "SPG.JO",
  "name": "Super Group Limited",
  "currency": "ZAR",
- "source": "Yahoo Finance | Yahoo Finance fundamentals (the feed the JSE pipeline already reads); merged into blank cells only, cross-checked against the file's own Revenue/Total Equity/CFO anchor | CRON 20261025_155306: period columns and blank cells synchronised between the SPG and SPG.JO keys from whichever of the two already held the verified figures (same company name and currency, no value overwritten where the two disagreed); no new figure was collected in this step. | 15 Nov 2026: blank cells filled by arithmetic on this file own printed rows, no new figure collected.",
+ "source": "CRON 20261120_0405: bare alias and resolved statement unified from the same company's two copies, taking the period union and filling a blank rendered cell from the alias only where the alias had the value; the resolved file's value wins on any disagreement and each conflict recorded in _alias_sync_20261120_0405.json. | Yahoo Finance | gaps filled from stockanalysis.com only where the source row reproduced an already stored figure of the SAME row within 1.5 percent of the stored value | Yahoo Finance fundamentals (the feed the JSE pipeline already reads); merged into blank cells only, cross-checked against the file's own Revenue/Total Equity/CFO anchor | FY2026 (year ended 30 June 2026) Net Profit filled from the reviewed results booklet for the year ended 30 June 2026 (Super Group Limited, SPG FY26 Results Booklet, 8 September 2026), continuing operations column: revenue 45 826 278 thousand, profit before income tax 1 768 665 thousand, income tax expense 489 923 thousand, profit for the year from continuing operations 1 278 742 thousand. Profit Before Tax less Income Tax equals Net Profit. Figures in ZAR. | CRON 20261025_155306: period columns and blank cells synchronised between the SPG and SPG.JO keys from whichever of the two already held the verified figures (same company name and currency, no value overwritten where the two disagreed); no new figure was collected in this step. | 15 Nov 2026: blank cells filled by arithmetic on this file own printed rows, no new figure collected.",
  "asOf": "2026",
  "marketCap": 5811243600,
  "sharesOutstanding": 337863000,
@@ -111,14 +111,13 @@
     1736254000.0
    ],
    "derived": true,
-   "derivedCells": [
-    1,
-    2,
-    3,
-    4
-   ],
-   "derivedCellFormula": "Net Profit = Profit Before Tax - Income Tax",
-   "identityAgreement": "1 agree / 0 contradict inside this file",
+   "filled": {
+    "FY2025": "yahoo_financials.json Net Income Common Stockholders 4033849000.0, corroborated by the file own EPS x shares (implied 4022259015.0)",
+    "FY2024": "yahoo_financials.json Net Income Common Stockholders 43473000.0, corroborated by the file own EPS x shares (implied 43584327.0)",
+    "FY2023": "yahoo_financials.json Net Income Common Stockholders 1624618000.0, corroborated by the file own EPS x shares (implied 1606538565.0)",
+    "FY2022": "yahoo_financials.json Net Income Common Stockholders 1361298000.0, corroborated by the file own EPS x shares (implied 1263269757.0)"
+   },
+   "source": "Yahoo Finance (yfinance)",
    "withhold_reason": "Withheld: the twin keys SPG and SPG.JO are one issuer but published different figures for the same period. The figure backed by the issuer's own filing () is served there; this key's conflicting figure is removed so one issuer does not carry two.",
    "note": "filled by identity Net Profit = Profit Before Tax - Income Tax on this file own printed rows, 15 Nov 2026"
   },
@@ -143,13 +142,6 @@
    ],
    "derived": true,
    "derivedFrom": "Net Profit / Total Equity x 100",
-   "derivedCells": [
-    1,
-    2,
-    3,
-    4
-   ],
-   "derivedCellFormula": "ROE = Net Profit / Total Equity close x 100; Total Equity from the statement of financial position of the same period",
    "withhold_reason": "Withheld: the twin keys SPG and SPG.JO are one issuer but published different figures for the same period. The figure backed by the issuer's own filing () is served there; this key's conflicting figure is removed so one issuer does not carry two."
   },
   {
@@ -163,13 +155,6 @@
    ],
    "derived": true,
    "derivedFrom": "Net Profit / Total Assets x 100",
-   "derivedCells": [
-    1,
-    2,
-    3,
-    4
-   ],
-   "derivedCellFormula": "ROA = Net Profit / Total Assets close x 100; Total Assets from the statement of financial position of the same period",
    "withhold_reason": "Withheld: the twin keys SPG and SPG.JO are one issuer but published different figures for the same period. The figure backed by the issuer's own filing () is served there; this key's conflicting figure is removed so one issuer does not carry two."
   },
   {
@@ -183,13 +168,6 @@
    ],
    "derived": true,
    "derivedFrom": "Net Profit / Revenue x 100",
-   "derivedCells": [
-    1,
-    2,
-    3,
-    4
-   ],
-   "derivedCellFormula": "Net Margin = Net Profit / Revenue x 100, both rows already stored for the same period",
    "withhold_reason": "Withheld: the twin keys SPG and SPG.JO are one issuer but published different figures for the same period. The figure backed by the issuer's own filing () is served there; this key's conflicting figure is removed so one issuer does not carry two."
   },
   {
@@ -231,12 +209,7 @@
  ],
  "validated": true,
  "derivation": {
-  "ratios": "derive_ratios.py",
-  "derivedCellsBy": "fill_derive.py",
-  "derivedCellsNote": "cells tagged derivedCells are arithmetic on this security's own filed rows, gated on every other period in the same file agreeing"
- },
- "merge": {
-  "key_alias": "20260920_1142: same statement, also published under the ticker the terminal resolves (SPG); source file SPG.JO"
+  "ratios": "derive_ratios.py"
  },
  "mergedSources": [
   "Yahoo Finance (yfinance) 20260923_0901"
@@ -259,5 +232,14 @@
   "cnt": 2
  },
  "marketCapSource": "Yahoo Finance",
- "yahooFill": "Blank cells filled 2026-11-07 from static_data/yahoo_financials.json (the same upstream recorded in source), verified exact against the files existing values on overlapping years."
+ "source_url": "https://www.supergroup.co.za/wp-content/uploads/2026/09/SPG_FY26_Results_Booklet_Final_08Sep26.pdf",
+ "gapFill": {
+  "on": "2026-10-12",
+  "method": "blank cells filled from stockanalysis.com only where the source reproduced the same row already stored values within 1.5 percent AND the filled value tied to this file own printed rows (gross profit identity, net profit identity) within 2 percent",
+  "cellsFilled": 2,
+  "cellsWithheldOnIdentity": 0
+ },
+ "yahooFill": "Blank cells filled 2026-11-07 from static_data/yahoo_financials.json (the same upstream recorded in source), verified exact against the files existing values on overlapping years.",
+ "notes": {},
+ "netProfitFill": "Net Profit cells filled 2026-11-07 from yahoo_financials.json where EPS x shares reproduced the source figure within 5 percent. The row tracks profit attributable to equity holders, so it need not equal Profit Before Tax less Income Tax when minorities exist."
 }

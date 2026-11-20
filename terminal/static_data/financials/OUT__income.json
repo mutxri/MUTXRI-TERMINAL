@@ -1,8 +1,8 @@
 {
- "ticker": "OUT",
+ "ticker": "OUT.JO",
  "name": "OUTsurance Group Limited",
  "currency": "ZAR",
- "source": "OUTsurance Group Limited consolidated annual financial statements for the year ended 30 June 2026 (audited, KPMG unmodified): insurance revenue 41,487m (2025: 37,131m); profit before taxation 8,648m; profit attributable to ordinary shareholders 5,623m | 20261116_010059: 3 cell(s) copied from the OUT.JO twin (same company, 56/56 jointly populated cells agreed)",
+ "source": "CRON 20261120_0405: bare alias and resolved statement unified from the same company's two copies, taking the period union and filling a blank rendered cell from the alias only where the alias had the value; the resolved file's value wins on any disagreement and each conflict recorded in _alias_sync_20261120_0405.json. | OUTsurance Group Limited consolidated annual financial statements for the year ended 30 June 2026 (audited, KPMG unmodified): insurance revenue 41,487m (2025: 37,131m); profit before taxation 8,648m; profit attributable to ordinary shareholders 5,623m",
  "asOf": "2026",
  "marketCap": 124454001238,
  "sharesOutstanding": 1548127892,
@@ -67,8 +67,11 @@
     2980000000.0,
     22396000000.0
    ],
-   "source": "OUTsurance Group Limited Consolidated annual financial statements 2026, earnings attributable to ordinary shareholders, R million 5 623 (2025: 4 707); profit for the year was 6 180 and the difference is the non-controlling interest",
-   "derived": false
+   "source": "Yahoo Finance (yfinance)",
+   "derived": false,
+   "filled": {
+    "FY2022": "yahoo_financials.json Net Income Common Stockholders 22396000000.0, corroborated by the file own EPS x shares (implied 22608859734.77)"
+   }
   },
   {
    "label": "EPS",
@@ -114,7 +117,10 @@
     null
    ],
    "derived": true,
-   "derivedFrom": "Net Profit / Revenue x 100"
+   "derivedFrom": "Net Profit / Revenue x 100",
+   "derivedCells": [
+    4
+   ]
   },
   {
    "label": "Debt to Equity",
@@ -165,12 +171,6 @@
  "derivation": {
   "ratios": "derive_ratios.py"
  },
- "merge": {
-  "key_alias": "20260920_1142: same statement, also published under the ticker the terminal resolves (OUT); source file OUT.JO"
- },
- "mergedSources": [
-  "Yahoo Finance (yfinance) 20260923_0901"
- ],
  "gaps_filled": {
   "source": "stockanalysis.com",
   "source_url": "https://stockanalysis.com/quote/jse/OUT/financials/income-statement/",
@@ -192,9 +192,25 @@
   ],
   "cnt": 3
  },
+ "mergedSources": [
+  "Yahoo Finance (yfinance) 20260923_0901"
+ ],
+ "filled": {
+  "Operating Profit (EBIT)": {
+   "source": "Yahoo Finance",
+   "periods": [
+    "FY2025",
+    "FY2024",
+    "FY2023",
+    "FY2022"
+   ]
+  }
+ },
  "source_url": "https://group.outsurance.co.za/globalassets/documents/investor-relations/reports-and-results/2026/ogl-annual-financial-statements-2026.pdf",
  "source_note": "FY2026 column filled on 2026-09-28 from the issuer's audited annual financial statements; earlier periods are unchanged.",
  "marketCapSource": "Yahoo Finance",
- "note_20261020": "Revenue row now carries the audited insurance revenue line for BOTH years. The prior FY2025 value (38,432) had no line matching it in the AFS; 37,131 is the figure the AFS prints for 2025, so the series is on one basis. Unit ZAR.",
- "yahooFill": "Blank cells filled 2026-11-07 from static_data/yahoo_financials.json (the same upstream recorded in source), verified exact against the files existing values on overlapping years."
+ "note_20261020": "Revenue row now carries the audited insurance revenue line for BOTH years; the prior FY2025 value (38,432) matched no line in the AFS. Unit ZAR.",
+ "yahooFill": "Blank cells filled 2026-11-07 from static_data/yahoo_financials.json (the same upstream recorded in source), verified exact against the files existing values on overlapping years.",
+ "notes": {},
+ "netProfitFill": "Net Profit cells filled 2026-11-07 from yahoo_financials.json where EPS x shares reproduced the source figure within 5 percent. The row tracks profit attributable to equity holders, so it need not equal Profit Before Tax less Income Tax when minorities exist."
 }
