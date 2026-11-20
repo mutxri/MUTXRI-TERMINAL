@@ -6,11 +6,44 @@ chat_messages.json file (a capped list, newest last). Messages are only
 readable/writable by authenticated sessions; ownership is by email, the
 owner account can delete anything.
 """
-import json, os, secrets, time, threading
+import json, os, re, secrets, time, threading
 
 _DB = None          # set by afri_server (Mongo db) if available
 _USE_MONGO = False
 _JSON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chat_messages.json")
+
+# PER-USER MENTIONS. @everyone is the owner's broadcast; a plain @handle is a
+# message to one person, and the point of it is that they find out. The room does
+# not know how to send email and must not import the mailer, so the server
+# installs a notifier at boot and the room calls it after storing a message.
+# The character before the @ must not be one that could be part of an
+# address or a word, or "someone@example.com" reads as a mention of
+# "example.com".
+_MENTION_RE = re.compile(r"(?<![A-Za-z0-9_.\-@])@([A-Za-z0-9_.\-]{2,32})")
+_NOTIFIER = None
+
+
+def set_notifier(fn):
+    """Called once by afri_server: fn(handles, message) -> None."""
+    global _NOTIFIER
+    _NOTIFIER = fn
+
+
+def mentions_in(text):
+    """Handles mentioned in a message, lowercased and de-duplicated.
+
+    @everyone is excluded: it is the owner's broadcast, handled where the message
+    is accepted, and it is not a person to email.
+    """
+    seen, out = set(), []
+    for h in _MENTION_RE.findall(text or ""):
+        k = h.lower().strip("._-")
+        if not k or k == "everyone" or k in seen:
+            continue
+        seen.add(k)
+        out.append(k)
+    return out[:8]
+
 
 DEFAULT_ROOM = "main"
 _MAX_TEXT = 500          # frontend maxlength is 500
@@ -203,6 +236,24 @@ def post(email, name, text, room, ctx, username="", reply_to="", owner=False, im
             msgs.append(msg)
             msgs = msgs[-_MAX_KEEP:]
             _save_json(msgs)
+    # MENTIONS ARE TOLD AFTER THE MESSAGE IS STORED, never before: if the email
+    # fails the message must still be in the room, and if it succeeds the reader
+    # must be able to open a message that exists. The call is swallowed because a
+    # mail problem must never turn a posted message into an error the sender sees.
+    # EVERY sender's mentions notify, the owner's included. This used to read
+    # "and not owner", which exempted the owner account from the feature
+    # entirely: their @handle stored and drew but mailed nobody, so testing it
+    # from that account looked like broken mail. There is nothing to guard
+    # against here. @everyone is handled above and mentions_in drops it, so an
+    # owner broadcast yields no handles either way, and the notifier already
+    # refuses to mail the sender themselves.
+    if _NOTIFIER:
+        try:
+            handles = mentions_in(msg["text"])
+            if handles:
+                _NOTIFIER(handles, msg)
+        except Exception as _e:
+            print("[chat] mention notify failed: %s" % str(_e)[:120])
     return {"ok": True, "message": msg}
 
 
