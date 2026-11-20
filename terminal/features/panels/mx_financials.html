@@ -8,7 +8,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261121014522';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261121023052';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Financials</title>
@@ -559,10 +559,10 @@
       var note=unit+'. '+
                (sel.basis?'Full years only, so a half year on file is not joined to them. ':'')+
                (gaps?(gaps+' period'+(gaps>1?'s':'')+' carry no figure for this row and are left as gaps. '):'')+
-               'Every point is a figure from the table below.';
+               'Every point is a figure from the table above.';
       return '<div class="tr-wrap"><div class="tr-head"><span class="tr-t">TREND</span>'+
         '<span class="tr-l">'+esc(lbl)+'</span>'+
-        '<span class="tr-hint">click any row below to plot it</span></div>'+
+        '<span class="tr-hint">click any row above to plot it</span></div>'+
         '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(lbl+' by period')+'">'+
         g+zero+'<path d="'+d.replace(/\s+$/,'')+'" fill="none" stroke="'+col+
         '" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>'+
@@ -587,10 +587,12 @@
     var ckLbl='';
     for(q=0;q<sch.length;q++) if(sch[q][0]===ck) ckLbl=sch[q][1];
 
-    // The TREND plot, drawn from the row the reader picked. Restored after the
-    // same removal as before; the owner was asked about that edit and did not
-    // make it. A filed row is far easier to read as a line than as five cells.
-    var h=(ck?trendChart(ck,ckLbl,per,vals,cur):'');
+    // The TREND plot, drawn from the row the reader picked. It is BUILT here and
+    // placed BELOW the table: a reader opens this panel for the filed figures,
+    // and a chart at the top pushed them off the screen. The numbers come
+    // first, then the shape of the row picked out of them.
+    var trendHtml=(ck?trendChart(ck,ckLbl,per,vals,cur):'');
+    var h='';
     h+='<table><thead><tr><th>'+STMT_TITLE()+(dispTicker?(' &middot; '+esc(dispTicker)):'')+(dispName?(' &middot; '+esc(dispName)):'')+'</th>';
     for(var i=0;i<per.length;i++)h+='<th>'+esc(per[i])+'</th>';
     h+='</tr></thead><tbody>';
@@ -615,6 +617,7 @@
       h+='</tr>';
     }
     h+='</tbody></table>';
+    h+=trendHtml;          // the plotted row, under the numbers it is drawn from
 
     // real filings list (primary-source PDFs)
     var srcUrl=(rec&&(rec.source_url||rec.ir_url||rec.ir))||null;
