@@ -456,7 +456,7 @@ def oauth_exchange(one_time_code):
 # nothing while the root copy held the only mailer. Ported verbatim from the root file.
 # Needs MAIL_PASS in the environment (Render dashboard); without it the function
 # returns quietly and signup still succeeds.
-def send_mention_email(to_email, to_name, from_handle, room, text):
+def send_mention_email(to_email, to_name, from_handle, room, text, is_reply=False):
     """Tell a signed-in user they were mentioned in the room.
 
     Sent to the address they signed in with, which is the only address the
@@ -480,17 +480,22 @@ def send_mention_email(to_email, to_name, from_handle, room, text):
         who = _html.escape(str(from_handle or "someone"))
         room_l = _html.escape(str(room or "main"))
         body = _html.escape(str(text or ""))[:1500]
+        # Say which it was. Telling someone they were "mentioned" when they were
+        # replied to is a small lie that makes them hunt for an @ that is not
+        # there.
+        verb = "replied to you" if is_reply else "mentioned you"
         html = f"""<div style="background:#000;color:#f0f0f0;font-family:monospace;padding:32px">
   <h2 style="color:#33e29a">MUTXRI TERMINAL</h2>
   <p>Hi {first},</p>
-  <p><b style="color:#e0a340">{who}</b> mentioned you in the {room_l} room.</p>
+  <p><b style="color:#e0a340">{who}</b> {verb} in the {room_l} room.</p>
   <p style="border-left:3px solid #33e29a;padding-left:12px;color:#d2d2d2">{body}</p>
   <p><a href="https://mutxriterminal.com/terminal/" style="color:#33e29a">Open the room</a></p>
   <p style="color:#6a6a6a;font-size:12px">You are getting this because your account signed in with
   this address. Mentions arrive one email per message, never a digest.</p>
 </div>"""
         msg = MIMEText(html, "html")
-        msg["Subject"] = "%s mentioned you in the %s room" % (str(from_handle or "Someone"), str(room or "main"))
+        msg["Subject"] = "%s %s in the %s room" % (
+            str(from_handle or "Someone"), verb, str(room or "main"))
         msg["From"] = formataddr(("MUTXRI TERMINAL", sender))
         msg["To"] = to_email
         with smtplib.SMTP(server, int(os.environ.get("MAIL_PORT", "587")), timeout=30) as sm:
