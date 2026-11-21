@@ -191,6 +191,7 @@ def post(email, name, text, room, ctx, username="", reply_to="", owner=False, im
     # reference nothing nor quote across rooms. Only a short quote is stored: the
     # panel renders it straight from history, with no extra fetch.
     reply = None
+    reply_email = ""          # kept OUT of msg: history() shows msg to everyone
     rid = str(reply_to or "").strip()[:32]
     if rid:
         for m in _all():
@@ -198,6 +199,11 @@ def post(email, name, text, room, ctx, username="", reply_to="", owner=False, im
                 reply = {"id": rid,
                          "name": m.get("name") or "",
                          "text": (m.get("text") or "")[:120]}
+                # The author of the message being answered, so they can be told.
+                # This stays a local: msg["reply"] is handed to every client by
+                # history(), and an address in there would publish one user's
+                # email to the whole room.
+                reply_email = (m.get("email") or "").lower().strip()
                 break
         if reply is None:
             return {"ok": False, "error": "the message being replied to is not in this room"}
@@ -250,8 +256,11 @@ def post(email, name, text, room, ctx, username="", reply_to="", owner=False, im
     if _NOTIFIER:
         try:
             handles = mentions_in(msg["text"])
-            if handles:
-                _NOTIFIER(handles, msg)
+            # A reply is a notification too. Answering someone's question is the
+            # commonest way to address one person in this room, and it used to
+            # tell them nothing at all.
+            if handles or reply_email:
+                _NOTIFIER(handles, msg, reply_email)
         except Exception as _e:
             print("[chat] mention notify failed: %s" % str(_e)[:120])
     return {"ok": True, "message": msg}
