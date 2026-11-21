@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261121232137';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122000744';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -886,12 +886,23 @@ html{scrollbar-width:none;}
 .chat-form button{background:var(--acc);border:0;color:#000;font-family:var(--mono);font-weight:700;
   font-size:10px;letter-spacing:.08em;padding:0 12px;border-radius:2px;cursor:pointer}
 .chat-form button:disabled{opacity:.45;cursor:default}
-.chat-rooms{display:flex;gap:3px;overflow-x:auto;padding:6px var(--s4);border-bottom:1px solid var(--line2);flex:none}
-.chat-rooms::-webkit-scrollbar{height:0}
-.room-chip{flex:none;background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);
-  font-family:var(--mono);font-size:9px;letter-spacing:.03em;padding:3px 7px;border-radius:2px;cursor:pointer;white-space:nowrap}
-.room-chip:hover{color:var(--tx2);border-color:var(--tx3)}
-.room-chip.on{color:var(--acc);border-color:var(--acc);background:var(--mint-dim)}
+/* The sector channels read as a column down the side of the thread, the way a
+   channel list does everywhere else, instead of a strip across the top that
+   ran off the edge of a 320px column and hid its own tail behind a scroll. */
+.chat-body{display:flex;flex:1;min-height:0}
+.chat-col{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
+.chat-rooms{display:flex;flex-direction:column;gap:1px;padding:6px 4px;flex:0 0 auto;
+  /* The longest label, #industrials, measures just under 72px of text. The
+     column has to carry that plus the chip's own padding and accent rule and
+     its own 4px gutters: 94px exactly, so 96px, measured rather than guessed.
+     Anything narrower clips a channel name to an ellipsis. */
+  width:96px;overflow-y:auto;overflow-x:hidden;border-right:1px solid var(--line2)}
+.room-chip{display:block;width:100%;text-align:left;background:transparent;border:0;
+  border-left:2px solid transparent;color:var(--tx3);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;padding:4px 6px;border-radius:2px;
+  cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room-chip:hover{color:var(--tx2);background:var(--bg3)}
+.room-chip.on{color:var(--acc);background:var(--mint-dim);border-left-color:var(--acc)}
 .no-rails #colChat,.no-rails #rszC{display:none}
 .view-panel #colChat,.view-watchlist #colChat,.view-info #colChat,.hide-panel #colChat{display:none}
 .view-panel #rszC,.view-watchlist #rszC,.view-info #rszC,.hide-panel #rszC{display:none}
@@ -1881,17 +1892,17 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
     </aside>
 
     <style>
-    /* SECTOR ROOM STRIP (2026-09-29). In the DEFAULT layout the chat column is
-       24 percent wide, capped at 320px, so the room categories ran off the edge
-       and the tail could not be reached without dragging the window wider. The
-       strip now scrolls on its own, so every category is reachable in the
-       default window with no adjustment. ID selector so it outranks the class
-       rules above; a thin scrollbar matches the terminal; overscroll is
-       contained so a horizontal swipe never drags the shell. */
-    #chatRooms{display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;
-      max-width:100%;overscroll-behavior-x:contain;
+    /* SECTOR CHANNEL COLUMN. The categories used to run across the top, and in
+       the DEFAULT layout the chat column is 24 percent wide, capped at 320px,
+       so the tail ran off the edge and could only be reached by scrolling a
+       strip that gave no sign it had more in it. As a column every channel is
+       on screen at once in the default window. ID selector so it outranks the
+       class rules above; a thin scrollbar matches the terminal; overscroll is
+       contained so a swipe at the end never drags the shell. */
+    #chatRooms{display:flex;flex-direction:column;flex-wrap:nowrap;
+      overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;
       scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
-    #chatRooms::-webkit-scrollbar{height:4px}
+    #chatRooms::-webkit-scrollbar{width:4px}
     #chatRooms::-webkit-scrollbar-thumb{background:var(--line2);border-radius:2px}
     #chatRooms::-webkit-scrollbar-track{background:transparent}
     #chatRooms>*{flex:0 0 auto}
@@ -1909,10 +1920,17 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
         </span>
         <button class="pw-x" type="button" data-winclose="chat" title="Close this window" aria-label="Close CHAT">X</button>
       </div>
-      <div class="chat-rooms" id="chatRooms" role="tablist" aria-label="Sector rooms"></div>
-      <div class="chat-log" id="roomLog" aria-live="polite"></div>
-      <div class="chat-log" id="chatLog" aria-live="polite" style="display:none"></div>
-      <div class="chat-note" id="chatNote" hidden></div>
+      <!-- The channel column and the thread sit side by side; the message box
+           below still spans the whole window, so the composer is never squeezed
+           into the narrower half. -->
+      <div class="chat-body">
+        <div class="chat-rooms" id="chatRooms" role="tablist" aria-label="Sector rooms"></div>
+        <div class="chat-col">
+          <div class="chat-log" id="roomLog" aria-live="polite"></div>
+          <div class="chat-log" id="chatLog" aria-live="polite" style="display:none"></div>
+          <div class="chat-note" id="chatNote" hidden></div>
+        </div>
+      </div>
       <form class="chat-form" id="chatForm" autocomplete="off">
         <input id="chatPhoto" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
         <button type="button" id="chatPhotoBtn" title="Attach an image" aria-label="Attach an image"
