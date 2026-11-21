@@ -1648,25 +1648,57 @@ class Handler(SimpleHTTPRequestHandler):
 # problem can never fail a message that was already accepted. A handle is matched
 # against the account's username first and its email local part second, because the
 # room shows the username when there is one and the email prefix otherwise.
-def _notify_mentions(handles, msg):
+def _notify_mentions(handles, msg, reply_email=""):
     try:
         wanted = set(h.lower() for h in handles)
         sender_email = (msg.get("email") or "").lower().strip()
+        reply_email = (reply_email or "").lower().strip()
         recipients, seen = [], set()
+
+        # The person being answered is told first, and is marked as a reply so
+        # the email does not claim they were mentioned when they were not.
+        # Replying to yourself notifies nobody.
+        if reply_email and reply_email != sender_email:
+            seen.add(reply_email)
+            who = next((u for u in auth_api._all_users()
+                        if (u.get("email") or "").lower().strip() == reply_email),
+                       None)
+            recipients.append((reply_email, (who or {}).get("name") or "", True))
+
         for u in auth_api._all_users():
             email = (u.get("email") or "").lower().strip()
-            if not email or email == sender_email:
-                continue                      # never mail the sender themselves
-            handle = (u.get("username") or "").lower().strip() or email.split("@")[0]
-            if handle in wanted and email not in seen:
+            if not email or email == sender_email or email in seen:
+                continue   # never the sender, never twice for one message
+            # Match every name this account legitimately answers to. The room
+            # draws _handle(), which reduces an email-shaped username to its
+            # local part, so deriving the handle separately here used to compare
+            # "someone" against "someone@gmail.com" and never match, and the
+            # mention mailed nobody. Ask the room for the handle it actually
+            # drew, and accept the email prefix and raw username besides: all
+            # three name this one account, so a generous match cannot reach the
+            # wrong person.
+            cands = {email.split("@")[0]}
+            try:
+                cands.add(chat_room._handle(email, u.get("name"),
+                                            u.get("username")).lower().strip())
+            except Exception:
+                pass
+            un = (u.get("username") or "").lower().strip()
+            if un:
+                cands.update({un, un.split("@")[0]})
+            if cands & wanted:
                 seen.add(email)
-                recipients.append((email, u.get("name") or ""))
-        for email, name in recipients[:8]:
+                recipients.append((email, u.get("name") or "", False))
+
+        for email, name, is_reply in recipients[:8]:
             auth_api.send_mention_email(email, name, msg.get("name") or "someone",
-                                        msg.get("room") or "main", msg.get("text") or "")
+                                        msg.get("room") or "main", msg.get("text") or "",
+                                        is_reply)
         if recipients:
-            print("[chat] mention email sent to %d of %d handles"
-                  % (len(recipients), len(handles)), flush=True)
+            print("[chat] notified %d (%d replied to, %d mentioned of %d handles)"
+                  % (len(recipients), sum(1 for r in recipients if r[2]),
+                     sum(1 for r in recipients if not r[2]), len(handles)),
+                  flush=True)
     except Exception as e:
         print("[chat] mention notify error: %s" % str(e)[:140], flush=True)
 
