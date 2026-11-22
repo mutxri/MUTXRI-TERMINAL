@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122181255';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122181810';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -8292,6 +8292,16 @@ function mtHookSelect(f){
       }
       if(!tkr) return;
       if(!mtRowOf(currentEx, tkr)) return;      // not a security this exchange lists
+      // A PANEL THAT ASKS WHAT TO DO IS NOT MAKING A SELECTION YET. The heatmap
+      // now opens a menu on a tile: FOCUS, CHART, MARKET or graph it here. This
+      // hook fired on the same click and published the security anyway, which
+      // re-pointed every frame following the desk, including the heatmap's own:
+      // its ?sym= changed, the frame reloaded, and the menu the reader was still
+      // reading was destroyed about a second after it appeared. Measured: menu
+      // present at 400ms, element gone by 3s, document replaced. A panel marks
+      // itself here when its own control owns the click, and the menu's MARKET
+      // item makes the selection explicitly.
+      try{ if(doc.documentElement && doc.documentElement.dataset.mxSelfSelect) return; }catch(e){}
       openStock(tkr);
     }, true);
   }catch(e){}
