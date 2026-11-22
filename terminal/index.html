@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261123011549';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261123012807';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -7401,7 +7401,14 @@ function mkStatsSection(sym, ex, mkt, row, shFile, cinfo, listing, hist){
   var px = mkNum(r.price);
   var capRaw = (r.marketCap === undefined || r.marketCap === null || String(r.marketCap).trim() === '')
              ? null : String(r.marketCap).trim();
-  var capTxt = capRaw, capComputed = false, capScale = false;
+  // THE CAP AS FILED IS OFTEN A BARE INTEGER. Safaricom's reads 1370237637600 in
+  // the market file, thirteen digits with no separators, which has to be counted
+  // off by eye before it means anything. A numeric cap is drawn the way a computed
+  // one already was, through mkMoney; a cap the exchange files as text ("1.37B")
+  // is left exactly as filed.
+  var capNum0 = (capRaw === null) ? null : mkCapNum(capRaw);
+  var capTxt = (capNum0 === null) ? capRaw : mkMoney(capNum0);
+  var capComputed = false, capScale = false;
   if(capTxt === null){
     var cf = mkCapFactor(mkt);
     if(cf !== null && px !== null && shares !== null){
@@ -7987,8 +7994,52 @@ if(window.ResizeObserver){
 }
 window.addEventListener('resize', function(){ mkFitChart(); });
 
-// ===== Static-market panel (snapshot mode): full investor info sheet =====
-function renderMarketStatic(rec, info){
+// ===== THE MARKET SHEET. ONE SHEET, BOTH PATHS. ==============================
+// This window had TWO renderers and the reader got whichever one the backend's
+// health decided. renderMarketStatic drew the full sheet from the published
+// files; renderStockInfo drew eight rows of inline-styled spans from the live
+// /api/chart payload and wrote them over the top of #rightInfo. So the terminal
+// showed its best sheet only when its backend was DOWN, and its plainest one
+// when everything was working, which is exactly backwards and is what the owner
+// kept seeing on the live site after the sheet was redesigned (2026-11-23: "the
+// market panel still not as I want it to be" against a screenshot of the live
+// path's output: no logo, no counterparties, no rail).
+//
+// There is one renderer now. `live` is the /api/chart payload when the backend
+// answered and null otherwise; it overlays today's trading onto the snapshot
+// row, and everything the live route does not carry (the chief executive, the
+// registrar, the counterparties, the shareholders) still comes from the files,
+// which is the only place any of it has ever existed.
+function renderMarketStatic(rec, info, live){
+  // THE SNAPSHOT ROW IS NEVER MUTATED. It belongs to the cached market file and
+  // is handed to every other reader of that file; writing today's price into it
+  // would leave the snapshot quietly disagreeing with the file it came from.
+  if(live){
+    const lb = live.bars || [];
+    const lastBar = lb.length ? lb[lb.length - 1] : null;
+    const prevC = live.chartPreviousClose;
+    rec = Object.assign({}, rec);
+    if(live.regularMarketPrice != null) rec.price = live.regularMarketPrice;
+    if(prevC != null){
+      rec.prevClose = prevC;
+      if(live.regularMarketPrice != null && prevC)
+        rec.chgPct = (live.regularMarketPrice - prevC) / prevC * 100;
+    }
+    if(lastBar){
+      if(lastBar.open != null) rec.open = lastBar.open;
+      if(lastBar.high != null) rec.high = lastBar.high;
+      if(lastBar.low  != null) rec.low  = lastBar.low;
+    }
+    const lv = (live.regularMarketVolume != null) ? live.regularMarketVolume
+             : (lastBar ? lastBar.volume : null);
+    if(lv != null) rec.volume = lv;
+    const f2 = (x) => Number(x).toLocaleString(undefined, {maximumFractionDigits: 2});
+    if(live.fiftyTwoWeekLow != null && live.fiftyTwoWeekHigh != null)
+      rec.range52w = f2(live.fiftyTwoWeekLow) + ' - ' + f2(live.fiftyTwoWeekHigh);
+    if(live.currency) rec.currency = live.currency;
+    if(live.name && !rec.name) rec.name = live.name;
+    if(live.marketState) rec.marketState = live.marketState;
+  }
   const chg = rec.chgPct;
   const cls = chg === null || chg === undefined ? '' : (chg >= 0 ? 'up' : 'down');
   const sign = chg === null || chg === undefined ? '' : (chg >= 0 ? '+' : '');
@@ -8111,7 +8162,16 @@ function renderMarketStatic(rec, info){
                       srow('YEAR END', rec.yearEnd || i.year_end) +
                       srow('EXCHANGE', rec.exchange || i.exchange) +
                       srow('TRANSFER SEC', i.transfer_secretary) + srow('PHONE', i.phone);
+  // DAY RANGE and STATE are what the live route carries that the files do not,
+  // and they were the two figures the old live sheet showed that this one did
+  // not. They are drawn when they are known and left out when they are not, like
+  // every other row in the rail.
+  const dayRange = (rec.low != null && rec.high != null)
+    ? Number(rec.low).toLocaleString(undefined, {maximumFractionDigits: 2}) + ' - ' +
+      Number(rec.high).toLocaleString(undefined, {maximumFractionDigits: 2})
+    : '';
   const railMarket = srow('OPEN', rec.open) + srow('PREV CLOSE', rec.prevClose) +
+                     srow('DAY RANGE', dayRange) +
                      srow('52W RANGE', rec.range52w) + srow('VOLUME', vol) +
                      // A RAW COUNT IS NOT A FIGURE A READER CAN HOLD. The sheet
                      // printed a market capitalisation as 1370237637600 and a
@@ -8124,7 +8184,7 @@ function renderMarketStatic(rec, info){
                      srow('TURNOVER', fmtShares(rec.turnover)) +
                      srow('SHARES OUT', fmtShares(rec.sharesIssued)) +
                      srow('MKT CAP', fmtShares(rec.marketCap)) +
-                     srow('CURRENCY', rec.currency);
+                     srow('CURRENCY', rec.currency) + srow('STATE', rec.marketState);
   const railFiled = srow('DIVIDENDS', divTxt) +
                     srow('STATEMENTS', i.statements ? 'filed' : '') +
                     srow('DATA AS OF', rec.asOf ||
@@ -8506,7 +8566,11 @@ function openStock(sym){
   // security's quote: the sections are cleared at selection, then drawn again by
   // mkRailRender once this security's files resolve
   try{ mkRailClear(); }catch(e){}
-  function mkInfoStatic(){
+  // `live` is the /api/chart payload when the backend answered, and undefined
+  // when it did not. Either way the sheet is resolved the same way, out of the
+  // same files, because the live route carries a quote and nothing else: no
+  // company record, no counterparties, no registrar.
+  function mkInfoStatic(live){
     fetch('static_data/market_' + ex + '.json').then(r => { if(!r.ok) throw 0; return r.json(); })
       .then(d => {
         const rows = d.stocks || [];
@@ -8514,16 +8578,29 @@ function openStock(sym){
         const rec = rows.find(x => x.sym === sym || x.ticker === sym || (x.name||'') === sym)
                 || (lr ? rows.find(x => (x.name||'') && lr.name && String(x.name).toLowerCase() === String(lr.name).toLowerCase()) : null)
                 || rows.find(x => (x.sym||'').split('.')[0] === sym.split('.')[0]);
-        if(!rec){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no snapshot data for ${esc(sym)}</div>`; return; }
+        if(!rec){
+          // A SECURITY THE LIVE ROUTE KNOWS AND THE SNAPSHOT DOES NOT still gets
+          // a sheet. Without this the live path would answer a working quote with
+          // "no snapshot data", which is both wrong and a regression on what the
+          // old live renderer did. The sheet is simply thinner: the quote is real
+          // and the rows the files would have filled are left out.
+          if(live){
+            rec = {sym: sym, ticker: sym, name: live.name || '',
+                   currency: live.currency || '', exchange: ex};
+          } else {
+            $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no snapshot data for ${esc(sym)}</div>`;
+            return;
+          }
+        }
         // company info from company_info.json (cached, fetched once)
         loadCompanyInfo().then(ci => {
             let info = null;
             for (const k of [rec.sym, rec.ticker, (rec.sym||'').split('.')[0], (rec.name||'')]) {
               if (k && ci[k]) { info = ci[k]; break; }
             }
-            renderMarketStatic(rec, info);
+            renderMarketStatic(rec, info, live);
           })
-          .catch(() => renderMarketStatic(rec, null));
+          .catch(() => renderMarketStatic(rec, null, live));
       })
       .catch(() => { $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx3);font-family:var(--mono);font-size:11px">no market snapshot for ${esc(sym)}</div>`; });
   }
@@ -8535,12 +8612,14 @@ function openStock(sym){
       if(d.noData){ $('rightInfo').innerHTML = `<div style="padding:10px;color:var(--tx2);font-family:var(--mono);font-size:11px">
         <div style="color:#7ef0c0;font-weight:700;margin-bottom:6px">${esc(sym)} · ${esc(d.name||'')}</div>
         <div style="color:var(--tx3);line-height:1.6">${esc(d.message||'No market data available for this security.')}</div></div>`; return; }
-      try{ renderStockInfo(d, sym); }catch(e){ console.error('info fail', e); }
+      // The live quote goes THROUGH the sheet, it does not replace it. mkInfoStatic
+      // draws the same sheet the snapshot path draws and hands it today's trading
+      // to overlay, so the logo, the counterparty columns and the statistics rail
+      // are there whether the backend answered or not.
+      try{ mkInfoStatic(d); }catch(e){ console.error('info fail', e); }
       try{ loadMetrics(sym, ex, stock && stock.name); }catch(e){ console.error('metrics fail', e); }
-      // the live-backend path writes the same rail through renderStockInfo and
-      // loadMetrics, so the security sections are asserted here as well: holders,
-      // multiples and the price history are drawn from the static files either way
-      try{ mkRailRender(); }catch(e){ console.error('market sections (live) fail', e); }
+      // mkInfoStatic calls mkRailRender itself once the row resolves, so the
+      // holders, the multiples and the price history are not asserted twice here.
     })
     .catch(e => {
       // The live route is cold, down or unreachable: draw the security from the
@@ -8642,33 +8721,12 @@ function fmtMoney(v){
   return sign + a.toFixed(1);
 }
 
-function renderStockInfo(d, sym){
-  const price = d.regularMarketPrice != null ? d.regularMarketPrice.toLocaleString(undefined,{maximumFractionDigits:2}) : '-';
-  const prev = d.chartPreviousClose;
-  const chg = (price !== '-' && prev) ? ((d.regularMarketPrice - prev) / prev * 100) : null;
-  const chgTxt = chg === null ? '' : (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
-  const chgCls = chg === null ? '' : (chg >= 0 ? 'up' : 'down');
-  const bars = d.bars || [];
-  const last = bars.length ? bars[bars.length-1] : null;
-  const html = `
-    <div style="padding:8px 12px;border-bottom:1px solid var(--line)">
-      <div style="color:#7ef0c0;font-weight:700;font-size:15px">${esc(sym)}</div>
-      <div style="color:var(--tx2);font-size:11px;padding:2px 0">${esc(d.name||'')}</div>
-      <div style="font-size:20px;font-weight:700;padding:4px 0">${price} <span style="font-size:11px;color:var(--tx3)">${esc(d.currency||'')}</span></div>
-      <div class="chg ${chgCls}" style="font-size:12px">${chgTxt}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;padding:8px 0 2px;font-family:var(--mono);font-size:10px">
-        <span style="color:var(--tx3)">OPEN</span><span style="text-align:right">${last && last.open != null ? last.open.toLocaleString(undefined,{maximumFractionDigits:2}) : '-'}</span>
-        <span style="color:var(--tx3)">HIGH</span><span style="text-align:right">${last && last.high != null ? last.high.toLocaleString(undefined,{maximumFractionDigits:2}) : '-'}</span>
-        <span style="color:var(--tx3)">LOW</span><span style="text-align:right">${last && last.low != null ? last.low.toLocaleString(undefined,{maximumFractionDigits:2}) : '-'}</span>
-        <span style="color:var(--tx3)">PREV CLOSE</span><span style="text-align:right">${prev != null ? prev.toLocaleString(undefined,{maximumFractionDigits:2}) : '-'}</span>
-        <span style="color:var(--tx3)">VOLUME</span><span style="text-align:right">${d.regularMarketVolume != null ? d.regularMarketVolume.toLocaleString() : (last && last.volume ? last.volume.toLocaleString() : '-')}</span>
-        <span style="color:var(--tx3)">52W HIGH</span><span style="text-align:right">${d.fiftyTwoWeekHigh != null ? d.fiftyTwoWeekHigh.toLocaleString(undefined,{maximumFractionDigits:2}) : '-'}</span>
-        <span style="color:var(--tx3)">52W LOW</span><span style="text-align:right">${d.fiftyTwoWeekLow != null ? d.fiftyTwoWeekLow.toLocaleString(undefined,{maximumFractionDigits:2}) : '-'}</span>
-        <span style="color:var(--tx3)">STATE</span><span style="text-align:right">${esc(d.marketState||'?')}</span>
-      </div>
-    </div>`;
-  $('rightInfo').innerHTML = html;
-}
+// renderStockInfo IS GONE. It drew the second, plainer version of this window
+// from the live /api/chart payload and wrote it over #rightInfo, which is how a
+// working backend ended up showing LESS than a broken one. Everything it drew
+// (open, high, low, previous close, volume, the 52 week extremes, the market
+// state) is now a row of the one sheet's statistics rail, filled from the same
+// payload through renderMarketStatic's `live` argument.
 
 
 // ===== Chat window: the shared room + a local data assistant =====
