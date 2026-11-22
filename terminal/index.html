@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122182225';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122185247';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -7666,6 +7666,11 @@ function mkChart(box, bars){
       if(s && typeof s.setData === 'function'){
         s.setData(areaPts);
         MT_MK.chart.timeScale().fitContent();
+        // the box is measured while the section is still being laid out, so the fit
+        // above can be to a width the pane does not end up having. Two deferred
+        // passes catch the settled size; both are no-ops if it never changed.
+        setTimeout(function(){ mkFitChart(); }, 60);
+        setTimeout(function(){ mkFitChart(); }, 420);
         return true;
       }
       try{ MT_MK.chart.remove(); }catch(e2){}
@@ -7851,15 +7856,39 @@ function mkRailRender(){
   });
 }
 window.mkRailRender = mkRailRender;
-// the rail can be resized by the window manager, and a chart drawn at the old
-// width would be clipped: re-fit it to the box it lives in
-window.addEventListener('resize', function(){
+// THE RAIL CHANGES SIZE, AND THE CHART HAS TO FOLLOW IN BOTH DIRECTIONS. Widening the
+// box alone left the bars where they were and filled the rest of the pane with empty
+// space on the LEFT: the visible range was fitted to the old, narrower width, and the
+// series is anchored to the right edge. So a size change re-applies the width AND
+// re-fits the time scale, which is what puts the first bar back at the left edge.
+function mkFitChart(){
   try{
-    if(!MT_MK.chart) return;
+    if(!MT_MK.chart) return false;
     var box = $('mkChartBox');
-    if(box && box.clientWidth) MT_MK.chart.applyOptions({width: box.clientWidth});
+    if(!box) return false;
+    // width only: the chart owns its own pixel ratio, and passing a height here made
+    // the drawing buffer disagree with the pane. The pane's own CSS height stands.
+    if(box.clientWidth) MT_MK.chart.applyOptions({width: box.clientWidth});
+    if(MT_MK.chart.timeScale && MT_MK.chart.timeScale().fitContent){
+      MT_MK.chart.timeScale().fitContent();
+    }
+    return true;
+  }catch(e){ return false; }
+}
+window.mkFitChart = mkFitChart;
+// the pane can be widened by the window manager, the reader's zoom or a text size
+// change, and none of those are a window resize, so the box itself is watched
+if(window.ResizeObserver){
+  try{
+    var mkWatch = new ResizeObserver(function(){ mkFitChart(); });
+    var mkHook = setInterval(function(){
+      var b = $('mkChartBox');
+      if(b){ mkWatch.observe(b); clearInterval(mkHook); }
+    }, 700);
+    setTimeout(function(){ clearInterval(mkHook); }, 20000);
   }catch(e){}
-});
+}
+window.addEventListener('resize', function(){ mkFitChart(); });
 
 // ===== Static-market panel (snapshot mode): full investor info sheet =====
 function renderMarketStatic(rec, info){
