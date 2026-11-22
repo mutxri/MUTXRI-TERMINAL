@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122231214';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261123001505';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -542,8 +542,27 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
          font-size:12px;line-height:1;padding:0 4px;cursor:pointer;
          border-radius:2px;opacity:.6}
   .pw-qb:hover{color:var(--acc);opacity:1}
+  /* IT OPENS WHEN THE POINTER COMES NEAR, IT IS NOT CLICKED OPEN (owner,
+     2026-11-23: "you dont have to click for the search bar to come out ... when
+     the mouse pointer nears the top the bar and other icons like exit show up so
+     user can interact with them"). The title line always carries the panel name
+     and the security, so a window still says what it is from across the desk.
+     The search box and the controls beside it are not drawn until the pointer is
+     on that line, and then they are simply there to be used: no mark to find
+     first, no click to spend. HIDDEN HERE MEANS visibility, NOT opacity. An
+     invisible button that still takes the click is worse than one that is drawn,
+     and visibility keeps the cluster's width so nothing on the line shifts when
+     it appears. A box holding a term stays open on its own through .q-on, set
+     below as soon as anything is typed, because the rows under it are narrowed
+     by that term and nothing else on screen says so. */
   .pwin-hd .pw-q{display:none}
+  .pwin-hd:hover .pw-q,
+  .pwin-hd:focus-within .pw-q,
   .pwin-hd.q-on .pw-q{display:block}
+  .pwin-hd .pw-qb,.pwin-hd .pw-fill,.pwin-hd .pw-x{visibility:hidden}
+  .pwin-hd:hover .pw-qb,.pwin-hd:hover .pw-fill,.pwin-hd:hover .pw-x,
+  .pwin-hd:focus-within .pw-qb,.pwin-hd:focus-within .pw-fill,.pwin-hd:focus-within .pw-x,
+  .pwin-hd.q-on .pw-qb,.pwin-hd.q-on .pw-fill,.pwin-hd.q-on .pw-x{visibility:visible}
   .pwin-hd.q-on .pw-qb{color:var(--acc);opacity:1}
 /* ONE close control for every window. A user-added panel window (.pwin-hd) and a
    window of the default layout wear the same .pw-x, so the default four get the
@@ -686,8 +705,21 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
      rail at all times, which is two more standing boxes on a desk that has just
      had one taken off every panel window. The box is a control: it appears when
      it is asked for and gets out of the way when it is not. */
+  /* THE RAIL HEADS BEHAVE THE SAME WAY: near the top line, and the box and the
+     controls are there. Same reasoning as the panel windows above, same .q-on
+     once a term is in the box. */
   .wl-head .sw, .eyebrow .sw{display:none}
+  .wl-head:hover .sw, .eyebrow:hover .sw,
+  .wl-head:focus-within .sw, .eyebrow:focus-within .sw,
   .wl-head.q-on .sw, .eyebrow.q-on .sw{display:block}
+  .wl-head .rail-qb,.eyebrow .rail-qb,
+  .wl-head>.pw-x,.eyebrow>.pw-x{visibility:hidden}
+  .wl-head:hover .rail-qb,.eyebrow:hover .rail-qb,
+  .wl-head:hover>.pw-x,.eyebrow:hover>.pw-x,
+  .wl-head:focus-within .rail-qb,.eyebrow:focus-within .rail-qb,
+  .wl-head:focus-within>.pw-x,.eyebrow:focus-within>.pw-x,
+  .wl-head.q-on .rail-qb,.eyebrow.q-on .rail-qb,
+  .wl-head.q-on>.pw-x,.eyebrow.q-on>.pw-x{visibility:visible}
   .rail-qb{flex:0 0 auto;background:none;border:0;color:var(--tx3);
     font-family:var(--mono);font-size:12px;line-height:1;padding:0 4px;
     margin-left:auto;cursor:pointer;border-radius:2px;opacity:.6}
@@ -4915,7 +4947,14 @@ window.MTPanelWins = (function(){
       if(e.key === 'Escape'){ q.value = ''; pwSearch(id, ''); q.blur(); hd.classList.remove('q-on'); }
       if(e.key === 'Enter'){ e.preventDefault(); pwSearch(id, q.value); }
     });
-    q.addEventListener('input', function(){ pwSearch(id, q.value, true); });
+    q.addEventListener('input', function(){
+      // THE BOX PINS ITSELF OPEN AS SOON AS IT HOLDS A TERM. It is shown by
+      // hovering the title line, so without this it would vanish the moment the
+      // pointer moved away, leaving the panel filtered by a term with nothing on
+      // screen to say so and no control to undo it.
+      hd.classList.toggle('q-on', !!q.value);
+      pwSearch(id, q.value, true);
+    });
     // An EMPTY box closes itself when the reader leaves it; a box with a term in
     // it stays open. A filter that is still narrowing the panel has to remain
     // visible, or the window quietly shows a subset of its rows with nothing on
@@ -10628,6 +10667,14 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
     });
     if(input){
       input.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      // Same as the panel box: once there is a term in it, the box stays on
+      // screen after the pointer leaves the head. It matters more here, because
+      // the suggestion list hangs BELOW the head: without this, moving down to
+      // pick a suggestion takes the pointer off the head and would close the
+      // very box that produced the list.
+      input.addEventListener('input', function(){
+        head.classList.toggle('q-on', !!input.value);
+      });
       input.addEventListener('keydown', function(e){
         if(e.key === 'Escape'){ clear(); input.blur(); close(); }
       });
