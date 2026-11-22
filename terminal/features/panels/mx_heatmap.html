@@ -7,7 +7,7 @@
      Never renders invented rows.
      LIVE DATA appears only when wired to the bundled Python server (see README). -->
 <html lang="en">
-<head><script>(function(){var V='20261122180445';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122181255';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - Heatmap</title>
@@ -267,7 +267,7 @@
 </div>
 <script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <!-- drawing tools + indicator maths for the candlestick chart (shared module) -->
-<script src="../../static_data/mx_chart_tools.js?v=20261122180445"></script>
+<script src="../../static_data/mx_chart_tools.js?v=20261122181255"></script>
 <script>
 // The deploy ships static_data/ (which carries mx_chart_tools.js) but a fresh
 // checkout has not copied it there yet, so fall back to the tracked source that
@@ -275,8 +275,8 @@
 // promise of tools it cannot deliver and says so on the indicator line.
 if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/script>'); }
 </script>
-<script src="../../static_data/nse_heatmap_charts.js?v=20261122180445"></script>
-<script src="../../static_data/nse_ir_adapter.js?v=20261122180445"></script>
+<script src="../../static_data/nse_heatmap_charts.js?v=20261122181255"></script>
+<script src="../../static_data/nse_ir_adapter.js?v=20261122181255"></script>
 <script>
 (function(){
   "use strict";
@@ -735,12 +735,18 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     });
     return TM;
   }
-  function tmClose(){ if(TM) TM.classList.remove("on"); tmCell = null; }
+  // Closing hides the menu and nothing else. It used to drop the security as
+  // well, and tmDo reads that security AFTER closing, so anything that closed
+  // the menu a moment early left every item doing nothing at all: the menu
+  // vanished, no window opened, and no error was thrown to say why. The subject
+  // lives on the element now (see tmOpen), so an action cannot lose it.
+  function tmClose(){ if(TM) TM.classList.remove("on"); }
   function tmOpen(c, ev){
     if(!c) return;
     tmCell = c;
     var el = tmEl();
     var tk = c.ticker || c.sym || c.short || "";
+    el.dataset.sym = String(tk).toUpperCase();
     el.querySelector("#tmT").textContent = String(tk).toUpperCase() + "  ·  " + activeEx;
     el.querySelector("#tmN").textContent = c.name || "";
     el.classList.add("on");
@@ -759,10 +765,11 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   }
   function tmDo(action){
     var c = tmCell;
+    // The ticker is read off the menu itself, not off a variable that something
+    // else might have cleared between opening the menu and choosing from it.
+    var sym = String((TM && TM.dataset.sym) || (c && (c.ticker || c.sym || c.short)) || "").trim();
     tmClose();
-    if(!c) return;
-    if(action === "GRAPH"){ openChart(c); return; }
-    var sym = String(c.ticker || c.sym || c.short || "").trim();
+    if(action === "GRAPH"){ if(c) openChart(c); return; }
     if(!sym) return;
     var sent = false;
     try{
@@ -791,7 +798,10 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       tmDo(k === "F" ? "FOCUS" : k === "C" ? "CHART" : k === "M" ? "MARKET" : "GRAPH");
     }
   });
-  window.addEventListener("blur", tmClose);
+  // NO blur HANDLER HERE. This panel runs in a frame, and focus crosses frames
+  // constantly: focusing the menu's first item was itself enough to fire blur a
+  // moment later and shut the menu the reader had only just opened. Clicking
+  // away and Escape are the two gestures that mean close, and they are enough.
 
   function openChart(c){
     if(!c) return;
