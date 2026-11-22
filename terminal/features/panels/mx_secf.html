@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><script>(function(){var V='20261122031326';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
+<html lang="en"><head><script>(function(){var V='20261122035259';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
 <title>SECF</title>
 <style>
 :root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
@@ -48,7 +48,25 @@ tbody tr:hover,tbody tr.sel{background:#141414}
    panel therefore works in the terminal, on the development host and straight
    from the repo, and MX_SRC records which source answered. */
 var MX_SRC = '';
+// THE PARITY ROUTE IS DEVELOPMENT ONLY. serve_local.py serves /api/parity/*;
+// the deployed site does not, and the parent frame sends any /api/ path to the
+// data backend, which 404s with an HTML error page that carries no CORS header.
+// The browser then reports a CORS failure for a route that simply is not there,
+// and the panel pays a cross-origin round trip, against a backend that sleeps
+// between visits, for an answer it throws away. Every caller below already
+// falls back to the static files the site ships, so asking only where the route
+// can exist changes no panel's content: it removes the wasted request and the
+// red line that was never a fault.
+function mxDevHost(){
+  try{
+    var h = String(location.hostname || '').toLowerCase();
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1' ||
+           h === '[::1]' || /\.local$/.test(h) || /\.localhost$/.test(h);
+  }catch(e){ return false; }
+}
 function mxJSON(u){
+  if(/^\/api\/parity\//.test(String(u)) && !mxDevHost())
+    return Promise.reject(new Error('the parity route is development only'));
   return fetch(u, {cache:'no-store'}).then(function(r){
     var nm = u.split('?')[0].split('/').pop();
     if(!r.ok) throw new Error(nm + ' ' + r.status);
@@ -83,12 +101,26 @@ function mxSnapshot(ex){
         });
     });
 }
-function mxSearch(q){
+// WHY THIS TAKES THE EXCHANGE. The caller filters the results down to the
+// selected tab, and this used to hand back the first 400 rows of all four
+// exchanges combined, read in the order NGX, NSE, JSE, EGX. NGX and NSE come to
+// 218, JSE adds 361, and the cut fell inside JSE: every EGX row was discarded
+// before the caller ever saw it. The EGX tab therefore read "0 instruments" on
+// a market whose file holds 321 of them, and the JSE tab showed 182 of its 361.
+// Nothing errored, nothing was logged, the panel just quietly said the Egyptian
+// exchange was empty. Filtering here, before any cut, is the fix: the tab asks
+// for its own exchange and gets all of it. The arbitrary cap goes with it,
+// because the caller already limits what it draws and four snapshots the site
+// ships anyway are not a quantity a browser needs protecting from.
+function mxSearch(q, exWanted){
   var term = String(q || '').trim().toLowerCase();
+  var want = String(exWanted || 'ALL').toUpperCase();
   return mxJSON('/api/parity/search?q=' + encodeURIComponent(q || ''))
     .then(function(d){ MX_SRC = 'parity api'; return d; })
     .catch(function(){
-      var EXS = ['NGX', 'NSE', 'JSE', 'EGX'];
+      var EXS = ['NGX', 'NSE', 'JSE', 'EGX'].filter(function(e){
+        return want === 'ALL' || e === want;
+      });
       return Promise.all(EXS.map(function(ex){
         return mxSnapshot(ex).catch(function(){ return {stocks:[]}; });
       })).then(function(all){
@@ -106,7 +138,7 @@ function mxSearch(q){
           });
         });
         MX_SRC = 'static snapshots';
-        return {q:q, count:out.length, results:out.slice(0, 400)};
+        return {q:q, count:out.length, results:out};
       });
     });
 }
@@ -129,8 +161,15 @@ function mxSearch(q){
 
   function search(){
     var q=document.getElementById('q').value.trim();
-    mxSearch(q).then(function(d){
+    // The selected tab is named on the way in, so the reader's exchange is the
+    // one that gets read, not whatever survived a cut taken across all four.
+    // The filter below stays: the parity route on the development host answers
+    // for every exchange regardless of what it was asked.
+    mxSearch(q, ST.ex).then(function(d){
       var rows=(d.results||[]).filter(function(r){ return ST.ex==='ALL'||r.ex===ST.ex; });
+      // The table draws at most 300. The count has to say so when there are
+      // more, or it reports the limit as if it were the size of the market.
+      ST.total=rows.length;
       ST.rows=rows.slice(0,300); ST.sel=0; render();
     });
   }
@@ -148,7 +187,9 @@ function mxSearch(q){
       tr.onmouseenter=function(){ ST.sel=i; };
       tb.appendChild(tr);
     });
-    document.getElementById('cnt').textContent=ST.rows.length+' instruments · '+ST.ex;
+    var tot=(ST.total==null?ST.rows.length:ST.total);
+    document.getElementById('cnt').textContent=
+      (tot>ST.rows.length ? ST.rows.length+' of '+tot : String(tot))+' instruments · '+ST.ex;
     document.getElementById('hint').textContent='search across NGX · NSE · JSE · EGX';
   }
   function open(r){

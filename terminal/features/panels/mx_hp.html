@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><script>(function(){var V='20261122031326';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
+<html lang="en"><head><script>(function(){var V='20261122035259';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><meta charset="utf-8">
 <title>HP</title>
 <style>
 :root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
@@ -61,7 +61,25 @@ tbody tr:hover{background:#111}
    panel therefore works in the terminal, on the development host and straight
    from the repo, and MX_SRC records which source answered. */
 var MX_SRC = '';
+// THE PARITY ROUTE IS DEVELOPMENT ONLY. serve_local.py serves /api/parity/*;
+// the deployed site does not, and the parent frame sends any /api/ path to the
+// data backend, which 404s with an HTML error page that carries no CORS header.
+// The browser then reports a CORS failure for a route that simply is not there,
+// and the panel pays a cross-origin round trip, against a backend that sleeps
+// between visits, for an answer it throws away. Every caller below already
+// falls back to the static files the site ships, so asking only where the route
+// can exist changes no panel's content: it removes the wasted request and the
+// red line that was never a fault.
+function mxDevHost(){
+  try{
+    var h = String(location.hostname || '').toLowerCase();
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1' ||
+           h === '[::1]' || /\.local$/.test(h) || /\.localhost$/.test(h);
+  }catch(e){ return false; }
+}
 function mxJSON(u){
+  if(/^\/api\/parity\//.test(String(u)) && !mxDevHost())
+    return Promise.reject(new Error('the parity route is development only'));
   return fetch(u, {cache:'no-store'}).then(function(r){
     var nm = u.split('?')[0].split('/').pop();
     if(!r.ok) throw new Error(nm + ' ' + r.status);
