@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261123013059';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261123015556';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1087,6 +1087,29 @@ html{scrollbar-width:none;}
     .des-body{grid-template-columns:minmax(0,1fr)}
     .des-rail{border-left:0;border-top:1px solid var(--line)}
   }
+  /* The volume and the date the quote is good for sit under the price, where the
+     Godel panel puts them ("Vol 80,692,546 At 11/21/26"). It is the one line that
+     stops a reader taking a closed board's last print for a live one. */
+  .des-asof{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;
+            color:var(--tx3);margin-top:3px}
+  /* A withheld ratio is drawn as withheld. The analytics files carry a reason for
+     every blank, and a ratio that silently vanishes reads as a ratio of zero. */
+  .des-v.off{color:var(--tx3);font-style:italic}
+  /* THE FUNCTION CODES. Godel closes its description panel with a grid of short
+     codes, each opening another view of the same security. This terminal already
+     has those views as panels, so the codes open them here, on this security, in
+     their own window. Nothing new is drawn: it is a way into what is already
+     built, which is the whole point of the row in the panel it is modelled on. */
+  .des-fn{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
+          border-top:1px solid var(--line)}
+  .des-fnb{display:flex;align-items:center;gap:7px;padding:5px 10px;background:none;
+           border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+           color:var(--tx2);font-family:var(--mono);font-size:10px;letter-spacing:.04em;
+           cursor:pointer;text-align:left;min-width:0}
+  .des-fnb:hover{background:var(--mint-dim);color:var(--tx)}
+  .des-fnc{flex:0 0 auto;color:var(--acc);background:var(--bg3);border-radius:2px;
+           padding:1px 4px;font-size:9px;font-weight:700;letter-spacing:.08em}
+  .des-fnl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 
   /* THE COUNTERPARTIES SIT SIDE BY SIDE, as Godel sets them: customers, suppliers,
      competitors, peers and partners in columns, so the whole counterparty picture
@@ -7447,6 +7470,122 @@ function mkStatsSection(sym, ex, mkt, row, shFile, cinfo, listing, hist){
   return mkSec('KEY STATISTICS', r.asOf ? esc('as of ' + r.asOf) : '', body);
 }
 
+// ---- the multiples, into the sheet's rail ---------------------------------
+// Godel's description panel gives most of its rail to the multiples, and this
+// terminal has had them all along: static_data/analytics/<KEY>.json carries a
+// valuation block (price to earnings, to book, to sales, enterprise value to
+// operating profit, the earnings yield) and a ratios array, each with the period
+// it was computed over and, where a figure could not be computed, the reason.
+//
+// THE PERIOD IS NAMED, ALWAYS. A multiple is a price against a published figure,
+// and the figure is a year or a half year old. "P/E 14.33" over a live quote
+// invites the reader to take it as current; "P/E 14.33 · FY2026" does not. The
+// group heading carries the period for the whole block.
+//
+// A WITHHELD RATIO IS DRAWN AS WITHHELD, not dropped. The analytics files hold a
+// stated reason for every blank. A ratio that simply vanishes from a list reads
+// as a ratio the company does not have, which is a different claim.
+function desVrow(k, v, off){
+  return '<div class="des-r"><span class="des-k">' + esc(k) + '</span>' +
+         '<span class="des-v' + (off ? ' off' : '') + '">' + esc(v) + '</span></div>';
+}
+function desFillValuation(rec){
+  var slot = document.getElementById('desVal');
+  if(!slot) return;
+  var sym = String((rec && (rec.sym || rec.ticker)) || '').trim();
+  var ex  = String((rec && rec.exchange) ||
+                   (typeof currentEx !== 'undefined' ? currentEx : '') || '').toUpperCase();
+  if(!sym || !ex) return;
+  // OUT OF ORDER READS MUST NOT PAINT. Clicking through four securities fires
+  // four reads, and the slowest can answer last. The slot is stamped with the
+  // security it was drawn for and only a read for that security may write.
+  slot.dataset.sym = sym;
+  mkFile('analytics', mkCands(ex, sym, false)).then(function(res){
+    var cur = document.getElementById('desVal');
+    if(!cur || cur.dataset.sym !== sym) return;
+    var d = res && res.data;
+    if(!d) return;
+    var v = d.valuation || {}, rows = '';
+    var num = function(x){
+      return (x === null || x === undefined || !isFinite(Number(x))) ? null : Number(x);
+    };
+    var mult = function(label, key){
+      var n = num(v[key]);
+      if(n !== null) rows += desVrow(label, n.toFixed(2) + 'x', false);
+    };
+    mult('P/E', 'pe'); mult('P/BOOK', 'pb'); mult('P/SALES', 'ps');
+    mult('EV/EBIT', 'ev_ebit');
+    var ey = num(v.earnings_yield);
+    if(ey !== null) rows += desVrow('EARNINGS YLD', ey.toFixed(2) + '%', false);
+    // Two figures from the ratios array that the Godel rail also carries, and
+    // that a reader of a multiple immediately wants next to it.
+    (d.ratios || []).forEach(function(r){
+      if(!r || (r.key !== 'eps' && r.key !== 'roe')) return;
+      var label = (r.key === 'eps') ? 'EPS' : 'ROE';
+      if(r.value === null || r.value === undefined){
+        rows += desVrow(label, 'withheld', true);
+        return;
+      }
+      // A per cent sign joins its number; a currency code stands off it. The
+      // analytics files store both in the same `unit` field, so the rule is
+      // applied here rather than in the data: "41.4%" and "2.39 KES".
+      var unit = String(r.unit || '').trim();
+      var join = (unit === '%') ? '' : ' ';
+      rows += desVrow(label, Number(r.value).toLocaleString(undefined,
+                      {maximumFractionDigits: 2}) + (unit ? join + unit : ''), false);
+    });
+    if(!rows) return;
+    var period = v.valBasis || v.asOfPeriod || d.period || '';
+    cur.innerHTML = '<div class="des-grp">VALUATION' +
+      (period ? ' <span style="color:var(--tx3);font-weight:400;letter-spacing:.04em">\u00b7 ' +
+                esc(String(period)) + '</span>' : '') + '</div>' + rows;
+  })['catch'](function(){});
+}
+
+// ---- the function codes that close the sheet -------------------------------
+// Short codes, each opening another of this terminal's panels on the security
+// the sheet is showing, in its own window. They are the panels that actually
+// read a security (the same set the panel layer inherits a symbol into), so a
+// code can never open a view that has nothing to do with the company.
+var DES_FNS = [
+  ['CHART', 'chart',      'Price Chart'],
+  ['FA',    'financials', 'Financials'],
+  ['CN',    'news',       'News'],
+  ['CF',    'ann',        'Announcements'],
+  ['HDS',   'holders',    'Holders'],
+  ['TAS',   'tas',        'Time and Sales'],
+  ['COMP',  'compare',    'Compare'],
+  ['TRAN',  'transcript', 'Transcripts'],
+  ['CACS',  'corp',       'Corporate Actions'],
+  ['RTG',   'ratings',    'Ratings']
+];
+function desFnGrid(sym){
+  var h = '<div class="des-fn">';
+  DES_FNS.forEach(function(f){
+    h += '<button type="button" class="des-fnb" data-panel="' + esc(f[1]) + '" ' +
+         'data-sym="' + esc(sym) + '" title="' + esc(f[2] + ' \u00b7 ' + sym) + '">' +
+         '<span class="des-fnc">' + esc(f[0]) + '</span>' +
+         '<span class="des-fnl">' + esc(f[2]) + '</span></button>';
+  });
+  return h + '</div>';
+}
+// One delegated listener for every sheet ever drawn: the sheet is rewritten on
+// each selection, so a listener bound to its buttons would die with it.
+document.addEventListener('click', function(ev){
+  var b = ev.target && ev.target.closest ? ev.target.closest('.des-fnb') : null;
+  if(!b) return;
+  ev.preventDefault();
+  var panel = b.getAttribute('data-panel'), sym = b.getAttribute('data-sym');
+  if(!panel) return;
+  try{
+    if(window.MTPanelWins && window.MTPanelWins.openFor && sym){
+      window.MTPanelWins.openFor(panel, sym);
+    } else if(typeof openPanelWin === 'function'){
+      openPanelWin(panel);
+    }
+  }catch(e){}
+});
+
 // ---- customers, suppliers, competitors, partners, and disclosures --------
 // static_data/relationships_<EX>.json holds, per security, the entities a source
 // actually names under customers, suppliers, competitors and partners, plus a
@@ -8154,6 +8293,13 @@ function renderMarketStatic(rec, info, live){
            '<span class="des-v">' + esc(t) + '</span></div>';
   };
   const grp = (label, rows) => rows ? '<div class="des-grp">' + esc(label) + '</div>' + rows : '';
+  // "Vol 8,244,823 · at 2026-11-20". The volume is already in the rail, but the
+  // date is the fact that matters next to a price and it belonged nowhere else:
+  // a board that closed three days ago and one quoting now look identical
+  // without it.
+  const asOfTxt = rec.asOf || (window.__MKASOF && window.__MKASOF[currentEx]) || '';
+  const quoteLine = [vol && vol !== '-' ? 'Vol ' + vol : '',
+                     asOfTxt ? 'at ' + asOfTxt : ''].filter(Boolean).join(' \u00b7 ');
   // THE RAIL IS GROUPED BY WHAT THE FIGURE IS, not by what file it came from. PROFILE
   // is what the company is and does not change through a day; MARKET is today's
   // trading; FILINGS is what it has filed.
@@ -8208,11 +8354,12 @@ function renderMarketStatic(rec, info, live){
         <div class="des-quote">
           <div class="des-last">${px}<span class="des-cur">${esc(rec.currency||'')}</span></div>
           <div class="des-chg ${cls}">${chgTxt}</div>
+          <div class="des-asof">${esc(quoteLine)}</div>
         </div>
       </div>
       <div class="des-body">
-        <div class="des-main"><div id="mkRelBox"></div></div>
-        <div class="des-rail">${grp('PROFILE', railProfile)}${grp('MARKET', railMarket)}${grp('FILINGS', railFiled)}</div>
+        <div class="des-main"><div id="mkRelBox"></div>${desFnGrid(rec.ticker || sym0(rec))}</div>
+        <div class="des-rail">${grp('PROFILE', railProfile)}${grp('MARKET', railMarket)}<div id="desVal"></div>${grp('FILINGS', railFiled)}</div>
       </div>
     </div>`;
   // The company description is NOT drawn (owner, 2026-10-14). The 'description'
@@ -8237,6 +8384,10 @@ function renderMarketStatic(rec, info, live){
   // here: appending a SECOND #mkRelBox would give the document two elements under
   // one id, and both painters look the box up by that id.
   $('rightInfo').innerHTML = html;
+  // The multiples come out of the analytics file, which is a second read, so the
+  // rail is drawn without them and they are written into their own slot when the
+  // file lands. The sheet is never held back waiting for them.
+  try{ desFillValuation(rec); }catch(e){}
   mkPaintRel(rec, i);
   // The sections that belong to this window and to this security: holders from
   // shareholders_<EX>.json, the valuation multiples with their withheld reasons
