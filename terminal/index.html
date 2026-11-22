@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122035936';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122041441';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -878,7 +878,15 @@ html{scrollbar-width:none;}
 .chat-signin:hover{background:var(--mint-dim,var(--bg3))}
 .chat-note.bad{color:var(--warn,#e6a700)}
 .chat-note b{color:var(--acc)}
-.chat-form{display:flex;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--line2)}
+/* The composer is a ROW: the attach button, the box and SEND. The reply quote
+   and the image preview are inserted into that same row, so without wrapping
+   they sat BESIDE the box and took its width: a reader answering someone got a
+   two-character-wide slot and could not see what they were typing. They wrap
+   onto their own full-width line above the row instead (see #roomReply and
+   #roomImage, which claim the whole line). */
+.chat-form{display:flex;flex-wrap:wrap;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--line2)}
+#roomReply,#roomImage{flex:0 0 100%;width:100%;box-sizing:border-box;
+  overflow-wrap:anywhere;order:-1}
 .chat-form input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
   font-family:var(--mono);font-size:11px;padding:7px 9px;border-radius:2px;outline:0}
 .chat-form input:focus{border-color:var(--acc)}
@@ -8535,13 +8543,29 @@ function renderStockInfo(d, sym){
     const rb = e.target.closest('.rm-reply');
     if(rb){
       // Read the quote off the rendered row rather than adding attributes to
-      // drawMsg: the text a reader sees is exactly what gets quoted.
+      // drawMsg: the text a reader sees is exactly what gets quoted. But read
+      // the PARTS, not the containers. The header holds the exchange badges and
+      // the time beside the name, and the REPLY control is appended inside the
+      // text block, so taking textContent off those two elements produced
+      //   replying to Gabriel OgutuNSE OCH09:15 PM: when to buy a company
+      //   sharereply
+      // which quotes a sentence the sender never wrote and names them wrongly
+      // on top of it. The name comes from the name span, and the text from a
+      // copy of the block with its own controls taken out.
       const rrow = rb.closest('.room-msg');
       const tEl = rrow && rrow.querySelector('.rm-t');
-      const nEl = rrow && rrow.querySelector('.rm-h');
+      const nEl = rrow && (rrow.querySelector('.rm-n') || rrow.querySelector('.rm-h'));
+      var quoted = '';
+      if(tEl){
+        var copy = tEl.cloneNode(true);
+        // the controls that live inside the text block, never part of the quote
+        var kill = copy.querySelectorAll('.rm-reply, .rm-x, .rm-cancel, button');
+        for(var ki = 0; ki < kill.length; ki++) kill[ki].remove();
+        quoted = (copy.textContent || '').replace(/\s+/g, ' ').trim();
+      }
       setReply({id: rrow && rrow.getAttribute('data-id'),
                 name: (nEl && nEl.textContent.trim()) || '',
-                text: (tEl && tEl.textContent.trim()) || ''});
+                text: quoted});
       return;
     }
     const b = e.target.closest('.rm-x');
