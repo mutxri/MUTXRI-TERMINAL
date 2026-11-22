@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122062056';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -474,7 +474,16 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
    .main, so a panel iframe is never re-parented (re-parenting reloads it). The
    narrow-screen rule below turns the whole layer off, which is what keeps the
    mobile flow (stacked scroll-through panels, no tabs) exactly as it was. */
-.pwlayer{position:absolute;left:0;top:0;right:0;bottom:0;z-index:45;display:none;pointer-events:none}
+/* NO z-index HERE. A z-index on this layer makes it a stacking context, and
+   then every panel window inside it is painted at the LAYER's depth: its own
+   z-index orders it against its siblings and against nothing else, so the rails
+   (root context, z 11 to 15) could never come in front of a panel window no
+   matter how recently they were clicked. position:absolute with no z-index is
+   not a stacking context, so each .pwin keeps its own z in the root context and
+   one order covers every window on the desk. See the note above .search: the
+   same accidental stacking context left the finder's suggestion list
+   unclickable behind the tape. */
+.pwlayer{position:absolute;left:0;top:0;right:0;bottom:0;display:none;pointer-events:none}
 .pwlayer.on{display:block}
 /* FLAT DESK (2026-11-09): a panel is a square cornered pane of the desk, not a
    floating card. No radius, no drop shadow, a hairline black edge, so tiled panels
@@ -549,6 +558,9 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
   .pw-x{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:11px;
   line-height:1;padding:0 5px;cursor:pointer;border-radius:2px}
 .pw-x:hover{color:#ff5f56;background:rgba(255,95,86,.14)}
+.pw-fill{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:10px;
+  line-height:1;padding:0 4px;cursor:pointer;border-radius:2px}
+.pw-fill:hover{color:var(--acc);background:rgba(51,226,154,.14)}
 .wl-head .pw-x,.chat-head .pw-x,.panel-head .pw-x,.eyebrow .pw-x{margin-left:auto}
 .pwin-body{flex:1 1 auto;min-height:0;position:relative}
 .pwin-body iframe{width:100%;height:100%;border:0;display:block;background:var(--bg)}
@@ -2449,6 +2461,21 @@ function renderTabs(){
   window.addEventListener('pageshow', function(e){
     if(e.persisted){ try{ location.reload(); }catch(_){} }
   });
+// ONE STACKING ORDER FOR THE WHOLE DESK. The rails and the panel windows have
+// separate managers, and each used to count its own top z from its own windows,
+// so a rail raised to 16 still lost to a panel window sitting at 23 and the two
+// sets could not interleave. Both now take their next z from here, so the window
+// clicked last is the one in front whoever owns it. seen() lets a manager report
+// a z it read back from a stored workspace, which keeps the counter above
+// everything already on screen without renumbering anything.
+window.MTZ = (function(){
+  var top = 20;
+  return {
+    bump: function(){ return ++top; },
+    seen: function(z){ z = Number(z); if(isFinite(z) && z > top) top = z; return top; }
+  };
+})();
+
   window.MTWin = (function(){
     const main = document.querySelector('.main');
     const KEYS = ['watch', 'center', 'info', 'chat'];
@@ -3219,6 +3246,7 @@ function renderTabs(){
         KEYS.forEach(function(k){
           const w = sp.wins[k];
           if(w && w.z > zTop) zTop = w.z;
+          if(w) window.MTZ.seen(w.z);
         });
       });
       // Every workspace this layer has read carries a savedAt from here on, so a
@@ -3480,8 +3508,7 @@ function renderTabs(){
     }
     function raise(k){
       const w = win(k);
-      if(w.z === zTop) return;
-      w.z = ++zTop;
+      w.z = window.MTZ.bump();
       NODE[k].style.zIndex = String(w.z);
       front();
     }
@@ -3683,7 +3710,7 @@ function renderTabs(){
       // or shut state for each of them) before the switch happens
       grabPanels(active);
       active = i;
-      KEYS.forEach(function(k){ const w = win(k); if(w.z > zTop) zTop = w.z; });
+      KEYS.forEach(function(k){ const w = win(k); if(w.z > zTop) zTop = w.z; window.MTZ.seen(w.z); });
       render();
       // ...and the arrangement being ENTERED is put back from ITS OWN record, so
       // nothing from the workspace just left survives the switch
@@ -3774,7 +3801,7 @@ function renderTabs(){
       // the workspace and build their own; the WINDOWS / RESET commands (and a
       // panel code typed in the finder) are the way back.
       w.open = on;
-      if(on){ w.z = ++zTop; }
+      if(on){ w.z = window.MTZ.bump(); }
       // record the dismissal on this workspace (extended mt_ws schema)
       const sp = cur();
       if(sp){
@@ -4127,6 +4154,7 @@ window.MTPanelWins = (function(){
         if(nums === 5) w.geom = true;             // a complete stored geometry is usable as-is
       }
       if(w.z > zTop) zTop = w.z;
+      window.MTZ.seen(w.z);
     });
     Object.keys(state).forEach(function(id){
       const w = state[id];
@@ -4486,6 +4514,35 @@ window.MTPanelWins = (function(){
     const lab = n.querySelector('.pw-sym');
     if(lab) lab.textContent = w.pin ? w.pin : symNow();
   }
+  // THE FILL GESTURE. One press takes the whole workspace; the press after it puts
+  // back the box the window had, from a copy taken at the moment of filling, so a
+  // reader who fills and restores loses nothing they had arranged.
+  const filled = {};                     // id -> the rect to come back to
+  function fillWin(id){
+    const w = state[id];
+    if(!w || !w.open) return false;
+    const b = bbox();
+    if(filled[id]){
+      const r = filled[id];
+      w.x = r.x; w.y = r.y; w.w = r.w; w.h = r.h;
+      delete filled[id];
+      try{ userSized[id] = r.userSized; }catch(e){}
+    }else{
+      filled[id] = {x: w.x, y: w.y, w: w.w, h: w.h, userSized: !!userSized[id]};
+      w.x = 0; w.y = 0;
+      w.w = Math.max(MIN_W, b.width);
+      w.h = Math.max(MIN_H, b.height);
+      // a filled window is the reader's own size, so the content pass must not
+      // touch it, and it keeps its place when the workspace is resized
+      try{ userSized[id] = true; }catch(e){}
+    }
+    w.z = ++zTop;
+    w.geom = true;
+    render();
+    save();
+    return true;
+  }
+
   function frontId(){
     let top = null;
     Object.keys(WINS).forEach(function(id){
@@ -4537,8 +4594,8 @@ window.MTPanelWins = (function(){
   }
   function raise(id){
     const w = state[id];
-    if(!w || !w.open || w.z === zTop) return;
-    w.z = ++zTop;
+    if(!w || !w.open) return;
+    w.z = window.MTZ.bump();
     if(nodes[id]) nodes[id].style.zIndex = String(w.z);
     front();
   }
@@ -4570,7 +4627,8 @@ window.MTPanelWins = (function(){
                        holders:1, perplexity:1, tas:1, trade:1, transcript:1};
   const rowBox = {};                     // id -> the list element the filter hides rows in
   const fittedOnce = {};                 // id -> the window has already been fitted to its content
-  const fitH = {};                       // id -> the height the content asked for
+  const fitH = {};                       // never written now: see the message handler
+  const lastContentH = {};                // id -> the last height a panel reported (diagnosis only)
   const fitMax = {};                     // id -> tallest content bottom measured so far
   const userSized = {};                  // id -> the reader dragged this window's edge
 
@@ -4686,13 +4744,16 @@ window.MTPanelWins = (function(){
       if(!f || f.contentWindow !== ev.source) return;
       const st = state[id];
       if(!st || !st.open || userSized[id] || st.tiled) return;
-      const want = Math.max(MIN_H, Math.ceil(h) + 30);   // 22px head + 8px air
-      if(Math.abs(st.h - want) > 8){
-        fitH[id] = want;
-        st.h = want;
-        place(id);
-        save();
-      }
+      // A PANEL DOES NOT SIZE ITS OWN WINDOW. This handler used to set the window
+      // height to whatever the panel posted, so a long panel (FINANCIALS, NEWS,
+      // FILINGS) grew itself to its full content height and swallowed the desk:
+      // the reader's layout was rearranged by a panel, not by the reader. The
+      // number is recorded for diagnosis only. Every panel already scrolls inside
+      // its own window, so the content is all reachable at the size the reader
+      // gave it, and the only things that change that size now are the reader's
+      // own gestures below and in drag(): the fill control, a drag, or TILE.
+      fitH[id] = null;
+      lastContentH[id] = Math.ceil(h);
     });
   });
 
@@ -4812,6 +4873,19 @@ window.MTPanelWins = (function(){
       if(hd.classList.toggle('q-on')) q.focus();
       else if(q.value){ q.value = ''; pwSearch(id, ''); }
     });
+    // FILL THE DESK, BY THE READER ONLY. A window can now be made to fill the whole
+    // workspace by pressing this, and pressing it again puts back the exact box it
+    // had. This is the gesture that used to happen on its own (see the content
+    // height handler), which is the wrong way round: the size of a window is the
+    // reader's decision, never the panel's.
+    const fill = document.createElement('button');
+    fill.type = 'button';
+    fill.className = 'pw-fill';
+    fill.textContent = '\u25a1';
+    fill.title = 'Fill the desk (press again to restore)';
+    fill.setAttribute('aria-label', 'Fill the desk');
+    fill.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    fill.addEventListener('click', function(e){ e.stopPropagation(); fillWin(id); });
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'pw-x';
@@ -4822,7 +4896,7 @@ window.MTPanelWins = (function(){
     // controls live. The box itself is absolutely positioned, so where it is
     // appended does not move it: it still opens centred on the title line.
     hd.appendChild(t); hd.appendChild(sy); hd.appendChild(sp); hd.appendChild(q);
-    hd.appendChild(qb); hd.appendChild(x);
+    hd.appendChild(qb); hd.appendChild(fill); hd.appendChild(x);
     hd.addEventListener('mousedown', function(e){ drag(id, e, 'move'); });
 
     const body = document.createElement('div');
@@ -4992,7 +5066,7 @@ window.MTPanelWins = (function(){
     const w = state[id];
     if(!w) return false;
     w.open = true;
-    w.z = ++zTop;
+    w.z = window.MTZ.bump();
     // A WINDOW OPENS WHERE IT CAN BE SEEN. If the place it would come up in is
     // buried under the windows already open, it is placed somewhere it is not
     // (see bestSpot): the reader never has to close the window on top to reach
@@ -5073,7 +5147,7 @@ window.MTPanelWins = (function(){
       w.open = keep.indexOf(id) >= 0;
       const d = defGeom(id);
       w.x = d.x; w.y = d.y; w.w = d.w; w.h = d.h; w.geom = true;
-      if(w.open) w.z = ++zTop;
+      if(w.open) w.z = window.MTZ.bump();
     });
     render();
     save();
