@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122050340';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122053523';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -503,8 +503,13 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
      adjust the size on the black part should be seen not grey part"). Every other panel
      keeps the grey card surface; this one is black so a resized window never grows a
      grey band under the quote. */
-  #pw_focus{background:#000}
-  #pw_focus .pwin-body{background:#000}
+  /* EVERY focus window, not just the first. The rule was written when a panel
+     could have one window and matched the element id pw_focus; the second one is
+     pw_focus__2 and was left with the ordinary panel background. Matching the
+     data attribute catches the whole family. */
+  .pwin[data-panelwin="focus"],.pwin[data-panelwin^="focus__"]{background:#000}
+  .pwin[data-panelwin="focus"] .pwin-body,
+  .pwin[data-panelwin^="focus__"] .pwin-body{background:#000}
   /* THE SEARCH IS CENTRED IN THE TITLE LINE (owner, 2026-11-03: "the search bar in the
      panels should be at the middle not towards the {x}"). It is absolutely positioned at
      the midpoint so the panel name on the left and the close button on the right cannot
@@ -3920,6 +3925,70 @@ window.MTPanelWins = (function(){
   const layer = document.getElementById('pwLayer');
   const WINS = {};                 // id -> {label, url}
   PANELS.forEach(function(p){ WINS[p.id] = {label: p.label, url: p.url}; });
+
+  // ---- MORE THAN ONE WINDOW PER PANEL ----
+  // A key is either a panel's own id, which is the FIRST window of that panel
+  // and is spelled exactly as it always was, or that id with an instance suffix:
+  // focus__2, focus__3. Nothing stored before this change contains a suffix, so
+  // every saved workspace and every deep link reads back untouched.
+  // The suffix is '__' and not '#': the window's element id is built from this
+  // key, and a '#' inside an id cannot be matched by a CSS selector.
+  const INST = '__';
+  function baseOf(key){
+    const k = String(key || '');
+    const i = k.indexOf(INST);
+    return i < 0 ? k : k.slice(0, i);
+  }
+  // Register an instance key so the rest of the layer can treat it as a window
+  // like any other. It carries its own copy of the panel's label and url, which
+  // is why urlFor, ensureNode, capture and applyState needed no change: they
+  // read WINS[key] and find a complete entry.
+  function ensureWin(key){
+    key = String(key || '');
+    if(WINS[key]) return key;
+    const base = baseOf(key);
+    if(key === base || !WINS[base]) return null;   // not an instance of a panel
+    WINS[key] = {label: WINS[base].label, url: WINS[base].url, inst: true};
+    if(!state[key]){
+      const w = {open: false, x: 0, y: 0, w: 0, h: 0, z: 20, geom: false};
+      const d = defGeom(key);                      // WINS already carries it
+      w.x = d.x; w.y = d.y; w.w = d.w; w.h = d.h; w.geom = true;
+      state[key] = w;
+    }
+    return key;
+  }
+  // The first free key for this panel: its own id while that window is shut,
+  // then the lowest unused number. A reader who closes the third of five and
+  // asks for another gets the gap back rather than a sixth.
+  function nextKey(base){
+    base = String(base || '').toLowerCase();
+    if(!WINS[base]) return null;
+    if(!state[base] || !state[base].open) return base;
+    for(let i = 2; i < 200; i++){
+      const k = base + INST + i;
+      if(!state[k] || !state[k].open) return ensureWin(k) || k;
+    }
+    return null;
+  }
+  // ANOTHER window of this panel, never a toggle. This is what the command line
+  // calls, so typing a panel name five times puts five of that panel on the desk.
+  function add(id){
+    const k = nextKey(id);
+    if(!k) return false;
+    ensureWin(k);
+    return open(k) ? k : false;
+  }
+  // An instance exists only while its window does. Dropping the closed ones
+  // keeps the numbering tight and keeps a workspace record from accumulating
+  // windows that are not on anyone's screen.
+  function pruneInstances(){
+    Object.keys(WINS).forEach(function(k){
+      if(!WINS[k].inst) return;
+      if(state[k] && state[k].open) return;
+      if(nodes[k]) return;                         // still painted: leave it
+      delete WINS[k]; delete state[k]; delete shown[k];
+    });
+  }
   const state = {};                // id -> {open, x, y, w, h, z, geom}
   const nodes = {};                // id -> section element
   const frames = {};               // id -> iframe element
@@ -3990,12 +4059,18 @@ window.MTPanelWins = (function(){
     try{ raw = JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){ raw = null; }
     const store = (raw && typeof raw === 'object' && raw.wins && typeof raw.wins === 'object') ? raw.wins : {};
     zTop = 20;
+    // Register the extra windows the store knows about BEFORE the pass below,
+    // or they would not be in WINS to read their own geometry back.
+    Object.keys(store).forEach(function(k){
+      if(k.indexOf(INST) > 0) ensureWin(k);
+    });
     Object.keys(WINS).forEach(function(id){
       const w = {open: false, x: 0, y: 0, w: 0, h: 0, z: 20, geom: false};
       state[id] = w;
       const s = store[id];                       // a window the store knows nothing about keeps its defaults
       if(s && typeof s === 'object'){
         if(typeof s.open === 'boolean') w.open = s.open;
+        if(s.pin) w.pin = String(s.pin).toUpperCase();
         let nums = 0;
         ['x', 'y', 'w', 'h', 'z'].forEach(function(k){
           const n = Number(s[k]);
@@ -4047,6 +4122,9 @@ window.MTPanelWins = (function(){
       if(!w) return;
       out[id] = {open: !!w.open, x: Math.round(w.x), y: Math.round(w.y),
                  w: Math.round(w.w), h: Math.round(w.h), z: Number(w.z) || 20};
+      // The security a window was pinned to is part of the arrangement. Without
+      // it a desk of five FOCUS windows comes back as five of the same company.
+      if(w.pin) out[id].pin = String(w.pin);
     });
     return out;
   }
@@ -4066,10 +4144,24 @@ window.MTPanelWins = (function(){
   // A null record (a workspace that has never held a panel window) shuts them all.
   function applyState(rec){
     let on = 0;
+    // The record owns the arrangement, so the extra windows it names are created
+    // here before the pass reads them, and the ones it does not name are shut by
+    // that same pass and pruned by the caller.
+    if(rec && typeof rec === 'object'){
+      Object.keys(rec).forEach(function(k){
+        if(k.indexOf(INST) > 0) ensureWin(k);
+      });
+    }
     Object.keys(WINS).forEach(function(id){
       const w = state[id];
       if(!w) return;
       const s = (rec && typeof rec === 'object') ? rec[id] : null;
+      // The pin travels with the arrangement: a workspace of five FOCUS windows
+      // comes back on five securities, not five copies of one.
+      if(s && typeof s === 'object'){
+        if(s.pin) w.pin = String(s.pin).toUpperCase();
+        else delete w.pin;
+      }
       let live = false;
       const nums = (s && typeof s === 'object') ? ['x', 'y', 'w', 'h', 'z'].filter(function(f){
         return isFinite(Number(s[f]));
@@ -4101,6 +4193,7 @@ window.MTPanelWins = (function(){
     applyState(rec);
     appliedFor = wsIndex();
     render();
+    pruneInstances();   // after render, so no node is orphaned by the delete
     save();
   }
   // The set on screen follows the workspace in front of the reader: whenever the
@@ -4337,9 +4430,13 @@ window.MTPanelWins = (function(){
     n.style.width = Math.round(w.w) + 'px';
     n.style.height = Math.round(w.h) + 'px';
     n.style.zIndex = String(w.z);
-    loadIfStale(id);
+    // A PINNED WINDOW KEEPS ITS OWN SECURITY. Without this every render pass
+    // would pull it back to the desk's shared symbol, which is the one thing
+    // that would make five FOCUS windows pointless: they would all show the
+    // same company.
+    loadIfStale(id, w.pin ? w.pin : undefined);
     const lab = n.querySelector('.pw-sym');
-    if(lab) lab.textContent = symNow();
+    if(lab) lab.textContent = w.pin ? w.pin : symNow();
   }
   function frontId(){
     let top = null;
@@ -4555,8 +4652,51 @@ window.MTPanelWins = (function(){
     const v = String(raw == null ? '' : raw).trim();
     const doc = frameDoc(id);
     const inner = panelSearchInput(doc);
+    // THIS ORDER IS THE WHOLE POINT OF SEVERAL WINDOWS OF ONE PANEL.
+    // The panel's own search used to be preferred for everything, and for a
+    // panel that picks a SECURITY that search announces the choice to the whole
+    // terminal: FOCUS's box moves the desk. With five FOCUS windows open, naming
+    // a company in the fifth one moved all five onto it, which is five copies of
+    // one window and no use to anybody. A window that can carry a security of
+    // its own is therefore re-pointed BY ITS OWN URL and pinned there, and only
+    // a panel that filters its rows (news, filings, the finder) still hands the
+    // keystrokes inward, where filtering is exactly what is wanted.
+    // Of the panels that have both, only FOCUS and CHART are affected.
+    if(SYM_CAPABLE[baseOf(id)]){
+      if(live) return;
+      const stw = state[id];
+      // AN EMPTIED BOX RELEASES THE WINDOW. It goes back to following whatever
+      // security the desk is on, which is where every window starts.
+      if(!v){ if(stw){ delete stw.pin; shown[id] = undefined; } render(); save(); return; }
+      const f = frames[id];
+      if(!f) return;
+      let u;
+      try{ u = new URL(f.getAttribute('src'), location.href); }catch(e){ return; }
+      u.searchParams.set('sym', v.toUpperCase());
+      f.src = u.toString();
+      // NAMING A SECURITY IN A WINDOW'S OWN BOX PINS THAT WINDOW TO IT. This is
+      // what five FOCUS windows are for: five securities side by side, each one
+      // holding still while the desk moves around it. Clicking a security in
+      // the watchlist now moves only the windows that are still following.
+      if(stw){ stw.pin = v.toUpperCase(); shown[id] = stw.pin; }
+      const nd = nodes[id];
+      const lab = nd ? nd.querySelector('.pw-sym') : null;
+      if(lab) lab.textContent = v.toUpperCase();
+      // THE BOX HAS DONE ITS JOB, SO IT CLOSES. A filter stays open because a
+      // narrowed panel needs something on screen saying why; a pin does not,
+      // because the security it chose is now the window's own title. Leaving the
+      // box open would put the ticker on the title line twice.
+      if(nd){
+        const hdq = nd.querySelector('.pw-q'), hdd = nd.querySelector('.pwin-hd');
+        if(hdq){ hdq.value = ''; hdq.blur(); }
+        if(hdd) hdd.classList.remove('q-on');
+      }
+      save();
+      return;
+    }
     if(inner){
-      // hand the keystrokes to the panel's own search, which knows what to do
+      // a panel that FILTERS its own rows: hand the keystrokes to the search
+      // that knows how to do it
       try{
         inner.value = v;
         inner.dispatchEvent(new (doc.defaultView.Event)('input', {bubbles: true}));
@@ -4565,16 +4705,6 @@ window.MTPanelWins = (function(){
             {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true}));
         }
       }catch(e){}
-      return;
-    }
-    if(SYM_CAPABLE[id]){
-      if(live || !v) return;
-      const f = frames[id];
-      if(!f) return;
-      let u;
-      try{ u = new URL(f.getAttribute('src'), location.href); }catch(e){ return; }
-      u.searchParams.set('sym', v.toUpperCase());
-      f.src = u.toString();
       return;
     }
     if(doc) filterDoc(doc, id, v);
@@ -4828,7 +4958,8 @@ window.MTPanelWins = (function(){
     const w = state[id];
     if(!w || !w.open) return false;
     w.open = false;
-    render();
+    render();          // takes the node away first, so the prune below is safe
+    pruneInstances();
     save();
     return true;
   }
@@ -4936,6 +5067,9 @@ window.MTPanelWins = (function(){
     Object.keys(WINS).forEach(function(id){
       const w = state[id];
       if(!w || !w.open) return;
+      // A window pinned to its own security is not following the desk, so a
+      // selection made anywhere else leaves it exactly where the reader put it.
+      if(w.pin) return;
       const f = frames[id];
       if(!f) return;
       if(sel && tellFrame(f, sel)) shown[id] = sym;              // applied in place
@@ -4945,6 +5079,7 @@ window.MTPanelWins = (function(){
     Object.keys(WINS).forEach(function(id){
       const w = state[id];
       if(!w || !w.open) return;
+      if(w.pin) return;                         // pinned: its label names its own
       const n = nodes[id];
       const lab = n ? n.querySelector('.pw-sym') : null;
       if(lab) lab.textContent = sym;
@@ -5021,7 +5156,13 @@ window.MTPanelWins = (function(){
         if(frames[k] && frames[k].contentWindow === ev.source) id = k;
       });
       if(!id || !state[id] || !state[id].open) return;
-      const sym = symNow();
+      // THE WINDOW'S OWN SECURITY WINS HERE TOO. A pinned window still announces
+      // itself when it loads, and handing it the desk's symbol at that moment
+      // undid the pin a few milliseconds after the frame had been pointed at the
+      // right company: the URL said SCOM and the card said whatever the desk was
+      // on. Every FOCUS window on screen ended up showing the same thing, which
+      // is the exact failure several windows of one panel exist to avoid.
+      const sym = state[id].pin || symNow();
       if(!sym) return;
       let sel = null;
       try{ sel = mtSelectionPayload(sym); }catch(e){ sel = null; }
@@ -5036,6 +5177,8 @@ window.MTPanelWins = (function(){
     count: function(){ return openIds().length; },
     isOpen: function(id){ return !!(state[id] && state[id].open); },
     open: open,
+    add: add,            // another window of this panel
+    baseOf: baseOf,
     close: closeWin,
     toggle: toggle,
     setSymbol: setSymbol,
@@ -6393,7 +6536,11 @@ function openPanelWin(p, mode){
     return 'guest';
   }
   if(window.MTPanelWins && window.MTPanelWins.active()){
-    if(mode === 'toggle') window.MTPanelWins.toggle(p.id);
+    // A BARE PANEL NAME NOW ADDS A WINDOW. It used to toggle the single
+    // window that panel was allowed, which is the behaviour that made five
+    // FOCUS windows impossible: the second request shut the first. Typing the
+    // name five times gives five windows; the X on a window closes it.
+    if(mode === 'toggle') window.MTPanelWins.add(p.id);
     else window.MTPanelWins.open(p.id);
     return true;
   }
