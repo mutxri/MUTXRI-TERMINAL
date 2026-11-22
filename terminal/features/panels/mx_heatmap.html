@@ -7,7 +7,7 @@
      Never renders invented rows.
      LIVE DATA appears only when wired to the bundled Python server (see README). -->
 <html lang="en">
-<head><script>(function(){var V='20261122182225';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122184843';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - Heatmap</title>
@@ -267,7 +267,7 @@
 </div>
 <script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <!-- drawing tools + indicator maths for the candlestick chart (shared module) -->
-<script src="../../static_data/mx_chart_tools.js?v=20261122182225"></script>
+<script src="../../static_data/mx_chart_tools.js?v=20261122184843"></script>
 <script>
 // The deploy ships static_data/ (which carries mx_chart_tools.js) but a fresh
 // checkout has not copied it there yet, so fall back to the tracked source that
@@ -275,8 +275,8 @@
 // promise of tools it cannot deliver and says so on the indicator line.
 if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/script>'); }
 </script>
-<script src="../../static_data/nse_heatmap_charts.js?v=20261122182225"></script>
-<script src="../../static_data/nse_ir_adapter.js?v=20261122182225"></script>
+<script src="../../static_data/nse_heatmap_charts.js?v=20261122184843"></script>
+<script src="../../static_data/nse_ir_adapter.js?v=20261122184843"></script>
 <script>
 (function(){
   "use strict";
@@ -730,8 +730,12 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       '<div class="tm-h"><b id="tmT"></b><span id="tmN"></span></div>' +
       '<button class="tm-i" data-a="FOCUS"><span class="tm-k">F</span>Open FOCUS</button>' +
       '<button class="tm-i" data-a="CHART"><span class="tm-k">C</span>Open CHART</button>' +
-      '<button class="tm-i" data-a="MARKET"><span class="tm-k">M</span>Show in MARKET</button>' +
-      '<button class="tm-i" data-a="GRAPH"><span class="tm-k">G</span>Graph it here</button>';
+      '<button class="tm-i" data-a="MARKET"><span class="tm-k">M</span>Show in MARKET</button>';
+    // NO "graph it here". The CHART panel draws the same security properly, in
+    // a window the reader can keep, size and put beside another one, so a
+    // second way to draw it inside this panel was a choice between two things
+    // that do the same job. The panel's own chart is still reached by drilling
+    // into a sector and picking a row, which is a different gesture entirely.
     document.body.appendChild(TM);
     TM.addEventListener("click", function(ev){
       var b = ev.target.closest ? ev.target.closest(".tm-i") : null;
@@ -775,7 +779,6 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     // else might have cleared between opening the menu and choosing from it.
     var sym = String((TM && TM.dataset.sym) || (c && (c.ticker || c.sym || c.short)) || "").trim();
     tmClose();
-    if(action === "GRAPH"){ if(c) openChart(c); return; }
     if(!sym) return;
     var sent = false;
     try{
@@ -785,10 +788,11 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
       }
     }catch(e){ sent = false; }
     if(sent) return;
-    // standalone: no shell to ask, so go there directly
-    if(action === "CHART") location.href = "mx_chart.html?ex=" + encodeURIComponent(activeEx) + "&sym=" + encodeURIComponent(sym);
-    else if(action === "FOCUS") location.href = "mx_focus.html?ex=" + encodeURIComponent(activeEx) + "&sym=" + encodeURIComponent(sym);
-    else openChart(c);
+    // Standalone, with no shell to ask: go to the page itself. MARKET has no
+    // standalone equivalent (the rail belongs to the terminal), so it lands on
+    // the security's own card, which is the nearest thing to it.
+    var page = (action === "CHART") ? "mx_chart.html" : "mx_focus.html";
+    location.href = page + "?ex=" + encodeURIComponent(activeEx) + "&sym=" + encodeURIComponent(sym);
   }
   document.addEventListener("click", function(ev){
     if(!TM || !TM.classList.contains("on")) return;
@@ -799,9 +803,9 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     if(!TM || !TM.classList.contains("on")) return;
     var k = String(ev.key || "").toUpperCase();
     if(k === "ESCAPE"){ ev.preventDefault(); tmClose(); return; }
-    if(k === "F" || k === "C" || k === "M" || k === "G"){
+    if(k === "F" || k === "C" || k === "M"){
       ev.preventDefault();
-      tmDo(k === "F" ? "FOCUS" : k === "C" ? "CHART" : k === "M" ? "MARKET" : "GRAPH");
+      tmDo(k === "F" ? "FOCUS" : k === "C" ? "CHART" : "MARKET");
     }
   });
   // NO blur HANDLER HERE. This panel runs in a frame, and focus crosses frames
