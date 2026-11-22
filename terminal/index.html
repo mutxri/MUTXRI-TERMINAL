@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122213835';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122221545';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -4958,7 +4958,15 @@ window.MTPanelWins = (function(){
     // controls live. The box itself is absolutely positioned, so where it is
     // appended does not move it: it still opens centred on the title line.
     hd.appendChild(t); hd.appendChild(sy); hd.appendChild(sp); hd.appendChild(q);
-    hd.appendChild(qb); hd.appendChild(fill); hd.appendChild(x);
+    hd.appendChild(qb);
+    // NOT ON FOCUS. FOCUS draws a quote card about 150px tall and nothing else,
+    // so filling the desk with it produces one ticker and a very large empty
+    // black rectangle. The control earns its place on NEWS, FINANCIALS or the
+    // heatmap, where there is more to see than fits. It is only the title-line
+    // button that goes: FILL is still in this window's own menu, under the dots,
+    // so the gesture is not taken away from anyone who wants it.
+    if(baseOf(id) !== 'focus') hd.appendChild(fill);
+    hd.appendChild(x);
     hd.addEventListener('mousedown', function(e){ drag(id, e, 'move'); });
 
     const body = document.createElement('div');
