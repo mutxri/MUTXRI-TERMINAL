@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122053523';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122054618';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -654,6 +654,22 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
     background:var(--bg3);border:1px solid var(--line2);color:var(--tx);
     font-family:var(--mono);letter-spacing:.04em;outline:none}
   .wl-head .sw input:focus, .eyebrow .sw input:focus{border-color:var(--acc)}
+  /* THE RAIL SEARCH COLLAPSES THE SAME WAY A PANEL WINDOW'S DOES. WATCHLIST and
+     MARKET each carried an open SEARCH A SECURITY box across the top of the
+     rail at all times, which is two more standing boxes on a desk that has just
+     had one taken off every panel window. The box is a control: it appears when
+     it is asked for and gets out of the way when it is not. */
+  .wl-head .sw, .eyebrow .sw{display:none}
+  .wl-head.q-on .sw, .eyebrow.q-on .sw{display:block}
+  .rail-qb{flex:0 0 auto;background:none;border:0;color:var(--tx3);
+    font-family:var(--mono);font-size:12px;line-height:1;padding:0 4px;
+    margin-left:auto;cursor:pointer;border-radius:2px;opacity:.6}
+  .rail-qb:hover{color:var(--acc);opacity:1}
+  .wl-head.q-on .rail-qb,.eyebrow.q-on .rail-qb{color:var(--acc);opacity:1}
+  /* The close button already claims the right edge with margin-left:auto; with
+     the mark beside it only ONE of them may do that, or the two are pushed
+     apart and the mark drifts into the middle of the title. */
+  .wl-head .rail-qb ~ .pw-x,.eyebrow .rail-qb ~ .pw-x{margin-left:0}
 .sw input{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--line2);
   color:var(--tx);font-family:var(--mono);font-size:11px;letter-spacing:.04em;
   padding:6px 9px;border-radius:3px;outline:none;}
@@ -10457,6 +10473,86 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   }, true);
+})();
+</script>
+
+<script>
+/* THE RAIL SEARCHES COLLAPSE BEHIND A MARK, like every panel window's.
+   WATCHLIST and MARKET each kept an open SEARCH A SECURITY box on its title
+   line whether or not anyone was searching. Both are now opened by the same
+   mark the panel windows use, and both close themselves again when they are
+   empty and the reader looks away.
+
+   This is wired from OUTSIDE the two rails' own code on purpose. Each box
+   already has its own handlers - the watchlist filters its list as you type,
+   the market box resolves a security and selects it - and none of that is
+   touched here. All this adds is when the box is on screen. */
+(function(){
+  var RAILS = [
+    {sw: 'wlSearch', input: 'wlQ', sug: 'wlSug', label: 'Search the watchlist'},
+    {sw: 'mkSearch', input: 'mkQ', sug: 'mkSug', label: 'Search the market'}
+  ];
+  RAILS.forEach(function(r){
+    var sw = document.getElementById(r.sw);
+    if(!sw) return;
+    var head = sw.parentNode;
+    if(!head) return;
+    var input = document.getElementById(r.input);
+    var sug = document.getElementById(r.sug);
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'rail-qb';
+    b.textContent = '⌕';                 // the same search mark
+    b.title = r.label;
+    b.setAttribute('aria-label', r.label);
+    // The head is a drag handle for the whole window, so every press on the
+    // mark has to stop there or asking to search would start moving the rail.
+    b.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    function close(){
+      head.classList.remove('q-on');
+      if(sug){ sug.className = sug.className.replace(/\bon\b/g, '').trim(); sug.innerHTML = ''; }
+    }
+    function clear(){
+      if(!input) return;
+      input.value = '';
+      // the box's own handler is what empties the filter; firing it is how the
+      // list comes back rather than re-implementing the filter here
+      try{ input.dispatchEvent(new Event('input', {bubbles: true})); }catch(e){}
+    }
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      if(head.classList.toggle('q-on')){ if(input) input.focus(); }
+      else { clear(); close(); }
+    });
+    if(input){
+      input.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      input.addEventListener('keydown', function(e){
+        if(e.key === 'Escape'){ clear(); input.blur(); close(); }
+      });
+      // An empty box closes when the reader leaves it. A box with a term in it
+      // stays: the list below is narrowed by that term, and hiding the only
+      // thing that says so would leave a rail showing a subset for no visible
+      // reason. The delay lets a click on a suggestion land first.
+      input.addEventListener('blur', function(){
+        setTimeout(function(){ if(!input.value) close(); }, 160);
+      });
+      // A RAIL SEARCH SELECTS, IT DOES NOT FILTER. A panel's box stays open
+      // while it holds a term because the rows below are narrowed by it and
+      // nothing else on screen says so. Nothing is narrowed here: picking a
+      // security IS the result, and the terminal has already moved to it. So
+      // the box that made the pick puts itself away. The value test is what
+      // makes it only that box: a security chosen anywhere else leaves a half
+      // typed query in the other rail exactly where the reader left it.
+      window.addEventListener('mt:symbol', function(ev){
+        var sym = (ev && ev.detail && ev.detail.sym) ? String(ev.detail.sym).toUpperCase() : '';
+        if(!sym || String(input.value || '').trim().toUpperCase() !== sym) return;
+        input.value = '';
+        close();
+      });
+    }
+    var x = head.querySelector('.pw-x');
+    if(x) head.insertBefore(b, x); else head.appendChild(b);
+  });
 })();
 </script>
 
