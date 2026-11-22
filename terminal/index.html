@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+<head><script>(function(){var V='20261122180445';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -4053,6 +4053,18 @@ window.MTPanelWins = (function(){
     ensureWin(k);
     return open(k) ? k : false;
   }
+  // ANOTHER window of this panel, already on a named security. The pin is set
+  // BEFORE the window opens, so its first load is the right company: pinning
+  // afterwards would load the desk's security and then reload for this one,
+  // which the reader sees as a flicker onto the wrong name.
+  function openFor(id, sym){
+    const k = nextKey(id);
+    if(!k) return false;
+    ensureWin(k);
+    const s = String(sym == null ? '' : sym).trim().toUpperCase();
+    if(s && state[k]){ state[k].pin = s; shown[k] = s; }
+    return open(k) ? k : false;
+  }
   // An instance exists only while its window does. Dropping the closed ones
   // keeps the numbering tight and keeps a workspace record from accumulating
   // windows that are not on anyone's screen.
@@ -4539,8 +4551,19 @@ window.MTPanelWins = (function(){
     w.z = ++zTop;
     w.geom = true;
     render();
+    refitFrames();
     save();
     return true;
+  }
+
+  // A PANEL IS TOLD WHEN ITS BOX CHANGES. A panel is drawn to the pixels it is given,
+  // so after the reader resizes, fills or tiles a window the map inside it has to be
+  // redrawn at the new box. The frame cannot see the window layer, so it is told.
+  function refitFrames(){
+    Object.keys(frames).forEach(function(id){
+      const f = frames[id];
+      try{ if(f && f.contentWindow) f.contentWindow.postMessage({mtRefit: true}, '*'); }catch(e){}
+    });
   }
 
   function frontId(){
@@ -4734,6 +4757,45 @@ window.MTPanelWins = (function(){
   // underneath. The panel now posts the height of its content the moment it renders,
   // and the window is set to it here. This is the authoritative signal; the timed
   // passes stay only as a fallback for panels that do not post.
+  // A PANEL ASKS FOR A SECURITY TO BE OPENED SOMEWHERE ELSE.
+  // QUOTE MONITOR, MOST ACTIVE and the finder have posted this message for a
+  // long time and nothing in the shell listened, so clicking a ticker in them
+  // did nothing unless the panel also navigated its own frame. The heatmap's
+  // tile menu posts it too. One handler serves all four.
+  //   cmd FOCUS or CHART  -> a new window of that panel, pinned to this security
+  //   cmd MARKET          -> the security opened in the MARKET rail, the same
+  //                          selection a watchlist row makes
+  // Only this origin may ask: the panels are same-origin frames, and a message
+  // from anywhere else is ignored rather than trusted to name a window to open.
+  window.addEventListener('message', function(ev){
+    if(!ev || ev.origin !== location.origin) return;
+    const d = ev.data;
+    if(!d || d.type !== 'mx-open') return;
+    const sym = String(d.sym == null ? '' : d.sym).trim();
+    if(!sym) return;
+    const ex = String(d.ex == null ? '' : d.ex).toUpperCase();
+    const cmd = String(d.cmd == null ? '' : d.cmd).toUpperCase() || 'FOCUS';
+    try{
+      if(ex && typeof currentEx !== 'undefined' && ex !== currentEx &&
+         typeof switchExchange === 'function') switchExchange(ex);
+    }catch(e){}
+    if(cmd === 'MARKET'){
+      try{ if(typeof openStock === 'function') openStock(sym); }catch(e){}
+      return;
+    }
+    const panel = (cmd === 'CHART') ? 'chart' : 'focus';
+    try{
+      if(window.MTPanelWins && window.MTPanelWins.active()){
+        window.MTPanelWins.openFor(panel, sym);
+      }else if(typeof openPanelWin === 'function'){
+        // no window layer here (mobile, or an embed view): the single stage is
+        // the only viewer, so the security is selected and the panel shown there
+        if(typeof openStock === 'function') openStock(sym);
+        openPanelWin(panel);
+      }
+    }catch(e){}
+  });
+
   window.addEventListener('message', function(ev){
     const d = ev && ev.data;
     if(!d || typeof d.mtPanelContent !== 'number') return;
@@ -5055,6 +5117,7 @@ window.MTPanelWins = (function(){
         const line = document.getElementById('wsGuest');
         if(line) line.hidden = false;
       }
+      refitFrames();
       save();
     }
     window.addEventListener('mousemove', move);
@@ -5128,6 +5191,7 @@ window.MTPanelWins = (function(){
       try{ userSized[id] = true; }catch(e){}
     });
     render();
+    refitFrames();
     save();
     return ids.length;
   }
@@ -5300,6 +5364,7 @@ window.MTPanelWins = (function(){
     isOpen: function(id){ return !!(state[id] && state[id].open); },
     open: open,
     add: add,            // another window of this panel
+    openFor: openFor,    // another window of this panel, pinned to one security
     baseOf: baseOf,
     close: closeWin,
     toggle: toggle,
