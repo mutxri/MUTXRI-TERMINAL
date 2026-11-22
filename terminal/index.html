@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261123001716';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261123002459';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1034,26 +1034,76 @@ html{scrollbar-width:none;}
 .view-info .rail.right{display:flex;border-right:0;background:transparent;}
 
 
-  /* MARKET SHEET LOGO (owner, 2026-11-03: "the market panel should show the logo of
-     the stocks like in godel des"). Logo on the left, ticker and name beside it, price
-     and change on the right, exactly the arrangement of the Godel description panel. */
-  .qhead{display:flex;align-items:center;gap:9px}
-  .qhead .mk-logo{flex:0 0 auto;width:32px;height:32px;border-radius:4px;
-                  background:var(--bg3);object-fit:contain;padding:3px}
-  .qhead .mk-logo-mono{display:flex;align-items:center;justify-content:center;
-                       font-family:var(--mono);font-size:14px;font-weight:700;color:var(--acc)}
-  .qhead .qhead-txt{flex:1 1 auto;min-width:0}
-  .qhead .qhead-px{flex:0 0 auto;text-align:right}
+  /* ---- THE MARKET SHEET, SET LIKE THE GODEL DESCRIPTION PANEL ----------------
+     (owner, 2026-11-23: "redesign the market panel to look like the des panel in
+     godel"). Godel's DES reads in two movements. An identity band runs across the
+     top: logo, company name with its ticker beside it, the board and sector under
+     that, and the quote hard right. Below it the sheet splits, the counterparties
+     holding the main column and a narrow statistics rail pinned to the right edge.
+     This is that shape in this terminal's own type and colour, not a copy of its
+     palette.
 
+     WHAT REPLACED WHAT. The sheet was a single column of key/value rows twenty
+     deep, with the counterparties stacked underneath it, so reading a company meant
+     scrolling past its phone number to reach its competitors. The figures that do
+     not change through the day (the chief executive, the registrar, the year end)
+     move to the rail, and the counterparties take the width they need.
 
-  .mkrc-h{padding:8px 16px 3px;border-top:1px solid var(--line);color:var(--tx3);
-          font-size:10px;letter-spacing:.1em;font-weight:700}
+     The rail is 190px and the split is a grid, so nothing here can make the window
+     scroll sideways. The container query, not a media query, is what collapses the
+     rail under the main column: this sheet lives inside a panel window whose width
+     has nothing to do with the width of the screen. */
+  .des{container-type:inline-size}
+  .des-hd{display:flex;align-items:center;gap:10px;padding:10px 14px 9px;
+          border-bottom:1px solid var(--line)}
+  .des-hd .mk-logo{flex:0 0 auto;width:38px;height:38px;border-radius:5px;
+                   background:var(--bg3);object-fit:contain;padding:4px}
+  .des-hd .mk-logo-mono{display:flex;align-items:center;justify-content:center;
+                        font-family:var(--mono);font-size:16px;font-weight:700;color:var(--acc)}
+  .des-id{flex:1 1 auto;min-width:0}
+  .des-nm{font-family:var(--ui);font-size:14px;font-weight:600;color:var(--tx);
+          display:flex;align-items:baseline;gap:7px;min-width:0}
+  .des-nm-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .des-tk{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;
+          color:var(--acc);background:var(--mint-dim);border-radius:2px;
+          padding:1px 5px;flex:0 0 auto}
+  .des-sub{font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+           color:var(--tx3);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .des-quote{flex:0 0 auto;text-align:right}
+  .des-last{font-family:var(--mono);font-size:22px;color:var(--tx);line-height:1.1}
+  .des-cur{font-size:10px;color:var(--tx3);margin-left:5px;letter-spacing:.08em}
+  .des-chg{font-family:var(--mono);font-size:12px;margin-top:2px}
+  .des-body{display:grid;grid-template-columns:minmax(0,1fr) 190px;align-items:start}
+  .des-main{min-width:0}
+  .des-rail{min-width:0;border-left:1px solid var(--line);padding-bottom:8px}
+  .des-grp{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;font-weight:700;
+           color:var(--tx3);padding:8px 12px 4px;border-top:1px solid var(--line)}
+  .des-rail>.des-grp:first-child{border-top:0}
+  .des-r{display:flex;justify-content:space-between;gap:8px;padding:2px 12px;
+         font-family:var(--mono);font-size:10px;min-width:0}
+  .des-k{color:var(--tx3);flex:0 0 auto}
+  .des-v{color:var(--tx);text-align:right;min-width:0;overflow-wrap:anywhere}
+  @container (max-width:620px){
+    .des-body{grid-template-columns:minmax(0,1fr)}
+    .des-rail{border-left:0;border-top:1px solid var(--line)}
+  }
+
+  /* THE COUNTERPARTIES SIT SIDE BY SIDE, as Godel sets them: customers, suppliers,
+     competitors, peers and partners in columns, so the whole counterparty picture
+     is one glance instead of five stacked strips. auto-fit means a narrow window
+     folds them into fewer columns on its own rather than squeezing five. */
+  #mkRelBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));
+            align-items:stretch}
+  .mkrc-col{min-width:0;border-top:1px solid var(--line);border-right:1px solid var(--line);
+            padding-bottom:7px}
+  .mkrc-h{padding:8px 12px 3px;color:var(--tx3);
+          font-size:9.5px;letter-spacing:.1em;font-weight:700}
   .mkrc-n{color:var(--acc);font-family:var(--mono);font-weight:400;margin-left:4px}
-  .mkrc-r{display:flex;justify-content:space-between;gap:8px;padding:2px 16px;
+  .mkrc-r{display:flex;justify-content:space-between;gap:8px;padding:2px 12px;
           font-size:10px;color:var(--tx2)}
   .mkrc-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .mkrc-t{color:var(--acc);font-family:var(--mono);flex:0 0 auto}
-  .mkrc-e{padding:2px 16px 4px;font-size:10px;color:var(--tx3);font-style:italic}
+  .mkrc-e{padding:2px 12px 4px;font-size:10px;color:var(--tx3);font-style:italic}
 </style>
 <script>
 /* apply saved theme + accent before paint to avoid a flash */
@@ -7947,13 +7997,9 @@ function renderMarketStatic(rec, info){
   const vol = rec.volume != null ? Number(String(rec.volume).replace(/,/g,'')).toLocaleString() : '-';
   const i = info || {};
   const dash = '-';
-  // A wall of em-dashes is not company information: a field with nothing behind
-  // it is left out entirely rather than rendered empty.
-  const row = (k, v) => {
-    const s = (v == null ? '' : String(v)).trim();
-    if(!s || s === dash) return '';
-    return `<span>${esc(k)}</span><span>${esc(s)}</span>`;
-  };
+  // A wall of em-dashes is not company information: a field with nothing behind it
+  // is left out entirely rather than rendered empty. The two-column grid this rule
+  // was written for is gone; srow() below carries the same rule into the rail.
   const fmtShares = (n) => {
     if(n == null || n === '') return dash;
     const x = Number(n);
@@ -7971,17 +8017,11 @@ function renderMarketStatic(rec, info){
     const last = d[d.length-1];
     divTxt = (typeof last === 'object' && last !== null) ? (last.year ? 'FY' + last.year : '') + ' ' + (last.amount != null ? last.amount : '') : String(d.length) + ' paid';
   }
-  // relations show the CODE only as PLAIN TEXT (no anchor markup - the row
-  // renderer esc()s the value, so any <a> tag would print as literal source)
-  const codesOnly = function(arr){
-    if(!Array.isArray(arr) || !arr.length) return dash;
-    return arr.map(function(x){
-      var s = String(x).trim();
-      if(!s) return '';
-      var m = s.match(/^([A-Z0-9][A-Z0-9.\-]{1,14})/);
-      return m ? m[1] : s;
-    }).filter(Boolean).join(', ');
-  };
+  // The four counterparty categories are NOT printed here as a comma-joined list
+  // of codes any more. They are drawn by mkPaintRel into the columns below, out of
+  // relationships_<EX>.json, with each entity's own name: a row reading
+  // "SUPPLIERS  ERIC, NOK, HWEI" said less than the column that now carries
+  // Ericsson, Nokia and Huawei under a heading with the count beside it.
   // COMPANY LOGO IN THE MARKET SHEET, the way the Godel description panel carries
   // one. It uses the same LOGO_MAP the watchlist rows use, so the two never disagree,
   // and falls back to the ticker's initial rather than a broken image.
@@ -8001,11 +8041,24 @@ function renderMarketStatic(rec, info){
     const keys = [];
     sufs.forEach(function(sfx){ keys.push(t + sfx); });
     keys.push(t.replace(/\./g, '_'));
+    // THE LOGO IS A LOCAL FILE, SO ASK FOR IT LOCALLY (owner, 2026-11-23: the logos
+    // "dont show up immediately"). Every one of logos.json's 1,353 entries is stored
+    // as an ABSOLUTE url on mutxriterminal.com, so each sheet fetched its logo across
+    // the network from the live site while the identical file sat in the folder beside
+    // the page: a DNS lookup, a connection and a round trip per logo, and nothing at
+    // all when the reader is offline or the local build is open. A url that points
+    // back at our own terminal is turned into the relative path it describes, which
+    // the browser serves from this page's own origin and cache. A genuinely remote
+    // image url is left alone, and a bare domain still resolves through the favicon
+    // service as before.
     for(let i = 0; i < keys.length; i++){
       const raw = LOGO_MAP[keys[i]];
       if(raw) {
-        if(/^https?:\/\//i.test(raw)) return raw;
-        const dom = String(raw).replace(/^www\./, '');
+        const m = /^https?:\/\/[^/]*mutxriterminal\.com\/terminal\/(.+)$/i.exec(String(raw));
+        const rel = m ? m[1] : String(raw);
+        if(/^https?:\/\//i.test(rel)) return rel;
+        if(rel.indexOf('/') >= 0) return rel;
+        const dom = rel.replace(/^www\./, '');
         return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(dom) + '&sz=64';
       }
     }
@@ -8017,48 +8070,82 @@ function renderMarketStatic(rec, info){
     const src = mkLogoSrc(tk, rec.exchange || (i && i.exchange) || (typeof currentEx !== 'undefined' ? currentEx : ''));
     const initial = esc(String(tk || '?').slice(0, 1));
     if(!src) return '<span class="mk-logo mk-logo-mono">' + initial + '</span>';
-    return '<img class="mk-logo" loading="lazy" src="' + esc(src) + '" alt="" ' +
+    // NOT loading="lazy". The logo is the first thing on the sheet and the reason
+    // the owner could watch it arrive late: a deferred image is fetched when the
+    // browser decides it is near enough the viewport, and inside a panel window,
+    // which is its own scroll container, that decision came well after the sheet
+    // had been read. It is a 2KB file on this origin; it is fetched at once.
+    return '<img class="mk-logo" decoding="async" fetchpriority="high" src="' + esc(src) + '" alt="" ' +
            'onerror="this.outerHTML=\'<span class=&quot;mk-logo mk-logo-mono&quot;>' + initial + '</span>\'" ' +
            'onload="if(this.naturalWidth<=16&&this.naturalHeight<=16)this.outerHTML=\'<span class=&quot;mk-logo mk-logo-mono&quot;>' + initial + '</span>\'">';
   })(rec.ticker || sym0(rec));
+  // ONE identity block, not two. The old head printed the ticker and the name
+  // inside .qhead-txt and then AGAIN as two loose siblings, so every security wrote
+  // its own name twice across the title line. It is plain in the owner's screenshot
+  // of SCOM: "SCOM / Safaricom Plc" on the left and "SCOM Safaricom Plc" again
+  // beside the price.
+  //
+  // THE TICKER KEEPS THE .qsym CLASS. Two separate painters find the security this
+  // sheet is showing by reading .qsym out of #rightInfo (the relationships watchdog
+  // on its 700ms timer, and mkPaintRelInner's out-of-order guard). Renaming the
+  // element would leave both of them reading an empty string, and the counterparty
+  // columns would simply stop repainting when the reader moved to another security.
+  const subLine = [rec.exchange || i.exchange || '', rec.sector || i.sector || '',
+                   i.country || ''].filter(Boolean).join(' \u00b7 ');
+  const ceoName = (window.__CEOS &&
+                   (window.__CEOS[rec.sym] || window.__CEOS[rec.ticker])) || '';
+  // A rail row with nothing behind it is left out, exactly as the grid rows were:
+  // a column of "not on file" is not company information.
+  const srow = (k, v) => {
+    const t = (v == null ? '' : String(v)).trim();
+    if(!t || t === dash) return '';
+    return '<div class="des-r"><span class="des-k">' + esc(k) + '</span>' +
+           '<span class="des-v">' + esc(t) + '</span></div>';
+  };
+  const grp = (label, rows) => rows ? '<div class="des-grp">' + esc(label) + '</div>' + rows : '';
+  // THE RAIL IS GROUPED BY WHAT THE FIGURE IS, not by what file it came from. PROFILE
+  // is what the company is and does not change through a day; MARKET is today's
+  // trading; FILINGS is what it has filed.
+  const railProfile = srow('CEO', ceoName) + srow('COUNTRY', i.country) +
+                      srow('FOUNDED', i.founded) + srow('LISTED', i.listed) +
+                      srow('YEAR END', rec.yearEnd || i.year_end) +
+                      srow('EXCHANGE', rec.exchange || i.exchange) +
+                      srow('TRANSFER SEC', i.transfer_secretary) + srow('PHONE', i.phone);
+  const railMarket = srow('OPEN', rec.open) + srow('PREV CLOSE', rec.prevClose) +
+                     srow('52W RANGE', rec.range52w) + srow('VOLUME', vol) +
+                     // A RAW COUNT IS NOT A FIGURE A READER CAN HOLD. The sheet
+                     // printed a market capitalisation as 1370237637600 and a
+                     // turnover as 196325146.05, thirteen and nine digits with no
+                     // separators, which has to be counted off by eye before it
+                     // means anything. fmtShares is a plain compact formatter, not
+                     // a share-specific one, and it hands back a string it cannot
+                     // parse untouched, so an exchange that already files "1.37B"
+                     // is left exactly as filed.
+                     srow('TURNOVER', fmtShares(rec.turnover)) +
+                     srow('SHARES OUT', fmtShares(rec.sharesIssued)) +
+                     srow('MKT CAP', fmtShares(rec.marketCap)) +
+                     srow('CURRENCY', rec.currency);
+  const railFiled = srow('DIVIDENDS', divTxt) +
+                    srow('STATEMENTS', i.statements ? 'filed' : '') +
+                    srow('DATA AS OF', rec.asOf ||
+                         (window.__MKASOF && window.__MKASOF[currentEx]) || '');
   let html = `
-    <div class="qhead">
-      ${mkLogo}
-      <div class="qhead-txt">
-        <div class="qsym">${esc(rec.ticker || sym0(rec))}</div>
-        <div class="qname">${esc(rec.name||i.name||'')}</div>
+    <div class="des">
+      <div class="des-hd">
+        ${mkLogo}
+        <div class="des-id">
+          <div class="des-nm"><span class="des-nm-t">${esc(rec.name||i.name||'')}</span><span class="des-tk qsym">${esc(rec.ticker || sym0(rec))}</span></div>
+          <div class="des-sub">${esc(subLine)}</div>
+        </div>
+        <div class="des-quote">
+          <div class="des-last">${px}<span class="des-cur">${esc(rec.currency||'')}</span></div>
+          <div class="des-chg ${cls}">${chgTxt}</div>
+        </div>
       </div>
-      <div class="qsym">${esc(rec.ticker || sym0(rec))}</div>
-      <div class="qname">${esc(rec.name||i.name||'')}</div>
-      <div class="qhead-px">
-        <div class="qpx">${px} <span style="font-size:11px;color:var(--tx3)">${esc(rec.currency||'')}</span></div>
-        <div class="qchg ${cls}">${chgTxt}</div>
+      <div class="des-body">
+        <div class="des-main"><div id="mkRelBox"></div></div>
+        <div class="des-rail">${grp('PROFILE', railProfile)}${grp('MARKET', railMarket)}${grp('FILINGS', railFiled)}</div>
       </div>
-    </div>
-    <div class="qgrid">
-      ${row('DATA AS OF', rec.asOf || (window.__MKASOF && window.__MKASOF[currentEx]) || dash)}
-      ${row('VOLUME', vol)}
-      ${row('SECTOR', rec.sector || i.sector || dash)}
-      ${row('COUNTRY', i.country || dash)}
-      ${row('CEO', window.__CEOS && window.__CEOS[rec.sym] ? window.__CEOS[rec.sym] : (window.__CEOS && window.__CEOS[rec.ticker] ? window.__CEOS[rec.ticker] : dash))}
-      ${row('COMPETITORS', codesOnly(i.competitors))}
-      ${row('CUSTOMERS', codesOnly(i.customers))}
-      ${row('PARTNERS', codesOnly(i.partners))}
-      ${row('SUPPLIERS', codesOnly(i.suppliers))}
-      ${row('FOUNDED', i.founded || dash)}
-      ${row('LISTED', i.listed || dash)}
-      ${row('YEAR END', rec.yearEnd || i.year_end || dash)}
-      ${row('52W RANGE', rec.range52w || dash)}
-      ${row('OPEN', rec.open || dash)}
-      ${row('PREV CLOSE', rec.prevClose || dash)}
-      ${row('TURNOVER', rec.turnover || dash)}
-      ${row('SHARES', fmtShares(rec.sharesIssued))}
-      ${row('MKT CAP', rec.marketCap || dash)}
-      ${row('EXCHANGE', rec.exchange || i.exchange || dash)}
-      ${row('PHONE', i.phone || dash)}
-      ${row('TRANSFER SEC', i.transfer_secretary || dash)}
-      ${row('DIVIDENDS', divTxt)}
-      ${row('STATEMENTS', i.statements ? 'filed' : dash)}
     </div>`;
   // The company description is NOT drawn (owner, 2026-10-14). The 'description'
   // field of company_info.json is promotional prose - the Safaricom record leads
@@ -8077,8 +8164,10 @@ function renderMarketStatic(rec, info){
   // customers, suppliers, competitors and partners). It reads the same
   // relationships_<EX>.json the perplexity panel reads, so the two can never disagree.
   // A category the issuer does not disclose prints a stated empty line rather than
-  // vanishing, because an absent section and an empty one are different facts.
-  html += '<div id="mkRelBox"></div>';
+  // vanishing, because an absent section and an empty one are different facts. The
+  // box itself is written into the main column of the sheet above, not appended
+  // here: appending a SECOND #mkRelBox would give the document two elements under
+  // one id, and both painters look the box up by that id.
   $('rightInfo').innerHTML = html;
   mkPaintRel(rec, i);
   // The sections that belong to this window and to this security: holders from
@@ -9978,17 +10067,21 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
         const secs = (d && d.securities) || {};
         const sec = secs[tk] || secs[tk.replace(/\./g,'_')] || null;
         let h = '';
+        // Each category is its own column; the grid above puts them side by side.
         const draw = function(label, arr, empty){
-          h += '<div class="mkrc-h">' + label + ' <span class="mkrc-n">' + arr.length + '</span></div>';
-          if(!arr.length){ h += '<div class="mkrc-e">' + empty + '</div>'; return; }
+          let c = '<div class="mkrc-col"><div class="mkrc-h">' + label +
+                  ' <span class="mkrc-n">' + arr.length + '</span></div>';
+          if(!arr.length){ h += c + '<div class="mkrc-e">' + empty + '</div></div>'; return; }
           arr.slice(0,6).forEach(function(e){
             const t = e.ticker ? '<span class="mkrc-t">' + esc(e.ticker) + '</span>' : '';
-            h += '<div class="mkrc-r"><span class="mkrc-nm">' + esc(e.name || '') + '</span>' + t + '</div>';
+            c += '<div class="mkrc-r"><span class="mkrc-nm">' + esc(e.name || '') + '</span>' + t + '</div>';
           });
-          if(arr.length > 6) h += '<div class="mkrc-e">+' + (arr.length-6) + ' more</div>';
+          if(arr.length > 6) c += '<div class="mkrc-e">+' + (arr.length-6) + ' more</div>';
+          h += c + '</div>';
         };
         if(!sec){
-          h = '<div class="mkrc-h">RELATIONSHIPS</div><div class="mkrc-e">none on file for ' + esc(tk) + '</div>';
+          h = '<div class="mkrc-col"><div class="mkrc-h">RELATIONSHIPS</div>' +
+              '<div class="mkrc-e">none on file for ' + esc(tk) + '</div></div>';
         } else {
           const comps = sec.competitors || [];
           draw('CUSTOMERS', sec.customers || [], 'not disclosed by the issuer');
@@ -10064,30 +10157,39 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
                       ['COMPETITORS', realComps],['PEERS', peerOnly],['PARTNERS','partners']];
         let h = '';
         if(!sec){
-          h = '<div class="mkrc-h">RELATIONSHIPS</div>' +
-              '<div class="mkrc-e">none on file for ' + esc(tk) + '</div>';
+          h = '<div class="mkrc-col"><div class="mkrc-h">RELATIONSHIPS</div>' +
+              '<div class="mkrc-e">none on file for ' + esc(tk) + '</div></div>';
         } else {
+          // ONE COLUMN PER CATEGORY. They used to be written as a single run of
+          // headings and rows down one strip; the grid in the stylesheet sets these
+          // columns beside each other, which is how the Godel panel presents the
+          // same five lists and why the owner asked for this shape.
           CATS.forEach(function(pair){
             const label = pair[0];
             const all = Array.isArray(pair[1]) ? pair[1] : (sec[pair[1]] || []);
-            h += '<div class="mkrc-h">' + label +
-                 ' <span class="mkrc-n">' + all.length + '</span></div>';
+            let c = '<div class="mkrc-col"><div class="mkrc-h">' + label +
+                    ' <span class="mkrc-n">' + all.length + '</span></div>';
             if(!all.length){
-              h += '<div class="mkrc-e">' +
+              // "listed below" was written when the categories ran down a single
+              // column. They sit side by side now, so the sentence names the column
+              // instead of pointing at a place that no longer exists.
+              c += '<div class="mkrc-e">' +
                    (label === 'COMPETITORS'
-                     ? 'none named; sector peers are listed below'
+                     ? 'none named; see the PEERS column'
                      : (label === 'PEERS' ? 'no same-sector peers on this board'
                         : 'not disclosed by the issuer')) + '</div>';
+              h += c + '</div>';
               return;
             }
             all.slice(0, 6).forEach(function(e){
               const nm = e.name || '';
               const t = e.ticker ? '<span class="mkrc-t">' + esc(e.ticker) + '</span>' : '';
-              h += '<div class="mkrc-r"><span class="mkrc-nm">' + esc(nm) + '</span>' + t + '</div>';
+              c += '<div class="mkrc-r"><span class="mkrc-nm">' + esc(nm) + '</span>' + t + '</div>';
             });
             if(all.length > 6){
-              h += '<div class="mkrc-e">+' + (all.length - 6) + ' more</div>';
+              c += '<div class="mkrc-e">+' + (all.length - 6) + ' more</div>';
             }
+            h += c + '</div>';
           });
         }
         box.innerHTML = h;
