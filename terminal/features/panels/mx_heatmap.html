@@ -7,7 +7,7 @@
      Never renders invented rows.
      LIVE DATA appears only when wired to the bundled Python server (see README). -->
 <html lang="en">
-<head><script>(function(){var V='20261122062056';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122180445';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - Heatmap</title>
@@ -55,7 +55,16 @@
   .hm-tab:hover{color:var(--tx2);}
   .hm-tab.on{color:var(--acc);border-color:var(--line2);background:var(--bg3);}
   .hm-tab .cnt{color:var(--tx3);font-size:9px;margin-left:4px;}
-  #canvas{position:relative;width:100%;height:520px;background:var(--bg);overflow:hidden;}
+  /* THE TREEMAP FILLS THE PANEL. A fixed 520px box left a dead band under the map in
+     any window taller than that, and a map laid out for an older, shorter box stayed
+     drawn at that size (the empty space in the report). The body is a column, the head
+     keeps its own height, and the canvas takes everything left, with a floor so it
+     never collapses to nothing. */
+  html,body{height:100%;}
+  body{display:flex;flex-direction:column;}
+  .hm{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;}
+  #canvas{position:relative;width:100%;flex:1 1 auto;min-height:240px;height:auto;
+    background:var(--bg);overflow:hidden;}
   .sector{position:absolute;overflow:hidden;pointer-events:none;
     background:rgba(255,255,255,.015);
     border:1px solid rgba(255,255,255,.04);
@@ -77,6 +86,23 @@
   .cell{position:absolute;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;cursor:pointer;
     transition:left .5s ease,top .5s ease,width .5s ease,height .5s ease,background-color .6s ease;border:1px solid rgba(0,0,0,.35);}
   .cell:hover{outline:1px solid var(--acc);outline-offset:-1px;z-index:3;}
+  /* THE TILE MENU. A tile names one security, and there are four useful things
+     to do with it. Clicking used to do exactly one of them without asking, so
+     the other three were unreachable from the board. */
+  .tm{position:fixed;z-index:9000;min-width:208px;background:#0d0d0d;
+    border:1px solid #2e2e2e;border-radius:4px;box-shadow:0 14px 40px rgba(0,0,0,.72);
+    padding:4px;font-family:var(--mono);display:none}
+  .tm.on{display:block}
+  .tm-h{padding:6px 8px 7px;border-bottom:1px solid #1f1f1f;margin-bottom:4px}
+  .tm-h b{display:block;font-size:12px;color:var(--acc);letter-spacing:.06em}
+  .tm-h span{display:block;font-size:10px;color:#6a6a6a;margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tm-i{display:flex;align-items:center;gap:9px;width:100%;background:none;
+    border:0;color:#d8d8d8;font-family:var(--mono);font-size:11.5px;text-align:left;
+    padding:6px 8px;border-radius:3px;cursor:pointer}
+  .tm-i:hover,.tm-i:focus{background:#1b1b1b;color:var(--acc);outline:none}
+  .tm-k{flex:0 0 auto;min-width:17px;text-align:center;font-size:9.5px;
+    color:#e0a340;border:1px solid #e0a340;border-radius:2px;padding:1px 3px}
   .cell .ct{font-weight:700;line-height:1.05;}
   .cell .cc{line-height:1.15;opacity:.92;}
   .flash{animation:flash .7s ease;}
@@ -241,7 +267,7 @@
 </div>
 <script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <!-- drawing tools + indicator maths for the candlestick chart (shared module) -->
-<script src="../../static_data/mx_chart_tools.js?v=20261122062056"></script>
+<script src="../../static_data/mx_chart_tools.js?v=20261122180445"></script>
 <script>
 // The deploy ships static_data/ (which carries mx_chart_tools.js) but a fresh
 // checkout has not copied it there yet, so fall back to the tracked source that
@@ -249,8 +275,8 @@
 // promise of tools it cannot deliver and says so on the indicator line.
 if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/script>'); }
 </script>
-<script src="../../static_data/nse_heatmap_charts.js?v=20261122062056"></script>
-<script src="../../static_data/nse_ir_adapter.js?v=20261122062056"></script>
+<script src="../../static_data/nse_heatmap_charts.js?v=20261122180445"></script>
+<script src="../../static_data/nse_ir_adapter.js?v=20261122180445"></script>
 <script>
 (function(){
   "use strict";
@@ -417,7 +443,9 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
         var c=d.c;
         if(!node){node=document.createElement("div");node.className="cell enter";node.dataset.key=key;
           node.innerHTML='<span class="ct"></span><span class="cc"></span>';node.title=c.name;
-          node.onclick=(function(cell){return function(){openChart(cell);};})(c);
+          // A tile asks what to do rather than deciding. The panel's own graph
+          // is still one keystroke away, so nothing that worked before is lost.
+          node.onclick=(function(cell){return function(ev){tmOpen(cell,ev);};})(c);
           canvas.appendChild(node);}
         else if(node.classList.contains("enter")){node.classList.remove("enter");}
         node.style.left=d.x+"px";node.style.top=d.y+"px";node.style.width=d.w+"px";node.style.height=d.h+"px";
@@ -468,6 +496,28 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   // ---- sector drill-down: click a sector label or a cell to see the
   //      securities in that industry ----
   var currentRows=[];
+  // THE REDRAW THE SHELL CAN ASK FOR. Everything in this panel lives inside one
+  // closure, so neither the window layer nor a resize observer outside it can reach
+  // draw(). This is the only door in: redraw the map at whatever box the canvas now
+  // has. It is what makes a dragged, filled or restored window show a map that fits
+  // it instead of a map laid out for the size it used to be.
+  window.__hmRefit=function(){
+    if(!currentRows.length) return false;
+    // DRAW AFTER THE LAYOUT, NOT DURING IT. draw() reads the canvas box and lays the
+    // map out to it, so calling it in the same task that changed the box measured the
+    // OLD size and redrew the old map: the map then sat at the top of a taller canvas,
+    // which is exactly the empty band this is here to remove. Two frames of delay
+    // guarantees the browser has laid the new box out before it is measured.
+    try{ draw(currentRows); return true; }catch(e){ window.__hmRefitErr=String(e&&e.message||e); return false; }
+  };
+  window.addEventListener("message",function(ev){
+    var d=ev&&ev.data;
+    if(d&&d.mtRefit){
+      // the caller changed the box a moment ago; one task later the browser has laid
+      // it out and the draw measures the size the reader actually gave the window
+      setTimeout(function(){ window.__hmRefit(); }, 60);
+    }
+  });
   function openSector(sector){
     var rows=currentRows.filter(function(r){return (r.sector||"Other")===sector;});
     var panel=$("sectorPanel");
@@ -587,6 +637,27 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
   function init(){
     tabs();$("exLabel").textContent=activeEx;load();startPolling();
     var rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(load,200);});
+    // A MAP IS DRAWN TO THE BOX IT IS DRAWN IN, so a box that changes needs a new map.
+    // This watches the canvas itself, which covers the window being dragged, filled or
+    // restored, and it redraws in place rather than reloading the panel, so the data
+    // request is not repeated on every pixel of a drag.
+    (function(){
+      var cv=$("canvas"), lastH=0, lastW=0, t=null;
+      function refit(){
+        var w=cv.clientWidth||0, h=cv.clientHeight||0;
+        if(!w||!h) return;
+        if(Math.abs(w-lastW)<8 && Math.abs(h-lastH)<8) return;
+        lastW=w; lastH=h;
+        if(window.__hmRefit) window.__hmRefit();
+      }
+      if(window.ResizeObserver){
+        try{ new ResizeObserver(function(){ clearTimeout(t); t=setTimeout(refit,90); }).observe(cv); }catch(e){}
+      }
+      // both signals are watched: a panel window resized by the layer fires a resize
+      // in this frame, and a canvas box that changes on its own fires the observer
+      window.addEventListener("resize", function(){ clearTimeout(t); t=setTimeout(refit,120); });
+      setTimeout(refit, 60);
+    })();
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 
@@ -632,6 +703,96 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     cpPaintBasisBtns();
     cpRender();
   }
+  /* ---- THE TILE MENU ------------------------------------------------------
+     A tile names one security and there are four useful things to do with it:
+     read its card, chart it on the desk, put it in the MARKET rail, or graph it
+     here without leaving the board. Clicking a tile used to do the last of
+     those and only that, so the board could show you a mover and then offer no
+     way to act on it.
+
+     FOCUS, CHART and MARKET are the shell's work, so they are asked for by
+     message and the shell opens the window (see the mx-open handler there).
+     GRAPH is this panel's own and stays local. Opened standalone, with no
+     shell listening, the first two fall back to navigating this frame so the
+     panel is still useful on its own page. */
+  var TM = null, tmCell = null;
+  function tmEl(){
+    if(TM) return TM;
+    TM = document.createElement("div");
+    TM.className = "tm";
+    TM.innerHTML =
+      '<div class="tm-h"><b id="tmT"></b><span id="tmN"></span></div>' +
+      '<button class="tm-i" data-a="FOCUS"><span class="tm-k">F</span>Open FOCUS</button>' +
+      '<button class="tm-i" data-a="CHART"><span class="tm-k">C</span>Open CHART</button>' +
+      '<button class="tm-i" data-a="MARKET"><span class="tm-k">M</span>Show in MARKET</button>' +
+      '<button class="tm-i" data-a="GRAPH"><span class="tm-k">G</span>Graph it here</button>';
+    document.body.appendChild(TM);
+    TM.addEventListener("click", function(ev){
+      var b = ev.target.closest ? ev.target.closest(".tm-i") : null;
+      if(!b) return;
+      ev.stopPropagation();
+      tmDo(b.getAttribute("data-a"));
+    });
+    return TM;
+  }
+  function tmClose(){ if(TM) TM.classList.remove("on"); tmCell = null; }
+  function tmOpen(c, ev){
+    if(!c) return;
+    tmCell = c;
+    var el = tmEl();
+    var tk = c.ticker || c.sym || c.short || "";
+    el.querySelector("#tmT").textContent = String(tk).toUpperCase() + "  ·  " + activeEx;
+    el.querySelector("#tmN").textContent = c.name || "";
+    el.classList.add("on");
+    // Place it at the pointer, then pull it back inside the panel if it would
+    // hang off an edge. A menu that opens half outside its own frame cannot be
+    // clicked: the frame clips it and there is no scrolling to it.
+    var pad = 6, r = el.getBoundingClientRect();
+    var x = (ev && ev.clientX != null) ? ev.clientX : 20;
+    var y = (ev && ev.clientY != null) ? ev.clientY : 20;
+    x = Math.max(pad, Math.min(x, window.innerWidth - r.width - pad));
+    y = Math.max(pad, Math.min(y, window.innerHeight - r.height - pad));
+    el.style.left = Math.round(x) + "px";
+    el.style.top = Math.round(y) + "px";
+    var first = el.querySelector(".tm-i");
+    if(first) first.focus();
+  }
+  function tmDo(action){
+    var c = tmCell;
+    tmClose();
+    if(!c) return;
+    if(action === "GRAPH"){ openChart(c); return; }
+    var sym = String(c.ticker || c.sym || c.short || "").trim();
+    if(!sym) return;
+    var sent = false;
+    try{
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage({type:"mx-open", sym:sym, ex:activeEx, cmd:action}, location.origin);
+        sent = true;
+      }
+    }catch(e){ sent = false; }
+    if(sent) return;
+    // standalone: no shell to ask, so go there directly
+    if(action === "CHART") location.href = "mx_chart.html?ex=" + encodeURIComponent(activeEx) + "&sym=" + encodeURIComponent(sym);
+    else if(action === "FOCUS") location.href = "mx_focus.html?ex=" + encodeURIComponent(activeEx) + "&sym=" + encodeURIComponent(sym);
+    else openChart(c);
+  }
+  document.addEventListener("click", function(ev){
+    if(!TM || !TM.classList.contains("on")) return;
+    if(TM.contains(ev.target)) return;
+    tmClose();
+  }, true);
+  document.addEventListener("keydown", function(ev){
+    if(!TM || !TM.classList.contains("on")) return;
+    var k = String(ev.key || "").toUpperCase();
+    if(k === "ESCAPE"){ ev.preventDefault(); tmClose(); return; }
+    if(k === "F" || k === "C" || k === "M" || k === "G"){
+      ev.preventDefault();
+      tmDo(k === "F" ? "FOCUS" : k === "C" ? "CHART" : k === "M" ? "MARKET" : "GRAPH");
+    }
+  });
+  window.addEventListener("blur", tmClose);
+
   function openChart(c){
     if(!c) return;
     cpName = c.name || c.ticker || "";
