@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261123012807';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261123013059';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -8166,11 +8166,19 @@ function renderMarketStatic(rec, info, live){
   // and they were the two figures the old live sheet showed that this one did
   // not. They are drawn when they are known and left out when they are not, like
   // every other row in the rail.
+  const d2 = (x) => Number(x).toLocaleString(undefined, {maximumFractionDigits: 2});
   const dayRange = (rec.low != null && rec.high != null)
-    ? Number(rec.low).toLocaleString(undefined, {maximumFractionDigits: 2}) + ' - ' +
-      Number(rec.high).toLocaleString(undefined, {maximumFractionDigits: 2})
-    : '';
-  const railMarket = srow('OPEN', rec.open) + srow('PREV CLOSE', rec.prevClose) +
+    ? d2(rec.low) + ' - ' + d2(rec.high) : '';
+  // TWO DECIMALS, LIKE EVERY OTHER PRICE ON THE SHEET. The snapshot files round
+  // their opens and closes; the live route does not, so the overlay put 36.3318
+  // in the rail under a quote reading 36.35. A price is drawn to two places here
+  // whichever path filled it, and a value that is not a number is left as it is.
+  const dp2 = (v) => {
+    if(v === null || v === undefined || v === '') return '';
+    const n = Number(v);
+    return isFinite(n) ? n.toLocaleString(undefined, {maximumFractionDigits: 2}) : String(v);
+  };
+  const railMarket = srow('OPEN', dp2(rec.open)) + srow('PREV CLOSE', dp2(rec.prevClose)) +
                      srow('DAY RANGE', dayRange) +
                      srow('52W RANGE', rec.range52w) + srow('VOLUME', vol) +
                      // A RAW COUNT IS NOT A FIGURE A READER CAN HOLD. The sheet
