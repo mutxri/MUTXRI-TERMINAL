@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122035259';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122035936';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -5513,7 +5513,17 @@ async function primeQuotes(ex){
   }catch(e){ console.error('market snapshot fail', e); }
   if(!(window.MX_API && window.MX_API.base)) return;
   try{
-    const r = await fetch('/api/quotes?symbols=' + syms.join(','));
+    // HOW LONG THIS ONE IS ALLOWED TO TAKE. The default wait is 2500ms, chosen
+    // for calls a reader is sitting in front of. Nobody sits in front of this
+    // one: the snapshot above has already filled the board, and these prices
+    // replace it quietly when they land. Measured against the live backend,
+    // warm, three runs: this route takes about 4.3 seconds for the 66 symbols
+    // the NSE board asks for, so the default cut it off every single time. Live
+    // quotes therefore never arrived on the deployed terminal, the board always
+    // showed the dated snapshot, and because an aborted call also marks the
+    // base down for twenty seconds, that one timeout took the rest of the API
+    // with it. Waiting longer here costs the reader nothing visible.
+    const r = await fetch('/api/quotes?symbols=' + syms.join(','), {mxWaitMs: 15000});
     const d = await r.json();
     // Per symbol: a record the route could not fill carries an "error" and no
     // price, and that must leave the snapshot's row alone rather than blank it.
