@@ -3,7 +3,7 @@
   MUTXRI TERMINAL - NEWS panel. NSE news headlines. Vanilla JS, Godel palette.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261122061324';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122062056';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -91,34 +91,6 @@
   /* a single-security view is about listed securities, so the coming-to-market
      block (companies that have not traded and belong to no security) steps out
      of the way rather than sitting above an unrelated filter result */
-  body.has-q #upcoming{display:none}
-
-  /* UPCOMING LISTINGS: companies approaching the market that have NOT traded.
-     Data-driven from static_data/upcoming_listings.json. Carries no traded
-     price: a null renders as an honest hyphen or the row is omitted, never a
-     zero, and an offer price is labelled OFFER PRICE. */
-  .up-h{display:flex;align-items:center;gap:10px;padding:2px 4px 8px;flex-wrap:wrap}
-  .up-code{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.1em;border:1px solid var(--line2);padding:2px 6px;border-radius:2px}
-  .up-t{font-family:var(--mono);font-size:12px;color:var(--tx2);letter-spacing:.06em}
-  .up-t b{color:var(--acc)}
-  .up-card{border:1px solid var(--line2);border-left:2px solid var(--acc);border-radius:4px;background:var(--bg2);padding:12px 14px;margin-bottom:8px}
-  .up-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .up-name{font-size:14px;color:var(--tx);font-weight:600}
-  .up-chip{font-family:var(--mono);font-size:9px;letter-spacing:.08em;border-radius:2px;padding:2px 7px;border:1px solid var(--line2);white-space:nowrap}
-  .up-chip.ok{color:#33e29a;border-color:#33e29a}
-  .up-chip.soon{color:#e0a340;border-color:#e0a340}
-  .up-chip.pend{color:var(--tx2)}
-  .up-aka{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-top:3px}
-  .up-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:10px 14px;margin-top:10px}
-  .up-f{min-width:0}
-  .up-k{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--tx3)}
-  .up-v{font-family:var(--mono);font-size:12px;color:var(--tx);overflow-wrap:anywhere;margin-top:2px}
-  .up-v.price{color:#33e29a}
-  .up-note{display:block;font-family:var(--ui);font-size:9px;color:var(--tx3);margin-top:2px}
-  .up-text{margin-top:10px;font-size:12px;line-height:1.5;color:var(--tx2)}
-  .up-src{margin-top:9px;font-family:var(--mono);font-size:9px;color:var(--tx3);line-height:1.5;overflow-wrap:anywhere}
-  .up-src a{color:var(--acc2);text-decoration:none}
-  .up-sep{height:1px;background:var(--line2);margin:2px 0 12px}
   /* the search sits on the title line, after the panel name and before the
      source note, so the head reads  PANEL  [search]  source  the way a desk does it */
   /* the search must stay usable at any window width: it gets a floor instead of
@@ -145,7 +117,6 @@
     <span class="spacer"></span>
     <span class="src" id="src">Headlines · Reg · Actions</span>
   </div>
-  <div id="upcoming"></div>
   <div class="active" id="active" style="display:none"></div>
   <div id="items"><div class="empty">loading…</div></div>
 </div>
@@ -528,10 +499,10 @@
     drawSugg(qEl.value);
   }
   // The chip names the security the panel is narrowed to, and CLEAR lifts it.
-  // It also tells the coming-to-market block to stand down while a security is
-  // selected, so nothing on the panel sits outside the filter.
+  // It used to set a has-q class on the body as well, which existed only to
+  // hide the coming-to-market block while a security was selected. That block
+  // is gone, and a class no rule matches is a loose end, so it went with it.
   function chip(qraw, secs){
-    document.body.classList[qraw ? "add" : "remove"]("has-q");
     if (!qraw){ actEl.style.display = "none"; actEl.innerHTML = ""; return; }
     actEl.style.display = "flex";
     // A query that named no security still gets a chip, so the state is visible
@@ -860,93 +831,6 @@
   qEl.addEventListener("blur", function(){ setTimeout(hideSugg, 120); });
   function onQuery(){ SUGSEL = -1; renderNews(); drawSugg(qEl.value); }
   loadSecurities();
-})();
-</script>
-<script>
-/* UPCOMING LISTINGS: companies approaching the market that have NOT traded.
-   A reader must see these without selecting anything from a board, because a
-   company with no price sits on no board. Data: static_data/upcoming_listings.json.
-   The block carries no traded price: a null renders as an honest hyphen or the
-   row is omitted, never a zero, and an offer price is labelled OFFER PRICE. */
-(function(){
-  "use strict";
-  try{
-    var _q = new URLSearchParams(window.location.search);
-    if((_q.get("feeds") || "").toLowerCase() === "press") return; // PRESS tab is headlines only
-  }catch(e){}
-  function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-  function num(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
-  function chipCls(st){
-    st = String(st || "").toUpperCase();
-    if(st.indexOf("LISTING CONFIRMED") >= 0) return "ok";
-    if(st.indexOf("LISTING SOON") >= 0) return "soon";
-    return "pend";
-  }
-  fetch("../../static_data/upcoming_listings.json")
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(d){
-      var rows = (d && d.listings) || [];
-      var host = document.getElementById("upcoming");
-      if(!host || !rows.length) return;
-      // A LISTED COMPANY IS NOT "COMING TO MARKET". Quickmart listed on 12 November 2026
-      // and this card still showed it under NOT YET TRADING, because every row in the
-      // file was rendered under one heading. Rows are split on the status the file
-      // carries, and a listed row shows its ticker and its first trade instead.
-      function isListed(c){ return /^LISTED$/i.test(String((c && c.status) || "").trim()); }
-      var _up = rows.filter(function(c){ return !isListed(c); });
-      var _on = rows.filter(isListed);
-      var h = '';
-      if(_up.length){
-        h += '<div class="up-h"><span class="up-code">UPCOMING</span>' +
-             '<span class="up-t">COMING TO MARKET <b>· NOT YET TRADING</b></span></div>';
-      }
-      _up.concat([]).forEach(function(c){
-        var facts = "";
-        function f(label, val, cls){
-          facts += '<div class="up-f"><div class="up-k">' + esc(label) + '</div>' +
-                   '<div class="up-v' + (cls ? ' ' + cls : '') + '">' + val + '</div></div>';
-        }
-        var exTxt = c.exchange_name || c.exchange || "";
-        if(c.segment) exTxt += (exTxt ? ' · ' : '') + c.segment;
-        if(exTxt) f("EXCHANGE", esc(exTxt));
-        // The date may be fixed or only a window. Show whichever exists, and a
-        // hyphen only when neither does, never a guessed date.
-        var when = c.expected_date ? esc(c.expected_date)
-                 : (c.expected_window ? esc(c.expected_window) : "-");
-        f("EXPECTED DATE", when);
-        if(c.offer_price != null)
-          f("OFFER PRICE",
-            esc((typeof c.offer_price === "number" ? c.offer_price.toFixed(2) : c.offer_price) + (c.offer_price_currency ? " " + c.offer_price_currency : "")) +
-            ' <span class="up-note">offer price, not a traded price</span>', "price");
-        if(c.shares_offered != null) f("SHARES OFFERED", esc(num(c.shares_offered)));
-        if(c.shares_in_issue != null) f("SHARES IN ISSUE", esc(num(c.shares_in_issue)));
-        if(c.sector) f("SECTOR", esc(c.sector));
-        var src = "";
-        if(c.sources && c.sources.length){
-          src = '<div class="up-src">' + c.sources.map(function(s){
-            var l = s && (s.label || s);
-            return (s && s.url)
-              ? '<a href="' + esc(s.url) + '" target="_blank" rel="nofollow noopener">' + esc(l) + '</a>'
-              : esc(l);
-          }).join(" · ") + '</div>';
-        }
-        h += '<div class="up-card">' +
-             '<div class="up-top"><span class="up-name">' + esc(c.name || "") + '</span>' +
-             (c.status ? '<span class="up-chip ' + chipCls(c.status) + '">' + esc(c.status) + '</span>' : '') +
-             '</div>' +
-             (c.trading_name ? '<div class="up-aka">trading as ' + esc(c.trading_name) + '</div>' : '') +
-             '<div class="up-grid">' + facts + '</div>' +
-             (c.note ? '<div class="up-text">' + esc(c.note) + '</div>' : '') +
-             src + '</div>';
-      });
-      // A LISTED COMPANY IS NOT RENDERED HERE. This card exists for companies that
-      // have not traded yet; once one lists it is a security on the board (QMRT) and
-      // has no business in the NEWS stream as a listing notice. Listed rows are
-      // therefore dropped rather than given a section of their own.
-      h += '<div class="up-sep"></div>';
-      host.innerHTML = h;
-    })
-    .catch(function(){ /* no upcoming file: render nothing, do not break NEWS */ });
 })();
 </script>
 </body>
