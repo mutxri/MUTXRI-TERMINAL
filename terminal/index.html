@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122031326';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122035259';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1769,9 +1769,22 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
         return raw(apiUrl(u), o).then(function(r){
           settle();
           if(!r.ok){
-            healthy = false;
-            window.API_BASE = '';
-            if(get) downUntil = Date.now() + window.MUTXRI_API_DOWN_MS;
+            // WHAT A BAD STATUS ACTUALLY TELLS US. The backend answered. It
+            // refused THIS call, and that is a fact about this route or this
+            // caller, not about the backend's health: 404 says the route is not
+            // there, 401 and 403 say this caller may not have it, 400 says the
+            // request was malformed. Only a 5xx says the backend itself is in
+            // trouble. Treating every bad status as DOWN cost twenty seconds of
+            // the whole terminal: one panel asking for a route that does not
+            // exist cleared API_BASE and put the shell's quotes, its listing and
+            // every other panel onto the dated snapshot until the window
+            // expired, for a 404 that was answered correctly in milliseconds.
+            // That was observable: the parity probe did it on every load.
+            if(r.status >= 500){
+              healthy = false;
+              window.API_BASE = '';
+              if(get) downUntil = Date.now() + window.MUTXRI_API_DOWN_MS;
+            }
             var e = new Error('api ' + r.status + ' ' + u); e.mxStatus = r.status; e.mxApi = true; throw e;
           }
           downUntil = 0; healthy = true;
