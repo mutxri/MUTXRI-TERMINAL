@@ -8,7 +8,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122222243';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122223347';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Financials</title>
@@ -735,6 +735,22 @@
   function STMT_TITLE(){return {income:"Income Statement",balance:"Balance Sheet",
     cashflow:"Cash Flow Statement"}[state.statement];}
 
+  // A statement that stops at an older year because the issuer has not filed is
+  // not a collector miss, so name the reason above the table instead of leaving
+  // the reader to guess why the newest column is an older year.
+  function showFilerGap(fs){
+    if(!fs) return;
+    var miss = fs.annualMissing || "";
+    var txt  = fs.reasonShort || "";
+    if(!miss && !txt) return;
+    var host = document.getElementById("body"); if(!host) return;
+    var el = document.createElement("div");
+    el.setAttribute("data-filer-gap","1");
+    el.style.cssText = "margin:0 0 10px;padding:8px 12px;border:1px solid var(--line2);border-radius:6px;color:var(--tx3);font:inherit;font-size:11px;line-height:1.5";
+    el.textContent = (miss ? miss + " " : "") + (fs.state ? fs.state + ": " : "") + txt;
+    host.insertBefore(el, host.firstChild);
+  }
+
   function setStatus(source,asOf){
     var dot=document.getElementById("dot"),lab=document.getElementById("srcLabel");
     dot.className="dot";
@@ -879,6 +895,7 @@
           // NGX/NSE come from AfricanFinancials filings and were being labelled
           // "Yahoo Finance" regardless
           render(d); setStatus("");
+          showFilerGap(d.filerStatus);
           return;
         }
         if(d && (d.source_note || d.note)) noDataReason = d.source_note || d.note;
