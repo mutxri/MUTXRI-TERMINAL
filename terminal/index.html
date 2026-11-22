@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261122054618';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122060826';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -603,6 +603,34 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
   cursor:pointer;transition:background .12s}
 .wl-row:hover{background:var(--bg3)}
 .wl-row.active{background:var(--bg3);box-shadow:inset 2px 0 0 var(--acc)}
+/* ---- the reader's own list: the mode strip, the drop control, the add bar ---- */
+.wl-modes{display:flex;align-items:center;gap:4px;padding:5px var(--s4);
+  border-bottom:1px solid var(--line);flex:none}
+.wl-mode{background:none;border:1px solid transparent;color:var(--tx3);
+  font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:2px 7px;
+  border-radius:2px;cursor:pointer}
+.wl-mode:hover{color:var(--tx2)}
+.wl-mode.on{color:var(--acc);border-color:var(--acc);background:var(--mint-dim)}
+.wl-count{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--tx3)}
+/* The drop control is quiet until the row is under the pointer: a watchlist is
+   read far more often than it is edited, and a column of crosses down the rail
+   reads as clutter on every row the reader is not editing. */
+.wl-row .wl-drop{opacity:0;background:none;border:0;color:var(--tx3);
+  font-family:var(--mono);font-size:11px;line-height:1;padding:0 4px;cursor:pointer}
+.wl-row:hover .wl-drop{opacity:.7}
+.wl-row .wl-drop:hover{color:#ff5f56;opacity:1}
+.wl-add{display:flex;gap:5px;padding:6px var(--s4);border-top:1px solid var(--line2);flex:none}
+.wl-add input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--line2);
+  color:var(--tx);font-family:var(--mono);font-size:10.5px;padding:3px 7px;
+  border-radius:2px;outline:none}
+.wl-add input:focus{border-color:var(--acc)}
+.wl-add button{background:none;border:1px solid var(--line2);color:var(--tx3);
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;padding:0 8px;
+  border-radius:2px;cursor:pointer}
+.wl-add button:hover{border-color:var(--acc);color:var(--acc)}
+.wl-empty{padding:18px var(--s4);color:var(--tx3);font-family:var(--mono);
+  font-size:10.5px;line-height:1.6}
+.wl-empty b{color:var(--acc);font-weight:400}
 .wl-logo-cell{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:center}
 .wl-logo{width:22px;height:22px;border-radius:3px;background:var(--bg4);object-fit:contain;padding:2px}
 .wl-mono{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
@@ -1712,7 +1740,24 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
       <!-- search bar: reads the selected exchange's own market file, filters as
            you type, and picking a row calls openStock() - the same selection a
            click on a row below makes. -->
+      <!-- A WATCHLIST IS THE READER'S OWN LIST. This rail used to paint every
+           security the exchange lists, 70 on the NSE and 361 on the JSE, which
+           is a directory and not a watchlist: nothing on it was chosen, so
+           nothing on it meant anything. MY LIST shows only what has been added
+           and is where the rail opens. ALL is the old full board, one click
+           away, because browsing the whole exchange is still a thing a reader
+           does and taking it away would be a loss, not a tidy-up. -->
+      <div class="wl-modes" id="wlModes">
+        <button type="button" class="wl-mode on" data-wlm="mine">MY LIST</button>
+        <button type="button" class="wl-mode" data-wlm="all">ALL</button>
+        <span class="wl-count" id="wlCount"></span>
+      </div>
       <div class="wl" id="wlList"></div>
+      <div class="wl-add" id="wlAddBar">
+        <input id="wlAdd" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Add a ticker" aria-label="Add a security to the watchlist">
+        <button type="button" id="wlAddBtn" title="Add to the watchlist">ADD</button>
+      </div>
     </aside>
 
     <!-- CENTER PANEL -->
@@ -5639,6 +5684,57 @@ window.openAwaitingFinancials = function(){
   } catch (e) {}
 };
 
+// ===== THE READER'S OWN WATCHLIST =====
+// One list per exchange, kept in this browser. A watchlist is a statement of
+// interest, so nothing is seeded into it: it starts empty and says so, rather
+// than opening with 70 companies nobody chose and calling that a watchlist.
+window.MTWatch = (function(){
+  const KEY = 'mt_watchlist', MODE_KEY = 'mt_watchlist_mode';
+  function read(){
+    try{
+      const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+      return (raw && typeof raw === 'object') ? raw : {};
+    }catch(e){ return {}; }
+  }
+  function write(all){ try{ localStorage.setItem(KEY, JSON.stringify(all)); }catch(e){} }
+  function ex(){ return String((typeof currentEx !== 'undefined' && currentEx) || 'NSE').toUpperCase(); }
+  function list(e){
+    const arr = read()[e || ex()];
+    return Array.isArray(arr) ? arr.slice() : [];
+  }
+  function has(sym, e){
+    const s = String(sym || '').toUpperCase();
+    return list(e).some(function(x){ return String(x).toUpperCase() === s; });
+  }
+  function add(sym, e){
+    const s = String(sym || '').trim().toUpperCase();
+    if(!s) return false;
+    const k = e || ex(), all = read(), arr = Array.isArray(all[k]) ? all[k] : [];
+    if(arr.some(function(x){ return String(x).toUpperCase() === s; })) return false;
+    arr.push(s); all[k] = arr; write(all);
+    return true;
+  }
+  function remove(sym, e){
+    const s = String(sym || '').toUpperCase();
+    const k = e || ex(), all = read();
+    if(!Array.isArray(all[k])) return false;
+    const before = all[k].length;
+    all[k] = all[k].filter(function(x){ return String(x).toUpperCase() !== s; });
+    if(all[k].length === before) return false;
+    write(all);
+    return true;
+  }
+  // MY LIST is where the rail opens, and the choice is remembered: a reader who
+  // keeps the whole board up should not have to ask for it on every visit.
+  function mode(){
+    try{ return localStorage.getItem(MODE_KEY) === 'all' ? 'all' : 'mine'; }catch(e){ return 'mine'; }
+  }
+  function setMode(m){
+    try{ localStorage.setItem(MODE_KEY, m === 'all' ? 'all' : 'mine'); }catch(e){}
+  }
+  return {list: list, has: has, add: add, remove: remove, mode: mode, setMode: setMode, ex: ex};
+})();
+
 function renderWatchlist(filter){
   const list = listing[currentEx] || [];
   const f = (filter || '').toUpperCase();
@@ -5654,8 +5750,25 @@ function renderWatchlist(filter){
   // no price already states "no price" rather than inventing one. The 300 cap is
   // gone with it: a cap under an uncapped header count is the same disagreement.
   // The only filter left is the reader's own search text.
-  const rows = f ? list.filter(s => stockTicker(s).includes(f) || (s.name||'').toUpperCase().includes(f)) : list;
+  const found = f ? list.filter(s => stockTicker(s).includes(f) || (s.name||'').toUpperCase().includes(f)) : list;
+  // MY LIST narrows the board to what the reader has added, in the order they
+  // added it, which is the order a watchlist is read in. ALL is the board as it
+  // was. A typed filter still applies in both: searching inside your own list is
+  // the normal thing to want when the list grows.
+  const mine = window.MTWatch.mode() === 'mine';
+  let rows = found;
+  if(mine){
+    const want = window.MTWatch.list();
+    const byTicker = {};
+    found.forEach(function(s){ byTicker[stockTicker(s).toUpperCase()] = s; });
+    rows = want.map(function(t){ return byTicker[String(t).toUpperCase()]; })
+               .filter(Boolean);
+  }
   const el = $('wlList');
+  const cnt = $('wlCount');
+  if(cnt) cnt.textContent = mine
+    ? (window.MTWatch.list().length + ' held')
+    : (found.length + ' listed');
   // A company awaiting listing has no traded price, so it is shown with a status
   // instead of a price and pinned to the top of its board's watchlist, where a
   // reader sees it without selecting anything first.
@@ -5663,7 +5776,12 @@ function renderWatchlist(filter){
   // The header names the board and nothing else. It used to append a listed count
   // and an awaiting count, which a reader never acts on, and the two numbers had to
   // be kept in step with the rows or they read as wrong. Dropped by the owner.
-  const awaitRows = (typeof awaitingRowsFor === 'function') ? awaitingRowsFor(currentEx, f) : [];
+  // A company awaiting listing belongs to the BOARD, not to anyone's watchlist:
+  // nobody added it and it cannot be dropped. It is pinned to the top of ALL,
+  // where board news belongs, and left out of MY LIST, which holds only what the
+  // reader put there. Leaving it in also meant an empty watchlist was never
+  // actually empty, so the line explaining how to fill one never appeared.
+  const awaitRows = (!mine && typeof awaitingRowsFor === 'function') ? awaitingRowsFor(currentEx, f) : [];
   const awaitHtml = awaitRows.map(awaitRowHTML).join('');
   // the header used to gain a listed count and an awaiting count here; both are gone
   // (owner, 2026-11-02), so there is nothing left to reconcile against the rows
@@ -5715,10 +5833,20 @@ function renderWatchlist(filter){
       <!-- NO PRICE ON A WATCHLIST ROW (owner, 2026-11-03): "remove the ticker price
            off chart panel and watchlist panel". The row is the ticker and the company
            name; the price appears on the FOCUS card only. -->
+      ${mine ? `<button type="button" class="wl-drop" data-drop="${esc(sym)}"
+        title="Remove ${esc(sym)} from the watchlist" aria-label="Remove ${esc(sym)}">✕</button>` : ''}
     </div>`;
   }).join('');
-  el.innerHTML = (awaitHtml + body) ||
-    '<div style="padding:20px;color:var(--tx3);font-family:var(--mono);font-size:11px">no stocks</div>';
+  // WHAT AN EMPTY RAIL SAYS. "no stocks" was the answer when the list was the
+  // whole exchange, where empty meant something had gone wrong. An empty watch
+  // list is the normal first state, so it names the control that fills it rather
+  // than reading like a failure.
+  const empty = mine
+    ? (f ? '<div class="wl-empty">Nothing in your list matches <b>' + esc(filter || '') + '</b>.</div>'
+         : '<div class="wl-empty">Your watchlist is empty.<br>Add a security with the box below, ' +
+           'or switch to <b>ALL</b> to browse the whole board.</div>')
+    : '<div class="wl-empty">No securities on this board.</div>';
+  el.innerHTML = (awaitHtml + body) || empty;
 }
 
 // ===== Quotes =====
@@ -10553,6 +10681,105 @@ loadUpcoming();          // companies awaiting listing (no price): watchlist + f
     var x = head.querySelector('.pw-x');
     if(x) head.insertBefore(b, x); else head.appendChild(b);
   });
+})();
+</script>
+
+<script>
+/* THE WATCHLIST IS EDITED HERE: the MY LIST / ALL strip, the drop control on a
+   row, and the add bar at the foot of the rail. renderWatchlist() already knows
+   how to paint either mode (see MTWatch); this is only the controls that change
+   which one, and what is in it. */
+(function(){
+  function redraw(){
+    try{ renderWatchlist(document.getElementById('q') ? document.getElementById('q').value : ''); }catch(e){}
+  }
+  function syncModes(){
+    var m = window.MTWatch.mode();
+    document.querySelectorAll('.wl-mode').forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-wlm') === m);
+    });
+  }
+  var modes = document.getElementById('wlModes');
+  if(modes){
+    modes.addEventListener('click', function(e){
+      var b = e.target.closest ? e.target.closest('.wl-mode') : null;
+      if(!b) return;
+      window.MTWatch.setMode(b.getAttribute('data-wlm'));
+      syncModes();
+      redraw();
+    });
+    syncModes();
+  }
+
+  // The drop control sits inside a row whose own click selects the security, so
+  // the press has to stop here or removing a line would also open it.
+  var listEl = document.getElementById('wlList');
+  if(listEl){
+    listEl.addEventListener('click', function(e){
+      var d = e.target.closest ? e.target.closest('.wl-drop') : null;
+      if(!d) return;
+      e.stopPropagation();
+      e.preventDefault();
+      window.MTWatch.remove(d.getAttribute('data-drop'));
+      redraw();
+    }, true);
+  }
+
+  // ADDING. A reader types a ticker or a company name. The name is resolved
+  // against the board that is actually on screen, so a name that this exchange
+  // does not list is refused in one line instead of being added as a row that
+  // can never show a price.
+  var input = document.getElementById('wlAdd');
+  var btn = document.getElementById('wlAddBtn');
+  function note(msg){
+    var el = document.getElementById('wlList');
+    if(!el) return;
+    var n = document.createElement('div');
+    n.className = 'wl-empty';
+    n.textContent = msg;
+    el.insertBefore(n, el.firstChild);
+    setTimeout(function(){ try{ n.remove(); }catch(e){} }, 2600);
+  }
+  function resolve(raw){
+    var v = String(raw || '').trim();
+    if(!v) return null;
+    var up = v.toUpperCase();
+    var board = (typeof listing !== 'undefined' && listing[currentEx]) ? listing[currentEx] : [];
+    var hit = null;
+    for(var i = 0; i < board.length; i++){
+      var t = String(stockTicker(board[i]) || '').toUpperCase();
+      if(t === up){ hit = board[i]; break; }
+    }
+    if(!hit){
+      for(var j = 0; j < board.length; j++){
+        var nm = String(board[j].name || '').toUpperCase();
+        if(nm === up || nm.indexOf(up) === 0){ hit = board[j]; break; }
+      }
+    }
+    return hit ? String(stockTicker(hit)).toUpperCase() : null;
+  }
+  function addNow(){
+    if(!input) return;
+    var raw = input.value;
+    if(!String(raw || '').trim()) return;
+    var sym = resolve(raw);
+    if(!sym){ note(String(raw).trim() + ' is not listed on ' + currentEx + '.'); return; }
+    // Adding something while ALL is showing and never seeing it land reads as a
+    // control that did nothing, so the rail switches to the list it just changed.
+    var added = window.MTWatch.add(sym);
+    if(window.MTWatch.mode() !== 'mine'){ window.MTWatch.setMode('mine'); syncModes(); }
+    input.value = '';
+    redraw();
+    if(!added) note(sym + ' is already on your watchlist.');
+  }
+  if(btn) btn.addEventListener('click', addNow);
+  if(input){
+    input.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    input.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); addNow(); }
+      if(e.key === 'Escape'){ input.value = ''; input.blur(); }
+    });
+  }
 })();
 </script>
 
