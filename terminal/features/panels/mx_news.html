@@ -3,7 +3,7 @@
   MUTXRI TERMINAL - NEWS panel. NSE news headlines. Vanilla JS, Godel palette.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261122040651';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261122045419';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta name="robots" content="noindex, nofollow">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -32,13 +32,35 @@
   .title b{color:var(--acc)}
   .spacer{flex:1}
   .src{font-family:var(--mono);font-size:9px;color:var(--tx3)}
-  .item{border:1px solid var(--line);border-radius:4px;background:var(--bg2);padding:12px 14px;margin-top:8px}
-  .item a{color:var(--tx);text-decoration:none;font-size:13px;line-height:1.5;display:block}
-  .item a:hover{color:var(--acc)}
-  .meta{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:7px;display:flex;gap:10px;align-items:center}
+  /* THE WIRE IS A TABLE. It was a stack of cards: a bordered box per story with
+     its source, date and tickers wrapped underneath in a row that started at a
+     different place on every line. Six stories filled the panel and nothing
+     could be scanned down a column. A reader working a news wire reads down,
+     not across - every story at this hour, everything from this source,
+     everything on this ticker - so the fields line up under their headings and
+     thirty rows fit where six did. */
+  .nwrap{margin-top:10px}
+  table.nt{width:100%;border-collapse:collapse;font-size:12px}
+  .nt thead th{position:sticky;top:0;z-index:2;background:var(--bg);
+    font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.12em;
+    color:var(--tx3);text-align:left;padding:7px 12px 7px 0;
+    border-bottom:1px solid var(--line2);white-space:nowrap}
+  .nt tbody td{padding:5px 12px 5px 0;border-bottom:1px solid var(--line);vertical-align:baseline}
+  .nt tbody tr:hover td{background:var(--bg3)}
+  /* The headline takes whatever the fixed columns leave. width:1% on a cell
+     whose content cannot wrap is the standard way to say "only as wide as it
+     needs", so the four meta columns shrink to their text and the headline
+     keeps the rest instead of all five sharing the width equally. */
+  .nt .c-date,.nt .c-time,.nt .c-tick,.nt .c-src{
+    font-family:var(--mono);font-size:10px;color:var(--tx3);white-space:nowrap;width:1%}
+  .nt .c-time{color:var(--tx2)}
+  .nt .c-tick{color:var(--acc2)}
+  .nt .c-src{color:var(--acc);max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .nt a{color:var(--tx);text-decoration:none;line-height:1.45}
+  .nt a:hover{color:var(--acc)}
+  .nt .nl{color:var(--tx2)}
   .pub{color:var(--acc)}
   .tick{color:var(--acc2);border:1px solid var(--line2);border-radius:2px;padding:1px 5px}
-  .item .nl{color:var(--tx2)}
   .empty{padding:30px 14px;text-align:center;color:var(--tx3);font-family:var(--mono);font-size:11px}
 
   /* SECURITY FILTER: the search box, its suggestion list, the chip that names
@@ -674,6 +696,14 @@
         if(seen[k]) return;
         seen[k] = 1;
         n._t = stamp(n);
+        // WHICH ROWS MAY PRINT A TIME. Only the press feed publishes one: its
+        // items carry a real epoch stamp, 823 of 823 on the NSE file, with a
+        // genuine hour and minute. A corporate action is dated to the day and
+        // corpRows derives its ts as midnight UTC, so printing that row's time
+        // would put "00:00" against a dividend nobody announced at midnight. A
+        // regulator row carries no stamp at all. The flag is set where the row
+        // is built, so the table never has to guess from the number alone.
+        n._clock = (s.kind === "plain" && typeof n.ts === "number" && n.ts > 0);
         if(!n.date && n._t) n.date = shortDate(n._t);
         all.push(n);
       });
@@ -756,17 +786,65 @@
       shown = NEWSROWS.filter(function(n){ return !n._reg && rowMatch(n, secs); });
     }
     if(!shown.length){ el.innerHTML = emptyState(qraw, secs); return; }
-    el.innerHTML = shown.map(function(n){
-      var ticks = (n.tickers || []).slice(0, 3).map(function(t){
-        return '<span class="tick">' + esc(t) + '</span>'; }).join(" ");
-      var head = n.url
-        ? '<a href="' + esc(n.url) + '" target="_blank" rel="nofollow noopener">' + esc(n.title) + '</a>'
-        : '<span class="nl">' + esc(n.title) + '</span>';
-      return '<div class="item">' + head +
-        '<div class="meta"><span class="pub">' + esc(n.publisher || "") + '</span>' +
-          '<span>' + esc(n.date || "") + '</span>' + ticks + '</div>' +
-        '</div>';
-    }).join("");
+    el.innerHTML =
+      '<div class="nwrap"><table class="nt"><thead><tr>' +
+        '<th class="c-head">Headline</th><th>Date</th><th>Time</th>' +
+        '<th>Ticker</th><th>Source</th>' +
+      '</tr></thead><tbody>' +
+      shown.map(function(n){
+        var head = n.url
+          ? '<a href="' + esc(n.url) + '" target="_blank" rel="nofollow noopener">' + esc(n.title) + '</a>'
+          : '<span class="nl">' + esc(n.title) + '</span>';
+        var dt = rowDate(n), tm = rowTime(n);
+        var tks = (n.tickers || []);
+        var tick = tks.length
+          ? esc(tks[0]) + (tks.length > 1 ? ' +' + (tks.length - 1) : '')
+          : '';
+        return '<tr>' +
+          '<td class="c-head">' + head + '</td>' +
+          '<td class="c-date">' + esc(dt) + '</td>' +
+          '<td class="c-time">' + esc(tm) + '</td>' +
+          '<td class="c-tick">' + tick + '</td>' +
+          '<td class="c-src" title="' + esc(n.publisher || "") + '">' + esc(n.publisher || "") + '</td>' +
+        '</tr>';
+      }).join("") +
+      '</tbody></table></div>';
+  }
+
+  // Date and time are read from ONE source per row so the two can never
+  // disagree. A press row has a published epoch stamp and prints both from it,
+  // in the reader's own clock. A row dated only to the day prints the date its
+  // feed gave and leaves the time cell empty, which is the true answer: nobody
+  // published a time for it.
+  function pad2(v){ return (v < 10 ? "0" : "") + v; }
+  function rowDate(n){
+    // One shape down the whole column, DD/MM/YY, the same order the rest of the
+    // terminal writes a date in.
+    if(n._clock){
+      // A published instant, shown in the reader's clock, the same clock the
+      // time cell beside it uses.
+      var d = new Date(n.ts * 1000);
+      return pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) + "/" +
+             String(d.getFullYear()).slice(2);
+    }
+    // A day, not an instant. Its ts was built as midnight UTC, so it is read
+    // back in UTC: converting it to a local clock would move a dividend onto
+    // the previous day for any reader west of Greenwich, and a corporate action
+    // on the wrong date is worse than no table at all.
+    if(typeof n.ts === "number" && n.ts > 0){
+      var u = new Date(n.ts * 1000);
+      return pad2(u.getUTCDate()) + "/" + pad2(u.getUTCMonth() + 1) + "/" +
+             String(u.getUTCFullYear()).slice(2);
+    }
+    // No stamp at all: the regulator wire dates its rows "2026-11-21".
+    var iso = String(n.date || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(iso) return iso[3] + "/" + iso[2] + "/" + iso[1].slice(2);
+    return n.date || "";
+  }
+  function rowTime(n){
+    if(!n._clock) return "";
+    var d = new Date(n.ts * 1000);
+    return pad2(d.getHours()) + ":" + pad2(d.getMinutes());
   }
 
   qEl.addEventListener("input", onQuery);
