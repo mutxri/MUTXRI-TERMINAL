@@ -51,7 +51,7 @@
   licence and a real execution venue, nothing here may look like a live order.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261124022552';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124023239';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - TRADE (PAPER)</title>
@@ -72,6 +72,50 @@
   [hidden]{display:none!important;}
   body{margin:0;background:transparent;color:var(--tx);font-family:var(--ui);font-size:13px;padding:0;}
   .wrap{padding:10px 14px 26px;}
+  /* ---- THE DEPTH WINDOW ------------------------------------------------
+     The two sides of the market as a dealing screen shows them (owner,
+     2026-11-24): buyers banked down the left, sellers down the right, the
+     session's own figures along the bottom. Bid side carries the blue ground
+     and offer side the red, which is the convention every depth window on a
+     dealing desk uses and is what the owner's reference screen shows.
+
+     THE EMPTY ROWS ARE THE POINT, not an oversight. A depth window that
+     publishes one level draws one level and leaves the rest of the ladder
+     blank, exactly as the reference screen does for a share with nothing
+     resting behind the touch. Filling those rows with anything at all would be
+     inventing a market. */
+  .dpt{border:1px solid var(--line2);border-radius:3px;overflow:hidden;max-width:620px;}
+  .dpt-t{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg4);
+         border-bottom:1px solid var(--line2);font-family:var(--mono);font-size:11px;}
+  .dpt-t .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+             color:var(--tx);letter-spacing:.06em;}
+  .dpt-g{display:grid;grid-template-columns:1fr 1fr;}
+  .dpt-s{min-width:0;}
+  .dpt-s.bid{background:rgba(32,74,135,.30);}
+  .dpt-s.ask{background:rgba(180,60,70,.30);}
+  .dpt-hd{display:grid;grid-template-columns:1fr 1.2fr 1.2fr;gap:2px;padding:5px 8px;
+          background:var(--bg3);border-bottom:1px solid var(--line2);
+          font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--tx3);}
+  .dpt-s.ask .dpt-hd{grid-template-columns:1.2fr 1.2fr 1fr;}
+  .dpt-r{display:grid;grid-template-columns:1fr 1.2fr 1.2fr;gap:2px;padding:3px 8px;
+         font-family:var(--mono);font-size:11px;color:var(--tx);min-height:20px;}
+  .dpt-s.ask .dpt-r{grid-template-columns:1.2fr 1.2fr 1fr;}
+  .dpt-r span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dpt-r .r{text-align:right;}
+  .dpt-s.bid .px{color:#8ec5ff;}
+  .dpt-s.ask .px{color:#ffb0b4;}
+  /* AFTER the two price colours, and matching the same two class deep selector,
+     or the price rules win on specificity and the dash in an unpublished row is
+     drawn in bid blue. An empty level must look empty. */
+  .dpt-s .dpt-r.empty span, .dpt-s .dpt-r.empty span.px{color:transparent;}
+  .dpt-f{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 10px;padding:6px 10px;
+         background:var(--bg3);border-top:1px solid var(--line2);
+         font-family:var(--mono);font-size:10.5px;}
+  .dpt-f div{display:flex;justify-content:space-between;gap:8px;min-width:0;}
+  .dpt-f b{color:var(--warn);font-weight:400;letter-spacing:.04em;}
+  .dpt-f span{color:var(--tx);}
+  .dpt-f span.up{color:var(--up);} .dpt-f span.down{color:var(--down);}
+  .dpt-note{color:var(--tx3);font-size:10.5px;line-height:1.5;margin-top:7px;max-width:620px;}
   /* ---- THE ORDER EMAIL SWITCH ------------------------------------------
      OFF by default, and it stays off until somebody turns it on. An email is
      a thing that arrives in a person's inbox whether or not they are looking,
@@ -672,6 +716,11 @@
       posTxt = fmt(Math.abs(pos.qty), 0) + " " + (pos.qty > 0 ? "long" : "short") +
                " at " + fmt(pos.avg, 2) + " average";
     }
+    // The statement opens with the balance BEFORE this order, so it is worked
+    // out by undoing the order's own cash movement rather than kept as a second
+    // running total that could drift out of step with the account.
+    var moved = (o.qty * px) + (o.fees || 0);
+    var opening = (o.side === "BUY") ? (a.cash + moved) : (a.cash - ((o.qty * px) - (o.fees || 0)));
     var payload = {
       token: authToken(),
       order: {
@@ -680,9 +729,15 @@
         ccy: cur || CUR_OF[EX] || "",
         placed: o.t ? new Date(o.t).toISOString().slice(0, 16).replace("T", " ") : "",
         filled: String(date || ""),
+        fees: o.fees || 0,
         fees_note: (o.fees != null && o.fees > 0) ? (fmt(o.fees, 2) + " " + (cur || "")) : "none"
       },
-      account: {cash: a.cash, realised: a.realised, position: posTxt}
+      // THE PAPER ACCOUNT'S REFERENCE IS DERIVED, NOT COLLECTED. It is the board
+      // plus the account's own order counter, which identifies the account inside
+      // this browser and means nothing outside it. No CDS number, no national ID
+      // and no passport number is held for a paper account or sent from here.
+      account: {cash: a.cash, realised: a.realised, position: posTxt,
+                opening: opening, ref: "PAPER-" + EX + "-" + String(a.seq || 0)}
     };
     fetch(MX_BASE + "/api/paper/confirm", {
       method: "POST", headers: {"Content-Type": "application/json"},
@@ -1404,34 +1459,84 @@
   // The board itself: ONE level per side, exactly the ratio the source
   // published, then the source's own last trades. No second level is invented
   // and the level quantity is never spread over an imagined ladder.
+  // THE DEPTH WINDOW. Buyers down the left, sellers down the right, the
+  // session's own figures along the bottom: the shape a dealing screen uses, so
+  // a reader can see at a glance what the share is bid at and what it is offered
+  // at (owner, 2026-11-24: "users should see what the share price is trading for
+  // in different sides").
+  //
+  // HOW MANY ROWS ARE DRAWN, AND WHY MOST ARE BLANK. The source publishes the
+  // touch and nothing behind it: one bid, one offer, with the size resting at
+  // each. The ladder is drawn five deep because that is what a depth window is,
+  // and the four rows behind the touch stay EMPTY. They are empty on a real
+  // dealing screen too whenever nothing is published behind the touch. Putting
+  // any figure in them would be inventing a market, which is the one thing this
+  // panel refuses to do.
+  //
+  // SPLIT is the number of separate orders making up a level. No source for any
+  // of these four boards publishes it, so the column is drawn and left at a dash
+  // rather than quietly dropped: the reader can see it is a thing that exists and
+  // is not published, which a missing column would not tell them.
   function bookBoard(sym, rec){
     var unit = BOOK.unit ? BOOK.unit : "";
     var ushow = unit === "ZAR" ? "R" : unit;
     function px(v){ return v == null ? "-" : fmt(v, 2); }
-    function qty(v){ return v == null ? "not published" : fmt(v, 0) + " shares at this price"; }
-    var html = "<div class='book'>" +
-      "<div class='hdrow'><div>BID · WHAT BUYERS ARE PAYING</div><div>ASK · WHAT SELLERS ARE ASKING</div></div>" +
-      "<div class='pxrow'>" +
-        "<div class='bid'><span class='px'>" + (ushow ? esc(ushow) + " " : "") + px(rec.bid) + "</span>" +
-          "<span class='qty'>" + qty(rec.bidQty) + "</span></div>" +
-        "<div class='ask'><span class='px'>" + (ushow ? esc(ushow) + " " : "") + px(rec.ask) + "</span>" +
-          "<span class='qty'>" + qty(rec.askQty) + "</span></div>" +
-      "</div>";
+    function q(v){ return v == null ? "-" : fmt(v, 0); }
+    var DEPTH = 5;
+    var bidRows = "", askRows = "";
+    for(var i = 0; i < DEPTH; i++){
+      var has = (i === 0);
+      var b = has && (rec.bid != null || rec.bidQty != null);
+      var k = has && (rec.ask != null || rec.askQty != null);
+      bidRows += "<div class='dpt-r" + (b ? "" : " empty") + "'>" +
+        "<span>-</span><span class='r'>" + (b ? q(rec.bidQty) : "-") + "</span>" +
+        "<span class='r px'>" + (b ? px(rec.bid) : "-") + "</span></div>";
+      askRows += "<div class='dpt-r" + (k ? "" : " empty") + "'>" +
+        "<span class='px'>" + (k ? px(rec.ask) : "-") + "</span>" +
+        "<span class='r'>" + (k ? q(rec.askQty) : "-") + "</span>" +
+        "<span class='r'>-</span></div>";
+    }
+    var nm = rec.name ? (esc(sym) + " - " + esc(rec.name)) : esc(sym);
+    var chg = null;
+    if(rec.last != null && rec.prevClose != null) chg = rec.last - rec.prevClose;
+    var ltt = String(rec.tradeTime || "").replace(/^As at /, "");
+    var mLtt = ltt.match(/(\d{1,2}:\d{2}(:\d{2})?\s*(am|pm)?)/i);
+    var html = "<div class='dpt'>" +
+      "<div class='dpt-t'><span class='nm'>" + nm + "</span></div>" +
+      "<div class='dpt-g'>" +
+        "<div class='dpt-s bid'><div class='dpt-hd'><span>SPLIT</span>" +
+          "<span class='r'>BID QTY</span><span class='r'>BID PRICE</span></div>" + bidRows + "</div>" +
+        "<div class='dpt-s ask'><div class='dpt-hd'><span>OFFER PRICE</span>" +
+          "<span class='r'>OFFER QTY</span><span class='r'>SPLIT</span></div>" + askRows + "</div>" +
+      "</div>" +
+      "<div class='dpt-f'>" +
+        "<div><b>OPEN</b><span>" + px(rec.open) + "</span></div>" +
+        "<div><b>HIGH</b><span>" + px(rec.high) + "</span></div>" +
+        "<div><b>CHANGE</b><span class='" + (chg == null ? "" : (chg >= 0 ? "up" : "down")) + "'>" +
+          (chg == null ? "-" : (chg > 0 ? "+" : "") + fmt(chg, 2)) + "</span></div>" +
+        "<div><b>CLOSE</b><span>" + px(rec.prevClose) + "</span></div>" +
+        "<div><b>LOW</b><span>" + px(rec.low) + "</span></div>" +
+        "<div><b>LTT</b><span>" + esc(mLtt ? mLtt[1] : (ltt || "-")) + "</span></div>" +
+      "</div></div>";
     var mid = [];
     if(rec.bid != null && rec.ask != null){
       var sp = rec.ask - rec.bid, spc = sp / ((rec.ask + rec.bid) / 2) * 100;
-      mid.push("Spread " + fmt(sp, 2) + (ushow ? " " + esc(ushow) : "") + " (" + fmt(spc, 2) + "%)");
+      mid.push("Bid " + (ushow ? esc(ushow) + " " : "") + fmt(rec.bid, 2) + " against offer " +
+               (ushow ? esc(ushow) + " " : "") + fmt(rec.ask, 2) + ", a spread of " +
+               fmt(sp, 2) + " (" + fmt(spc, 2) + "%)");
     } else if(rec.bid == null && rec.ask != null){
-      mid.push("No bid is published at this refresh; the ask above is what is published.");
+      mid.push("No bid is published at this refresh; the offer above is what is published.");
     } else if(rec.ask == null && rec.bid != null){
-      mid.push("No ask is published at this refresh; the bid above is what is published.");
+      mid.push("No offer is published at this refresh; the bid above is what is published.");
     }
-    if(rec.last != null) mid.push("Last trade " + fmt(rec.last, 2) + (rec.tradeTime ? " at " + esc(String(rec.tradeTime).replace(/^As at /, "")) : ""));
-    if(rec.dayTrades != null) mid.push(fmt(rec.dayTrades, 0) + " trades today");
+    if(rec.dayTrades != null) mid.push(fmt(rec.dayTrades, 0) + " trades in the session");
     if(rec.volumeTradedPublished) mid.push("Volume traded " + esc(rec.volumeTradedPublished) + " as published");
     if(rec.valueTraded) mid.push("Value traded " + esc(rec.valueTraded));
-    html += "<div class='midrow'>" + (mid.length ? mid.map(function(m){ return "<span>" + m + "</span>"; }).join("") : "<span>Only the two levels above are published.</span>") + "</div>";
-    html += "</div>";
+    html += "<div class='dpt-note'>" +
+      "<b>One level a side is published, and only the touch.</b> The four rows behind it are blank " +
+      "because nothing behind the touch is published for this board, not because nothing is there. " +
+      "SPLIT, the number of separate orders making up a level, is not published by any source for " +
+      "these markets. " + mid.join(". ") + (mid.length ? "." : "") + "</div>";
 
     if(rec.trades && rec.trades.length){
       html += "<h2 style='margin-top:14px'>Last trades · " + esc(sym) + "</h2>" +
