@@ -51,7 +51,7 @@
   licence and a real execution venue, nothing here may look like a live order.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261124010941';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124020233';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - TRADE (PAPER)</title>
@@ -72,6 +72,49 @@
   [hidden]{display:none!important;}
   body{margin:0;background:transparent;color:var(--tx);font-family:var(--ui);font-size:13px;padding:0;}
   .wrap{padding:10px 14px 26px;}
+  /* ---- THE ORDER EMAIL SWITCH ------------------------------------------
+     OFF by default, and it stays off until somebody turns it on. An email is
+     a thing that arrives in a person's inbox whether or not they are looking,
+     so it is opted into and never assumed. */
+  .mailrow{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-top:18px;
+           padding-top:12px;border-top:1px solid var(--line);}
+  .mailopt{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2);cursor:pointer;}
+  .mailopt input{accent-color:var(--acc);cursor:pointer;}
+  .mailnote{color:var(--tx3);font-size:11px;line-height:1.5;flex:1 1 260px;min-width:0;}
+  .mailnote b{color:var(--warn);font-weight:500;}
+  /* ---- MY OWN RESTING BIDS AND ASKS ------------------------------------
+     Three of the four boards publish no depth at all (see book_<EX>.json and
+     the stated-empty state this panel already draws for them), so for NSE, NGX
+     and EGX there is no market ladder that can honestly be shown. What DOES
+     exist on every board is the reader's own working orders: a limit order
+     sitting at a price IS a resting bid or ask, and it is real. This is that
+     book, and it is labelled as the reader's own throughout so it can never be
+     mistaken for the market's.
+     EVERY CLASS HERE CARRIES THE mybk- PREFIX, and that is not decoration. The
+     first cut of this block used .side, .lvl, .none and .p, and the panel
+     already owns .side for the BUY/SELL buttons on the ticket: it sets
+     display:flex, so the ladder's two columns inherited a row layout and every
+     price level was laid out in one horizontal line. Generic names in a file
+     this size will collide; prefixed ones cannot. */
+  .mybk{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line2);
+        border-radius:3px;overflow:hidden;}
+  .mybk-col{min-width:0;display:block;}
+  .mybk-col+.mybk-col{border-left:1px solid var(--line2);}
+  .mybk-h{font-family:var(--mono);font-size:10px;letter-spacing:.1em;padding:6px 10px;
+          background:var(--bg3);border-bottom:1px solid var(--line2);}
+  .mybk-h.b{color:var(--up);} .mybk-h.a{color:var(--down);}
+  .mybk-lvl{display:flex;align-items:center;gap:8px;padding:3px 10px;font-family:var(--mono);
+            font-size:11px;position:relative;}
+  .mybk-bar{position:absolute;top:0;bottom:0;left:0;opacity:.13;}
+  .mybk-lvl.b .mybk-bar{background:var(--up);} .mybk-lvl.a .mybk-bar{background:var(--down);}
+  .mybk-px{position:relative;flex:0 0 auto;min-width:62px;}
+  .mybk-lvl.b .mybk-px{color:var(--up);} .mybk-lvl.a .mybk-px{color:var(--down);}
+  .mybk-q{position:relative;flex:1 1 auto;text-align:right;color:var(--tx2);}
+  .mybk-n{position:relative;flex:0 0 auto;color:var(--tx3);font-size:10px;}
+  .mybk-e{padding:8px 10px;color:var(--tx3);font-size:11px;font-style:italic;}
+  .mybk-sum{display:flex;flex-wrap:wrap;gap:14px;padding:7px 2px 0;color:var(--tx2);font-size:11px;}
+  .mybk-sum b{color:var(--tx);font-weight:500;}
+  .mybk-note{color:var(--tx3);font-size:10.5px;line-height:1.5;margin-top:7px;}
   .modes{display:flex;align-items:center;gap:12px;margin:0 0 10px;}
   .mode{display:flex;border:1px solid var(--line2);border-radius:2px;overflow:hidden;}
   .mode button{background:var(--bg3);color:var(--tx3);border:0;padding:6px 16px;font-family:var(--mono);
@@ -263,6 +306,8 @@
     <section id="bookView">
       <h2 id="bkHead">Order book</h2>
       <div id="book"></div>
+      <h2 id="myBkHead">My resting bids and asks</h2>
+      <div id="myBook"></div>
       <h2 id="volHead">Traded volume by session</h2>
       <div id="vol"></div>
     </section>
@@ -275,6 +320,12 @@
 
     <h2>Order history</h2>
     <div id="orders"></div>
+
+    <div class="mailrow">
+      <label class="mailopt"><input type="checkbox" id="mailOn" />
+        <span>Email me a PDF record of each fill</span></label>
+      <span class="mailnote" id="mailNote"></span>
+    </div>
 
     <div class="foot">
       <span class="asof" id="asof"></span>
@@ -538,6 +589,124 @@
            fmt(f.levies.reduce(function(a, l){ return a + l.rate; }, 0) * 100) + "%. Maximum all-in " + f.allIn + ". " + f.basis;
   }
 
+  // ================= THE EMAILED RECORD OF A FILL =========================
+  // Off unless the reader switches it on, and then it mails THEM, at the address
+  // their own session is signed in with. The panel never holds an address and
+  // never sends one: it posts the order and the backend resolves the mailbox
+  // from the session token, so this page cannot be used to mail a document that
+  // looks official to somebody else.
+  //
+  // WHAT GOES OUT IS MARKED PAPER in the subject, the body and the PDF. These
+  // orders are simulated; a document from this domain that read like a broker's
+  // contract note would be claiming to be something this project is not.
+  var MAIL_KEY = "mx_paper_mail";          // the switch, per browser
+  var MAIL_SENT_KEY = "mx_paper_mailed";   // order ids already mailed, per browser
+  // The backend this frame was handed. The shell appends ?api=<base> once the
+  // backend has answered. It is checked here as well as in the shell, because a
+  // panel can be opened on its own: only this origin or the known backend is
+  // accepted, so a crafted link cannot aim these posts at a host of its choosing.
+  var MX_BASE = (function(){
+    try{
+      var v = new URLSearchParams(location.search).get("api");
+      if(!v) return "";
+      var u = new URL(v, location.href);
+      if(u.protocol !== "https:" && u.protocol !== "http:") return "";
+      if(u.origin === location.origin) return "";
+      if(u.hostname === "mutxri-terminal.onrender.com") return u.origin;
+    }catch(e){}
+    return "";
+  })();
+  function mailOn(){ try{ return localStorage.getItem(MAIL_KEY) === "on"; }catch(e){ return false; } }
+  function authToken(){ try{ return localStorage.getItem("mt_token") || ""; }catch(e){ return ""; } }
+  function mailedIds(){
+    try{ return JSON.parse(localStorage.getItem(MAIL_SENT_KEY) || "[]") || []; }catch(e){ return []; }
+  }
+  // ONE RECORD PER ORDER, EVER. Resting orders are replayed against the sessions
+  // the page was not open for, so a browser that has been shut for a week fills
+  // several of them in one pass on load. Without this list a reload could mail
+  // the same fill again, and nothing is more corrosive to a record than a second
+  // copy of it that says the same thing.
+  function markMailed(id){
+    try{
+      var l = mailedIds();
+      if(l.indexOf(id) >= 0) return false;
+      l.push(id);
+      if(l.length > 400) l = l.slice(-400);
+      localStorage.setItem(MAIL_SENT_KEY, JSON.stringify(l));
+      return true;
+    }catch(e){ return false; }
+  }
+  function mailNote(text, bad){
+    var el = $("mailNote");
+    if(!el) return;
+    el.innerHTML = text || "";
+    el.style.color = bad ? "var(--warn)" : "";
+  }
+  function mailState(){
+    var on = mailOn();
+    if(!on){
+      mailNote("Off. Nothing is emailed. Your fills are recorded in this browser either way.");
+      return;
+    }
+    if(!MX_BASE){
+      mailNote("On, but this panel has no backend to send through, so <b>nothing will be sent</b>. " +
+               "Open it from the terminal rather than on its own.", true);
+      return;
+    }
+    if(!authToken()){
+      mailNote("On, but <b>you are not signed in</b>, so there is no address to send to. " +
+               "Sign in on the terminal and records will start arriving.", true);
+      return;
+    }
+    mailNote("On. Each fill is emailed to the address this account is signed in with, " +
+             "as a PDF marked PAPER. Nothing here is a real trade.");
+  }
+  function mailRecord(a, o, px, date){
+    if(!mailOn() || !MX_BASE || !authToken()) return;
+    var id = EX + "-" + String(o.id);
+    if(!markMailed(id)) return;                 // already sent for this order
+    var r = quote(o.sym) || {};
+    var pos = a.positions[o.sym];
+    var posTxt = "none";
+    if(pos && pos.qty){
+      posTxt = fmt(Math.abs(pos.qty), 0) + " " + (pos.qty > 0 ? "long" : "short") +
+               " at " + fmt(pos.avg, 2) + " average";
+    }
+    var payload = {
+      token: authToken(),
+      order: {
+        ref: id, ex: EX, sym: o.sym, name: r.name || "", cls: o.cls || "EQ",
+        side: o.side, type: o.type || "MKT", qty: o.qty, px: px,
+        ccy: cur || CUR_OF[EX] || "",
+        placed: o.t ? new Date(o.t).toISOString().slice(0, 16).replace("T", " ") : "",
+        filled: String(date || ""),
+        fees_note: (o.fees != null && o.fees > 0) ? (fmt(o.fees, 2) + " " + (cur || "")) : "none"
+      },
+      account: {cash: a.cash, realised: a.realised, position: posTxt}
+    };
+    fetch(MX_BASE + "/api/paper/confirm", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    }).then(function(res){ return res.json(); }).then(function(d){
+      if(d && d.ok){ mailNote("Record emailed for " + esc(o.side) + " " + esc(o.sym) + "."); return; }
+      // THE ORDER STANDS WHATEVER THE EMAIL DOES. The fill happened in this
+      // browser and is already in the account; a mail failure is reported and
+      // nothing is rolled back. The id is released so the next fill can retry.
+      try{
+        var l = mailedIds().filter(function(x){ return x !== id; });
+        localStorage.setItem(MAIL_SENT_KEY, JSON.stringify(l));
+      }catch(e){}
+      mailNote("The fill is recorded here, but the email did not send: " +
+               esc((d && d.error) || "no reason given") + ".", true);
+    })["catch"](function(){
+      try{
+        var l2 = mailedIds().filter(function(x){ return x !== id; });
+        localStorage.setItem(MAIL_SENT_KEY, JSON.stringify(l2));
+      }catch(e){}
+      mailNote("The fill is recorded here, but the email could not be sent.", true);
+    });
+  }
+
   function isDate(s){ return /^\d{4}-\d{2}-\d{2}$/.test(s || "") && !isNaN(Date.parse(s)); }
   function say(text, bad){
     $("msg").textContent = text || "";
@@ -765,6 +934,11 @@
     }
     o.status = "FILLED"; o.px = px; o.close = date; o.done = Date.now();
     a.orders.unshift(o);
+    // The record is posted after the account has been moved, so what it reports
+    // as cash, position and realised is the state this fill actually produced.
+    // It never throws into the fill path: an order must not fail because an
+    // email did.
+    try{ mailRecord(a, o, px, date); }catch(e){}
     return "";
   }
 
@@ -1047,6 +1221,11 @@
     // rest of the panel on every render. The chart stays exactly as it was, one
     // click away behind CHART.
     try{ renderBook(); }catch(e){}
+    // The exchange board is keyed on the ticker and the price file, neither of
+    // which moves when an order is placed or cancelled, so renderBook's own
+    // repaint guard would skip it. The reader's ladder is redrawn here instead,
+    // where the account itself has just changed.
+    try{ renderMyBook(); }catch(e){}
 
     $("orders").innerHTML = a.orders.length
       ? "<div class='tablewrap'><table><tr><th>WHEN</th><th>SIDE</th><th>SECURITY</th><th>QTY</th><th>TYPE</th><th>STATUS</th>" +
@@ -1204,6 +1383,7 @@
       }
     }
     renderVol(vhost, sym);
+    try{ renderMyBook(); }catch(e){}
   }
 
   // The exchange's own position, quoted from the book file so the words and the
@@ -1271,6 +1451,110 @@
       "Source: " + esc(BOOK.source || "") + ". " + esc(BOOK.timestamp || "") +
       (rec.asAt ? ", the page states " + esc(rec.asAt) : "") + "." + extra +
       " <a href='" + esc(String(BOOK.sourceUrl || "").replace("<JSE CODE>", sym)) + "' target='_blank' rel='noopener'>Source page for " + esc(sym) + "</a>. Checked " + esc(BOOK.checked || "") + ".</div>";
+  }
+
+  // ---- the reader's OWN book ------------------------------------------------
+  // Aggregated from the paper account's working orders: every BUY limit resting
+  // at a price is a bid, every SELL limit is an ask, summed by price with the
+  // number of orders standing behind each level.
+  //
+  // ONLY LIMIT ORDERS ARE IN THE BOOK, and that is not a shortcut. A stop order
+  // is not a resting quote: nothing of it sits on a book at any price until the
+  // stop is hit, at which point it becomes a market order (or, for a stop limit,
+  // a limit order). Drawing a stop as a bid would show a quantity standing at a
+  // price where no quantity stands. Stops are counted and named under the
+  // ladder instead, as what they are: orders armed to trigger.
+  //
+  // MARKET ORDERS ARE NEVER HERE. A market order in this panel fills against the
+  // published price the moment it is placed; it never rests.
+  function myBookLevels(sym){
+    // load() hands back the WHOLE store, every exchange keyed by its code, and
+    // the account for this board is all[EX]. Reading .working straight off the
+    // wrapper finds undefined and draws an empty ladder over a book that has
+    // orders in it, which is exactly what it did on first test.
+    var a = load()[EX] || {}, out = {bids: [], asks: [], armed: 0, armedQty: 0, other: 0};
+    var byPx = {BUY: {}, SELL: {}};
+    (a.working || []).forEach(function(o){
+      if(String(o.sym || "").toUpperCase() !== String(sym || "").toUpperCase()) return;
+      if(o.type === "STP" || o.type === "STPLMT"){
+        out.armed++; out.armedQty += (o.qty || 0); return;
+      }
+      if(o.type !== "LMT" || o.lmt == null){ out.other++; return; }
+      var side = (o.side === "BUY") ? "BUY" : "SELL";
+      var key = String(o.lmt);
+      var lvl = byPx[side][key] || (byPx[side][key] = {px: Number(o.lmt), qty: 0, n: 0});
+      lvl.qty += (o.qty || 0); lvl.n++;
+    });
+    function list(side){
+      var arr = [];
+      for(var k in byPx[side]) if(Object.prototype.hasOwnProperty.call(byPx[side], k)) arr.push(byPx[side][k]);
+      return arr;
+    }
+    // Bids descend from the best (highest) price, asks ascend from the best
+    // (lowest): the two best prices meet in the middle, which is how a ladder is
+    // read and where the spread is.
+    out.bids = list("BUY").sort(function(x, y){ return y.px - x.px; });
+    out.asks = list("SELL").sort(function(x, y){ return x.px - y.px; });
+    return out;
+  }
+  function renderMyBook(){
+    var host = $("myBook"), head = $("myBkHead");
+    if(!host) return;
+    var sym = bookSym();
+    if(head) head.textContent = sym ? "My resting bids and asks \u00b7 " + symLabel(sym)
+                                    : "My resting bids and asks";
+    if(!sym){
+      host.innerHTML = "<div class='empty'>Choose a ticker to see your own resting orders in it.</div>";
+      return;
+    }
+    var L = myBookLevels(sym), cur = CUR_OF[EX] || "";
+    var maxQ = 0;
+    L.bids.concat(L.asks).forEach(function(l){ if(l.qty > maxQ) maxQ = l.qty; });
+    function col(cls, label, levels, empty){
+      var h = "<div class='mybk-col'><div class='mybk-h " + cls + "'>" + label + "</div>";
+      if(!levels.length) return h + "<div class='mybk-e'>" + empty + "</div></div>";
+      levels.forEach(function(l){
+        var w = maxQ ? Math.round(l.qty / maxQ * 100) : 0;
+        h += "<div class='mybk-lvl " + cls + "'><span class='mybk-bar' style='width:" + w + "%'></span>" +
+             "<span class='mybk-px'>" + esc(cur) + " " + fmt(l.px, 2) + "</span>" +
+             "<span class='mybk-q'>" + fmt(l.qty, 0) + "</span>" +
+             "<span class='mybk-n'>" + l.n + (l.n === 1 ? " order" : " orders") + "</span></div>";
+      });
+      return h + "</div>";
+    }
+    var html = "<div class='mybk'>" +
+      col("b", "MY BIDS \u00b7 BUY LIMITS RESTING", L.bids, "No buy limit of yours is resting in " + esc(sym) + ".") +
+      col("a", "MY ASKS \u00b7 SELL LIMITS RESTING", L.asks, "No sell limit of yours is resting in " + esc(sym) + ".") +
+      "</div>";
+    var sum = [];
+    if(L.bids.length && L.asks.length){
+      var bb = L.bids[0].px, ba = L.asks[0].px, sp = ba - bb;
+      // A reader's own two best orders CAN cross: they were placed in different
+      // sessions against different prices and neither has traded. Saying
+      // "spread -0.50" would be nonsense, so a crossed book is named as crossed.
+      sum.push(sp >= 0
+        ? "Your best bid <b>" + esc(cur) + " " + fmt(bb, 2) + "</b> against your best ask <b>" +
+          esc(cur) + " " + fmt(ba, 2) + "</b>, a spread of <b>" + fmt(sp, 2) + "</b>"
+        : "Your own best bid <b>" + esc(cur) + " " + fmt(bb, 2) + "</b> is ABOVE your own best ask <b>" +
+          esc(cur) + " " + fmt(ba, 2) + "</b>. They were placed in different sessions and neither has filled.");
+    } else if(L.bids.length){
+      sum.push("Your best bid <b>" + esc(cur) + " " + fmt(L.bids[0].px, 2) + "</b>. No ask of yours is resting.");
+    } else if(L.asks.length){
+      sum.push("Your best ask <b>" + esc(cur) + " " + fmt(L.asks[0].px, 2) + "</b>. No bid of yours is resting.");
+    }
+    var r = quote(sym);
+    if(r && r.price != null) sum.push("Last published close <b>" + esc(cur) + " " + fmt(r.price, 2) + "</b>");
+    if(L.armed) sum.push("<b>" + L.armed + "</b> stop " + (L.armed === 1 ? "order" : "orders") +
+                         " armed (" + fmt(L.armedQty, 0) + " shares), not resting on a price");
+    if(sum.length) html += "<div class='mybk-sum'>" + sum.map(function(x){ return "<span>" + x + "</span>"; }).join("") + "</div>";
+    // The one sentence that keeps this honest. Without it a ladder under an
+    // exchange heading reads as the market's depth.
+    html += "<div class='mybk-note'>These are <b>your own simulated orders</b>, not the market. " +
+      (BOOK && BOOK.published
+        ? "The exchange's own published bid and ask for this security is in the board above."
+        : esc(EX) + " publishes no bid and no ask, so there is no market ladder to put beside this one; the reason and the sources checked are above.") +
+      " A stop is listed but not laddered: nothing rests on a book at a stop price until the stop is hit.</div>";
+    host.innerHTML = html;
   }
 
   // Traded volume by session, from the daily archive. Honest about which of the
@@ -1375,6 +1659,11 @@
     // The order book follows the ticker box, so it is kept in step with whatever
     // security the ticket is pointed at, whether or not a quantity has been set.
     try{ renderBook(); }catch(e){}
+    // The exchange board is keyed on the ticker and the price file, neither of
+    // which moves when an order is placed or cancelled, so renderBook's own
+    // repaint guard would skip it. The reader's ladder is redrawn here instead,
+    // where the account itself has just changed.
+    try{ renderMyBook(); }catch(e){}
     var px = lastOf(t), lmt = num($("lmt").value), stp = num($("stp").value), txt = "";
     if(!t || !n || n <= 0){ $("est").textContent = ""; return; }
     if(!quote(t)){ $("est").textContent = ""; return; }
@@ -1612,6 +1901,19 @@
   $("lmt").onkeydown = function(e){ if(e.key === "Enter") place(); };
   $("stp").onkeydown = function(e){ if(e.key === "Enter") place(); };
   $("sym").onkeydown = function(e){ if(e.key === "Enter") $("qty").focus(); };
+  // The switch, read back on load and written on every change. It is per
+  // browser, like the paper account it belongs to.
+  (function(){
+    var box = $("mailOn");
+    if(!box) return;
+    try{ box.checked = mailOn(); }catch(e){}
+    box.addEventListener("change", function(){
+      try{ localStorage.setItem(MAIL_KEY, box.checked ? "on" : "off"); }catch(e){}
+      mailState();
+    });
+    mailState();
+  })();
+
   $("reset").onclick = function(){
     if(!confirm("Reset the paper account for " + EX + "? Positions, working orders and history are cleared.")) return;
     var all = load(); all[EX] = blank(); save(all); say("Paper account reset.", false); render(all);
