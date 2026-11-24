@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124224944';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124230540';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -2918,7 +2918,17 @@ window.MTZ = (function(){
       // that leaves is smaller than a window's own frame.
       const X3 = Math.floor(W), Y3 = Math.floor(H);
       const X1 = Math.round(Math.min(360, Math.max(MIN_W, W * 0.22)));
-      const colW = Math.min(340, Math.max(240, Math.round(W * 0.20)));
+      // THE RIGHT COLUMN HOLDS TWO PANEL WINDOWS NOW (2026-11-24). It was sized for
+      // one - 20 percent of the box, floor 240 - and a panel window refuses to be
+      // narrower than 240, so two FOCUS panes in a 336px column were both grown by
+      // their own floor and the second slid back over the first. The column is
+      // widened to hold two side by side with a whole pixel for the shared frame,
+      // taking the middle column's share rather than the list's: the list keeps its
+      // 22 percent, and the floor is capped at 40 percent of the box so a narrow
+      // screen still leaves the MARKET window its own room.
+      const TWO_PANE = 2 * 240 + 8;
+      const colW = Math.max(Math.min(340, Math.max(240, Math.round(W * 0.20))),
+                            Math.min(TWO_PANE, Math.round(W * 0.40)));
       let X2 = X3 - colW;
       if(X2 - X1 < MIN_W) X2 = X1 + MIN_W;     // the middle column keeps its floor
       if(X2 > X3 - 80) X2 = X3 - 80;           // and the right column is never squeezed away
@@ -2950,13 +2960,29 @@ window.MTZ = (function(){
     // mt_ws carries under `panelwins`. Every other panel window is absent from
     // the record, and an absent panel window is SHUT, so no other one is open.
     function defaultPanels(){
-      // the right column, top half: NOT the middle column. FOCUS shares its x
-      // and its width with the CHAT window below it and its bottom edge IS the
-      // CHAT window's top edge, so the two of them make up the right column
-      // between them with no band of daylight at the join.
+      // the right column, top half: NOT the middle column. The FOCUS panes take
+      // the top of the right column and their bottom edge IS the CHAT window's top
+      // edge, so the three of them make up the right column between them with no
+      // band of daylight at any join.
+      //
+      // TWO FOCUS PANES, SIDE BY SIDE (owner, 2026-11-24, from his own desk: "this
+      // should be the default panel setup when users log in"). One FOCUS tells the
+      // reader what the selected security is doing; two let them hold the one they
+      // are watching beside it without arranging anything first, which is how the
+      // owner himself reads the desk. The width is halved in whole pixels and the
+      // second pane takes the remainder, so the pair still ends exactly on the
+      // right edge of the workspace and shares one edge down the middle.
       const c = columns();
-      return {focus: {open: true, x: c.x2, y: 0, w: c.x3 - c.x2,
-                      h: c.y2, z: 21}};
+      const full = c.x3 - c.x2, half = Math.floor(full / 2);
+      // a column too narrow for two readable panes carries one, which is the whole
+      // truth of what fits rather than two panes overlapping each other
+      if(full < 2 * 240){
+        return {focus: {open: true, x: c.x2, y: 0, w: full, h: c.y2, z: 21}};
+      }
+      return {
+        focus:      {open: true, x: c.x2,        y: 0, w: half,       h: c.y2, z: 21},
+        focus__2:   {open: true, x: c.x2 + half, y: 0, w: full - half, h: c.y2, z: 22}
+      };
     }
     // A workspace built from nothing: the house arrangement, in front of the
     // reader. This is what a reader with no stored arrangement lands on. It is
@@ -3438,7 +3464,9 @@ window.MTZ = (function(){
       const panelwins = {};
       let pz = 20;
       Object.keys(rects).forEach(function(id){
-        if(!PANEL_IDS[id]) return;      // only an id this build actually ships
+        // a preset may name a SECOND window of a panel (focus__2); the id it has
+        // to be a shipped panel of is the part before the instance suffix
+        if(!PANEL_IDS[id] && !PANEL_IDS[baseOf(id)]) return;   // only what this build ships
         const r = rects[id];
         panelwins[id] = {open: true, x: r.x, y: r.y, w: r.w, h: r.h, z: ++pz};
       });
