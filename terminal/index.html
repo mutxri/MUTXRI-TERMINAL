@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124170249';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124175546';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -663,6 +663,13 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
   font-size:10.5px;line-height:1.6}
 .wl-empty b{color:var(--acc);font-weight:400}
 .wl-logo-cell{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:center}
+/* THE LETTER IS THE ROW'S MARK UNTIL THE LOGO ARRIVES, then the logo covers it. Both
+   sit in one 22px box so the row is the same height either way and nothing reflows
+   when an image lands. */
+.wl-logo-cell2{position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.wl-logo-cell2 .wl-logo{position:absolute;inset:0;margin:auto;opacity:0;transition:opacity .16s ease}
+.wl-logo-cell2.has-logo .wl-logo{opacity:1}
+.wl-logo-cell2.has-logo .wl-mono{opacity:0}
 .wl-logo{width:22px;height:22px;border-radius:3px;background:var(--bg4);object-fit:contain;padding:2px}
 .wl-mono{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
   border:1px solid var(--line2);border-radius:3px;color:var(--acc);font-size:10px;font-weight:700;
@@ -2316,11 +2323,39 @@ try{
 let listing = {};
 
 // ===== Company logos =====
+// THE LOGO MAP IS READ FROM CACHE FIRST AND THE ROWS ARE REPAINTED WHEN IT LANDS.
+// The file was fetched but nothing repainted when it resolved, so every watchlist
+// row drawn before that answer kept whatever it had: a Google favicon request (slow,
+// often refused) or a bare monogram. That is the "logos do not load immediately"
+// report. Now the map is seeded from localStorage at parse time, so the first paint
+// already has it, and its arrival triggers exactly one repaint for the case where
+// the cache was empty.
 let LOGO_MAP = {};
+const LOGO_CACHE_KEY = 'mt_logos_v2';
+try{
+  const cached = localStorage.getItem(LOGO_CACHE_KEY);
+  if(cached){ LOGO_MAP = JSON.parse(cached) || {}; }
+}catch(e){}
+// A LOGO STORED AS AN ABSOLUTE URL TO OUR OWN SITE IS ASKED FOR LOCALLY. All 1,353
+// entries in logos.json point at https://mutxriterminal.com/terminal/..., so a page
+// served from anywhere else fetches every logo across the network while the same
+// file sits beside it. The path is kept, the origin is dropped.
+function logoLocal(u){
+  const s = String(u == null ? '' : u);
+  const m = /^https?:\/\/[^/]*mutxriterminal\.com\/terminal\/(.+)$/i.exec(s);
+  return m ? m[1] : s;
+}
 try{
   fetch('static_data/logos.json')
     .then(r => r.ok ? r.json() : Promise.reject())
-    .then(d => { LOGO_MAP = d || {}; })
+    .then(d => {
+      const out = {};
+      Object.keys(d || {}).forEach(function(k){ out[k] = logoLocal(d[k]); });
+      LOGO_MAP = out;
+      try{ localStorage.setItem(LOGO_CACHE_KEY, JSON.stringify(out)); }catch(e){}
+      // one repaint, only if the list is already on screen
+      try{ if(typeof renderWatchlist === 'function' && document.getElementById('wlList')) renderWatchlist((document.getElementById('q') || {}).value || ''); }catch(e){}
+    })
     .catch(() => {});
 }catch(e){}
 
@@ -5952,17 +5987,23 @@ function renderWatchlist(filter){
                     LOGO_MAP[String(sym).toUpperCase() + _lsuf] ||
                     LOGO_MAP[String(sym).toUpperCase() + '.JO'] ||
                     LOGO_MAP[String(sym).toUpperCase() + '.CA'] || '';
-    const isUrl = /^https?:\/\//i.test(rawLogo);
-    const dom = rawLogo.replace(/^www\./, '');
-    const logoSrc = isUrl ? rawLogo : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=64`;
-    const monoFallback = `<span class="wl-mono">${esc(sym[0]||'?')}</span>`;
-    // Direct image URLs are real logos (even 16x16 favicons) -> only onerror fallback.
-    // s2 favicon-service URLs get the globe check (16x16 = no icon) too.
-    const logoHtml = rawLogo
-      ? (isUrl
-        ? `<img class="wl-logo" loading="lazy" src="${esc(logoSrc)}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${jsq(sym[0]||'?')}</span>'">`
-        : `<img class="wl-logo" loading="lazy" src="${esc(logoSrc)}" alt="" onerror="this.outerHTML='<span class=&quot;wl-mono&quot;>${jsq(sym[0]||'?')}</span>'" onload="if(this.naturalWidth<=16&&this.naturalHeight<=16)this.outerHTML='<span class=&quot;wl-mono&quot;>${jsq(sym[0]||'?')}</span>'">`)
-      : monoFallback;
+    const _tk = String(sym).toUpperCase();
+    const _fsfx = ({JSE: '_JO', EGX: '_CA'})[String(currentEx||'').toUpperCase()] || '';
+    // A MAPPED URL IS USED AS A LOCAL FILE, AND AN UNMAPPED ONE IS LOOKED FOR ON DISK
+    // BEFORE ANY THIRD PARTY IS ASKED. The convention is the same one the files are
+    // named by, so a security the map has not caught yet still shows its own logo
+    // instead of a globe from a favicon service.
+    const logoSrc = rawLogo
+      ? logoLocal(rawLogo)
+      : ('static_data/logos_img/' + encodeURIComponent(_tk + _fsfx) + '.png');
+    const initial = esc(sym[0] || '?');
+    // THE MONOGRAM IS DRAWN FIRST AND THE LOGO SITS ON IT. A row therefore has a
+    // visible mark from the first frame: if the image is slow the letter is there, and
+    // if it never arrives the letter stays. Nothing collapses to an empty cell.
+    const logoHtml = `<span class="wl-logo-cell2"><span class="wl-mono">${initial}</span>` +
+      `<img class="wl-logo" decoding="async" src="${esc(logoSrc)}" alt="" ` +
+      `onload="this.parentNode.classList.add('has-logo')" ` +
+      `onerror="this.remove()"></span>`;
     return `<div class="wl-row" onclick="openStock('${jsq(s.sym || s.ticker || s.name || '')}')">
       <span class="wl-logo-cell">${logoHtml}</span>
       <span class="wl-main">
@@ -7567,8 +7608,9 @@ function mkStatsSection(sym, ex, mkt, row, shFile, cinfo, listing, hist){
 // A WITHHELD RATIO IS DRAWN AS WITHHELD, not dropped. The analytics files hold a
 // stated reason for every blank. A ratio that simply vanishes from a list reads
 // as a ratio the company does not have, which is a different claim.
-function desVrow(k, v, off){
-  return '<div class="des-r"><span class="des-k">' + esc(k) + '</span>' +
+function desVrow(k, v, off, why){
+  return '<div class="des-r"' + (why ? ' title="' + esc(String(why)) + '"' : '') + '>' +
+         '<span class="des-k">' + esc(k) + '</span>' +
          '<span class="des-v' + (off ? ' off' : '') + '">' + esc(v) + '</span></div>';
 }
 function desFillValuation(rec){
@@ -7587,40 +7629,92 @@ function desFillValuation(rec){
     if(!cur || cur.dataset.sym !== sym) return;
     var d = res && res.data;
     if(!d) return;
-    var v = d.valuation || {}, rows = '';
+    var v = d.valuation || {}, out = '';
     var num = function(x){
       return (x === null || x === undefined || !isFinite(Number(x))) ? null : Number(x);
     };
-    var mult = function(label, key){
-      var n = num(v[key]);
-      if(n !== null) rows += desVrow(label, n.toFixed(2) + 'x', false);
+    var grp = function(label, sub){
+      return '<div class="des-grp">' + esc(label) +
+        (sub ? ' <span style="color:var(--tx3);font-weight:400;letter-spacing:.04em">\u00b7 ' +
+               esc(String(sub)) + '</span>' : '') + '</div>';
     };
-    mult('P/E', 'pe'); mult('P/BOOK', 'pb'); mult('P/SALES', 'ps');
-    mult('EV/EBIT', 'ev_ebit');
+
+    // ---- the multiples ----------------------------------------------------
+    var mult = '';
+    [['P/E', 'pe'], ['P/BOOK', 'pb'], ['P/SALES', 'ps'], ['PEG', 'peg'],
+     ['EV/EBIT', 'ev_ebit']].forEach(function(p){
+      var n = num(v[p[1]]);
+      if(n !== null) mult += desVrow(p[0], n.toFixed(2) + 'x', false);
+    });
     var ey = num(v.earnings_yield);
-    if(ey !== null) rows += desVrow('EARNINGS YLD', ey.toFixed(2) + '%', false);
-    // Two figures from the ratios array that the Godel rail also carries, and
-    // that a reader of a multiple immediately wants next to it.
+    if(ey !== null) mult += desVrow('EARNINGS YLD', ey.toFixed(2) + '%', false);
+
+    // ---- every ratio the analytics file carries ---------------------------
+    // ALL OF THEM, AND THE WITHHELD ONES TOO (owner, 2026-11-24: "have all
+    // ratios in the market panel"). A ratio the file could not compute is drawn
+    // as withheld rather than dropped: a ratio that silently vanishes from a
+    // list reads as a ratio the company does not have, which is a different
+    // claim. The file's own reason is the row's tooltip.
+    //
+    // A ROW CARRIES ITS OWN PERIOD WHEN IT DIFFERS from the block's. The file
+    // stamps some rows with a period of their own, and dropping that stamp
+    // reads an FY2025 figure as the block's H1 2026.
+    var ratios = '', perFoot = String(d.period || '').trim();
+    var SKIP = {net_profit: 1};        // a figure, not a ratio; it is in FINANCIALS
     (d.ratios || []).forEach(function(r){
-      if(!r || (r.key !== 'eps' && r.key !== 'roe')) return;
-      var label = (r.key === 'eps') ? 'EPS' : 'ROE';
-      if(r.value === null || r.value === undefined){
-        rows += desVrow(label, 'withheld', true);
+      if(!r || SKIP[r.key]) return;
+      if(r.key === 'eps') return;      // drawn under the multiples below
+      var per = String(r.period || '').trim();
+      var lbl = String(r.label || r.key || '').toUpperCase() +
+                ((per && per !== perFoot) ? ' ' + per : '');
+      var n = num(r.value);
+      if(n === null){
+        // THE FIELD IS withheld_reason. `withheld` is the boolean flag beside it,
+        // so reading that first put the word "true" in the tooltip where the
+        // file's own sentence belonged: "Withheld: H1 2026 and FY2025 are not
+        // the same kind of period, so a percentage change between them would
+        // compare part of a year with a whole one."
+        ratios += desVrow(lbl, 'withheld', true,
+                   String(r.withheld_reason || r.reason || r.note ||
+                          'the file states no value for this ratio'));
         return;
       }
-      // A per cent sign joins its number; a currency code stands off it. The
-      // analytics files store both in the same `unit` field, so the rule is
-      // applied here rather than in the data: "41.4%" and "2.39 KES".
+      // A per cent sign and a multiple sign join their number; a currency code
+      // stands off it. The analytics files put all three in the same `unit`
+      // field, so the rule lives here: "41.4%", "0.83x", "2.39 KES".
       var unit = String(r.unit || '').trim();
-      var join = (unit === '%') ? '' : ' ';
-      rows += desVrow(label, Number(r.value).toLocaleString(undefined,
-                      {maximumFractionDigits: 2}) + (unit ? join + unit : ''), false);
+      var join = (unit === '%' || unit === 'x') ? '' : ' ';
+      ratios += desVrow(lbl, n.toLocaleString(undefined, {maximumFractionDigits: 2}) +
+                        (unit ? join + unit : ''), false);
     });
-    if(!rows) return;
-    var period = v.valBasis || v.asOfPeriod || d.period || '';
-    cur.innerHTML = '<div class="des-grp">VALUATION' +
-      (period ? ' <span style="color:var(--tx3);font-weight:400;letter-spacing:.04em">\u00b7 ' +
-                esc(String(period)) + '</span>' : '') + '</div>' + rows;
+    // EPS sits with the multiples, because a multiple is a price against it.
+    (d.ratios || []).forEach(function(r){
+      if(!r || r.key !== 'eps') return;
+      var n = num(r.value);
+      if(n === null){ mult += desVrow('EPS', 'withheld', true); return; }
+      var unit = String(r.unit || '').trim();
+      mult += desVrow('EPS', n.toLocaleString(undefined, {maximumFractionDigits: 2}) +
+                      (unit ? ' ' + unit : ''), false);
+    });
+
+    // ---- the multi-year growth rates --------------------------------------
+    var g = d.growth || {}, growth = '';
+    if(num(g.revenue_cagr) !== null)
+      growth += desVrow('REVENUE CAGR', Number(g.revenue_cagr).toFixed(2) + '%', false);
+    if(num(g.net_profit_cagr) !== null)
+      growth += desVrow('NET PROFIT CAGR', Number(g.net_profit_cagr).toFixed(2) + '%', false);
+
+    // THE PERIOD IS NAMED ON EVERY GROUP. A multiple is a live price against a
+    // figure that is a year or a half year old, and a ratio is that figure
+    // against another from the same statements. "P/E 14.33" under a live quote
+    // invites the reader to take it as current; "P/E 14.33 - annual FY2026"
+    // does not.
+    if(mult) out += grp('VALUATION', v.valBasis || v.asOfPeriod || d.period || '') + mult;
+    if(ratios) out += grp('RATIOS', (perFoot || '') + (d.currency ? ', ' + d.currency : '')) + ratios;
+    if(growth) out += grp('GROWTH', (g.from && g.to)
+      ? (g.from + ' to ' + g.to + (g.contiguousYears ? ', ' + g.contiguousYears + ' contiguous years' : ''))
+      : '') + growth;
+    cur.innerHTML = out;
   })['catch'](function(){});
 }
 
@@ -8249,9 +8343,14 @@ function mkHistSection(hist, sym, ex, mktRow){
 }
 
 // ---- the rest of what the RESEARCH view showed, folded in ----------------
-function mkResearchSections(an, sym){
+// `modelsOnly` leaves out GROWTH and RATIOS. Both are in the sheet's rail now,
+// drawn from this same analytics file, and printing them again a screen below
+// is the same security described twice. The model output is not a ratio and
+// stays here whichever way this is called.
+function mkResearchSections(an, sym, modelsOnly){
   var out = '';
   if(!an){
+    if(modelsOnly) return '';
     out += mkSec('GROWTH', '', '<div class="mki-out">' +
       esc('No analytics file for ' + sym + '.') + '</div>');
     return out;
@@ -8265,7 +8364,7 @@ function mkResearchSections(an, sym){
   } else if(gr.from && gr.to){
     gb += '<div class="mki-out">' + esc(gr.from + ' to ' + gr.to + (gr.contiguousYears ? ', ' + gr.contiguousYears + ' contiguous years' : '')) + '</div>';
   }
-  out += mkSec('GROWTH', '', gb);
+  if(!modelsOnly) out += mkSec('GROWTH', '', gb);
 
   var md = an.models || {};
   var mb = '';
@@ -8301,7 +8400,7 @@ function mkResearchSections(an, sym){
     rb += mkiRow(lbl, mkF2(v) + (r.unit || ''), false);
   });
   if(an.period) rb += '<div class="mki-out">' + esc('Statement period ' + an.period + (an.currency ? ', ' + an.currency : '')) + '</div>';
-  out += mkSec('RATIOS', '', rb || '<div class="mki-out">No ratios on file for this security.</div>');
+  if(!modelsOnly) out += mkSec('RATIOS', '', rb || '<div class="mki-out">No ratios on file for this security.</div>');
 
   var fl = Array.isArray(an.flags) ? an.flags : [];
   var fb = '';
@@ -8383,15 +8482,19 @@ function mkRailRender(){
     //                      or lead-to-verify mark, the role, the publisher and
     //                      the retrieval date in each row's tooltip.
     //   price history   -> the PRICE chart in the sheet, off the same archive.
+    //   VALUATION       -> the rail's VALUATION group.
+    //   RATIOS          -> the rail's RATIOS group, which now draws EVERY ratio
+    //                      in the analytics file including the withheld ones.
+    //   GROWTH          -> the rail's GROWTH group.
     //
-    // DISCLOSURES is NOT a duplicate and stays: those are statements in an
-    // issuer's document that name no entity, so they appear in no column.
-    // VALUATION stays because the rail shows the multiples and this shows the
-    // formula, the inputs and the stated reason for every withheld one.
+    // WHAT IS LEFT, AND WHY IT IS NOT A DUPLICATE.
+    // DISCLOSURES: statements in an issuer's document that name no entity, so
+    // they appear in no column. QUALITY AND RISK: the model output, the Piotroski
+    // score, the Altman band, accruals and the warning flags, none of which is a
+    // ratio and none of which is anywhere else on this window.
     host.innerHTML =
       mkRelationsSection(sym, ex, ctx.relFile, ctx.row, true) +
-      mkValSection(sym, ex, anData, anKey) +
-      mkResearchSections(anData, sym);
+      mkResearchSections(anData, sym, true);
     var box = $('mkChartBox');
     if(box && ctx.hist && ctx.hist.data && Array.isArray(ctx.hist.data.bars)){
       mkChart(box, ctx.hist.data.bars.slice(-Math.min(ctx.hist.data.bars.length, MK_DRAW_BARS)));
@@ -8707,70 +8810,16 @@ function renderMarketStatic(rec, info, live){
   // was read from, so a JSE security is never resolved against another market's
   // file. window.__riResearch and an mx_research.html mount are NOT revived.
   try{ mkRailRender(); }catch(e){ console.error('market sections (static) fail', e); }
-  // financials summary from the collected statement files (static, honest)
-  try{
-    var _fsym = String(rec.sym || rec.ticker || '').replace(/\//g, '_');
-    if(_fsym){
-      var _finName = (rec.name || '').trim();
-      var _finEx = String(currentEx || '').toUpperCase();
-      var _renderFin = (d) => {
-        if(!d || d.available === false) return;
-        var rows = d.rows || [];
-        var periods = d.periods || [];
-        var cur = d.currency || '';
-        var fnum = (n) => {
-          if(n == null || !isFinite(Number(n))) return '-';
-          var x = Number(n), abs = Math.abs(x);
-          if(abs >= 1e9) return (x/1e9).toFixed(2).replace(/\.?0+$/, '') + 'B';
-          if(abs >= 1e6) return (x/1e6).toFixed(2).replace(/\.?0+$/, '') + 'M';
-          if(abs >= 1e3) return (x/1e3).toFixed(1).replace(/\.?0+$/, '') + 'K';
-          return x.toLocaleString(undefined, {maximumFractionDigits: 2});
-        };
-        var want = ['Revenue','Gross Profit','Operating Profit (EBIT)','Net Profit','EPS'];
-        var pick = {};
-        rows.forEach(rr => { if(want.indexOf(rr.label) >= 0) pick[rr.label] = rr.values; });
-        var year = periods[0] || '';
-        var h = `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--acc);font-size:10px;letter-spacing:.1em;font-weight:700">FINANCIALS · ${esc(year)}</div>`;
-        var keys = ['Revenue','Gross Profit','Operating Profit (EBIT)','Net Profit','EPS'];
-        var any = false;
-        keys.forEach(k => {
-          var v = pick[k] && pick[k][0];
-          if(v == null) return;
-          any = true;
-          h += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(k)}</span><span style="color:var(--tx);font-family:var(--mono)">${esc(fnum(v))}${cur ? ' ' + esc(cur) : ''}</span></div>`;
-        });
-        if(any){
-          var ri = $('rightInfo');
-          // The footer this financials block used to carry ("From filed statements
-          // · full detail in FINANCIALS") is NOT painted: it named where the
-          // figures had been read from and pointed at another panel, which is
-          // narration (owner, 2026-10-14). The figures above stay.
-          if(ri) ri.insertAdjacentHTML('beforeend', h);
-        }
-      };
-      var _fetchInc = (k) => fetch('static_data/financials/' + encodeURIComponent(k) + '__income.json').then(r => r.ok ? r.json() : Promise.reject());
-      _fetchInc(_fsym)
-        .then(_renderFin)
-        .catch(function(){
-          // renamed securities (e.g. ABBEYBANK -> ABBEYBDS): match the index by name + exchange
-          return fetch('static_data/financials_index.json')
-            .then(r => r.ok ? r.json() : Promise.reject())
-            .then(function(idx){
-              if(!idx || typeof idx !== 'object') throw 0;
-              var key = null;
-              for(var k in idx){
-                var e = idx[k];
-                if(k === _fsym){ key = k; break; }
-                if(e && _finName && e.exchange === _finEx && String(e.name || '').toLowerCase() === _finName.toLowerCase()){ key = k; break; }
-              }
-              if(!key) throw 0;
-              return _fetchInc(key);
-            });
-        })
-        .then(_renderFin)
-        .catch(function(){});
-    }
-  }catch(e){}
+  // THE FILED STATEMENTS ARE NOT DRAWN HERE (owner, 2026-11-24: "take the
+  // financials out in the market panel too"). This block appended a FINANCIALS
+  // summary - revenue, gross profit, operating profit, net profit, EPS - to the
+  // bottom of this window out of static_data/financials/<KEY>__income.json.
+  //
+  // It is the FINANCIALS panel's whole subject, and that panel is one press away
+  // on this very sheet, under the FA code. What belongs on a description is the
+  // ratios those figures produce, and the rail carries all of them. The fetch
+  // goes with the block: there is no reason to read a statements file to draw
+  // nothing from it.
 }
 function sym0(rec){ return ((rec.sym||rec.ticker||'')).split('.')[0]; }
 
