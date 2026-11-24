@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124222531';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124224944';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -584,6 +584,19 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
     padding:2px 6px;outline:none;border-radius:2px}
   .wsym::placeholder{color:var(--tx3)}
   .wsym:focus{border-color:var(--acc)}
+  /* A PINNED WINDOW SAYS SO, AND CAN BE LET GO. A window opened FOR a security
+     - from the heatmap's menu, or from a code button on the market sheet - is
+     pinned to it and deliberately ignores the desk's selection, which is the
+     whole point of being able to watch two securities at once. But nothing said
+     so and nothing could undo it, so a reader who opened FOCUS on one name and
+     then moved the desk to another saw a panel showing the wrong price with no
+     way to fix it, which reads as a broken panel rather than a pinned one
+     (owner, 2026-11-24: "the qmart price and pricemovement dont work in the
+     focus panel"). The mark shows the pinned security and releases it. */
+  .pw-pin{background:none;border:1px solid var(--gold);color:var(--gold);
+          font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;line-height:1;
+          padding:1px 4px;cursor:pointer;border-radius:2px;flex:0 0 auto}
+  .pw-pin:hover{background:var(--gold);color:#000}
   .pw-x{background:none;border:0;color:var(--tx3);font-family:var(--mono);font-size:11px;
   line-height:1;padding:0 5px;cursor:pointer;border-radius:2px}
 .pw-x:hover{color:#ff5f56;background:rgba(255,95,86,.14)}
@@ -4465,11 +4478,38 @@ window.MTPanelWins = (function(){
     // ?sym= identical on the stage path and on a panel window
     return panelUrl({url: WINS[id].url}, sym);
   }
+  // A PANEL THAT DRAWS ONE LINE DOES NOT OPEN AT HALF THE DESK. The default is
+  // 52% of the workspace by 55%, which is right for a heatmap or a statements
+  // table and absurd for FOCUS: FOCUS draws a ticker, a price and a change, and
+  // it was opening big enough to hold a chart it does not have (owner,
+  // 2026-11-24: "I dont like how focus panel always want to fill the screen").
+  // A panel listed here opens at its own size instead. A reader who resizes it
+  // keeps that size, because a saved geometry is applied over this.
+  const DEF_SIZE = {focus: {w: 320, h: 150}};
+  // The pin mark reflects the window's state wherever that state is read back:
+  // on open, on a repaint and after the reader releases it.
+  function paintPin(id){
+    const n = nodes[id], st = state[id];
+    if(!n || !st) return;
+    const b = n.querySelector('.pw-pin');
+    if(!b) return;
+    if(st.pin){
+      b.style.display = '';
+      b.textContent = 'PINNED ' + String(st.pin);
+      b.title = 'This window is pinned to ' + String(st.pin) +
+                ' and does not follow the terminal\u2019s selection. Press to release it.';
+    } else {
+      b.style.display = 'none';
+    }
+  }
   function defGeom(id){
     const idx = Object.keys(WINS).indexOf(id);
     const b = bbox();
-    const w = Math.max(MIN_W, Math.min(Math.round(b.width * 0.52), b.width - 8));
-    const h = Math.max(MIN_H, Math.min(Math.round(b.height * 0.55), b.height - 8));
+    const own = DEF_SIZE[baseOf(id)] || null;
+    const w = own ? Math.min(own.w, b.width - 8)
+                  : Math.max(MIN_W, Math.min(Math.round(b.width * 0.52), b.width - 8));
+    const h = own ? Math.min(own.h, b.height - 8)
+                  : Math.max(MIN_H, Math.min(Math.round(b.height * 0.55), b.height - 8));
     const k = Math.max(0, idx) % 6;
     return {
       x: Math.max(0, Math.min(12 + k * 26, Math.max(0, b.width - 120))),
@@ -4863,6 +4903,7 @@ window.MTPanelWins = (function(){
     loadIfStale(id, w.pin ? w.pin : undefined);
     const lab = n.querySelector('.pw-sym');
     if(lab) lab.textContent = w.pin ? w.pin : symNow();
+    try{ paintPin(id); }catch(e){}
   }
   // THE FILL GESTURE. One press takes the whole workspace; the press after it puts
   // back the box the window had, from a copy taken at the moment of filling, so a
@@ -5303,6 +5344,25 @@ window.MTPanelWins = (function(){
     fill.setAttribute('aria-label', 'Fill the desk');
     fill.addEventListener('mousedown', function(e){ e.stopPropagation(); });
     fill.addEventListener('click', function(e){ e.stopPropagation(); fillWin(id); });
+    // PINNED, AND RELEASABLE. Drawn only when this window is pinned; pressing it
+    // clears the pin so the window follows the desk again, and repaints at once
+    // rather than waiting for the next selection.
+    const pin = document.createElement('button');
+    pin.type = 'button';
+    pin.className = 'pw-pin';
+    pin.style.display = 'none';
+    pin.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    pin.addEventListener('click', function(e){
+      e.stopPropagation();
+      const st2 = state[id];
+      if(!st2) return;
+      delete st2.pin;
+      shown[id] = null;
+      try{ save(); }catch(e2){}
+      try{ place(id); }catch(e2){}
+      try{ paintPin(id); }catch(e2){}
+    });
+
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'pw-x';
@@ -5321,6 +5381,7 @@ window.MTPanelWins = (function(){
     // button that goes: FILL is still in this window's own menu, under the dots,
     // so the gesture is not taken away from anyone who wants it.
     if(baseOf(id) !== 'focus') hd.appendChild(fill);
+    hd.appendChild(pin);
     hd.appendChild(x);
     hd.addEventListener('mousedown', function(e){ drag(id, e, 'move'); });
 
