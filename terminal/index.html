@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124195054';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124200624';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1110,10 +1110,24 @@ html{scrollbar-width:none;}
   .des-grp{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;font-weight:700;
            color:var(--tx3);padding:8px 12px 4px;border-top:1px solid var(--line)}
   .des-rail>.des-grp:first-child{border-top:0}
-  .des-r{display:flex;justify-content:space-between;gap:8px;padding:2px 12px;
-         font-family:var(--mono);font-size:10px;min-width:0}
-  .des-k{color:var(--tx3);flex:0 0 auto}
-  .des-v{color:var(--tx);text-align:right;min-width:0;overflow-wrap:anywhere}
+  /* A NUMBER MUST NEVER BE BROKEN DOWN A COLUMN. The key was flex:0 0 auto, so it
+     never gave ground: in the MARKET rail, which is about 218px wide and not the
+     wide panel window this was first measured in, a label like RETURN ON CAPITAL
+     EMPLOYED took the whole row and left the value ZERO pixels. With
+     overflow-wrap:anywhere the value then wrapped one character per line, so
+     "13.31%" came out as six stacked characters and a rail of twenty ratios grew
+     to six thousand pixels of mostly empty column.
+     The key yields first and ellipsizes, carrying its full text in a tooltip; the
+     value keeps a floor of 62px so a figure always has room; and the row wraps,
+     so a value that still cannot fit beside its label takes the next line whole
+     rather than being shredded. break-word, not anywhere: a word breaks only
+     when it alone is wider than the line. */
+  .des-r{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1px 8px;
+         padding:2px 12px;font-family:var(--mono);font-size:10px;min-width:0}
+  .des-k{color:var(--tx3);flex:0 1 auto;min-width:0;white-space:nowrap;
+         overflow:hidden;text-overflow:ellipsis}
+  .des-v{color:var(--tx);text-align:right;flex:1 1 auto;min-width:62px;
+         overflow-wrap:break-word}
   @container (max-width:620px){
     .des-body{grid-template-columns:minmax(0,1fr)}
     .des-rail{border-left:0;border-top:1px solid var(--line)}
@@ -1184,8 +1198,12 @@ html{scrollbar-width:none;}
      competitors, peers and partners in columns, so the whole counterparty picture
      is one glance instead of five stacked strips. auto-fit means a narrow window
      folds them into fewer columns on its own rather than squeezing five. */
+  /* align-items:start, not stretch. In a narrow rail these five columns fold to
+     two per row, and stretch made a short column (PEERS, often one line) grow to
+     the height of the tall one beside it: a bordered box of nothing. Each column
+     is now only as tall as what is in it. */
   #mkRelBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));
-            align-items:stretch}
+            align-items:start}
   .mkrc-col{min-width:0;border-top:1px solid var(--line);border-right:1px solid var(--line);
             padding-bottom:7px}
   .mkrc-h{padding:8px 12px 3px;color:var(--tx3);
@@ -7634,7 +7652,7 @@ function mkStatsSection(sym, ex, mkt, row, shFile, cinfo, listing, hist){
 // as a ratio the company does not have, which is a different claim.
 function desVrow(k, v, off, why){
   return '<div class="des-r"' + (why ? ' title="' + esc(String(why)) + '"' : '') + '>' +
-         '<span class="des-k">' + esc(k) + '</span>' +
+         '<span class="des-k" title="' + esc(String(why || k)) + '">' + esc(k) + '</span>' +
          '<span class="des-v' + (off ? ' off' : '') + '">' + esc(v) + '</span></div>';
 }
 function desFillValuation(rec){
@@ -7688,8 +7706,15 @@ function desFillValuation(rec){
     (d.ratios || []).forEach(function(r){
       if(!r || SKIP[r.key]) return;
       if(r.key === 'eps') return;      // drawn under the multiples below
+      // SHORT LABELS, BECAUSE THE RAIL IS 218px WIDE. The analytics files spell
+      // these out in full ("Return on capital employed"), which is right for a
+      // document and far too long for a column this narrow: the label ate the
+      // row and the figure beside it had nowhere to go. A dealing screen writes
+      // ROCE, and so does this. The full wording is still the row's tooltip, and
+      // a ratio with no short form keeps the file's own label.
       var per = String(r.period || '').trim();
-      var lbl = String(r.label || r.key || '').toUpperCase() +
+      var full = String(r.label || r.key || '');
+      var lbl = (DES_RATIO_SHORT[r.key] || full.toUpperCase()) +
                 ((per && per !== perFoot) ? ' ' + per : '');
       var n = num(r.value);
       if(n === null){
@@ -7709,7 +7734,7 @@ function desFillValuation(rec){
       var unit = String(r.unit || '').trim();
       var join = (unit === '%' || unit === 'x') ? '' : ' ';
       ratios += desVrow(lbl, n.toLocaleString(undefined, {maximumFractionDigits: 2}) +
-                        (unit ? join + unit : ''), false);
+                        (unit ? join + unit : ''), false, full);
     });
     // EPS sits with the multiples, because a multiple is a price against it.
     (d.ratios || []).forEach(function(r){
@@ -7752,6 +7777,16 @@ function desFillValuation(rec){
 // on any of these boards, because none of them publishes one in a free feed, and
 // a smooth line through four published closes would suggest a continuity the
 // data does not have.
+// The file's key is stable; its label is prose. These are the names a dealing
+// screen uses, keyed on the former so a reworded label cannot silently undo them.
+var DES_RATIO_SHORT = {
+  net_margin: 'NET MARGIN', gross_margin: 'GROSS MARGIN', ebit_margin: 'OP MARGIN',
+  roe: 'ROE', roa: 'ROA', roce: 'ROCE', roic: 'ROIC',
+  asset_turnover: 'ASSET TURN', interest_cover: 'INT COVER',
+  debt_to_equity: 'DEBT/EQUITY', revenue_growth: 'REV GROWTH',
+  effective_tax_rate: 'TAX RATE', current_ratio: 'CURRENT RATIO',
+  ocf_to_net_profit: 'CASH CONV', eps: 'EPS', net_profit: 'NET PROFIT'
+};
 var DES_RANGES = [['1M', 31], ['6M', 186], ['YTD', 0], ['1Y', 366], ['5Y', 1830], ['MAX', -1]];
 function desChartSvg(bars, ccy){
   if(!bars || bars.length < 2) return '<div class="msg">Not enough published sessions to draw a line.</div>';
