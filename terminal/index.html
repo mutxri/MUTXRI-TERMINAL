@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124031749';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124034210';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -5648,12 +5648,30 @@ if(__startIdx > 0){
 }
 
 // ===== auto-open a security from ?sym= (landing showcase) =====
+// IT USED TO WAIT FOR A WATCHLIST ROW, AND THAT STOPPED WORKING the day the
+// watchlist became a list the reader builds themselves. MY LIST starts empty,
+// so '#wlList .wl-row' never appears, the condition never came true, and a link
+// carrying ?sym= quietly opened nothing while this timer ran every 800ms for as
+// long as the tab was left open. Nothing errored; the security simply never
+// arrived, and every panel window opened afterwards was handed no symbol
+// because curSec was still empty. That is what made the TRADE panel open on
+// "Choose a ticker" with no depth window and no ladder.
+//
+// The right condition is the one this actually depends on: openStock, and a
+// listing for it to resolve the symbol against. The watchlist was never part of
+// it. It also gives up rather than spinning forever.
 if(window.__INIT_SYM){
+  let __tries = 0;
   const __tryOpen = setInterval(function(){
-    if(window.openStock && document.querySelector('#wlList .wl-row')){
+    const ready = window.openStock &&
+                  typeof listing !== 'undefined' && listing &&
+                  (listing[currentEx] || []).length;
+    if(ready){
       clearInterval(__tryOpen);
       try{ window.openStock(window.__INIT_SYM); }catch(e){}
+      return;
     }
+    if(++__tries > 25) clearInterval(__tryOpen);   // 20 seconds, then stop
   }, 800);
 }
 
