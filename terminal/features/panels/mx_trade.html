@@ -51,7 +51,7 @@
   licence and a real execution venue, nothing here may look like a live order.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261124181353';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124214739';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - TRADE (PAPER)</title>
@@ -72,6 +72,20 @@
   [hidden]{display:none!important;}
   body{margin:0;background:transparent;color:var(--tx);font-family:var(--ui);font-size:13px;padding:0;}
   .wrap{padding:10px 14px 26px;}
+  /* ---- BANDS, THE WAY THE MARKET SHEET IS LAID OUT -----------------------
+     This panel was one column of blocks, each as wide as the panel and as tall
+     as it needed, so a wide window left a column of black down the right of
+     every short block and the whole thing ran to two thousand pixels. The
+     blocks that are naturally narrow - the two books, the session volume, the
+     positions and the working orders - sit in a band that flows them into as
+     many columns as the width allows. A band with one thing in it is simply
+     full width, so nothing is ever stranded beside a gap. */
+  .tband{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));
+         gap:0 22px;align-items:start;}
+  .tcell{min-width:0;}
+  .tcell h2{margin-top:14px;}
+  .tcell h2:first-child{margin-top:0;}
+  .tband-2{grid-template-columns:repeat(auto-fit,minmax(460px,1fr));}
   /* ---- THE DEPTH WINDOW ------------------------------------------------
      The two sides of the market as a dealing screen shows them (owner,
      2026-11-24): buyers banked down the left, sellers down the right, the
@@ -84,7 +98,10 @@
      blank, exactly as the reference screen does for a share with nothing
      resting behind the touch. Filling those rows with anything at all would be
      inventing a market. */
-  .dpt{border:1px solid var(--line2);border-radius:3px;overflow:hidden;max-width:620px;}
+  /* NO 620px CAP. The depth window was pinned to 620px, so on a panel 1,500px
+     wide it sat in the left third with nine hundred pixels of black beside it.
+     It fills the cell it is given now, and the cell is sized by the band below. */
+  .dpt{border:1px solid var(--line2);border-radius:3px;overflow:hidden;}
   .dpt-t{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg4);
          border-bottom:1px solid var(--line2);font-family:var(--mono);font-size:11px;}
   .dpt-t .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -115,7 +132,7 @@
   .dpt-f b{color:var(--warn);font-weight:400;letter-spacing:.04em;}
   .dpt-f span{color:var(--tx);}
   .dpt-f span.up{color:var(--up);} .dpt-f span.down{color:var(--down);}
-  .dpt-note{color:var(--tx3);font-size:10.5px;line-height:1.5;margin-top:7px;max-width:620px;}
+  .dpt-note{color:var(--tx3);font-size:10.5px;line-height:1.5;margin-top:7px;}
   /* ---- THE ORDER EMAIL SWITCH ------------------------------------------
      OFF by default, and it stays off until somebody turns it on. An email is
      a thing that arrives in a person's inbox whether or not they are looking,
@@ -332,11 +349,16 @@
     <div class="msg" id="msg" aria-live="polite"></div>
     <div class="upd" id="upd"></div>
 
-    <h2>Positions</h2>
-    <div id="positions"></div>
-
-    <h2>Working orders</h2>
-    <div id="working"></div>
+    <div class="tband">
+      <div class="tcell">
+        <h2>Positions</h2>
+        <div id="positions"></div>
+      </div>
+      <div class="tcell">
+        <h2>Working orders</h2>
+        <div id="working"></div>
+      </div>
+    </div>
 
     <div class="bkbar">
       <div class="tview" role="tablist" aria-label="Trade view">
@@ -348,12 +370,24 @@
 
     <!-- ================= ORDER BOOK (default view) ================= -->
     <section id="bookView">
-      <h2 id="bkHead">Order book</h2>
-      <div id="book"></div>
-      <h2 id="myBkHead">My resting bids and asks</h2>
-      <div id="myBook"></div>
-      <h2 id="volHead">Traded volume by session</h2>
-      <div id="vol"></div>
+      <!-- TWO COLUMNS, NOT THREE, AND PAIRED BY HEIGHT. Three equal cells put the
+           order book (the depth window, its note and the last trades) against a
+           resting ladder of two lines, and the ladder's column was black for a
+           thousand pixels underneath it. The two short blocks share the second
+           column instead, which brings the two sides within about eighty pixels
+           of each other. -->
+      <div class="tband tband-2">
+        <div class="tcell">
+          <h2 id="bkHead">Order book</h2>
+          <div id="book"></div>
+        </div>
+        <div class="tcell">
+          <h2 id="myBkHead">My resting bids and asks</h2>
+          <div id="myBook"></div>
+          <h2 id="volHead">Traded volume by session</h2>
+          <div id="vol"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ================= CHART ================= -->
@@ -1557,9 +1591,17 @@
       "these markets. " + mid.join(". ") + (mid.length ? "." : "") + "</div>";
 
     if(rec.trades && rec.trades.length){
-      html += "<h2 style='margin-top:14px'>Last trades · " + esc(sym) + "</h2>" +
+      // THE MOST RECENT TEN, not all twenty. This list was the one thing making
+      // the order book cell a thousand pixels tall, and the tenth print back is
+      // already well past what anyone reads beside a live touch. The count says
+      // how many the source published, so nothing is hidden silently.
+      var _tr = rec.trades.slice(0, 10);
+      html += "<h2 style='margin-top:14px'>Last trades · " + esc(sym) +
+        (rec.trades.length > _tr.length
+          ? " <span style='color:var(--tx3)'>" + _tr.length + " of " + rec.trades.length +
+            " published</span>" : "") + "</h2>" +
         "<div class='tablewrap'><table><tr><th>TIME</th><th>PRICE</th><th>VOLUME</th></tr>" +
-        rec.trades.map(function(t){
+        _tr.map(function(t){
           return "<tr><td>" + esc(t.time || "") + "</td><td>" + (t.price == null ? "-" : fmt(t.price, 2)) +
                  "</td><td>" + (t.volume == null ? "-" : fmt(t.volume, 0)) + "</td></tr>"; }).join("") +
         "</table></div><div class='bksrc'>Time and sales: the individual prints this source published," +
