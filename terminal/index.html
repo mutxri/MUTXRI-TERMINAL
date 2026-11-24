@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124203037';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124204023';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1221,16 +1221,29 @@ html{scrollbar-width:none;}
      two per row, and stretch made a short column (PEERS, often one line) grow to
      the height of the tall one beside it: a bordered box of nothing. Each column
      is now only as tall as what is in it. */
-  #mkRelBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));
+  /* 150px, not 165. At the width this sheet is read at, five counterparty
+     columns needed 165 x 5 plus their padding and missed by a hair, so PARTNERS
+     dropped alone onto a second row beside three empty cells. */
+  #mkRelBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
             align-items:start}
   .mkrc-col{min-width:0;border-top:1px solid var(--line);border-right:1px solid var(--line);
             padding-bottom:7px}
   .mkrc-h{padding:8px 12px 3px;color:var(--tx3);
           font-size:9.5px;letter-spacing:.1em;font-weight:700}
   .mkrc-n{color:var(--acc);font-family:var(--mono);font-weight:400;margin-left:4px}
-  .mkrc-r{display:flex;justify-content:space-between;gap:8px;padding:2px 12px;
+  /* EVERY NAME STARTS ON THE SAME LINE. justify-content:space-between pushed the
+     name to the RIGHT edge of its column, so a row with a country code read
+     "US ....... Visa" while a row without one had its name floating alone on the
+     right: CUSTOMERS and PARTNERS, which carry no code, came out ragged against
+     SUPPLIERS and COMPETITORS, which do (owner, 2026-11-24: "align the text in
+     the customer and partner to look like suppliers and all should be
+     straight"). The code keeps its fixed 18px at the left, the name takes the
+     rest and begins at the same x in every column whether a code is there or
+     not, and the ticker stays on the right. */
+  .mkrc-r{display:flex;align-items:baseline;gap:8px;padding:2px 12px;
           font-size:10px;color:var(--tx2)}
-  .mkrc-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mkrc-nm{flex:1 1 auto;min-width:0;text-align:left;
+           overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .mkrc-t{color:var(--acc);font-family:var(--mono);flex:0 0 auto}
   /* THE COUNTRY CODE, where one was established. relationships_<EX>.json carries
      a `country` on an entity only when a source decided it: the board a listed
