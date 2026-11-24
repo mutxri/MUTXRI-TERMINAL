@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124181353';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124185151';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -8148,78 +8148,13 @@ function mkInputs(o){
   }
   return parts.length ? ('inputs: ' + parts.join(', ')) : '';
 }
-function mkValSection(sym, ex, anData, anKey){
-  if(!anData){
-    return mkSec('VALUATION', '',
-      '<div class="mki-out">' + esc('No analytics file on file for ' + sym + '.') + '</div>');
-  }
-  var v = anData.valuation || {};
-  var h = '';
-  var head = v.valBasis || anData.period || '';
-  // Only the ratios period is drawn. The basis sentence ("current market cap vs the
-  // annual period both statements cover") explained what the window covers, which is
-  // the panel narrating itself - the period is the part that is data.
-  var sub = [v.ratiosPeriod ? ('ratios period ' + v.ratiosPeriod) : ''].filter(Boolean).join(' · ');
-  if(sub) h += '<div class="mki-sub">' + esc(sub) + '</div>';
-  // A RECORD CAN CONTRADICT ITSELF, AND THE FIGURES IT PAINTS MUST NOT.
-  // COMI.CA is the case on file: the record withholds P/E, EV/EBIT and the
-  // earnings yield with one reason that says the market capitalisation is served
-  // under two keys that disagree, that EVERY market-based multiple of the
-  // security is built on that capitalisation, and that therefore "none of them
-  // is a valuation" - while the same block publishes a P/B and a P/S as numbers.
-  // Drawing 1.78x beside that sentence is the contradiction: one of the two is
-  // wrong, and a reader cannot tell which. So a blanket reason of that kind is
-  // applied to the market-based multiples it names as well. The number is NOT
-  // invented, adjusted, rounded or deleted: the record's own sentence is printed
-  // under the withheld value, so the disclosure and the figure agree. A record
-  // whose reasons are specific to one metric is untouched, because only a reason
-  // that speaks for every market-based multiple suppresses the others.
-  var MK_MKTCAP_BASED = {'pe':1, 'pb':1, 'ps':1, 'ev_ebit':1, 'earnings_yield':1};
-  var blanketWhy = '';
-  MK_METRICS.forEach(function(m){
-    var r = String(v[m[0] + '_withheld_reason'] || '');
-    if(v[m[0] + '_withheld'] === true && !blanketWhy && /every market-based multiple/i.test(r)) blanketWhy = r;
-  });
-  MK_METRICS.forEach(function(m){
-    var key = m[0], label = m[1], unit = m[2];
-    var val = mkNum(v[key]);
-    var withheld = (v[key + '_withheld'] === true);
-    var why = String(v[key + '_withheld_reason'] || '');
-    if(!withheld && blanketWhy && MK_MKTCAP_BASED[key]){ withheld = true; why = blanketWhy; }
-    if(val !== null && !withheld){
-      h += mkiRow(label, mkF2(val) + unit, true);
-      // NO FORMULA LINE AND NO INPUT LIST. A panel shows data and short labels; it
-      // does not explain how a figure was derived (owner, 2026-10-14, quoting
-      // "current price / earnings per share" and "inputs: marketCap 43.32B,
-      // netProfit 24.99B, price 22.2, eps 12.8052"). The multiple and its unit stay.
-      // The formulas and inputs remain in the analytics files and are simply not
-      // painted.
-    } else if(withheld){
-      h += '<div class="mki-row"><span class="k">' + esc(label) + '</span>' +
-           '<span class="v" style="color:#e0a340">WITHHELD</span></div>';
-      h += '<div class="mki-wh"><b>WHY</b> ' +
-           esc(mkNoTail(mkNoLead(why || 'the file records no reason with the withholding'))) + '</div>';
-    } else {
-      h += '<div class="mki-row"><span class="k">' + esc(label) + '</span>' +
-           '<span class="v" style="color:var(--tx3)">not on file</span></div>';
-    }
-  });
-  // The valuation note is NOT painted ("P/E stands on FY2025, the newest annual
-  // earnings on file; the statement and the ratios above are H1 2026, an interim
-  // and not annualised" and "loss-making in the latest period, so P/E is not
-  // meaningful"): both explained the figures to the reader and drew a conclusion
-  // for them, which is the panel narrating itself (owner, 2026-10-14). The note
-  // stays in the analytics file; the ratios period header above stays.
-  return mkSec('VALUATION', esc(head), h);
-}
-
-// ---- price history -------------------------------------------------------
-// The same bars, the same series construction and the same library the CHART
-// panel uses: static_data/history/<KEY>.json mapped to {time, open, high, low,
-// close} on a candlestick. The shell carries lightweight-charts 4.1.3 as its own
-// global (the CHART panel's iframe carries 5.x), so the series is added through
-// whichever factory the loaded build exposes; the bars and the mapping are
-// identical, which is what stops the two views disagreeing about a price.
+// mkValSection IS GONE. It drew a second VALUATION block at the foot of the
+// MARKET window out of the same analytics file the rail reads, so the sheet
+// stated every multiple twice. Gating it off was not enough: the code stayed in
+// the page, and a browser holding an older copy of this shell still ran it,
+// which is how the owner was still looking at a RATIOS block at the bottom
+// after the gate had shipped. The rail carries the multiples, every ratio
+// including the withheld ones with the file's own reason, and the growth rates.
 function mkSvgLine(pts){
   var W = 600, H = 190, n = pts.length;
   var lo = Infinity, hi = -Infinity;
@@ -8343,29 +8278,19 @@ function mkHistSection(hist, sym, ex, mktRow){
 }
 
 // ---- the rest of what the RESEARCH view showed, folded in ----------------
-// `modelsOnly` leaves out GROWTH and RATIOS. Both are in the sheet's rail now,
-// drawn from this same analytics file, and printing them again a screen below
-// is the same security described twice. The model output is not a ratio and
-// stays here whichever way this is called.
-function mkResearchSections(an, sym, modelsOnly){
+// QUALITY AND RISK, and nothing else. The multiples, the ratios and the growth
+// rates all used to be drawn here too; they are in the sheet's rail now, read
+// from this same analytics file, and they are not drawn twice. What is left is
+// model output - the Piotroski score, the Altman band, accruals, cost to income
+// - which is not a ratio and appears nowhere else in the window.
+function mkResearchSections(an, sym){
   var out = '';
-  if(!an){
-    if(modelsOnly) return '';
-    out += mkSec('GROWTH', '', '<div class="mki-out">' +
-      esc('No analytics file for ' + sym + '.') + '</div>');
-    return out;
-  }
-  var gr = an.growth || {};
-  var gb = '';
-  if(mkNum(gr.revenue_cagr) !== null) gb += mkiRow('Revenue CAGR', mkF2(gr.revenue_cagr) + '%', false);
-  if(mkNum(gr.net_profit_cagr) !== null) gb += mkiRow('Net profit CAGR', mkF2(gr.net_profit_cagr) + '%', false);
-  if(!gb){
-    gb = '<div class="mki-out">No multi-year growth series on file for this security.</div>';
-  } else if(gr.from && gr.to){
-    gb += '<div class="mki-out">' + esc(gr.from + ' to ' + gr.to + (gr.contiguousYears ? ', ' + gr.contiguousYears + ' contiguous years' : '')) + '</div>';
-  }
-  if(!modelsOnly) out += mkSec('GROWTH', '', gb);
-
+  if(!an) return '';
+  // THE GROWTH BLOCK IS GONE, with the ratios block below it. Both were drawn
+  // here from an.growth and an.ratios, and both are in the sheet's rail now,
+  // read from this same file. Deleted rather than switched off: a block that is
+  // only switched off still ships, and still draws for anyone whose browser is
+  // holding an older copy of this shell.
   var md = an.models || {};
   var mb = '';
   if(mkNum(md.fscore) !== null){
@@ -8381,26 +8306,6 @@ function mkResearchSections(an, sym, modelsOnly){
   if(mkNum(md.accruals) !== null) mb += mkiRow('Accruals', mkF2(md.accruals) + (md.accrualsReading ? ' · ' + md.accrualsReading : ''), false);
   if(mkNum(md.costToIncome) !== null) mb += mkiRow('Cost to income', mkF2(md.costToIncome) + '%', false);
   out += mkSec('QUALITY AND RISK', '', mb || '<div class="mki-out">No model output on file for this security.</div>');
-
-  var rs = Array.isArray(an.ratios) ? an.ratios : [];
-  var rb = '';
-  // A figure carries its own period. The file stamps some rows with a period of
-  // their own - the net profit and EPS rows of DANGCEM, MTN.JO and KCB stand on
-  // FY2025 while the block's newest period is H1 2026 - and that stamp used to be
-  // dropped, so an FY2025 number was read as H1 2026 under the block's footer.
-  // A row whose period differs from the block's now shows its own period beside
-  // its label; a row that states no period is the block's, which the line under
-  // the rows names.
-  var perFoot = String(an.period || '').trim();
-  rs.forEach(function(r){
-    var v = mkNum(r.value);
-    if(v === null) return;
-    var per = String(r.period || '').trim();
-    var lbl = String(r.label || r.key || '') + ((per && per !== perFoot) ? ' (' + per + ')' : '');
-    rb += mkiRow(lbl, mkF2(v) + (r.unit || ''), false);
-  });
-  if(an.period) rb += '<div class="mki-out">' + esc('Statement period ' + an.period + (an.currency ? ', ' + an.currency : '')) + '</div>';
-  if(!modelsOnly) out += mkSec('RATIOS', '', rb || '<div class="mki-out">No ratios on file for this security.</div>');
 
   var fl = Array.isArray(an.flags) ? an.flags : [];
   var fb = '';
@@ -8494,7 +8399,7 @@ function mkRailRender(){
     // ratio and none of which is anywhere else on this window.
     host.innerHTML =
       mkRelationsSection(sym, ex, ctx.relFile, ctx.row, true) +
-      mkResearchSections(anData, sym, true);
+      mkResearchSections(anData, sym);
     var box = $('mkChartBox');
     if(box && ctx.hist && ctx.hist.data && Array.isArray(ctx.hist.data.bars)){
       mkChart(box, ctx.hist.data.bars.slice(-Math.min(ctx.hist.data.bars.length, MK_DRAW_BARS)));
