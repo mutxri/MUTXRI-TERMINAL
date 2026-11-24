@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124040411';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124042840';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1164,6 +1164,14 @@ html{scrollbar-width:none;}
           font-size:10px;color:var(--tx2)}
   .mkrc-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .mkrc-t{color:var(--acc);font-family:var(--mono);flex:0 0 auto}
+  /* THE COUNTRY CODE, where one was established. relationships_<EX>.json carries
+     a `country` on an entity only when a source decided it: the board a listed
+     counterparty trades on, or the curated company map, each with its basis
+     stored beside it in `countryBasis`. An entity with no country draws an empty
+     slot rather than a question mark, because most of those are not companies at
+     all and a placeholder would imply a lookup that failed. */
+  .mkrc-c{flex:0 0 18px;color:var(--tx3);font-family:var(--mono);font-size:9px;
+          letter-spacing:.06em;text-align:left}
   .mkrc-e{padding:2px 12px 4px;font-size:10px;color:var(--tx3);font-style:italic}
 </style>
 <script>
@@ -10534,7 +10542,9 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
           if(!arr.length){ h += c + '<div class="mkrc-e">' + empty + '</div></div>'; return; }
           arr.slice(0,6).forEach(function(e){
             const t = e.ticker ? '<span class="mkrc-t">' + esc(e.ticker) + '</span>' : '';
-            c += '<div class="mkrc-r"><span class="mkrc-nm">' + esc(e.name || '') + '</span>' + t + '</div>';
+            const cc = '<span class="mkrc-c">' + (e.country ? esc(e.country) : '') + '</span>';
+            const tip = e.countryBasis ? ' title="' + esc(String(e.countryBasis)) + '"' : '';
+            c += '<div class="mkrc-r"' + tip + '>' + cc + '<span class="mkrc-nm">' + esc(e.name || '') + '</span>' + t + '</div>';
           });
           if(arr.length > 6) c += '<div class="mkrc-e">+' + (arr.length-6) + ' more</div>';
           h += c + '</div>';
@@ -10644,7 +10654,11 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
             all.slice(0, 6).forEach(function(e){
               const nm = e.name || '';
               const t = e.ticker ? '<span class="mkrc-t">' + esc(e.ticker) + '</span>' : '';
-              c += '<div class="mkrc-r"><span class="mkrc-nm">' + esc(nm) + '</span>' + t + '</div>';
+              // The code is drawn, and the sentence that justifies it is the row's
+              // tooltip, so a reader can always ask why it says what it says.
+              const cc = '<span class="mkrc-c">' + (e.country ? esc(e.country) : '') + '</span>';
+              const tip = e.countryBasis ? ' title="' + esc(String(e.countryBasis)) + '"' : '';
+              c += '<div class="mkrc-r"' + tip + '>' + cc + '<span class="mkrc-nm">' + esc(nm) + '</span>' + t + '</div>';
             });
             if(all.length > 6){
               c += '<div class="mkrc-e">+' + (all.length - 6) + ' more</div>';
