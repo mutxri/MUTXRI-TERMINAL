@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124211012';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124212536';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1104,16 +1104,29 @@ html{scrollbar-width:none;}
   .des-last{font-family:var(--mono);font-size:22px;color:var(--tx);line-height:1.1}
   .des-cur{font-size:10px;color:var(--tx3);margin-left:5px;letter-spacing:.08em}
   .des-chg{font-family:var(--mono);font-size:12px;margin-top:2px}
-  .des-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,40%);
-            align-items:start}
+  /* ONE COLUMN OF FULL WIDTH BANDS. THE SIDE RAIL IS GONE, and so is the only
+     thing that was ever producing the black space.
+     A two column sheet leaves a void whenever one side has less in it than the
+     other, and no amount of tuning the split removes that: it is what the shape
+     guarantees. It was survivable on a security with a chart, five counterparty
+     columns, ten headlines and ten holders. It was indefensible on an SME
+     listing with a shareholding note and nothing else, where the statistics ran
+     six hundred pixels down the right and the left of the panel was empty from
+     the first line to the last.
+     So nothing sits beside anything. Every block takes the full width and the
+     next one starts under it. The statistics, which are the tallest thing here,
+     flow through as many 200px columns as the width allows, so they get SHORTER
+     as the panel gets WIDER instead of running down one edge. */
+  .des-body{display:block}
   .des-main{min-width:0}
   /* THE BLOCKS THAT DO NOT BELONG BESIDE THE RAIL RUN UNDER BOTH OF THEM. Two
      columns of different natural height always leave one of them short, and the
      short one is a void. So only what balances the rail stays beside it - the
      chart, the counterparties, the holders - and the news and the code grid span
      the full width below, where they have no column to be shorter than. */
-  .des-wide{grid-column:1 / -1;min-width:0;border-top:1px solid var(--line)}
-  .des-rail{min-width:0;border-left:1px solid var(--line);padding-bottom:8px}
+  /* .des-wide is gone with the grid it belonged to: every block is full width
+     now, so there is nothing for a block to span. */
+  .des-rail{min-width:0;border-top:1px solid var(--line);padding-bottom:8px}
   .des-grp{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;font-weight:700;
            color:var(--tx3);padding:8px 12px 4px}
   .des-g{break-inside:avoid}
@@ -1137,10 +1150,8 @@ html{scrollbar-width:none;}
          overflow:hidden;text-overflow:ellipsis}
   .des-v{color:var(--tx);text-align:right;flex:1 1 auto;min-width:62px;
          overflow-wrap:break-word}
-  @container (max-width:620px){
-    .des-body{grid-template-columns:minmax(0,1fr)}
-    .des-rail{border-left:0;border-top:1px solid var(--line)}
-  }
+  /* Nothing to collapse at a narrow width any more: the sheet is already one
+     column, and the statistics band falls to a single column on its own. */
   /* THE RAIL SPLITS RATHER THAN RUNNING ON ALONE. Forty-five rows of profile,
      market, valuation, ratios, growth and filings stand about a thousand pixels
      tall. The main column beside them - the chart, the counterparty columns, the
@@ -1160,7 +1171,9 @@ html{scrollbar-width:none;}
      `columns: 180px 2` splits it whenever two 180px columns fit and caps it at
      two when more would fit, which is the shape that was measured to balance.
      It follows the real width instead of a width I guessed at. */
-  .des-rail{columns:180px 2;column-gap:0;column-rule:1px solid var(--line)}
+  /* No cap on the count any more: the band is the whole width, so every column
+     it can fit makes it shorter, which is the point. */
+  .des-rail{columns:200px;column-gap:0;column-rule:1px solid var(--line)}
   /* TWO COLUMNS, NOT THREE. A third was measured and overshot: the rail dropped
      to 412px against a main column of 623px, trading a gap under the main column
      for a gap under the rail. Two holds the rail near 528px, within a hundred
@@ -8789,9 +8802,12 @@ function renderMarketStatic(rec, info, live){
         </div>
       </div>
       <div class="des-body">
-        <div class="des-main"><div id="desChart"></div><div id="mkRelBox"></div><div id="desHold"></div></div>
+        <div id="desChart"></div>
         <div class="des-rail">${grp('PROFILE', railProfile)}${grp('MARKET', railMarket)}<div id="desVal"></div>${grp('FILINGS', railFiled)}</div>
-        <div class="des-wide"><div id="desNews"></div>${desFnGrid(rec.ticker || sym0(rec))}</div>
+        <div id="mkRelBox"></div>
+        <div id="desHold"></div>
+        <div id="desNews"></div>
+        ${desFnGrid(rec.ticker || sym0(rec))}
       </div>
     </div>`;
   // The company description is NOT drawn (owner, 2026-10-14). The 'description'
