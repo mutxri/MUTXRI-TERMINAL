@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124233338';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124234923';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -2932,7 +2932,15 @@ window.MTZ = (function(){
       let X2 = X3 - colW;
       if(X2 - X1 < MIN_W) X2 = X1 + MIN_W;     // the middle column keeps its floor
       if(X2 > X3 - 80) X2 = X3 - 80;           // and the right column is never squeezed away
-      const Y2 = Math.round(Y3 / 2);
+      // THE TOP BAND OF THE RIGHT COLUMN IS A TILE, NOT HALF THE SCREEN. Owner,
+      // 2026-11-24, looking at the pair at half height: "the focus panel are way to
+      // big". A FOCUS card is a quote and nothing else, so it gets the height of a
+      // quote: 165 units, never under 132 and never more than a fifth of the box.
+      // The ROOM window underneath takes everything that is left, which is what his
+      // own desk shows. The card also flips from the wide layout to the centred
+      // vertical column once it is taller than it is wide, so a tall pane was not
+      // only wasteful - it turned the ticker and the price into billboards.
+      const Y2 = Math.max(132, Math.min(Math.round(Y3 * 0.20), 165));
       return {W: X3, H: Y3, x1: X1, x2: X2, x3: X3, y2: Y2, y3: Y3,
               railW: X1, midW: X2 - X1, colW: X3 - X2,
               midX: X1, colX: X2, halfH: Y2};
@@ -3230,8 +3238,8 @@ window.MTZ = (function(){
        tile: {cols: [{f: .16, min: 220, win: 'watch'},
                      {flex: 1, min: 220, win: 'info'},
                      {f: .34, min: 480, rows: [
-                        {f: .46, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
-                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {f: .18, min: 150, cols: [{f: .5, min: 120, win: 'focus'},
+                                                   {flex: 1, min: 120, win: 'focus__2'}]},
                         {flex: 1, min: 140, win: 'chat'}]}]}},
 
       // 2 INVESTOR - what do I own, what is it worth, what is coming.
@@ -3242,8 +3250,8 @@ window.MTZ = (function(){
                         {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'portfolio'},
                                                    {flex: 1, min: 240, win: 'corp'}]}]},
                      {f: .34, min: 480, rows: [
-                        {f: .30, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
-                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {f: .18, min: 150, cols: [{f: .5, min: 120, win: 'focus'},
+                                                   {flex: 1, min: 120, win: 'focus__2'}]},
                         {flex: 1, min: 140, win: 'news'}]}]}},
 
       // 3 TRADER - the ticket, the tape, and the two names being worked.
@@ -3253,8 +3261,8 @@ window.MTZ = (function(){
                      {f: .19, min: 240, rows: [{f: .5, min: 140, win: 'chart'},
                                                {flex: 1, min: 140, win: 'tas'}]},
                      {f: .30, min: 480, rows: [
-                        {f: .34, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
-                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {f: .18, min: 150, cols: [{f: .5, min: 120, win: 'focus'},
+                                                   {flex: 1, min: 120, win: 'focus__2'}]},
                         {f: .33, min: 120, win: 'news'},
                         {flex: 1, min: 120, win: 'portfolio'}]}]}},
 
@@ -3266,8 +3274,8 @@ window.MTZ = (function(){
                         {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'financials'},
                                                    {flex: 1, min: 240, win: 'compare'}]}]},
                      {f: .34, min: 480, rows: [
-                        {f: .28, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
-                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {f: .18, min: 150, cols: [{f: .5, min: 120, win: 'focus'},
+                                                   {flex: 1, min: 120, win: 'focus__2'}]},
                         {flex: 1, min: 120, win: 'info'}]}]}},
 
       // 5 FUND MANAGER - the whole book at a glance, and the disclosures that move it.
@@ -3278,8 +3286,8 @@ window.MTZ = (function(){
                         {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'portfolio'},
                                                    {flex: 1, min: 240, win: 'trade'}]}]},
                      {f: .34, min: 480, rows: [
-                        {f: .28, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
-                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {f: .18, min: 150, cols: [{f: .5, min: 120, win: 'focus'},
+                                                   {flex: 1, min: 120, win: 'focus__2'}]},
                         {f: .33, min: 120, win: 'ann'},
                         {flex: 1, min: 120, win: 'news'}]}]}},
 
@@ -3292,8 +3300,8 @@ window.MTZ = (function(){
                                                    {flex: 1, min: 240, rows: [{f: .5, min: 120, win: 'fx'},
                                                                               {flex: 1, min: 120, win: 'bnd'}]}]}]},
                      {f: .34, min: 480, rows: [
-                        {f: .30, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
-                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {f: .18, min: 150, cols: [{f: .5, min: 120, win: 'focus'},
+                                                   {flex: 1, min: 120, win: 'focus__2'}]},
                         {flex: 1, min: 140, win: 'news'}]}]}},
     ];
     // the window the panel layer is asked to open has to be a panel this build
