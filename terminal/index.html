@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124200624';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124203037';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1108,8 +1108,10 @@ html{scrollbar-width:none;}
   .des-main{min-width:0}
   .des-rail{min-width:0;border-left:1px solid var(--line);padding-bottom:8px}
   .des-grp{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;font-weight:700;
-           color:var(--tx3);padding:8px 12px 4px;border-top:1px solid var(--line)}
-  .des-rail>.des-grp:first-child{border-top:0}
+           color:var(--tx3);padding:8px 12px 4px}
+  .des-g{break-inside:avoid}
+  .des-g>.des-grp{border-top:1px solid var(--line)}
+  .des-rail>.des-g:first-child>.des-grp{border-top:0}
   /* A NUMBER MUST NEVER BE BROKEN DOWN A COLUMN. The key was flex:0 0 auto, so it
      never gave ground: in the MARKET rail, which is about 218px wide and not the
      wide panel window this was first measured in, a label like RETURN ON CAPITAL
@@ -1132,6 +1134,23 @@ html{scrollbar-width:none;}
     .des-body{grid-template-columns:minmax(0,1fr)}
     .des-rail{border-left:0;border-top:1px solid var(--line)}
   }
+  /* THE RAIL SPLITS RATHER THAN RUNNING ON ALONE. Forty-five rows of profile,
+     market, valuation, ratios, growth and filings stand about a thousand pixels
+     tall. The main column beside them - the chart, the counterparty columns, the
+     news and the holders - runs out at roughly six hundred, and everything below
+     that was a wide black rectangle beside one thin strip of figures (owner,
+     2026-11-24: "this huge blank space is annoying").
+     So when the sheet is wide the rail is given room to lay itself out in two
+     columns, and three when there is room for three. It gets SHORTER as it gets
+     WIDER, which is what closes the gap, and the main column keeps the rest. */
+  @container (min-width:1000px){
+    .des-body{grid-template-columns:minmax(0,1fr) 392px}
+    .des-rail{column-count:2;column-gap:0;column-rule:1px solid var(--line)}
+  }
+  /* TWO COLUMNS, NOT THREE. A third was measured and overshot: the rail dropped
+     to 412px against a main column of 623px, trading a gap under the main column
+     for a gap under the rail. Two holds the rail near 528px, within a hundred
+     pixels of the main column at the widths this sheet is actually read at. */
   /* The volume and the date the quote is good for sit under the price, where the
      Godel panel puts them ("Vol 80,692,546 At 11/21/26"). It is the one line that
      stops a reader taking a closed board's last print for a live one. */
@@ -7680,6 +7699,10 @@ function desFillValuation(rec){
         (sub ? ' <span style="color:var(--tx3);font-weight:400;letter-spacing:.04em">\u00b7 ' +
                esc(String(sub)) + '</span>' : '') + '</div>';
     };
+    // Same reason as the shell's grp above: one block per group.
+    var block = function(head, rows){
+      return rows ? '<div class="des-g">' + head + rows + '</div>' : '';
+    };
 
     // ---- the multiples ----------------------------------------------------
     var mult = '';
@@ -7758,11 +7781,11 @@ function desFillValuation(rec){
     // against another from the same statements. "P/E 14.33" under a live quote
     // invites the reader to take it as current; "P/E 14.33 - annual FY2026"
     // does not.
-    if(mult) out += grp('VALUATION', v.valBasis || v.asOfPeriod || d.period || '') + mult;
-    if(ratios) out += grp('RATIOS', (perFoot || '') + (d.currency ? ', ' + d.currency : '')) + ratios;
-    if(growth) out += grp('GROWTH', (g.from && g.to)
+    out += block(grp('VALUATION', v.valBasis || v.asOfPeriod || d.period || ''), mult);
+    out += block(grp('RATIOS', (perFoot || '') + (d.currency ? ', ' + d.currency : '')), ratios);
+    out += block(grp('GROWTH', (g.from && g.to)
       ? (g.from + ' to ' + g.to + (g.contiguousYears ? ', ' + g.contiguousYears + ' contiguous years' : ''))
-      : '') + growth;
+      : ''), growth);
     cur.innerHTML = out;
   })['catch'](function(){});
 }
@@ -8664,7 +8687,12 @@ function renderMarketStatic(rec, info, live){
     return '<div class="des-r"><span class="des-k">' + esc(k) + '</span>' +
            '<span class="des-v">' + esc(t) + '</span></div>';
   };
-  const grp = (label, rows) => rows ? '<div class="des-grp">' + esc(label) + '</div>' + rows : '';
+  // A GROUP IS ONE BLOCK. The rail lays itself out in two or three columns once
+  // the sheet is wide, and a heading has to travel with its rows: as loose
+  // siblings a column break could leave MARKET at the foot of one column and its
+  // figures at the head of the next.
+  const grp = (label, rows) => rows
+    ? '<div class="des-g"><div class="des-grp">' + esc(label) + '</div>' + rows + '</div>' : '';
   // "Vol 8,244,823 · at 2026-11-20". The volume is already in the rail, but the
   // date is the fact that matters next to a price and it belonged nowhere else:
   // a board that closed three days ago and one quoting now look identical
