@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124185151';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124192134';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -616,7 +616,31 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .rail{border-right:1px solid var(--line2);background:var(--bg2);
   display:flex;flex-direction:column;min-height:0}
 .rail.right{border-right:0;border-left:1px solid var(--line2)}
-.rm-at{color:#33e29a}
+/* A HANDLE IS A WAY TO REACH SOMEONE, so it behaves like one. Every @mention
+     in the room, and every author's name beside a message, opens a direct
+     message with that person. */
+  .rm-at{color:#33e29a;cursor:pointer}
+  .rm-at:hover{text-decoration:underline}
+  .rm-n{cursor:pointer}
+  .rm-n:hover{text-decoration:underline}
+  .dm-head{display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid var(--line2);
+           font-family:var(--mono);font-size:10px;color:var(--tx3);flex:0 0 auto}
+  .dm-head b{color:var(--acc);font-weight:400}
+  .dm-back{background:none;border:1px solid var(--line2);border-radius:2px;color:var(--tx3);
+           font-family:var(--mono);font-size:9px;padding:1px 6px;cursor:pointer}
+  .dm-back:hover{border-color:var(--acc);color:var(--acc)}
+  .dm-t{display:flex;gap:8px;align-items:baseline;padding:5px 8px;cursor:pointer;
+        border-bottom:1px solid var(--line);min-width:0}
+  .dm-t:hover{background:var(--mint-dim)}
+  .dm-t .h{color:var(--acc);font-family:var(--mono);font-size:10.5px;flex:0 0 auto}
+  .dm-t .p{color:var(--tx3);font-size:10px;overflow:hidden;text-overflow:ellipsis;
+           white-space:nowrap;flex:1 1 auto;min-width:0}
+  .dm-t .w{color:var(--tx3);font-family:var(--mono);font-size:9px;flex:0 0 auto}
+  .dm-m{padding:3px 8px;font-size:11px;color:var(--tx2);display:flex;gap:7px;align-items:baseline}
+  .dm-m .who{font-family:var(--mono);font-size:9.5px;flex:0 0 auto;color:var(--tx3)}
+  .dm-m.mine .who{color:var(--acc)}
+  .dm-m .tx{min-width:0;overflow-wrap:anywhere}
+  .dm-empty{padding:10px 8px;color:var(--tx3);font-size:10.5px;font-style:italic;line-height:1.5}
 .rm-at.me{color:#000;background:#33e29a;border-radius:3px;padding:0 3px}
 .at-box{position:fixed;z-index:9999;background:#0b0b0b;border:1px solid #2a2a2a;border-radius:6px;
   box-shadow:0 8px 24px rgba(0,0,0,.6);overflow:hidden;font-family:var(--mono);font-size:11px}
@@ -2181,6 +2205,7 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
       <div class="chat-head" data-drag="chat" title="Drag to move this window">
         <span class="dgrip">⠿</span>
         <button class="chat-tab on" type="button" data-mode="room">ROOM</button>
+        <button class="chat-tab" type="button" data-mode="dm">DM</button>
         <button class="chat-tab" type="button" data-mode="ask">ASK</button>
         <span class="chat-act">
           <button id="chatClear" type="button" title="Clear the assistant thread">CLEAR</button>
@@ -2196,6 +2221,7 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
         <div class="chat-col">
           <div class="chat-log" id="roomLog" aria-live="polite"></div>
           <div class="chat-log" id="chatLog" aria-live="polite" style="display:none"></div>
+          <div class="chat-log" id="dmLog" aria-live="polite" style="display:none"></div>
           <div class="chat-note" id="chatNote" hidden></div>
         </div>
       </div>
@@ -9288,14 +9314,57 @@ function fmtMoney(v){
   // directory, and inventing one would let people mention names that do not exist.
   // The capture keeps whatever came before the @ so it can be put back:
   // without it "someone@example.com" draws its domain as a mention.
-  const AT_RE = /(^|[^A-Za-z0-9_.\-@])@([A-Za-z0-9_.\-]{2,32})/g;
+  // A HANDLE CAN HAVE A SPACE IN IT, and the old matcher could not see past one.
+  // It was a single regular expression, /@([A-Za-z0-9_.-]{2,32})/, which stops at
+  // the first character outside that class: a space. The picker inserts whatever
+  // name the person posts under, and most of those are two words, so "@Gabriel
+  // Ogutu" was drawn as a mention of "Gabriel" with a loose "Ogutu" beside it,
+  // and the mention never matched the person it named (owner, 2026-11-24: "it
+  // only highlight one username instead of two").
+  //
+  // The fix is to stop guessing where a handle ends and look it up. The room
+  // knows every name that has spoken in it; those are matched LONGEST FIRST, so
+  // "@Gabriel Ogutu" wins over "@Gabriel" when both could apply. A handle nobody
+  // in the room has used falls back to the single-token rule, which is all that
+  // can honestly be said about a name the room has never seen.
+  const AT_TOKEN = /^[A-Za-z0-9_.\-]{2,32}/;
   function fmtText(t){
-    var out = esc(t);
-    if(out.indexOf('@') === -1) return out;
-    return out.replace(AT_RE, function(all, pre, h){
-      var mine = me && h.toLowerCase() === String(me).toLowerCase();
-      return pre + '<span class="rm-at' + (mine ? ' me' : '') + '">@' + h + '</span>';
+    var raw = String(t == null ? '' : t);
+    if(raw.indexOf('@') === -1) return esc(raw);
+    var known = roomHandles().slice().sort(function(a, b){
+      return String(b).length - String(a).length;
     });
+    var out = '', i = 0;
+    while(i < raw.length){
+      var at = raw.indexOf('@', i);
+      if(at < 0){ out += esc(raw.slice(i)); break; }
+      out += esc(raw.slice(i, at));
+      // Whatever came before the @ decides whether this is a mention at all:
+      // without this test "someone@example.com" draws its domain as one.
+      var prev = at === 0 ? '' : raw.charAt(at - 1);
+      if(prev && /[A-Za-z0-9_.\-@]/.test(prev)){ out += '@'; i = at + 1; continue; }
+      var rest = raw.slice(at + 1), hit = null;
+      for(var k = 0; k < known.length; k++){
+        var h = String(known[k] || '');
+        if(!h || rest.length < h.length) continue;
+        if(rest.slice(0, h.length).toLowerCase() !== h.toLowerCase()) continue;
+        // and it has to END on a boundary, or "@Ben" would eat into "@Benson"
+        var after = rest.charAt(h.length);
+        if(after && /[A-Za-z0-9_.\-]/.test(after)) continue;
+        hit = rest.slice(0, h.length);
+        break;
+      }
+      if(!hit){
+        var m = AT_TOKEN.exec(rest);
+        hit = m ? m[0] : null;
+      }
+      if(!hit){ out += '@'; i = at + 1; continue; }
+      var mine = me && hit.toLowerCase() === String(me).toLowerCase();
+      out += '<span class="rm-at' + (mine ? ' me' : '') + '" data-at="' + esc(hit) + '">@' +
+             esc(hit) + '</span>';
+      i = at + 1 + hit.length;
+    }
+    return out;
   }
   function roomHandles(){
     var seenH = {}, out = [];
@@ -9868,20 +9937,167 @@ function fmtMoney(v){
     });
     roomLog.style.display = m === 'room' ? '' : 'none';
     askLog.style.display = m === 'ask' ? '' : 'none';
+    var dl = document.getElementById('dmLog');
+    if(dl) dl.style.display = m === 'dm' ? '' : 'none';
     if(roomsHost()) roomsHost().style.display = m === 'room' ? '' : 'none';
     setNote('');
     gate();
     if(m === 'room'){ refresh(); roomLog.scrollTop = roomLog.scrollHeight; }
+    if(m === 'dm'){ dmRender(); }
     if(byReader) input.focus();
+  }
+
+  // ===================== DIRECT MESSAGES =====================
+  // The panel never names a room. It names the person, by handle, and the
+  // backend works out which conversation that is from their address and the
+  // caller's own verified one. So there is no room id this code could send that
+  // would reach a conversation the reader is not part of, and none is kept here.
+  var dmWith = '';          // the handle whose thread is open, '' for the list
+  var dmMsgs = [];
+  var dmTimer = null;
+  function dmLog(){ return document.getElementById('dmLog'); }
+  function dmAgoShort(ts){
+    var n = Number(ts) || 0;
+    if(!n) return '';
+    var mins = Math.round((Date.now() / 1000 - n) / 60);
+    if(mins < 1) return 'now';
+    if(mins < 60) return mins + 'm';
+    var h = Math.round(mins / 60);
+    return h < 48 ? h + 'h' : Math.round(h / 24) + 'd';
+  }
+  function dmOpen(handle){
+    var h = String(handle || '').trim();
+    if(!h) return;
+    // Your own handle is not a conversation.
+    if(me && h.toLowerCase() === String(me).toLowerCase()){ setMode('dm', true); return; }
+    dmWith = h; dmMsgs = [];
+    setMode('dm', true);
+    dmPoll(true);
+  }
+  window.mtOpenDM = dmOpen;
+  function dmRender(){
+    var host = dmLog();
+    if(!host) return;
+    if(!token()){
+      host.innerHTML = '<div class="dm-empty">Sign in to send a direct message. ' +
+        'A direct message goes to one signed-in account and is not shown in any room.</div>';
+      return;
+    }
+    if(!dmWith){ dmThreads(); return; }
+    var h = '<div class="dm-head"><button type="button" class="dm-back">BACK</button>' +
+            '<span>Direct message with <b>@' + esc(dmWith) + '</b></span></div>';
+    if(!dmMsgs.length){
+      h += '<div class="dm-empty">No messages yet. What you send here is seen only by ' +
+           esc('@' + dmWith) + '.</div>';
+    } else {
+      dmMsgs.forEach(function(m){
+        h += '<div class="dm-m' + (m.mine ? ' mine' : '') + '">' +
+             '<span class="who">' + esc(m.mine ? 'you' : ('@' + (m.name || dmWith))) + '</span>' +
+             '<span class="tx">' + fmtText(m.text || '') + '</span></div>';
+      });
+    }
+    host.innerHTML = h;
+    var b = host.querySelector('.dm-back');
+    if(b) b.addEventListener('click', function(){ dmWith = ''; dmMsgs = []; dmRender(); });
+    host.scrollTop = host.scrollHeight;
+  }
+  function dmThreads(){
+    var host = dmLog();
+    if(!host) return;
+    host.innerHTML = '<div class="dm-empty">Reading your conversations...</div>';
+    api('/api/dm/threads', {}).then(function(d){
+      if(!host || mode !== 'dm' || dmWith) return;
+      var rows = (d && d.threads) || [];
+      if(!rows.length){
+        host.innerHTML = '<div class="dm-empty">No direct messages yet. ' +
+          'Press any @handle in the room, or a name beside a message, to start one.</div>';
+        return;
+      }
+      host.innerHTML = rows.map(function(t){
+        return '<div class="dm-t" data-h="' + esc(t['with']) + '">' +
+          '<span class="h">@' + esc(t['with']) + '</span>' +
+          '<span class="p">' + esc((t.fromMe ? 'you: ' : '') + (t.preview || '')) + '</span>' +
+          '<span class="w">' + esc(dmAgoShort(t.ts)) + '</span></div>';
+      }).join('');
+      host.querySelectorAll('.dm-t').forEach(function(el){
+        el.addEventListener('click', function(){ dmOpen(el.getAttribute('data-h')); });
+      });
+    })['catch'](function(e){
+      // A 404 here is not a failure of this conversation, it is a server that
+      // does not carry the direct message routes yet. Saying "could not be read"
+      // would send the reader looking for a fault in their own account.
+      var http404 = /http 404/i.test(String((e && e.message) || ''));
+      if(host) host.innerHTML = '<div class="dm-empty">' + (http404
+        ? 'Direct messages are not switched on for this server yet. The panel is ready; the backend needs the dm routes deployed.'
+        : 'Your conversations could not be read.') + '</div>';
+    });
+  }
+  function dmPoll(force){
+    if(mode !== 'dm' || !dmWith || !token()) return;
+    var want = dmWith;
+    var after = (!force && dmMsgs.length) ? (dmMsgs[dmMsgs.length - 1].ts || 0) : 0;
+    api('/api/dm/history', {'with': want, after: after, limit: 60}).then(function(d){
+      if(dmWith !== want || mode !== 'dm') return;
+      if(!d || !d.ok){
+        var host = dmLog();
+        if(host) host.innerHTML = '<div class="dm-empty">' +
+          esc((d && d.error) || 'this conversation could not be read') + '</div>';
+        return;
+      }
+      var got = d.messages || [];
+      if(after) {
+        got.forEach(function(m){ dmMsgs.push(m); });
+        if(got.length) dmRender();
+      } else {
+        dmMsgs = got;
+        dmRender();
+      }
+    })['catch'](function(){});
+  }
+  // One timer for the open thread, at the room's own pace.
+  dmTimer = setInterval(function(){ if(mode === 'dm' && dmWith) dmPoll(false); }, 5000);
+  async function sendDM(text){
+    if(!dmWith){ setNote('Choose who to message first.'); return; }
+    var d = await api('/api/dm/send', {to: dmWith, text: text});
+    if(!d || !d.ok){ setNote((d && d.error) || 'the message did not send'); return; }
+    input.value = '';
+    dmPoll(true);
   }
   document.querySelectorAll('.chat-tab').forEach(function(t){
     t.addEventListener('click', function(){ setMode(t.getAttribute('data-mode'), true); });
+  });
+
+  // PRESSING A HANDLE OPENS A CONVERSATION WITH THAT PERSON (owner, 2026-11-24:
+  // "add dm feature where other users can dm you from the panel username"). One
+  // delegated listener, because the room is rewritten on every poll and a
+  // listener bound to a message's own element would die with it.
+  //
+  // The mention carries the handle it matched in data-at, which is the whole
+  // handle including a space in it; the author's name is the handle the backend
+  // resolved for that account. Either is enough to address a conversation,
+  // because the backend turns a handle into the conversation itself.
+  roomLog.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t || !t.closest) return;
+    var at = t.closest('.rm-at');
+    if(at){
+      ev.preventDefault();
+      dmOpen(at.getAttribute('data-at') || String(at.textContent || '').replace(/^@/, ''));
+      return;
+    }
+    var n = t.closest('.rm-n');
+    if(n){
+      ev.preventDefault();
+      dmOpen(String(n.textContent || '').replace(/^@/, '').trim());
+    }
   });
   form.addEventListener('submit', function(e){
     e.preventDefault();
     const t = input.value.trim();
     if(!t) return;
-    if(mode === 'room') sendRoom(t); else sendAsk(t);
+    if(mode === 'room') sendRoom(t);
+    else if(mode === 'dm') sendDM(t);
+    else sendAsk(t);
   });
 
   if(hist.length){
