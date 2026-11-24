@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124042840';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124045658';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1172,6 +1172,16 @@ html{scrollbar-width:none;}
      all and a placeholder would imply a lookup that failed. */
   .mkrc-c{flex:0 0 18px;color:var(--tx3);font-family:var(--mono);font-size:9px;
           letter-spacing:.06em;text-align:left}
+  /* WHO SAYS SO, IN ONE MARK. The long form of these rows used to live in a
+     second section further down the window, carrying the ISSUER-STATED or LEAD
+     TO VERIFY tag, the role, the publisher and the date it was retrieved. That
+     section was the same counterparties over again, so it is gone; the fact it
+     carried is not. A filled mark is the issuer's own statement in its own
+     document. A hollow one is a third party's claim, which is a lead and not a
+     fact. The whole sentence is the row's tooltip. */
+  .mkrc-p{flex:0 0 7px;font-size:11px;line-height:1;color:var(--tx3)}
+  .mkrc-p.iss{color:var(--acc)}
+  .mkrc-p.lead{color:var(--warn)}
   .mkrc-e{padding:2px 12px 4px;font-size:10px;color:var(--tx3);font-style:italic}
 </style>
 <script>
@@ -7314,6 +7324,10 @@ function mkHolderGroup(list, label){
   if(!rows) return '';
   return '<div class="mki-sub mki-grp">' + esc(label) + '</div>' + rows;
 }
+// NO LONGER DRAWN. The market sheet above carries this now (see the note in
+// mkRailRender on what moved where). Kept because it is the only full
+// implementation of this block and the sheet's compact version is built from
+// the same files; delete it only once nothing wants the long form back.
 function mkHoldersSection(sym, ex, shFile, mktRow){
   var rec = null, key = null;
   if(shFile && shFile.securities){
@@ -7473,6 +7487,10 @@ function mkStat(k, v){
            ? '<span class="v" style="color:var(--tx3)">not on file</span>'
            : '<span class="v">' + esc(String(v)) + '</span>') + '</div>';
 }
+// NO LONGER DRAWN. The market sheet above carries this now (see the note in
+// mkRailRender on what moved where). Kept because it is the only full
+// implementation of this block and the sheet's compact version is built from
+// the same files; delete it only once nothing wants the long form back.
 function mkStatsSection(sym, ex, mkt, row, shFile, cinfo, listing, hist){
   var r = row || {};
   if(!row){
@@ -7788,9 +7806,19 @@ function desFillHolders(rec){
         '<span class="q">' + (q === null ? '' : '(' + esc(mkShares(q)) + ')') + '</span></div>';
     }).join('');
     var head = String((r && r.tableHeading) || 'Holders as filed');
+    // THE DOCUMENT THIS TABLE CAME FROM. The SHAREHOLDERS section below used to
+    // print it and that section was the same ten holders over again, so the
+    // sentence moves here with them rather than being lost with it.
+    var src = (r && r.source && typeof r.source === 'object') ? r.source : {};
+    var note = String(src.note || src.title || '').trim();
+    var issued = mkNum(r && r.issued);
+    var foot = [];
+    if(issued !== null) foot.push('Issued shares ' + mkShares(issued));
+    if(note) foot.push(note);
     cur.innerHTML = '<div class="des-sec"><span class="t">TOP HOLDERS</span>' +
       '<span class="s">' + esc(head) + (px === null ? '' : ' \u00b7 value at the price above') + '</span></div>' +
-      '<div class="des-2">' + rows + '</div>';
+      '<div class="des-2">' + rows + '</div>' +
+      (foot.length ? '<div class="des-none">' + esc(foot.join(' \u00b7 ')) + '</div>' : '');
   })['catch'](function(){});
 }
 
@@ -7947,8 +7975,11 @@ function mkRelListBlock(list, label, ex, sym, emptyText){
   h += '<div class="mki-out">' + esc(emptyText + ' for ' + sym + '.') + '</div>';
   return h;
 }
-function mkRelationsSection(sym, ex, relFile, mktRow){
-  var TITLE = 'CUSTOMERS, SUPPLIERS, COMPETITORS, PARTNERS';
+// `discOnly` draws the DISCLOSURES half alone. The four counterparty blocks are
+// in the sheet's own columns now, and this function is the only place the
+// disclosures were ever drawn, so it stays for them.
+function mkRelationsSection(sym, ex, relFile, mktRow, discOnly){
+  var TITLE = discOnly ? 'DISCLOSURES' : 'CUSTOMERS, SUPPLIERS, COMPETITORS, PARTNERS';
   if(!relFile || !relFile.securities){
     return mkSec(TITLE, '',
       '<div class="mki-out">' + esc('No customer, supplier, competitor or partner record on file for ' + sym + '.') + '</div>');
@@ -7969,7 +8000,7 @@ function mkRelationsSection(sym, ex, relFile, mktRow){
   // competitors fix that error"). Records carry a peer flag set where they were built;
   // those print under PEERS and only named rivals print under COMPETITORS, so the two
   // are never mixed into one competitive set.
-  MK_REL_CATS.forEach(function(c){
+  if(!discOnly) MK_REL_CATS.forEach(function(c){
     if(c[0] !== 'competitors'){ body += mkRelCatBlock(rec, relFile, c[0], c[1], ex, sym); return; }
     var allC = (rec && Array.isArray(rec.competitors)) ? rec.competitors : [];
     // flags are independent: a record may be both a peer and a competitor
@@ -7981,6 +8012,9 @@ function mkRelationsSection(sym, ex, relFile, mktRow){
                            'No sector peer on this board');
   });
   var disc = Array.isArray(rec.disclosures) ? rec.disclosures : [];
+  // Nothing to say, so nothing is drawn: a DISCLOSURES heading over an empty
+  // block is a section that exists to report that it is empty.
+  if(discOnly && !disc.length) return '';
   if(disc.length){
     body += '<div class="mki-sub mki-grp">DISCLOSURES</div>';
     body += '<div class="mki-out">' + esc('Statements in the issuer\'s document that name no entity.') + '</div>';
@@ -8181,6 +8215,10 @@ function mkChart(box, bars){
   box.innerHTML = mkSvgLine(mapped);
   return true;
 }
+// NO LONGER DRAWN. The market sheet above carries this now (see the note in
+// mkRailRender on what moved where). Kept because it is the only full
+// implementation of this block and the sheet's compact version is built from
+// the same files; delete it only once nothing wants the long form back.
 function mkHistSection(hist, sym, ex, mktRow){
   if(!hist || !hist.data || !Array.isArray(hist.data.bars) || !hist.data.bars.length){
     return mkSec('PRICE HISTORY', '',
@@ -8331,13 +8369,28 @@ function mkRailRender(){
   }).then(function(ctx){
     if(!ctx || MT_MK.sym + '|' + MT_MK.ex !== want) return;
     var anData = ctx.an && ctx.an.data, anKey = ctx.an && ctx.an.key;
+    // WHAT THIS STACK NO LONGER DRAWS, AND WHERE IT WENT (owner, 2026-11-24:
+    // "take this duplicate info out and make sure all the info is there"). The
+    // sheet above now carries these, so printing them again a screen further
+    // down was the same security described twice:
+    //
+    //   KEY STATISTICS  -> the rail's MARKET group. Its one field the rail did
+    //                      not have, INSTRUMENT, was added to the rail.
+    //   SHAREHOLDERS    -> the TOP HOLDERS block, which now also carries the
+    //                      issued share count and the document the table was
+    //                      read from.
+    //   counterparties  -> the five columns, which now carry the issuer-stated
+    //                      or lead-to-verify mark, the role, the publisher and
+    //                      the retrieval date in each row's tooltip.
+    //   price history   -> the PRICE chart in the sheet, off the same archive.
+    //
+    // DISCLOSURES is NOT a duplicate and stays: those are statements in an
+    // issuer's document that name no entity, so they appear in no column.
+    // VALUATION stays because the rail shows the multiples and this shows the
+    // formula, the inputs and the stated reason for every withheld one.
     host.innerHTML =
-      mkStatsSection(sym, ex, ctx.mkt, ctx.row, ctx.sharesFile, ctx.cinfo, ctx.listingFile,
-                     ctx.hist && ctx.hist.data) +
-      mkHoldersSection(sym, ex, ctx.shFile, ctx.row) +
-      mkRelationsSection(sym, ex, ctx.relFile, ctx.row) +
+      mkRelationsSection(sym, ex, ctx.relFile, ctx.row, true) +
       mkValSection(sym, ex, anData, anKey) +
-      mkHistSection(ctx.hist, sym, ex, ctx.row) +
       mkResearchSections(anData, sym);
     var box = $('mkChartBox');
     if(box && ctx.hist && ctx.hist.data && Array.isArray(ctx.hist.data.bars)){
@@ -8559,7 +8612,11 @@ function renderMarketStatic(rec, info, live){
                       srow('FOUNDED', i.founded) + srow('LISTED', i.listed) +
                       srow('YEAR END', rec.yearEnd || i.year_end) +
                       srow('EXCHANGE', rec.exchange || i.exchange) +
-                      srow('TRANSFER SEC', i.transfer_secretary) + srow('PHONE', i.phone);
+                      srow('TRANSFER SEC', i.transfer_secretary) + srow('PHONE', i.phone) +
+                      // INSTRUMENT was the only field the KEY STATISTICS section
+                      // below carried that the rail did not, so it comes up here
+                      // and that section goes.
+                      srow('INSTRUMENT', rec.instrument || (i && i.instrument));
   // DAY RANGE and STATE are what the live route carries that the files do not,
   // and they were the two figures the old live sheet showed that this one did
   // not. They are drawn when they are known and left out when they are not, like
@@ -10543,8 +10600,22 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
           arr.slice(0,6).forEach(function(e){
             const t = e.ticker ? '<span class="mkrc-t">' + esc(e.ticker) + '</span>' : '';
             const cc = '<span class="mkrc-c">' + (e.country ? esc(e.country) : '') + '</span>';
-            const tip = e.countryBasis ? ' title="' + esc(String(e.countryBasis)) + '"' : '';
-            c += '<div class="mkrc-r"' + tip + '>' + cc + '<span class="mkrc-nm">' + esc(e.name || '') + '</span>' + t + '</div>';
+            // The mark, and the sentence behind it. statedBy 'issuer' means the
+            // issuer's own document says this; anything else is a publisher
+            // domain, which is a lead to verify and never the issuer's claim.
+            const iss = String(e.statedBy || '').toLowerCase() === 'issuer';
+            const src = (e.source && typeof e.source === 'object') ? e.source : {};
+            const why = [];
+            if(e.role) why.push(String(e.role));
+            why.push(iss
+              ? ('Stated by the issuer' + (e.fiscalYear ? ', fiscal year ' + e.fiscalYear : ''))
+              : ('Lead to verify, from ' + (src.site || e.statedBy || 'a third party') +
+                 (src.retrieved ? ', retrieved ' + src.retrieved : '')));
+            if(e.countryBasis) why.push(String(e.countryBasis));
+            const mark = '<span class="mkrc-p ' + (iss ? 'iss' : 'lead') + '">' +
+                         (iss ? '\u25cf' : '\u25cb') + '</span>';
+            c += '<div class="mkrc-r" title="' + esc(why.join(' \u00b7 ')) + '">' + mark + cc +
+                 '<span class="mkrc-nm">' + esc(e.name || '') + '</span>' + t + '</div>';
           });
           if(arr.length > 6) c += '<div class="mkrc-e">+' + (arr.length-6) + ' more</div>';
           h += c + '</div>';
@@ -10657,8 +10728,22 @@ loadSearchIndex();       // every other market's tickers, so search spans all fo
               // The code is drawn, and the sentence that justifies it is the row's
               // tooltip, so a reader can always ask why it says what it says.
               const cc = '<span class="mkrc-c">' + (e.country ? esc(e.country) : '') + '</span>';
-              const tip = e.countryBasis ? ' title="' + esc(String(e.countryBasis)) + '"' : '';
-              c += '<div class="mkrc-r"' + tip + '>' + cc + '<span class="mkrc-nm">' + esc(nm) + '</span>' + t + '</div>';
+              // The mark, and the sentence behind it. statedBy 'issuer' means the
+              // issuer's own document says this; anything else is a publisher
+              // domain, which is a lead to verify and never the issuer's claim.
+              const iss = String(e.statedBy || '').toLowerCase() === 'issuer';
+              const src = (e.source && typeof e.source === 'object') ? e.source : {};
+              const why = [];
+              if(e.role) why.push(String(e.role));
+              why.push(iss
+                ? ('Stated by the issuer' + (e.fiscalYear ? ', fiscal year ' + e.fiscalYear : ''))
+                : ('Lead to verify, from ' + (src.site || e.statedBy || 'a third party') +
+                   (src.retrieved ? ', retrieved ' + src.retrieved : '')));
+              if(e.countryBasis) why.push(String(e.countryBasis));
+              const mark = '<span class="mkrc-p ' + (iss ? 'iss' : 'lead') + '">' +
+                           (iss ? '\u25cf' : '\u25cb') + '</span>';
+              c += '<div class="mkrc-r" title="' + esc(why.join(' \u00b7 ')) + '">' + mark + cc +
+                   '<span class="mkrc-nm">' + esc(nm) + '</span>' + t + '</div>';
             });
             if(all.length > 6){
               c += '<div class="mkrc-e">+' + (all.length - 6) + ' more</div>';
