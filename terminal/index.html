@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124234923';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261125003454';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -383,8 +383,12 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .wsbar{display:none;align-items:center;gap:var(--s2);height:28px;padding:0 var(--s3);
   background:var(--bg2);border-top:1px solid var(--line2);min-width:0}
 .floating .wsbar{display:flex}
-/* the tab row: it shrinks rather than pushing the + off the edge, and it scrolls */
-.wstabs{display:flex;align-items:center;gap:2px;min-width:0;flex:1 1 auto;
+/* the tab row sits AT ITS OWN WIDTH, with the + immediately after the last tab
+   (owner, 2026-11-25: "the + icon should be next to the workspace"). It used to
+   grow to fill the strip, which pushed the + to the far right edge of the screen.
+   It still scrolls when there are more tabs than room, so the + is never pushed
+   out of reach. */
+.wstabs{display:flex;align-items:center;gap:2px;min-width:0;flex:0 1 auto;max-width:calc(100% - 34px);
   overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
 .wstabs::-webkit-scrollbar{height:5px}
 .wstabs::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
@@ -410,8 +414,8 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
 .wstabs .ws-x[disabled]:hover{color:inherit;background:none}
 /* the + sits OUTSIDE the scroll area, pinned at the right like Excel's, so it is
    reachable however many tabs there are */
-.wsbar .ws-add{flex:0 0 auto;margin-left:auto;background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);
-  font-family:var(--mono);font-size:13px;font-weight:700;line-height:1;padding:1px 8px 2px;
+.wsbar .ws-add{flex:0 0 auto;margin-left:4px;background:var(--bg3);border:1px solid var(--line2);color:var(--tx3);
+  font-family:var(--mono);font-size:11px;font-weight:700;line-height:1;padding:1px 7px 2px;
   border-radius:2px;cursor:pointer}
 .wsbar .ws-add:hover{border-color:var(--acc);color:var(--acc)}
 /* A GUEST ASKED TO SAVE A LAYOUT: one short line and the control that fixes it,
@@ -1312,6 +1316,7 @@ html{scrollbar-width:none;}
      are read on the one row a reader is asking about rather than on all of
      them at once. */
   .mkrc-e{padding:2px 12px 4px;font-size:10px;color:var(--tx3);font-style:italic}
+
 </style>
 <script>
 /* ===== EVERY STATIC DATA READ IS FRESH =====================================
@@ -2327,7 +2332,26 @@ window.mtScale = function(){ try{ var v = parseFloat(getComputedStyle(document.d
     #chatRooms::-webkit-scrollbar-thumb{background:var(--line2);border-radius:2px}
     #chatRooms::-webkit-scrollbar-track{background:transparent}
     #chatRooms>*{flex:0 0 auto}
-    </style>
+    /* ===== SMALLER TYPE, GODEL SCALE (owner, 2026-11-25) =======================
+   Verbatim: "the fonts should be smaller like in godel". Godel's interface reads
+   at nine to eleven pixels; this shell set twelve on the body and climbed from
+   there, so every label, row and figure sat a size above the reference. The block
+   below pulls the base down one pixel and trims the handful of places that had
+   climbed higher - the quote block, the brand, the numbers in the watch list and
+   the sheet - without touching the dense nine and ten pixel rules, which were
+   already right. Declared last so it wins on equal specificity. */
+body{font-size:11px}
+.wstabs .ws-tab{font-size:9px;padding:2px 5px 2px 8px}
+.brandname{font-size:15px}
+.brandmark{font-size:12px}
+.rightinfo .qpx{font-size:20px}
+.rightinfo .qsym{font-size:13px}
+.rightinfo .qchg{font-size:11px}
+#wlChart .wc-t{font-size:11px}
+#wlChart .wc-close{font-size:15px}
+.des-hd{font-size:11px}
+.tape{font-size:10px}
+</style>
 
     <!-- CHAT (4th window): the shared room, plus a local data assistant -->
     <aside class="rail chat" id="colChat">
