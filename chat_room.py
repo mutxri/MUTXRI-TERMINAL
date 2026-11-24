@@ -155,7 +155,8 @@ def _clean_image(value):
     return v, None
 
 
-def post(email, name, text, room, ctx, username="", reply_to="", owner=False, image=""):
+def post(email, name, text, room, ctx, username="", reply_to="", owner=False, image="",
+         extra=None):
     text = (text or "").strip()
     if not text:
         return {"ok": False, "error": "message is empty"}
@@ -227,6 +228,15 @@ def post(email, name, text, room, ctx, username="", reply_to="", owner=False, im
         msg["everyone"] = True
     if image:
         msg["image"] = image
+    # A NARROW DOOR FOR dm.py, AND ONLY THAT. A direct message has to record who
+    # it was addressed to, because its room id is a hash and a conversation where
+    # only one person has written could not otherwise be found again. The keys are
+    # whitelisted so a caller cannot reach in here and rewrite the author, the
+    # room or the text of a message through the same argument.
+    if extra:
+        for _k in ("dmTo",):
+            if extra.get(_k):
+                msg[_k] = str(extra[_k]).strip().lower()[:120]
     with _LOCK:
         if _USE_MONGO:
             try:
