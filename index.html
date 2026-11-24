@@ -2,7 +2,7 @@
 
 <html lang="en">
 
-<head><script>(function(){var V='20261124233338';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124233711';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>/* the site is behind Cloudflare; until Always Use HTTPS is on, this closes the common case client-side. It cannot protect the first request - only an HSTS header does that. */
 if(location.protocol==='http:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){location.replace('https://'+location.host+location.pathname+location.search+location.hash);}</script>
@@ -314,7 +314,16 @@ a{color:var(--acc);text-decoration:none;}
 
 .f-shot .shot-placeholder{color:var(--tx3);font-family:var(--mono);font-size:11px;text-align:center;padding:20px;}
 
-.f-shot img{width:100%;height:100%;object-fit:fill;display:block;}
+/* contain, NEVER fill. These shots are 2400x1500, a 1.60 landscape frame. fill
+   does not fit an image to a box, it STRETCHES it to the box, so any box that is
+   not 1.60 distorts the picture rather than cropping or letterboxing it. On a
+   phone the box was being forced to 60vh, a tall portrait, and every screenshot
+   was squashed to about a third of its proper width and pulled upright: the
+   terminal's type came out thin and smeared, which reads as a bad, pixellated
+   image when the file itself is 2400px wide and perfectly sharp (owner,
+   2026-11-24: they "look ugly and pixelatd on mobile"). contain keeps the
+   picture's own proportions whatever the box does. */
+.f-shot img{width:100%;height:100%;object-fit:contain;display:block;}
 .f-shot iframe{width:100%;height:100%;border:0;display:block;background:#000;pointer-events:none;}
 
 .f-shot .shot-tag{position:absolute;bottom:10px;left:10px;font-family:var(--mono);font-size:10px;color:var(--acc);background:rgba(0,0,0,.7);padding:3px 8px;border-radius:3px;border:1px solid var(--line2);}
@@ -555,7 +564,11 @@ a{color:var(--acc);text-decoration:none;}
 
   .f-text .feats li{font-size:14px;}
 
-  .f-shot,.f-shot.wide{aspect-ratio:auto;height:60vh;min-height:320px;max-height:520px;}
+  /* THE BOX KEEPS THE PICTURE'S SHAPE ON A PHONE TOO. This forced the shot
+     boxes to 60vh of PORTRAIT and dropped their aspect ratio, which is what the
+     image above was then stretched into. A landscape screenshot gets a landscape
+     box at every width; it is simply narrower, and stays the right shape. */
+  .f-shot,.f-shot.wide{aspect-ratio:16/10;height:auto;min-height:0;max-height:none;}
 
   .f-shot .shot-tag{font-size:11px;}
 
