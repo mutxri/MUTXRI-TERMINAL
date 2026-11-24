@@ -1532,6 +1532,72 @@ class Handler(SimpleHTTPRequestHandler):
             else:
                 self.json(auth_api.admin_list(_k, (data or {}).get("delete", ""), _t))
             return
+        # ---- PAPER ORDER RECORD ------------------------------------------
+        # The TRADE panel is a simulator: its orders fill in the reader's own
+        # browser against published end-of-day prices and never reach a market.
+        # This route does one thing, and only when the reader has switched it
+        # on in that panel: mail THAT READER a PDF record of a fill.
+        #
+        # THE RECIPIENT COMES FROM THE SESSION, NOT THE BODY. Reading an address
+        # out of the request would turn this into an open relay sending
+        # official-looking documents from this domain to anyone who asked.
+        if path.path == "/api/paper/confirm":
+            if rate_limited(real_ip(self), "paper_confirm"):
+                self.send_error(429, "too many order emails")
+                return
+            data = self.body_json()
+            who = auth_api.me(data.get("token", ""))
+            if not who.get("ok"):
+                self.json({"ok": False, "auth": False,
+                           "error": who.get("error") or "sign in to have records emailed"})
+                return
+            try:
+                import paper_mail
+                o = data.get("order") or {}
+                acc = data.get("account") or {}
+
+                # EVERY FIELD IS RE-TYPED AND CLIPPED HERE. The body is written
+                # by a browser and is not trusted: a string is cut to a length
+                # that cannot overrun a line of the page, and a number that is
+                # not a number becomes one. The PDF writer escapes whatever it
+                # is handed, so this is about the document reading sensibly.
+                def _s(v, n=64):
+                    return str(v if v is not None else "")[:n]
+
+                def _f(v):
+                    try:
+                        return float(v)
+                    except Exception:
+                        return 0.0
+
+                order = {
+                    "ref": _s(o.get("ref"), 32), "placed": _s(o.get("placed"), 32),
+                    "filled": _s(o.get("filled"), 32), "ex": _s(o.get("ex"), 8).upper(),
+                    "sym": _s(o.get("sym"), 24).upper(), "name": _s(o.get("name"), 48),
+                    "cls": _s(o.get("cls"), 8).upper(), "side": _s(o.get("side"), 8).upper(),
+                    "type": _s(o.get("type"), 8).upper(), "ccy": _s(o.get("ccy"), 8).upper(),
+                    "qty": _f(o.get("qty")), "px": _f(o.get("px")),
+                    "fees": _f(o.get("fees")),
+                    "fees_note": _s(o.get("fees_note"), 48) or "none",
+                }
+                if not order["sym"] or not order["side"]:
+                    self.json({"ok": False, "error": "an order needs a security and a side"})
+                    return
+                # THE NAME ON THE STATEMENT COMES FROM THE SESSION, like the
+                # address. A name read out of the request body would let a caller
+                # put any name they liked at the head of a document that this
+                # domain then sends.
+                account = {"cash": _f(acc.get("cash")), "realised": _f(acc.get("realised")),
+                           "opening": _f(acc.get("opening")),
+                           "position": _s(acc.get("position"), 64) or "-",
+                           "ref": _s(acc.get("ref"), 32) or "-",
+                           "name": _s(who.get("name"), 64) or "-"}
+                sent, err = paper_mail.send_order_record(
+                    who.get("email"), who.get("name"), order, account)
+                self.json({"ok": bool(sent), "error": err})
+            except Exception as _pe:
+                self.json({"ok": False, "error": "record error: %s" % str(_pe)[:160]})
+            return
         if path.path.startswith("/api/chat/"):
             action = "chat_" + path.path.split("/")[-1]
             if chat_room is None:
