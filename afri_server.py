@@ -1598,6 +1598,43 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as _pe:
                 self.json({"ok": False, "error": "record error: %s" % str(_pe)[:160]})
             return
+        # ---- DIRECT MESSAGES ---------------------------------------------
+        # A caller never names the room. They name the other person by handle and
+        # dm.py computes the room from that person's address and the caller's own
+        # verified one, so there is no room id a caller could send that would
+        # reach a conversation they are not part of.
+        if path.path.startswith("/api/dm/"):
+            act = path.path.split("/")[-1]
+            if act not in ("send", "history", "threads", "directory"):
+                self.send_error(404)
+                return
+            if rate_limited(real_ip(self), "dm_" + act):
+                self.send_error(429, "too many requests")
+                return
+            data = self.body_json()
+            who = auth_api.me(data.get("token", ""))
+            if not who.get("ok"):
+                self.json({"ok": False, "auth": False,
+                           "error": who.get("error") or "sign in to send a message"})
+                return
+            try:
+                import dm
+                me_email = who.get("email")
+                if act == "send":
+                    self.json(dm.send(me_email, who.get("name"), who.get("username"),
+                                      data.get("to", ""), data.get("text", ""),
+                                      data.get("image", "")))
+                elif act == "history":
+                    self.json(dm.history(me_email, data.get("with", ""),
+                                         data.get("after", 0), data.get("limit", 60)))
+                elif act == "threads":
+                    self.json(dm.threads(me_email))
+                else:
+                    self.json(dm.directory(me_email, data.get("q", ""),
+                                           data.get("limit", 25)))
+            except Exception as _de:
+                self.json({"ok": False, "error": "dm error: %s" % str(_de)[:160]})
+            return
         if path.path.startswith("/api/chat/"):
             action = "chat_" + path.path.split("/")[-1]
             if chat_room is None:
