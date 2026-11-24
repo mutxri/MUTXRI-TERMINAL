@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124212536';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124222531';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -559,8 +559,18 @@ html[data-win-anim="on"] .wrow.pulse{animation:winpulse .5s ease-out}
   .pwin-hd:hover .pw-q,
   .pwin-hd:focus-within .pw-q,
   .pwin-hd.q-on .pw-q{display:block}
+  /* THE CONTROLS ANSWER TO THE WHOLE WINDOW, NOT THE TITLE STRIP. They were
+     revealed by hovering .pwin-hd, which is SIXTEEN PIXELS tall: the close
+     button was invisible until the pointer was already on top of it, so there
+     was nothing to aim at and the window read as one that could not be closed
+     (owner, 2026-11-24: the heatmap "cant close"). Hovering anywhere in the
+     window now brings them up - and that includes the panel's own iframe, since
+     it is the iframe ELEMENT that is hovered, not its document.
+     The search BOX still waits for the title line itself. It is a wide field,
+     and opening it every time the pointer crosses a panel would be the clutter
+     this collapsing was meant to remove. */
   .pwin-hd .pw-qb,.pwin-hd .pw-fill,.pwin-hd .pw-x{visibility:hidden}
-  .pwin-hd:hover .pw-qb,.pwin-hd:hover .pw-fill,.pwin-hd:hover .pw-x,
+  .pwin:hover .pw-qb,.pwin:hover .pw-fill,.pwin:hover .pw-x,
   .pwin-hd:focus-within .pw-qb,.pwin-hd:focus-within .pw-fill,.pwin-hd:focus-within .pw-x,
   .pwin-hd.q-on .pw-qb,.pwin-hd.q-on .pw-fill,.pwin-hd.q-on .pw-x{visibility:visible}
   .pwin-hd.q-on .pw-qb{color:var(--acc);opacity:1}
@@ -1291,6 +1301,37 @@ html{scrollbar-width:none;}
   .mkrc-e{padding:2px 12px 4px;font-size:10px;color:var(--tx3);font-style:italic}
 </style>
 <script>
+/* ===== EVERY STATIC DATA READ IS FRESH =====================================
+   The shell read static_data/market_<EX>.json, the histories and the analytics
+   with a bare fetch, so the browser served its own cached copy for as long as
+   that copy had headers to live on. The visible result was a board that could be
+   a session behind the file being served: QMRT came through at 7.80 against a
+   previous close of 7.80 - a flat +0.00% - while the served board said 7.98 and
+   +3.10%, and SCOM arrived as 34.00 flat against a served 33.95 and -0.44%. A
+   price that cannot move is worse than a price that is missing, because nothing
+   on the screen says it is old. Every read of static_data is now stamped with
+   the load time and sent no-store, so the page draws what the server is serving.
+   One wrapper here rather than fifty call sites: no reader of data can forget
+   it. */
+(function(){
+  var MT_STAMP = String(Date.now());
+  if(typeof window === 'undefined' || !window.fetch || window.__mtFreshFetch) return;
+  var _fetch = window.fetch.bind(window);
+  window.fetch = function(input, init){
+    try{
+      var u = (typeof input === 'string') ? input : (input && input.url) || '';
+      if(u.indexOf('static_data/') > -1 && u.indexOf('?') === -1){
+        var stamped = (typeof input === 'string') ? (input + '?v=' + MT_STAMP) : input;
+        init = Object.assign({ cache: 'no-store' }, init || {});
+        window.__mtFreshFetch = true;
+        return _fetch(stamped, init);
+      }
+    }catch(e){}
+    return _fetch(input, init);
+  };
+  window.__mtFreshFetch = true;
+})();
+
 /* apply saved theme + accent before paint to avoid a flash */
 window.__ACCENTS = {
   mint:  ['#33e29a','#1ecfb0','#0b8a5c','#0aa06a'],
@@ -5077,6 +5118,16 @@ window.MTPanelWins = (function(){
          typeof switchExchange === 'function') switchExchange(ex);
     }catch(e){}
     if(cmd === 'MARKET'){
+      // OPEN THE WINDOW, THEN POINT IT. openStock only moves the selection: it
+      // writes the security into the MARKET rail and tells the panels about it.
+      // If that rail is closed, as it is for anyone who has shut it, nothing
+      // appears to happen at all and the menu item looks broken (owner,
+      // 2026-11-24: it "dont open the market panel of a stock when the users
+      // clicks"). The window is opened first, so there is something to point.
+      try{
+        if(window.MTWin && window.MTWin.set && window.MTWin.isOpen &&
+           !window.MTWin.isOpen('info')) window.MTWin.set('info', true);
+      }catch(e){}
       try{ if(typeof openStock === 'function') openStock(sym); }catch(e){}
       return;
     }
@@ -6146,7 +6197,12 @@ async function primeQuotes(ex){
     window.__MKASOF = window.__MKASOF || {};
     window.__MKASOF[ex] = fixMeridiem(d.asOf || d.generated || '');
     (d.stocks || []).forEach(s => {
-      quotes[s.sym] = { price: s.price, changePct: s.chgPct, volume: s.volume, currency: s.currency };
+      // THE PREVIOUS CLOSE AND THE SESSION DATE ARE KEPT BESIDE THE PRICE. Without
+      // them a panel handed this security could only show the price, and any change
+      // it printed had nothing to be a change FROM - which is how QMRT reached the
+      // FOCUS card as a flat 7.80 while the board said 7.98 and +3.10%.
+      quotes[s.sym] = { price: s.price, changePct: s.chgPct, prevClose: s.prevClose,
+                        volume: s.volume, currency: s.currency, asOf: s.asOf };
       if(s.ticker) quotes[s.ticker] = quotes[s.sym];
     });
     renderWatchlist($('q').value);
@@ -9018,6 +9074,26 @@ function mtSelectionPayload(sym){
     priceWithheld: !!r.priceWithheld,
     withhold_reason: r.withhold_reason || ''
   } : null;
+  // THE BOARD'S QUOTE WINS OVER THE LISTING'S COPY. listing[] is a security
+  // master with a price on it, and that price can be a session behind the board
+  // this page is drawing - which is exactly what happened to QMRT: the listing
+  // said 7.80 against a previous close of 7.80, so the FOCUS card printed a flat
+  // +0.00% for a security that had moved +3.10% on the board beside it. The quote
+  // store is filled from market_<EX>.json, the same file the board draws, so the
+  // panel and the board can no longer disagree.
+  if(row){
+    try{
+      const qs = (typeof quotes !== 'undefined' && quotes) || {};
+      const q = qs[row.sym] || qs[String(s).toUpperCase()] || qs[row.ticker];
+      if(q){
+        if(q.price != null) row.price = q.price;
+        if(q.changePct != null) row.chgPct = q.changePct;
+        if(q.prevClose != null) row.prevClose = q.prevClose;
+        if(q.asOf) row.asOf = q.asOf;
+        if(q.currency && !row.currency) row.currency = q.currency;
+      }
+    }catch(e){}
+  }
   const sel = {__mt: 'selection', v: 1, sym: s, ex: ex, asOf: asOf, row: row,
                absent: !row && !!(listing && listing[ex] && listing[ex].length)};
   window.__mtSelection = sel;
