@@ -51,7 +51,7 @@
   licence and a real execution venue, nothing here may look like a live order.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261124031749';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124034210';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - TRADE (PAPER)</title>
@@ -393,7 +393,25 @@
 (function(){
   var Q = new URLSearchParams(location.search);
   var EX = (Q.get("ex") || "JSE").toUpperCase();
-  var PRESET = (Q.get("sym") || "").toUpperCase();
+  // THE SECURITY THIS PANEL OPENS ON. ?sym= when the shell passed one, and when
+  // it did not, the last security the desk published (owner, 2026-11-24: the
+  // trade features "was not fully deployed" - they were deployed, but a TRADE
+  // window opened before anything had been selected showed "Choose a ticker"
+  // where the depth window and the ladder should be, which is the same thing
+  // from the reader's chair).
+  //
+  // mt_sym is the desk's own store, written by the shell on every selection and
+  // read by the panel layer for exactly this purpose. Reading it here means a
+  // TRADE window opened cold lands on whatever the reader was last looking at
+  // instead of on an empty frame. It is a same-origin read of this terminal's
+  // own key and nothing else; a panel opened on its own with no desk behind it
+  // simply finds nothing and carries on as before.
+  var PRESET = (function(){
+    var q = (Q.get("sym") || "").trim().toUpperCase();
+    if(q) return q;
+    try{ return (localStorage.getItem("mt_sym") || "").trim().toUpperCase(); }
+    catch(e){ return ""; }
+  })();
   var ORDER = (Q.get("order") || "").toUpperCase();   // SIDE:TICKER:QTY from the command line
   var KEY = "mx_paper_v1";
   var POLL_MS = 5 * 60 * 1000;
