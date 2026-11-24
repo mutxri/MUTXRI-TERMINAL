@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124232253';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124233338';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -3224,12 +3224,15 @@ window.MTZ = (function(){
     // exchange), so no preset can name it at all.
     const PRESETS = [
       // 1 START HERE - what is this company, and what does one share cost.
-      // MARKET is the largest, because explaining is what a beginner needs.
+      // MARKET is the largest, because explaining is what a beginner needs. It opens
+      // the way the house arrangement opens: two quote cards and the room.
       {name: 'START HERE', main: 'info',
        tile: {cols: [{f: .16, min: 220, win: 'watch'},
                      {flex: 1, min: 220, win: 'info'},
-                     {f: .22, min: 240, rows: [{f: .28, min: 140, win: 'focus'},
-                                               {flex: 1, min: 140, win: 'news'}]}]}},
+                     {f: .34, min: 480, rows: [
+                        {f: .46, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
+                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {flex: 1, min: 140, win: 'chat'}]}]}},
 
       // 2 INVESTOR - what do I own, what is it worth, what is coming.
       {name: 'INVESTOR', main: 'heatmap',
@@ -3238,48 +3241,49 @@ window.MTZ = (function(){
                         {f: .55, min: 140, win: 'heatmap'},
                         {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'portfolio'},
                                                    {flex: 1, min: 240, win: 'corp'}]}]},
-                     {f: .20, min: 240, rows: [{f: .30, min: 140, win: 'focus'},
-                                               {flex: 1, min: 140, win: 'news'}]}]}},
+                     {f: .34, min: 480, rows: [
+                        {f: .30, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
+                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {flex: 1, min: 140, win: 'news'}]}]}},
 
-      // 3 TRADER - what is the book, and what do I do about it now.
+      // 3 TRADER - the ticket, the tape, and the two names being worked.
       {name: 'TRADER', main: 'trade',
        tile: {cols: [{f: .16, min: 220, win: 'watch'},
                      {flex: 1, min: 240, win: 'trade'},
                      {f: .19, min: 240, rows: [{f: .5, min: 140, win: 'chart'},
                                                {flex: 1, min: 140, win: 'tas'}]},
-                     {f: .19, min: 240, rows: [{f: .33, min: 140, win: 'focus'},
-                                               {f: .33, min: 140, win: 'news'},
-                                               {flex: 1, min: 140, win: 'portfolio'}]}]}},
+                     {f: .30, min: 480, rows: [
+                        {f: .34, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
+                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {f: .33, min: 120, win: 'news'},
+                        {flex: 1, min: 120, win: 'portfolio'}]}]}},
 
-      // 4 ANALYST - is this company any good, and is it cheap. MARKET is in it
-      // because the owner asked for it by name.
+      // 4 ANALYST - one company read properly, with the peer set beside it.
       {name: 'ANALYST', main: 'chart',
        tile: {cols: [{f: .16, min: 220, win: 'watch'},
                      {flex: 1, min: 220, rows: [
                         {f: .55, min: 140, win: 'chart'},
                         {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'financials'},
                                                    {flex: 1, min: 240, win: 'compare'}]}]},
-                     {f: .20, min: 240, rows: [{f: .33, min: 140, win: 'focus'},
-                                               {flex: 1, min: 120, win: 'info'}]}]}},
+                     {f: .34, min: 480, rows: [
+                        {f: .28, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
+                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {flex: 1, min: 120, win: 'info'}]}]}},
 
-      // 5 FUND MANAGER - what am I exposed to across the whole market.
+      // 5 FUND MANAGER - the whole book at a glance, and the disclosures that move it.
       {name: 'FUND MANAGER', main: 'heatmap',
        tile: {cols: [{f: .16, min: 220, win: 'watch'},
                      {flex: 1, min: 220, rows: [
                         {f: .55, min: 140, win: 'heatmap'},
                         {flex: 1, min: 140, cols: [{f: .5, min: 240, win: 'portfolio'},
                                                    {flex: 1, min: 240, win: 'trade'}]}]},
-                     {f: .20, min: 240, rows: [{f: .33, min: 140, win: 'focus'},
-                                               {f: .33, min: 140, win: 'ann'},
-                                               {flex: 1, min: 140, win: 'news'}]}]}},
+                     {f: .34, min: 480, rows: [
+                        {f: .28, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
+                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {f: .33, min: 120, win: 'ann'},
+                        {flex: 1, min: 120, win: 'news'}]}]}},
 
-      // 6 ECONOMIST - what is happening to this country.
-      // FISCAL sits in the centre column under MACRO, at the widest supporting
-      // share the tree can give it, because the budget table is read across: an
-      // allocation, the recurrent and development split, the change and the view
-      // it came from have to stand side by side. MACRO keeps the largest window
-      // (it is the set's named main), so the country view stays the one the eye
-      // lands on and the budget is the working surface beside it.
+      // 6 ECONOMIST - the country rather than the company.
       {name: 'ECONOMIST', main: 'macro',
        tile: {cols: [{f: .16, min: 220, win: 'watch'},
                      {flex: 1, min: 220, rows: [
@@ -3287,8 +3291,10 @@ window.MTZ = (function(){
                         {flex: 1, min: 140, cols: [{f: .46, min: 240, win: 'fiscal'},
                                                    {flex: 1, min: 240, rows: [{f: .5, min: 120, win: 'fx'},
                                                                               {flex: 1, min: 120, win: 'bnd'}]}]}]},
-                     {f: .20, min: 240, rows: [{f: .30, min: 140, win: 'focus'},
-                                               {flex: 1, min: 140, win: 'news'}]}]}},
+                     {f: .34, min: 480, rows: [
+                        {f: .30, min: 260, cols: [{f: .5, min: 240, win: 'focus'},
+                                                   {flex: 1, min: 240, win: 'focus__2'}]},
+                        {flex: 1, min: 140, win: 'news'}]}]}},
     ];
     // the window the panel layer is asked to open has to be a panel this build
     // ships: a preset that names anything else is skipped, so a set can never
@@ -3464,9 +3470,13 @@ window.MTZ = (function(){
       const panelwins = {};
       let pz = 20;
       Object.keys(rects).forEach(function(id){
-        // a preset may name a SECOND window of a panel (focus__2); the id it has
-        // to be a shipped panel of is the part before the instance suffix
-        if(!PANEL_IDS[id] && !PANEL_IDS[baseOf(id)]) return;   // only what this build ships
+        // a preset may name a SECOND window of a panel (focus__2). The id it has to
+        // be a shipped panel of is the part before the instance suffix - split here
+        // rather than calling baseOf(), which belongs to the panel-window layer and
+        // is not in this scope (it threw "baseOf is not defined" and every preset
+        // refused to open).
+        const _base = String(id).split('__')[0];
+        if(!PANEL_IDS[id] && !PANEL_IDS[_base]) return;   // only what this build ships
         const r = rects[id];
         panelwins[id] = {open: true, x: r.x, y: r.y, w: r.w, h: r.h, z: ++pz};
       });
