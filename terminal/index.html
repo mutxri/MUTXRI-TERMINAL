@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261124034210';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261124040411';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -1110,6 +1110,44 @@ html{scrollbar-width:none;}
   .des-fnc{flex:0 0 auto;color:var(--acc);background:var(--bg3);border-radius:2px;
            padding:1px 4px;font-size:9px;font-weight:700;letter-spacing:.08em}
   .des-fnl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+
+  /* ---- THE STACKED SECTIONS OF THE SHEET -------------------------------
+     Godel's description panel is a column of titled blocks, each with its own
+     thin header and a code button on the right that opens the full panel for
+     it. This is that: a section head, the block, the next section head. Every
+     block here is drawn from a file this site already ships, and a block with
+     no file behind it is not drawn at all rather than drawn empty. */
+  .des-sec{border-top:1px solid var(--line);padding:7px 12px 2px;display:flex;
+           align-items:baseline;gap:10px}
+  .des-sec .t{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;
+              font-weight:700;color:var(--tx3)}
+  .des-sec .s{font-family:var(--mono);font-size:9.5px;color:var(--tx3);
+              flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .des-rng{display:flex;gap:3px;flex:0 0 auto}
+  .des-rng button{background:none;border:1px solid var(--line2);border-radius:2px;
+    color:var(--tx3);font-family:var(--mono);font-size:9px;letter-spacing:.06em;
+    padding:1px 6px;cursor:pointer}
+  .des-rng button.on{border-color:var(--acc);color:var(--acc);background:var(--mint-dim)}
+  .des-chart{padding:2px 12px 8px}
+  .des-chart svg{display:block;width:100%;height:132px}
+  .des-chart .msg{font-family:var(--mono);font-size:10px;color:var(--tx3);padding:6px 0}
+  /* Two columns of rows, the way the news and the holders are set in the
+     reference panel. auto-fit so a narrow window folds to one. */
+  .des-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));
+         padding:2px 0 6px}
+  .des-ni{display:flex;gap:9px;padding:3px 12px;font-size:10.5px;color:var(--tx2);
+          align-items:baseline;min-width:0;border-right:1px solid var(--line)}
+  .des-ni .ago{flex:0 0 34px;color:var(--tx3);font-family:var(--mono);font-size:9.5px;text-align:right}
+  .des-ni a{color:var(--tx2);text-decoration:none;overflow:hidden;text-overflow:ellipsis;
+            white-space:nowrap;min-width:0}
+  .des-ni a:hover{color:var(--acc);text-decoration:underline}
+  .des-hi{display:flex;gap:9px;padding:3px 12px;font-size:10.5px;align-items:baseline;
+          min-width:0;border-right:1px solid var(--line)}
+  .des-hi .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+              white-space:nowrap;color:var(--tx2)}
+  .des-hi .v{flex:0 0 auto;font-family:var(--mono);color:var(--tx)}
+  .des-hi .q{flex:0 0 auto;font-family:var(--mono);color:var(--tx3);font-size:9.5px}
+  .des-none{padding:3px 12px 7px;font-size:10px;color:var(--tx3);font-style:italic}
 
   /* THE COUNTERPARTIES SIT SIDE BY SIDE, as Godel sets them: customers, suppliers,
      competitors, peers and partners in columns, so the whole counterparty picture
@@ -7560,6 +7598,194 @@ function desFillValuation(rec){
   })['catch'](function(){});
 }
 
+// ---- the price, as a chart, inside the sheet -------------------------------
+// The reference panel carries the price history in the description itself, with
+// the ranges along its top, and so does this. It reads the same session archive
+// the rest of the terminal reads (static_data/history/<KEY>.json), so the line
+// here and the CHART panel behind the code button cannot disagree.
+//
+// CLOSES ONLY, AND ONLY SESSIONS THAT WERE PUBLISHED. No intraday tick is drawn
+// on any of these boards, because none of them publishes one in a free feed, and
+// a smooth line through four published closes would suggest a continuity the
+// data does not have.
+var DES_RANGES = [['1M', 31], ['6M', 186], ['YTD', 0], ['1Y', 366], ['5Y', 1830], ['MAX', -1]];
+function desChartSvg(bars, ccy){
+  if(!bars || bars.length < 2) return '<div class="msg">Not enough published sessions to draw a line.</div>';
+  var W = 1000, H = 132, PB = 16, PR = 54;
+  var lo = Infinity, hi = -Infinity;
+  bars.forEach(function(b){ var c = Number(b.c); if(isFinite(c)){ if(c < lo) lo = c; if(c > hi) hi = c; } });
+  if(!isFinite(lo) || !isFinite(hi)) return '<div class="msg">No published closes in this range.</div>';
+  if(hi === lo){ hi = lo + 1; lo = lo - 1; }
+  var n = bars.length;
+  var x = function(i){ return (i / (n - 1)) * (W - PR); };
+  var y = function(c){ return H - PB - ((c - lo) / (hi - lo)) * (H - PB * 2); };
+  var d = '', a = '';
+  for(var i = 0; i < n; i++){
+    var c = Number(bars[i].c);
+    if(!isFinite(c)) continue;
+    d += (d ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(c).toFixed(1) + ' ';
+  }
+  a = d + 'L' + x(n - 1).toFixed(1) + ' ' + (H - PB) + ' L0 ' + (H - PB) + ' Z';
+  var last = Number(bars[n - 1].c), first = Number(bars[0].c);
+  var up = isFinite(first) && last >= first;
+  var col = up ? 'var(--acc)' : 'var(--down)';
+  var lx = x(n - 1), ly = y(last);
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" ' +
+    'aria-label="Published closes">' +
+    '<defs><linearGradient id="desG" x1="0" x2="0" y1="0" y2="1">' +
+      '<stop offset="0%" stop-color="' + col + '" stop-opacity=".30"/>' +
+      '<stop offset="100%" stop-color="' + col + '" stop-opacity="0"/></linearGradient></defs>' +
+    '<path d="' + a + '" fill="url(#desG)"/>' +
+    '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.6" ' +
+      'vector-effect="non-scaling-stroke" stroke-linejoin="round"/>' +
+    '<line x1="0" y1="' + ly.toFixed(1) + '" x2="' + lx.toFixed(1) + '" y2="' + ly.toFixed(1) + '" ' +
+      'stroke="' + col + '" stroke-width="1" stroke-dasharray="3 3" opacity=".45" vector-effect="non-scaling-stroke"/>' +
+    '<rect x="' + (lx + 4).toFixed(1) + '" y="' + (ly - 9).toFixed(1) + '" width="48" height="18" rx="2" fill="' + col + '"/>' +
+    '<text x="' + (lx + 28).toFixed(1) + '" y="' + (ly + 4).toFixed(1) + '" text-anchor="middle" ' +
+      'font-family="monospace" font-size="11" fill="#000">' + esc(last.toFixed(2)) + '</text>' +
+    '</svg>';
+}
+function desDrawChart(key, bars, days){
+  var host = document.getElementById('desChart');
+  if(!host) return;
+  var all = bars || [], use = all;
+  if(days > 0){
+    var cut = new Date(); cut.setDate(cut.getDate() - days);
+    var iso = cut.toISOString().slice(0, 10);
+    use = all.filter(function(b){ return String(b.t || '') >= iso; });
+  } else if(days === 0){
+    var y0 = String(new Date().getFullYear()) + '-01-01';
+    use = all.filter(function(b){ return String(b.t || '') >= y0; });
+  }
+  if(use.length < 2) use = all.slice(-60);
+  var body = host.querySelector('.des-chart');
+  if(body) body.innerHTML = desChartSvg(use, '');
+  var btns = host.querySelectorAll('.des-rng button');
+  for(var i = 0; i < btns.length; i++)
+    btns[i].classList.toggle('on', Number(btns[i].dataset.d) === days);
+  var sub = host.querySelector('.des-sec .s');
+  if(sub && use.length)
+    sub.textContent = use[0].t + ' to ' + use[use.length - 1].t + ' \u00b7 ' + use.length + ' published sessions';
+}
+function desFillChart(rec){
+  var host = document.getElementById('desChart');
+  if(!host) return;
+  var sym = String((rec && (rec.sym || rec.ticker)) || '').trim();
+  var ex = String((rec && rec.exchange) ||
+                  (typeof currentEx !== 'undefined' ? currentEx : '') || '').toUpperCase();
+  if(!sym || !ex) return;
+  host.dataset.sym = sym;
+  host.innerHTML = '<div class="des-sec"><span class="t">PRICE</span><span class="s">reading the session archive...</span>' +
+    '<span class="des-rng">' + DES_RANGES.map(function(r){
+      return '<button type="button" data-d="' + r[1] + '">' + r[0] + '</button>'; }).join('') +
+    '</span></div><div class="des-chart"></div>';
+  mkFile('history', mkHistKeys(ex, sym, rec && rec.sym)).then(function(res){
+    var cur = document.getElementById('desChart');
+    if(!cur || cur.dataset.sym !== sym) return;      // the sheet has moved on
+    var bars = (res && res.data && res.data.bars) || [];
+    if(!bars.length){
+      var b0 = cur.querySelector('.des-chart');
+      if(b0) b0.innerHTML = '<div class="msg">No session archive on file for ' + esc(sym) + '.</div>';
+      var s0 = cur.querySelector('.des-sec .s');
+      if(s0) s0.textContent = '';
+      return;
+    }
+    cur.__bars = bars;
+    cur.addEventListener('click', function(ev){
+      var b = ev.target && ev.target.closest ? ev.target.closest('.des-rng button') : null;
+      if(!b) return;
+      desDrawChart(sym, cur.__bars, Number(b.dataset.d));
+    });
+    desDrawChart(sym, bars, 366);
+  })['catch'](function(){});
+}
+
+// ---- the headlines that name this security ---------------------------------
+// bot_news_<EX>.json is the same file the NEWS panel reads. An item carries the
+// tickers it was matched to, and only items matched to THIS security are drawn:
+// a description panel is about one company, and a market wire under a company's
+// name would be the wrong claim about every headline in it.
+function desAgo(ts){
+  var n = Number(ts);
+  if(!isFinite(n) || n <= 0) return '';
+  var mins = Math.round((Date.now() / 1000 - n) / 60);
+  if(mins < 1) return 'now';
+  if(mins < 60) return mins + 'm';
+  var hrs = Math.round(mins / 60);
+  if(hrs < 48) return hrs + 'h';
+  return Math.round(hrs / 24) + 'd';
+}
+function desFillNews(rec){
+  var host = document.getElementById('desNews');
+  if(!host) return;
+  var tk = String((rec && (rec.ticker || rec.sym)) || '').toUpperCase().split('.')[0];
+  var ex = String((rec && rec.exchange) ||
+                  (typeof currentEx !== 'undefined' ? currentEx : '') || '').toUpperCase();
+  if(!tk || !ex) return;
+  host.dataset.sym = tk;
+  mkGet('static_data/bot_news_' + ex + '.json').then(function(d){
+    var cur = document.getElementById('desNews');
+    if(!cur || cur.dataset.sym !== tk) return;
+    var all = Array.isArray(d) ? d : ((d && d.items) || []);
+    var mine = all.filter(function(it){
+      var t = it && it.tickers;
+      if(!Array.isArray(t) || !t.length) return false;
+      for(var i = 0; i < t.length; i++)
+        if(String(t[i] || '').toUpperCase().split('.')[0] === tk) return true;
+      return false;
+    });
+    if(!mine.length){ cur.innerHTML = ''; return; }   // no block rather than an empty one
+    mine.sort(function(a, b){ return (Number(b.ts) || 0) - (Number(a.ts) || 0); });
+    var rows = mine.slice(0, 10).map(function(it){
+      var u = String(it.url || '');
+      var safe = /^https?:\/\//i.test(u) ? u : '';
+      var head = esc(String(it.title || ''));
+      return '<div class="des-ni"><span class="ago">' + esc(desAgo(it.ts) || String(it.date || '')) + '</span>' +
+        (safe ? '<a href="' + esc(safe) + '" target="_blank" rel="noopener noreferrer">' + head + '</a>'
+              : '<span>' + head + '</span>') + '</div>';
+    }).join('');
+    cur.innerHTML = '<div class="des-sec"><span class="t">LATEST NEWS</span>' +
+      '<span class="s">' + mine.length + ' headlines naming ' + esc(tk) + '</span></div>' +
+      '<div class="des-2">' + rows + '</div>';
+  })['catch'](function(){});
+}
+
+// ---- who owns it -----------------------------------------------------------
+// shareholders_<EX>.json is the issuer's OWN filed table, with the date it was
+// filed and the document it was read from. The value beside a holding is that
+// holding at the price on this sheet, worked out here and labelled as such: no
+// source publishes a holder's market value, and a figure that looked published
+// when it was computed would be the worse kind of wrong.
+function desFillHolders(rec){
+  var host = document.getElementById('desHold');
+  if(!host) return;
+  var sym = String((rec && (rec.ticker || rec.sym)) || '').toUpperCase();
+  var ex = String((rec && rec.exchange) ||
+                  (typeof currentEx !== 'undefined' ? currentEx : '') || '').toUpperCase();
+  if(!sym || !ex) return;
+  host.dataset.sym = sym;
+  var px = mkNum(rec && rec.price);
+  mkGet('static_data/shareholders_' + ex + '.json').then(function(d){
+    var cur = document.getElementById('desHold');
+    if(!cur || cur.dataset.sym !== sym) return;
+    var secs = (d && d.securities) || {};
+    var r = secs[sym] || secs[sym.split('.')[0]] || null;
+    var list = (r && Array.isArray(r.substantial)) ? r.substantial : [];
+    if(!list.length){ cur.innerHTML = ''; return; }
+    var rows = list.slice(0, 12).map(function(h){
+      var q = mkNum(h.holding);
+      var val = (q !== null && px !== null) ? mkMoney(q * px) : '';
+      return '<div class="des-hi"><span class="nm">' + esc(String(h.name || '')) + '</span>' +
+        '<span class="v">' + esc(val || '-') + '</span>' +
+        '<span class="q">' + (q === null ? '' : '(' + esc(mkShares(q)) + ')') + '</span></div>';
+    }).join('');
+    var head = String((r && r.tableHeading) || 'Holders as filed');
+    cur.innerHTML = '<div class="des-sec"><span class="t">TOP HOLDERS</span>' +
+      '<span class="s">' + esc(head) + (px === null ? '' : ' \u00b7 value at the price above') + '</span></div>' +
+      '<div class="des-2">' + rows + '</div>';
+  })['catch'](function(){});
+}
+
 // ---- the function codes that close the sheet -------------------------------
 // Short codes, each opening another of this terminal's panels on the security
 // the sheet is showing, in its own window. They are the panels that actually
@@ -8376,7 +8602,7 @@ function renderMarketStatic(rec, info, live){
         </div>
       </div>
       <div class="des-body">
-        <div class="des-main"><div id="mkRelBox"></div>${desFnGrid(rec.ticker || sym0(rec))}</div>
+        <div class="des-main"><div id="desChart"></div><div id="mkRelBox"></div><div id="desNews"></div><div id="desHold"></div>${desFnGrid(rec.ticker || sym0(rec))}</div>
         <div class="des-rail">${grp('PROFILE', railProfile)}${grp('MARKET', railMarket)}<div id="desVal"></div>${grp('FILINGS', railFiled)}</div>
       </div>
     </div>`;
@@ -8385,14 +8611,10 @@ function renderMarketStatic(rec, info, live){
   // with a marketing sentence carrying an unsourced 65.6% market share claim -
   // and this window shows data and short labels, not a company's own pitch. The
   // field stays in the data file; it is simply not rendered here.
-  if(Array.isArray(i.shareholders) && i.shareholders.length){
-    html += `<div style="padding:8px 16px 4px;border-top:1px solid var(--line);color:var(--tx3);font-size:10px;letter-spacing:.1em;font-weight:700">MAJOR SHAREHOLDERS</div>`;
-    i.shareholders.forEach(sh => {
-      const h = (typeof sh === 'object' && sh !== null) ? sh.holder : sh;
-      const s = (typeof sh === 'object' && sh !== null) ? (sh.stake || sh.pct || '') : '';
-      html += `<div style="display:flex;justify-content:space-between;padding:3px 16px;font-size:10px"><span style="color:var(--tx2)">${esc(String(h))}</span><span style="color:var(--acc);font-family:var(--mono)">${esc(String(s))}</span></div>`;
-    });
-  }
+  // The company_info shareholder list is NOT drawn here any more. The TOP HOLDERS
+  // block inside the sheet reads shareholders_<EX>.json, which is the issuer's own
+  // filed table with the date it was filed and the document it came from, and two
+  // holder lists on one sheet from two different files is one list too many.
   // RELATIONSHIPS IN THE MARKET SHEET (owner, 2026-11-03: the market panel must carry
   // customers, suppliers, competitors and partners). It reads the same
   // relationships_<EX>.json the perplexity panel reads, so the two can never disagree.
@@ -8406,6 +8628,9 @@ function renderMarketStatic(rec, info, live){
   // rail is drawn without them and they are written into their own slot when the
   // file lands. The sheet is never held back waiting for them.
   try{ desFillValuation(rec); }catch(e){}
+  try{ desFillChart(rec); }catch(e){}
+  try{ desFillNews(rec); }catch(e){}
+  try{ desFillHolders(rec); }catch(e){}
   mkPaintRel(rec, i);
   // The sections that belong to this window and to this security: holders from
   // shareholders_<EX>.json, the valuation multiples with their withheld reasons
