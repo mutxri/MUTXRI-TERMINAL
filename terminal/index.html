@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261125003454';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261125113551';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -4572,20 +4572,46 @@ window.MTPanelWins = (function(){
       b.style.display = 'none';
     }
   }
+  // WHERE A NEW WINDOW LANDS.
+  // A window with no geometry of its own used to cascade from (12,12) - the top left
+  // corner of the TERMINAL - which is the watch column. That is the bug the owner
+  // hit on 2026-11-25: "when the fa panel is added the focus panel moves to the left
+  // corner of the terminal". Opening a pinned FOCUS put it straight over the list,
+  // and the list looked shoved down because a window was sitting on top of it.
+  // A new window is now placed INSIDE the desk it is joining: in the right hand
+  // column, under whatever is already open there, so it never covers the watch list,
+  // never covers the MARKET window and never lands half off screen. When the column
+  // is full it cascades down and to the left within that column only.
   function defGeom(id){
-    const idx = Object.keys(WINS).indexOf(id);
     const b = bbox();
+    const W = b.width, H = Math.max(0, b.height - BAR);
     const own = DEF_SIZE[baseOf(id)] || null;
-    const w = own ? Math.min(own.w, b.width - 8)
-                  : Math.max(MIN_W, Math.min(Math.round(b.width * 0.52), b.width - 8));
-    const h = own ? Math.min(own.h, b.height - 8)
-                  : Math.max(MIN_H, Math.min(Math.round(b.height * 0.55), b.height - 8));
-    const k = Math.max(0, idx) % 6;
-    return {
-      x: Math.max(0, Math.min(12 + k * 26, Math.max(0, b.width - 120))),
-      y: Math.max(0, Math.min(12 + k * 22, Math.max(0, b.height - BAR))),
-      w: w, h: h
-    };
+    // the same two column boundaries the house layout uses (see columns())
+    const railW = Math.round(Math.min(360, Math.max(220, W * 0.22)));
+    const colW = Math.max(Math.min(340, Math.max(240, Math.round(W * 0.20))),
+                          Math.min(2 * 240 + 8, Math.round(W * 0.40)));
+    const colX = Math.max(railW, W - colW);
+    const colRight = W;
+    const w = Math.max(MIN_W, Math.min(own ? own.w : colW, Math.max(MIN_W, colRight - colX)));
+    let h = own ? own.h : Math.max(MIN_H, Math.min(Math.round(H * 0.42), H - 8));
+    h = Math.max(MIN_H, Math.min(h, Math.max(MIN_H, H - 8)));
+    // the lowest bottom edge among the windows already open in that column, so the
+    // new one stacks under them rather than over them
+    let y = 0;
+    try{
+      Object.keys(state || {}).forEach(function(k){
+        const st = state[k];
+        if(!st || st.open !== true) return;
+        if(!(st.x + st.w > colX + 8)) return;                 // not in this column
+        y = Math.max(y, (st.y || 0) + (st.h || 0));
+      });
+    }catch(e){ y = 0; }
+    if(y + h > H){                                            // no room below: cascade inside the column
+      y = Math.max(0, Math.min(H - h, Math.round(H * 0.35)));
+      const step = 18 + (Object.keys(WINS).indexOf(id) % 4) * 18;
+      return { x: Math.max(colX, colX + step), y: Math.max(0, Math.min(y + step, H - h)), w: w, h: h };
+    }
+    return { x: colX, y: Math.max(0, y), w: w, h: h };
   }
 
   // ---- state ----
