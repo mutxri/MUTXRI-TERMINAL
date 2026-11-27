@@ -46,7 +46,7 @@
   labels), no provider credits, no injected LIVE/EOD badges, no build step.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261127230110';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261127235537';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - FOCUS</title>
@@ -898,24 +898,25 @@
         // and no change on the card even though the board already carried both.
         // The card is the quote; the extras can only add a footer caveat, so they are
         // drawn second and never hold the price back.
-        // A BOARD THAT DOES NOT CARRY THE SELECTED SECURITY IS NOT PROOF THAT THE
-        // EXCHANGE DOES NOT. market_<EX>.json sits behind a CDN, and two FOCUS
-        // windows opened with the same URL have come back with different boards -
-        // one showing QMRT 7.98 +3.10% and the other "NOT IN THE SNAPSHOT" - because
-        // one request landed on an edge holding an older copy. The shell already
-        // holds this security's row and hands it over with the selection, so when
-        // this frame's own copy of the board is behind, the shell's row is used
-        // rather than the card declaring the security absent.
-        var _has = board && matchRow((board.stocks || board.rows || []), REQ);
-        if(!_has){
-          try{
-            var _p = window.parent;
-            if(_p && _p !== window && _p.__mtSelection &&
-               String(_p.__mtSelection.sym || "").toUpperCase() === String(REQ).toUpperCase() &&
-               _p.__mtSelection.row &&
-               window.__mtApplySelection(_p.__mtSelection)) return;
-          }catch(e){}
-        }
+        // WHEN THIS CARD IS SHOWING THE SECURITY THE DESK HAS SELECTED, IT SHOWS IT
+        // FROM THE DESK'S OWN ROW. market_<EX>.json sits behind a CDN, and two FOCUS
+        // windows opened on the same security have come back with two different
+        // prices - one BRIT 17.75 +7.25%, the other BRIT 18.20 +0.15%, which is the
+        // previous session - because one request landed on an edge holding an older
+        // copy of the board. Two cards disagreeing about the same stock is worse than
+        // one card being empty: nothing on screen says which one is old, and the
+        // market sheet beside them is drawn from the shell's row, so the odd one out
+        // is this frame. The shell's quote is the one the board, the tape and the
+        // watchlist all draw, so it wins here too. A PINNED window is unaffected: its
+        // REQ is the pin, not the desk's selection, so this test fails and the card
+        // reads its own board as before.
+        try{
+          var _p = window.parent;
+          if(_p && _p !== window && _p.__mtSelection &&
+             String(_p.__mtSelection.sym || "").toUpperCase() === String(REQ).toUpperCase() &&
+             _p.__mtSelection.row &&
+             window.__mtApplySelection(_p.__mtSelection)) return;
+        }catch(e){}
         render(REQ, board, null, null, null, null);
         return loadExtras(board, REQ).then(function(x){
           render(REQ, board, x.hist, null, x.hold, x.ana);
