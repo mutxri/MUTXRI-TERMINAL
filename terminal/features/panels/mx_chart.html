@@ -37,7 +37,7 @@
   no provider credits, no injected LIVE/EOD badges, no build step.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261128001553';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261128003441';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - CHART</title>
@@ -222,6 +222,16 @@
       <button class="rt" data-tool="vline" title="V-LINE" type="button"><span class="g">|</span><span class="n">V-LINE</span></button>
       <button class="rt" data-tool="zone" title="ZONE" type="button"><span class="g">#</span><span class="n">ZONE</span></button>
       <div class="sep"></div>
+      <!-- The three a reader of a chart reaches for that this had no answer to:
+           the retracement ladder between a high and a low, the distance between
+           two points, and a note pinned to a bar. -->
+      <button class="rt" data-tool="fib" title="FIB RETRACEMENT" type="button"><span class="g">F</span><span class="n">FIB</span></button>
+      <button class="rt" data-tool="measure" title="MEASURE" type="button"><span class="g">M</span><span class="n">MEASURE</span></button>
+      <button class="rt" data-tool="text" title="NOTE" type="button"><span class="g">T</span><span class="n">NOTE</span></button>
+      <div class="sep"></div>
+      <button class="rt" id="railUndo" title="UNDO" type="button"><span class="g">&#8630;</span><span class="n">UNDO</span></button>
+      <button class="rt" id="railRedo" title="REDO" type="button"><span class="g">&#8631;</span><span class="n">REDO</span></button>
+      <div class="sep"></div>
       <button class="rt" data-tool="erase" title="ERASE" type="button"><span class="g">x</span><span class="n">ERASE</span></button>
       <button class="rt" id="railClear" title="CLEAR ALL" type="button"><span class="g">*</span><span class="n">CLEAR ALL</span></button>
     </div>
@@ -258,7 +268,7 @@
 <script src="_fresh.js"></script>
 <script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <!-- drawing tools + indicator maths for the candlestick chart (shared module) -->
-<script src="../../static_data/mx_chart_tools.js?v=20261128001553"></script>
+<script src="../../static_data/mx_chart_tools.js?v=20261128003441"></script>
 <script>
 // The deploy ships static_data/ (which carries mx_chart_tools.js) but a fresh
 // checkout has not copied it there yet, so fall back to the tracked source that
@@ -731,9 +741,16 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     box.textContent = words;
     box.title = words;
     var dead = !window.MXChartTools;
-    Array.prototype.forEach.call(document.querySelectorAll("[data-tool],#railClear,#drawClear"), function(b){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tool],#railClear,#drawClear,#railUndo,#railRedo"), function(b){
       b.disabled = dead;
     });
+    // UNDO AND REDO SHOW WHETHER THEY HAVE ANYTHING TO DO. A control that is
+    // always live and does nothing teaches a reader to stop trusting it.
+    if(TA && TA.canUndo){
+      var u = $("railUndo"), r = $("railRedo");
+      if(u) u.disabled = dead || !TA.canUndo();
+      if(r) r.disabled = dead || !TA.canRedo();
+    }
   }
   function setTool(name){
     if(!TA) return;
@@ -851,6 +868,19 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     });
     Array.prototype.forEach.call(document.querySelectorAll("[data-tool]"), function(b){
       b.addEventListener("click", function(){ setTool(b.getAttribute("data-tool")); });
+    });
+    $("railUndo").addEventListener("click", function(){ if(TA && TA.undo){ TA.undo(); paintTools(); } });
+    $("railRedo").addEventListener("click", function(){ if(TA && TA.redo){ TA.redo(); paintTools(); } });
+    // The shortcuts every chart has. They are bound on the panel, not the
+    // document, so they cannot fight the terminal's own keys when another
+    // window has the reader's attention.
+    document.addEventListener("keydown", function(e){
+      if(!TA) return;
+      var mod = e.ctrlKey || e.metaKey;
+      if(!mod) return;
+      var k = String(e.key || "").toLowerCase();
+      if(k === "z" && !e.shiftKey){ e.preventDefault(); if(TA.undo){ TA.undo(); paintTools(); } }
+      else if((k === "y") || (k === "z" && e.shiftKey)){ e.preventDefault(); if(TA.redo){ TA.redo(); paintTools(); } }
     });
     $("railClear").addEventListener("click", clearDrawings);
     $("drawClear").addEventListener("click", clearDrawings);
