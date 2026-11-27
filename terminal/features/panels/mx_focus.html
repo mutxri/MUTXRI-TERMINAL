@@ -46,7 +46,7 @@
   labels), no provider credits, no injected LIVE/EOD badges, no build step.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261128010818';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261128014632';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128014632';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - FOCUS</title>
@@ -898,6 +898,16 @@
         // and no change on the card even though the board already carried both.
         // The card is the quote; the extras can only add a footer caveat, so they are
         // drawn second and never hold the price back.
+        // THE CARD READ FROM THE DESK'S ROW AND THAT WAS WRONG. On 2026-11-28 the two
+        // FOCUS cards showed CGEN 1.94 +3.19% while the published board carried 267
+        // +0.66% and the market window beside them showed a third figure, 374.25. The
+        // desk's row is not a safer source than this panel's own board: both can be
+        // overlaid by the live quote route, and that route is what fed the wrong
+        // numbers. The published board is the only figure an exchange actually
+        // stands behind, so the card reads IT, and a card that disagrees with the
+        // board is a card whose own copy of the file is stale - which the read stamp
+        // in _fresh.js now prevents.
+        var _useDeskRow = false;   // disabled until the quote route is sanity-checked
         // WHEN THIS CARD IS SHOWING THE SECURITY THE DESK HAS SELECTED, IT SHOWS IT
         // FROM THE DESK'S OWN ROW. market_<EX>.json sits behind a CDN, and two FOCUS
         // windows opened on the same security have come back with two different
@@ -912,7 +922,7 @@
         // reads its own board as before.
         try{
           var _p = window.parent;
-          if(_p && _p !== window && _p.__mtSelection &&
+          if(_useDeskRow && _p && _p !== window && _p.__mtSelection &&
              String(_p.__mtSelection.sym || "").toUpperCase() === String(REQ).toUpperCase() &&
              _p.__mtSelection.row &&
              window.__mtApplySelection(_p.__mtSelection)) return;
