@@ -284,7 +284,8 @@
      * the distance between two points. */
     fib:     { color: "#c48bf7", width: 1, dash: null },
     text:    { color: "#f2f2f2", width: 1, dash: null },
-    measure: { color: "#4dd4e8", width: 1, dash: [5, 4] }
+    measure: { color: "#4dd4e8", width: 1, dash: [5, 4] },
+    brush:   { color: "#f49ac2", width: 2, dash: null }
   };
   /* The retracement ladder, as every terminal draws it. 0 and 100 are the two
    * anchors themselves; the rest are the levels between them. */
@@ -307,6 +308,13 @@
       times: opts.times || null,
       onChange: opts.onChange || null,
       tool: "none",
+      /* THREE MODES, NOT THREE TOOLS. Magnet, lock and hide do not draw
+       * anything: they change what drawing, dragging and painting do. Keeping
+       * them out of H.tool is what lets a reader arm the trendline AND have the
+       * magnet on, which is the only way either is useful. */
+      magnet: false,
+      locked: false,
+      hidden: false,
       drag: null,
       handle: null,
       handleFrom: null,
@@ -380,6 +388,30 @@
       var p = null;
       try { p = H.series ? H.series.coordinateToPrice(py) : null; } catch (e) { p = null; }
       if (t == null || p == null || !isFinite(p)) return null;
+      /* MAGNET. The point lands on the nearest of that bar's own open, high,
+       * low or close rather than wherever the pixel fell. A level drawn off a
+       * high should BE the high: eyeballing it leaves a line a few cents out,
+       * which is the difference between a level that reads and one that does
+       * not. The bar is the one the x already resolved to, so the snap never
+       * moves the drawing sideways, only onto a price the bar actually traded. */
+      if (H.magnet) {
+        /* idx indexes TIMES, the whole published series. H.bars is only what is
+         * on screen, and the two differ by offset(): reading H.bars[idx] picked
+         * a bar from the wrong part of the series whenever the chart was not
+         * showing its very start, which on any range but ALL is always. */
+        var bar = H.bars && H.bars[idx - offset()];
+        if (bar) {
+          var cands = [bar.o, bar.h, bar.l, bar.c].filter(function (v) {
+            return v != null && isFinite(v);
+          });
+          var bestP = null, bestD = Infinity;
+          for (var ci = 0; ci < cands.length; ci++) {
+            var d = Math.abs(Number(cands[ci]) - p);
+            if (d < bestD) { bestD = d; bestP = Number(cands[ci]); }
+          }
+          if (bestP != null) p = bestP;
+        }
+      }
       return { t: t, p: p };
     }
     function localPoint(ev) {
@@ -396,6 +428,10 @@
     function paint() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
       if (!H.chart || !H.series) return;
+      /* HIDE. The drawings are still there and still saved; they are simply not
+       * painted, so a reader can look at the bare price for a moment without
+       * throwing away the work. */
+      if (H.hidden) return;
       var w = host.clientWidth, h = host.clientHeight;
       var list = itemsFor(H.key);
       for (var i = 0; i < list.length; i++) paintItem(list[i], w, h, false);
@@ -510,6 +546,13 @@
             "pointer-events": "auto", style: "cursor:move", class: "mxta-handle",
             "data-id": it.id || "", "data-end": pt[2] }));
         });
+      } else if (it.type === "brush") {
+        var bp = (it.pts || []).map(xyOf).filter(function (q) { return !!q; });
+        if (bp.length < 2) return;
+        g.appendChild(el("polyline", {
+          points: bp.map(function (q) { return q.x.toFixed(1) + "," + q.y.toFixed(1); }).join(" "),
+          fill: "none", stroke: color, "stroke-width": width,
+          "stroke-linejoin": "round", "stroke-linecap": "round" }));
       } else if (it.type === "text") {
         /* A note pinned to a bar and a price, so it travels with the data
          * rather than with the pixels. */
@@ -604,6 +647,13 @@
             var tw = Math.max(18, String(it.label || "").length * 5.6 + 10);
             d = (px >= tp.x - 3 && px <= tp.x + tw + 3 && py >= tp.y - 17 && py <= tp.y + 3) ? 0 : 1e9;
           }
+        } else if (it.type === "brush") {
+          /* The eraser has to reach any part of the stroke, so every segment of
+           * it is tested, not just the two ends it is anchored by. */
+          var bq = (it.pts || []).map(xyOf).filter(function (q) { return !!q; });
+          for (var bi = 1; bi < bq.length; bi++) {
+            d = Math.min(d, distToSegment(px, py, bq[bi - 1].x, bq[bi - 1].y, bq[bi].x, bq[bi].y));
+          }
         } else if (it.type === "fib") {
           /* Any of its levels will do, and so will the line between the two
            * anchors: a reader aims at the band, not at one hairline. */
@@ -680,6 +730,7 @@
       ev.preventDefault(); ev.stopPropagation();
       try { ov.setPointerCapture(ev.pointerId); } catch (e) {}
       if (H.tool === "erase") {
+        if (H.locked) return;
         var hit = hitTest(pt.x, pt.y);
         if (hit) removeItem(hit);
         return;
@@ -688,6 +739,16 @@
       if (!a) return;
       if (H.tool === "hline" || H.tool === "vline") {
         commit({ type: H.tool, a: a, b: null });
+        return;
+      }
+      if (H.tool === "brush") {
+        /* Freehand. The stroke is kept as a list of anchors, each one a time
+         * and a price, so it rides the chart when the reader pans or zooms
+         * exactly as a trendline does. */
+        H.drag = { start: a, startPt: pt, brush: true,
+                   preview: { id: "preview", type: "brush", a: a, b: a, pts: [a] } };
+        ev.preventDefault();
+        redraw();
         return;
       }
       if (H.tool === "text") {
@@ -714,6 +775,19 @@
       var pt = localPoint(ev);
       var b = snap(pt.x, pt.y);
       if (!b) return;
+      if (H.drag.brush) {
+        /* One point per few pixels, not one per event: a stroke recorded at
+         * pointer resolution is thousands of anchors that all have to be
+         * projected on every repaint. */
+        var pts = H.drag.preview.pts;
+        var last = pts[pts.length - 1];
+        var lp = last ? xyOf(last) : null;
+        if (!lp || Math.hypot(pt.x - lp.x, pt.y - lp.y) >= 4) pts.push(b);
+        H.drag.preview.b = b;
+        H.drag.lastPt = pt;
+        redraw();
+        return;
+      }
       H.drag.preview.b = b;
       H.drag.lastPt = pt;
       redraw();
@@ -728,6 +802,12 @@
         var pa = xyOf(a), pb = xyOf(b);
         far = !!(pa && pb && Math.hypot(pb.x - pa.x, pb.y - pa.y) > 4);
       } catch (e) { far = false; }
+      if (d.brush) {
+        var pts = d.preview.pts || [];
+        if (pts.length > 1) commit({ type: "brush", a: pts[0], b: pts[pts.length - 1], pts: pts });
+        else redraw();
+        return;
+      }
       if (far && b && (String(b.t) !== String(a.t) || Number(b.p) !== Number(a.p))) {
         commit({ type: d.preview.type, a: a, b: b });
       } else {
@@ -761,6 +841,10 @@
      * every repaint replaces the handle elements and a capture on a replaced
      * element is released with it. */
     function handleDown(ev) {
+      /* LOCK. A finished drawing stops being something the pointer can catch
+       * by accident: no handle answers, so nothing moves. Erase is refused in
+       * onDown for the same reason. */
+      if (H.locked) return;
       var t = ev.target;
       if (!t || !t.getAttribute) return;
       if (String(t.getAttribute("class") || "") !== "mxta-handle") return;
@@ -839,6 +923,25 @@
       return H.tool;
     };
     H.toolName = function () { return H.tool; };
+    /* Each returns the state it left behind, so a caller can paint its button
+     * from the answer instead of keeping a second copy of the truth. */
+    H.setMagnet = function (on) { H.magnet = !!on; return H.magnet; };
+    H.magnetOn = function () { return !!H.magnet; };
+    H.setLocked = function (on) {
+      H.locked = !!on;
+      if (H.locked) { H.handle = null; H.drag = null; }
+      paint();
+      if (H.onChange) H.onChange(H);
+      return H.locked;
+    };
+    H.lockedOn = function () { return !!H.locked; };
+    H.setHidden = function (on) {
+      H.hidden = !!on;
+      paint();
+      if (H.onChange) H.onChange(H);
+      return H.hidden;
+    };
+    H.hiddenOn = function () { return !!H.hidden; };
     H.redraw = redraw;
     H.items = function () { return itemsFor(H.key); };
     H.count = function () { return itemsFor(H.key).length; };
