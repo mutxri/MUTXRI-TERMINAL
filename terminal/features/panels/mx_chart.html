@@ -37,7 +37,7 @@
   no provider credits, no injected LIVE/EOD badges, no build step.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261128003441';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261128005039';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - CHART</title>
@@ -228,6 +228,13 @@
       <button class="rt" data-tool="fib" title="FIB RETRACEMENT" type="button"><span class="g">F</span><span class="n">FIB</span></button>
       <button class="rt" data-tool="measure" title="MEASURE" type="button"><span class="g">M</span><span class="n">MEASURE</span></button>
       <button class="rt" data-tool="text" title="NOTE" type="button"><span class="g">T</span><span class="n">NOTE</span></button>
+      <button class="rt" data-tool="brush" title="BRUSH" type="button"><span class="g">&#126;</span><span class="n">BRUSH</span></button>
+      <div class="sep"></div>
+      <!-- Modes, not tools: each one changes what the drawing tools DO, so they
+           stay armed alongside whichever tool is selected. -->
+      <button class="rt" id="railMagnet" title="MAGNET: snap to the bar's open, high, low or close" type="button"><span class="g">&#9678;</span><span class="n">MAGNET</span></button>
+      <button class="rt" id="railLock" title="LOCK: drawings cannot be moved or erased" type="button"><span class="g">&#9679;</span><span class="n">LOCK</span></button>
+      <button class="rt" id="railHide" title="HIDE: keep the drawings, stop painting them" type="button"><span class="g">&#9673;</span><span class="n">HIDE</span></button>
       <div class="sep"></div>
       <button class="rt" id="railUndo" title="UNDO" type="button"><span class="g">&#8630;</span><span class="n">UNDO</span></button>
       <button class="rt" id="railRedo" title="REDO" type="button"><span class="g">&#8631;</span><span class="n">REDO</span></button>
@@ -268,7 +275,7 @@
 <script src="_fresh.js"></script>
 <script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <!-- drawing tools + indicator maths for the candlestick chart (shared module) -->
-<script src="../../static_data/mx_chart_tools.js?v=20261128003441"></script>
+<script src="../../static_data/mx_chart_tools.js?v=20261128005039"></script>
 <script>
 // The deploy ships static_data/ (which carries mx_chart_tools.js) but a fresh
 // checkout has not copied it there yet, so fall back to the tracked source that
@@ -741,9 +748,17 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     box.textContent = words;
     box.title = words;
     var dead = !window.MXChartTools;
-    Array.prototype.forEach.call(document.querySelectorAll("[data-tool],#railClear,#drawClear,#railUndo,#railRedo"), function(b){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tool],#railClear,#drawClear,#railUndo,#railRedo,#railMagnet,#railLock,#railHide"), function(b){
       b.disabled = dead;
     });
+    // A mode's button carries its own state, so the rail shows at a glance what
+    // is armed without the reader having to try a tool to find out.
+    if(TA && TA.magnetOn){
+      var m = $("railMagnet"), l = $("railLock"), hd = $("railHide");
+      if(m) m.classList.toggle("on", TA.magnetOn());
+      if(l) l.classList.toggle("on", TA.lockedOn());
+      if(hd) hd.classList.toggle("on", TA.hiddenOn());
+    }
     // UNDO AND REDO SHOW WHETHER THEY HAVE ANYTHING TO DO. A control that is
     // always live and does nothing teaches a reader to stop trusting it.
     if(TA && TA.canUndo){
@@ -869,6 +884,9 @@ if(!window.MXChartTools){ document.write('<script src="mx_chart_tools.js"><\/scr
     Array.prototype.forEach.call(document.querySelectorAll("[data-tool]"), function(b){
       b.addEventListener("click", function(){ setTool(b.getAttribute("data-tool")); });
     });
+    $("railMagnet").addEventListener("click", function(){ if(TA && TA.setMagnet){ TA.setMagnet(!TA.magnetOn()); paintTools(); } });
+    $("railLock").addEventListener("click", function(){ if(TA && TA.setLocked){ TA.setLocked(!TA.lockedOn()); paintTools(); } });
+    $("railHide").addEventListener("click", function(){ if(TA && TA.setHidden){ TA.setHidden(!TA.hiddenOn()); paintTools(); } });
     $("railUndo").addEventListener("click", function(){ if(TA && TA.undo){ TA.undo(); paintTools(); } });
     $("railRedo").addEventListener("click", function(){ if(TA && TA.redo){ TA.redo(); paintTools(); } });
     // The shortcuts every chart has. They are bound on the panel, not the
