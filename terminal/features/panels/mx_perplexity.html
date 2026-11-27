@@ -101,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261128014632';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128014632';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
+<head><script>(function(){var V='20261128022658';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128022658';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -359,12 +359,24 @@
   button.kn:hover{color:var(--tx2);border-color:#3a3a3a}
   button.kn[aria-pressed="true"]{color:#04120c;background:var(--acc);border-color:var(--acc);
                                  font-weight:700}
-  /* THE CHIP ROW IS THE LEGEND. Each chip carries a dot in its category's own
-     colour, which is the colour that category's leaves take on the map, so the
-     reader never has to guess which dot is a supplier and which a competitor,
-     and the map needs no separate legend taking up its height. */
-  button.kn.ft::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;
-                       margin-right:5px;vertical-align:middle;background:currentColor;opacity:.95}
+  /* THE CHIP CARRIES THE SAME MARK THE MAP DRAWS. It used to be a coloured dot,
+     matching a coloured line. The map's lines are now one grey told apart by
+     their dash, so the chip shows that dash: a chip and its links are the same
+     mark in two places, which is the whole point of the chip. */
+  button.kn.ft::before{content:'';display:inline-block;width:15px;height:1.2px;border-radius:0;
+                       margin-right:6px;vertical-align:middle;background:currentColor;opacity:.95}
+  button.kn.ft[data-t="suppliers"]::before{background:
+    repeating-linear-gradient(to right,currentColor 0 3px,transparent 3px 5.4px)}
+  button.kn.ft[data-t="partners"]::before{background:
+    repeating-linear-gradient(to right,currentColor 0 6px,transparent 6px 9px)}
+  button.kn.ft[data-t="customers"]::before{background:
+    repeating-linear-gradient(to right,currentColor 0 1.2px,transparent 1.2px 4px)}
+  button.kn.ft[data-t="holders"]::before{background:
+    repeating-linear-gradient(to right,currentColor 0 9px,transparent 9px 13px)}
+  button.kn.ft[data-t="laws"]::before{background:
+    repeating-linear-gradient(to right,currentColor 0 5px,transparent 5px 7px,currentColor 7px 8.4px,transparent 8.4px 10.4px)}
+  button.kn.ft[data-t="peers"]::before{background:
+    repeating-linear-gradient(to right,currentColor 0 2px,transparent 2px 6px)}
   button.kn.ft[data-t="customers"]{color:#33e29a}
   button.kn.ft[data-t="suppliers"]{color:#58a6ff}
   button.kn.ft[data-t="competitors"]{color:#f87171}
@@ -408,32 +420,85 @@
   .gwrap svg.drag{cursor:grabbing}
   .gwrap canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   .gwrap canvas.drag{cursor:grabbing}
-  .gsub{position:absolute;left:0;right:0;bottom:0;padding:2px 9px 4px;font-size:7px;
-        letter-spacing:.06em;color:#7a7a7a;text-transform:uppercase;background:rgba(0,0,0,.82);
-        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* THE LEGEND IS A STRIP, BECAUSE THE MAP NO LONGER CARRIES COLOUR.
+     A link used to be read by the colour of its line. The lines are now one
+     muted grey and the KIND of link is the dash pattern, which is unreadable
+     without a key, so the key is drawn: one swatch per link type in the
+     pattern that type takes, then the two node states. */
+  .gsub{position:absolute;left:0;right:0;bottom:0;padding:5px 10px 6px;font-size:7px;
+        letter-spacing:.09em;color:#6f6f6f;text-transform:uppercase;
+        background:linear-gradient(to top,rgba(0,0,0,.94),rgba(0,0,0,.72));
+        display:flex;align-items:center;gap:13px;flex-wrap:nowrap;overflow-x:auto;
+        scrollbar-width:none}
+  .gsub::-webkit-scrollbar{display:none}
   .gsub b{color:var(--down);font-weight:700}
-  ellipse.ring{fill:none;stroke:#3c3c3c;stroke-width:.9;stroke-dasharray:3.4 4.4}
-  ellipse.ring.r2{stroke:#2b2b2b}
+  .lgi{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;white-space:nowrap}
+  .lgi i{display:inline-block;width:19px;height:0;border-top:1.2px solid #8d9a94;
+         font-style:normal}
+  .lgi i.d-suppliers{border-top-style:dashed}
+  .lgi i.d-partners{border-top:0;height:1.2px;
+    background:repeating-linear-gradient(to right,#8d9a94 0 6px,transparent 6px 9px)}
+  .lgi i.d-customers{border-top:0;height:1.2px;
+    background:repeating-linear-gradient(to right,#8d9a94 0 1.2px,transparent 1.2px 4px)}
+  .lgi i.d-holders{border-top:0;height:1.2px;
+    background:repeating-linear-gradient(to right,#8d9a94 0 9px,transparent 9px 13px)}
+  .lgi i.d-laws{border-top:0;height:1.2px;
+    background:repeating-linear-gradient(to right,#8d9a94 0 5px,transparent 5px 7px,#8d9a94 7px 8.4px,transparent 8.4px 10.4px)}
+  .lgi u{display:inline-block;width:6px;height:6px;border-radius:50%;text-decoration:none}
+  .lgi u.cf{background:#33e29a}
+  .lgi u.dv{background:#6b6b6b}
+  .lgsp{flex:0 0 auto;width:1px;height:10px;background:#242424}
+  /* A GRID, NOT TWO DASHED HOOPS. The two dashed ellipses drew attention to
+     themselves and to a distinction (ring 1 against ring 2) that the reader
+     cannot act on, while telling them nothing about distance. A quiet set of
+     evenly spaced ellipses does the opposite: it recedes, and it gives the eye
+     a scale to read a node's distance against. They are ellipses, not circles,
+     because the node layout is itself stretched to fit a wide short box, and a
+     round grid over an oval layout would be a grid of the wrong shape. */
+  ellipse.ring{fill:none;stroke:#1c1c1c;stroke-width:.7}
+  ellipse.ring.gax{stroke:#171717}
+  line.gspk{stroke:#141414;stroke-width:.6}
   text.rl{font-family:var(--mono);font-size:8px;letter-spacing:.15em;fill:#8a8a8a}
   text.rn{font-family:var(--mono);font-size:7.2px;letter-spacing:.04em;fill:#616161}
-  path.eg{fill:none;stroke-width:1.05;stroke-opacity:.8}
-  path.eg.h2{stroke-opacity:.55;stroke-dasharray:2.6 2.6}
-  path.eg.law{stroke-dasharray:3.2 2.4}
-  path.eg.hv{stroke-opacity:1;stroke-width:1.5}
-  path.eg.dim{stroke-opacity:.09}
-  circle.lf{fill:#080808;stroke-width:1.3}
-  circle.lf.h2{stroke-width:1.1;fill:#060606}
+  /* ONE COLOUR, SIX PATTERNS. Six hues radiating from one point read as
+     decoration and compete with the node states for the eye; the kind of link
+     is carried by the dash instead, which is the convention a reader of this
+     sort of map already knows, and it leaves colour free to mean one thing
+     only: whether the record was cited or derived. */
+  path.eg{fill:none;stroke:#8d9a94;stroke-width:.9;stroke-opacity:.42;
+          stroke-linecap:round}
+  path.eg.k-suppliers{stroke-dasharray:3 2.4}
+  path.eg.k-partners{stroke-dasharray:6.5 3}
+  path.eg.k-customers{stroke-dasharray:.1 3.4}
+  path.eg.k-holders{stroke-dasharray:10 4}
+  path.eg.k-laws{stroke-dasharray:5 2 1.4 2}
+  path.eg.k-peers{stroke-dasharray:2 4}
+  path.eg.h2{stroke-opacity:.2}
+  path.eg.hv{stroke:#d8e6e0;stroke-opacity:.95;stroke-width:1.3}
+  path.eg.dim{stroke-opacity:.07}
+  /* A FILLED DOT, AND ITS COLOUR IS ITS PROVENANCE.
+     The leaf was a hollow ring in its category's colour, which said a second
+     time what the dash already says and never said the one thing a reader of
+     this panel most needs: whether the relationship was read out of a document
+     or inferred from the sector. Mint means a source names it. Grey means the
+     terminal derived it. Nothing else on the map is mint. */
+  circle.lf{stroke:none}
+  circle.lf.cf{fill:#33e29a}
+  circle.lf.dv{fill:#6b6b6b}
+  circle.lf.h2{fill-opacity:.62}
   g.nd{pointer-events:all;cursor:pointer}
-  g.nd text.nl{font-family:var(--mono);font-size:7px;letter-spacing:.03em;fill:#b4b4b4;
+  g.nd text.nl{font-family:var(--ui);font-size:7.6px;letter-spacing:.01em;fill:#a9b2ae;
                text-anchor:middle}
   /* RADIAL MINT: a label sits beside its node, anchored out on whichever side it
      falls, so the full name is readable instead of a 10-character stub */
   g.nd text.nl.a-l{text-anchor:end}
   g.nd text.nl.a-r{text-anchor:start}
-  line.ldr{stroke-width:.7;stroke-opacity:.42}
+  line.ldr{stroke:#4a534f;stroke-width:.6;stroke-opacity:.5}
   g.nd.hv text.nl,g.nd.on text.nl,g.nd.cat-on text.nl{fill:#f0f0f0}
-  g.nd.on circle.lf{stroke-width:2.4}
-  g.nd.cat-on circle.lf{stroke-width:2.2}
+  /* selection is a ring drawn around the dot, because the dot's own colour is
+     spoken for */
+  g.nd.on circle.lf,g.nd.cat-on circle.lf{stroke:#f0f0f0;stroke-width:1.5;
+                                          stroke-opacity:.55}
   g.nd.rcd{opacity:.36}
   g.nd.offn{opacity:.42}
   circle.ch{fill:none;stroke-width:1.15;stroke-opacity:.9}
@@ -442,14 +507,18 @@
   circle.hl.hop1{stroke-opacity:.6;stroke-dasharray:2 2}
   circle.hl.hop2{stroke-opacity:.34;stroke-dasharray:1.6 2.4}
   /* the centre disc */
-  circle.cdc{fill:#070707;stroke:#33e29a;stroke-width:1.4}
-  text.ctk{font-family:var(--mono);font-weight:700;fill:#33e29a;letter-spacing:.06em;
+  circle.cdc{fill:url(#ctrGlow);stroke:#33e29a;stroke-width:1.2;stroke-opacity:.85}
+  text.ctk{font-family:var(--mono);font-weight:700;fill:#f4f8f6;letter-spacing:.06em;
            text-anchor:middle}
   /* the centre's caption sits where the links fan out, so it is given a dark
      outline painted UNDER the glyphs: the name stays readable over a line
      without a box being drawn around it */
-  text.cnm,text.cpx{paint-order:stroke;stroke:#0a0a0a;stroke-width:2.6px;stroke-linejoin:round}
+  text.cnm,text.cpx{paint-order:stroke;stroke:#070707;stroke-width:4px;stroke-linejoin:round}
   text.cnm{font-family:var(--mono);font-size:8.6px;fill:#e8e8e8;text-anchor:middle}
+  /* the name inside the disc: quiet, because the ticker above it is the label
+     and this only says which company the ticker belongs to */
+  text.cnmi{font-family:var(--mono);font-size:5.4px;letter-spacing:.14em;fill:#5f7d70;
+            text-anchor:middle}
   text.cpx{font-family:var(--mono);font-size:6.9px;letter-spacing:.06em;fill:#8a8a8a;
            text-anchor:middle}
   text.none{font-family:var(--mono);font-size:7px;letter-spacing:.14em;fill:#4a4a4a}
@@ -1586,7 +1655,14 @@
     var cx = W / 2, cy = H / 2;
     /* the centre reads at 5x the hop 1 leaf, and holds that ratio until the
        window is genuinely too small to carry it */
-    var rC = Math.round(Math.min(24, Math.max(13, Math.min(W / 26, H / 13))));
+    /* THE CENTRE IS THE SUBJECT, so it is drawn at the size of one. Capped at
+       24px it came to under five per cent of the frame's width, which made the
+       security a slightly larger leaf among its own counterparties rather than
+       the thing they all point at, and left the disc too small to hold the
+       company's name at a legible size. Half as big again reads as a centre and
+       carries about thirteen characters; the floor stays where it was so a
+       narrow panel is unaffected. */
+    var rC = Math.round(Math.min(36, Math.max(13, Math.min(W / 18, H / 9))));
     var lr1 = Math.max(3, rC * 5 / 24), lr2 = Math.max(2.4, rC * 4 / 24);
     /* RADIAL MINT: one true circle per ring. The elliptical version pushed the
        outer ring into the corners of the frame, which left the map visually small
@@ -1731,25 +1807,30 @@
   }
 
   /* ---------- 6. drawing ------------------------------------------- */
-  /* one arrowhead per link type, in the type colour, so a link can be read
-     without a legend */
-  /* RADIAL MINT palette: mint is reserved for what is filed or owned (holders),
-     amber for statutes, and the commercial links stay in their own muted colours */
+  /* NO ARROWHEADS. Every link on this map runs outward from the centre, so an
+     arrow on each one repeats a direction the layout already states, eighteen
+     times, in six colours. The kind of link is now the dash pattern of its
+     line, which the legend strip under the map spells out. */
   var MK = [{k:'customers', c:UP}, {k:'suppliers', c:BLUE}, {k:'competitors', c:DN},
             {k:'partners', c:AMB}, {k:'holders', c:UP}, {k:'laws', c:AMB}];
+  /* the order the legend prints, and the only list that decides what a dash
+     means: competitors are the solid line, so they carry no class */
+  var LGD = [{k:'competitors', n:'COMPETITOR'}, {k:'suppliers', n:'SUPPLIER'},
+             {k:'partners', n:'PARTNER'}, {k:'customers', n:'CUSTOMER'},
+             {k:'holders', n:'HOLDER'}, {k:'laws', n:'STATUTE'}];
   function f1(v){ return (Math.round(v * 10) / 10).toFixed(1); }
   function mkOf(k){
     for(var i = 0; i < MK.length; i++){ if(MK[i].k === k) return MK[i]; }
     return MK[0];
   }
   function defsSVG(){
-    var out = '<defs>';
-    MK.forEach(function(tp){
-      out += '<marker id="mk-' + tp.k + '" viewBox="0 0 6 6" refX="5.7" refY="3"' +
-        ' markerWidth="6.4" markerHeight="6.4" orient="auto">' +
-        '<path d="M0.4 0.5 L5.7 3 L0.4 5.5 z" fill="' + tp.c + '"/></marker>';
-    });
-    return out + '</defs>';
+    /* the centre is lit from inside rather than outlined twice: a short mint
+       falloff under the disc, so the eye lands there first without a second
+       ring being drawn around it */
+    return '<defs><radialGradient id="ctrGlow" cx="50%" cy="50%" r="50%">' +
+      '<stop offset="0" stop-color="#0e3326"/>' +
+      '<stop offset="0.62" stop-color="#09180f"/>' +
+      '<stop offset="1" stop-color="#070707"/></radialGradient></defs>';
   }
   function nodePos(m, key){
     if(key === m.centre.key) return {x:m.geo.cx, y:m.geo.cy, r:m.geo.rC + 3};
@@ -1759,8 +1840,18 @@
     }
     return null;
   }
-  /* a quadratic bezier from the edge of one node to the edge of the next, bowed
-     off the straight line so two links never read as one */
+  /* A SPOKE: the straight line from the edge of one node to the edge of the
+     next. The links used to bow, which was there to keep two links from
+     reading as one; nodes are spaced by arc length so no two links share a
+     bearing anyway, and the bow cost the map the one thing a radial layout is
+     for, which is that distance from the centre is legible along a straight
+     run against the ring grid. */
+  function seg(a, b){
+    var dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = dx / d, uy = dy / d;
+    return 'M' + f1(a.x + ux * a.r) + ' ' + f1(a.y + uy * a.r) +
+      ' L' + f1(b.x - ux * b.r) + ' ' + f1(b.y - uy * b.r);
+  }
   function bez(a, b, bow){
     var dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
     var ux = dx / d, uy = dy / d;
@@ -1770,41 +1861,47 @@
     return 'M' + f1(x1) + ' ' + f1(y1) + ' Q' + f1(mx - uy * d * bow) + ' ' +
       f1(my + ux * d * bow) + ' ' + f1(x2) + ' ' + f1(y2);
   }
-  function ringsSVG(m){
-    var g = m.geo, out = '', has2 = !!(m.ring2 && m.ring2.length);
-    /* An empty ring is a circle drawn around nothing. It is not drawn, and it
-       does not take a label: the one line under the map says there is no hop 2
-       record, which is the fact, and the frame stays quiet. */
-    if(has2){
-      out += '<ellipse class="ring r2" cx="' + f1(g.cx) + '" cy="' + f1(g.cy) + '" rx="' +
-        f1(g.rx2) + '" ry="' + f1(g.ry2) + '"/>';
+  /* THE GRID THE MAP IS DRAWN ON.
+     Eight evenly spaced ellipses out to the furthest node, and a faint spoke
+     every thirty degrees. It carries no data and it is not meant to be read:
+     it is there so a node's distance from the centre has something to be a
+     distance against, and so the dark box has a floor. The RING 1 and RING 2
+     captions are gone with it; their counts print in the header, where a count
+     belongs, instead of sitting in the drawing. */
+  var GRID_N = 8, GRID_SPOKES = 12;
+  function gridSVG(m){
+    var g = m.geo, out = '', i;
+    var has2 = !!(m.ring2 && m.ring2.length);
+    var RX = has2 ? g.rx2 : g.rx1, RY = has2 ? g.ry2 : g.ry1;
+    RX *= 1.07; RY *= 1.07;
+    for(i = 1; i <= GRID_N; i++){
+      var f = i / GRID_N;
+      out += '<ellipse class="ring' + (i === GRID_N ? ' gax' : '') + '" cx="' + f1(g.cx) +
+        '" cy="' + f1(g.cy) + '" rx="' + f1(RX * f) + '" ry="' + f1(RY * f) + '"/>';
     }
-    out += '<ellipse class="ring r1" cx="' + f1(g.cx) + '" cy="' + f1(g.cy) + '" rx="' +
-      f1(g.rx1) + '" ry="' + f1(g.ry1) + '"/>';
-    out += '<text class="rl" x="' + f1(g.cx - g.rx1 - 12) + '" y="' + f1(g.cy + 2.6) +
-      '" text-anchor="end">RING 1<tspan class="rn" dx="4">(' + m.ring1.length +
-      ')</tspan></text>';
-    if(has2){
-      out += '<text class="rl" x="' + f1(g.cx - g.rx2 - 12) + '" y="' + f1(g.cy + 2.6) +
-        '" text-anchor="end">RING 2<tspan class="rn" dx="4">(' + m.ring2.length +
-        ')</tspan></text>';
-    } else {
-      var ny = Math.min(g.cy + g.ry1 + 30, g.h - 6);
+    for(i = 0; i < GRID_SPOKES; i++){
+      var a = Math.PI * 2 * i / GRID_SPOKES;
+      out += '<line class="gspk" x1="' + f1(g.cx + Math.cos(a) * g.rC) + '" y1="' +
+        f1(g.cy + Math.sin(a) * g.rC) + '" x2="' + f1(g.cx + Math.cos(a) * RX) +
+        '" y2="' + f1(g.cy + Math.sin(a) * RY) + '"/>';
+    }
+    if(!has2){
+      var ny = Math.min(g.cy + g.ry1 + 30, g.h - 22);
       out += '<text class="none" x="' + f1(g.cx) + '" y="' + f1(ny) +
         '" text-anchor="middle">NO 2-LINK NODES ON FILE &middot; 2 HOPS ADDS THEM WHERE A RECORD EXISTS</text>';
     }
     return out;
   }
+  function ringsSVG(m){ return gridSVG(m); }
   function edgesSVG(m){
     var out = '';
     m.edges.forEach(function(e){
       var a = nodePos(m, e.a), b = nodePos(m, e.b);
       if(!a || !b) return;
-      var tp = mkOf(e.mk);
-      var cls = 'eg' + (e.hop === 2 ? ' h2' : '') + (e.mk === 'laws' ? ' law' : '');
+      var cls = 'eg k-' + String(e.mk || '') + (e.hop === 2 ? ' h2' : '') +
+        (e.mk === 'laws' ? ' law' : '');
       out += '<path class="' + cls + '" data-t="' + t(e.mk) + '" data-a="' + t(e.a) +
-        '" data-b="' + t(e.b) + '" d="' + bez(a, b, e.hop === 2 ? 0.15 : 0.1) +
-        '" stroke="' + tp.c + '" marker-end="url(#mk-' + tp.k + ')"/>';
+        '" data-b="' + t(e.b) + '" d="' + seg(a, b) + '"/>';
     });
     return out;
   }
@@ -1824,16 +1921,40 @@
           out += '<circle class="hl ' + it.st + '" cx="' + f1(it.x) + '" cy="' + f1(it.y) +
             '" r="' + f1(it.r + 3.6) + '"/>';
         }
-        out += '<circle class="lf' + (it.hop === 2 ? ' h2' : '') + '" cx="' + f1(it.x) +
-          '" cy="' + f1(it.y) + '" r="' + f1(it.r) + '" stroke="' + it.colour + '"/>' +
-          '<line class="ldr" x1="' + f1(it.x) + '" y1="' + f1(it.y) + '" x2="' +
-          f1(it.lx + (it.side === 'l' ? -2 : 2)) + '" y2="' + f1(it.ly - 2.4) +
-          '" stroke="' + it.colour + '"/>' +
+        /* CITED OR DERIVED, AND NOTHING ELSE DECIDES THIS DOT.
+           src is the label of the document the record was read from: a site and
+           the date it was retrieved, a filing and its page, or the as-at date of
+           a holder table. It is empty exactly when the record came from the
+           sector instead, which is what DERIVED means on the legend. */
+        var pv = it.src ? 'cf' : 'dv';
+        var dr = it.r * 0.66;
+        out += '<circle class="lf ' + pv + (it.hop === 2 ? ' h2' : '') + '" cx="' +
+          f1(it.x) + '" cy="' + f1(it.y) + '" r="' + f1(dr) + '"/>' +
+          /* the leader starts at the EDGE of the dot, not at its centre. Run
+             from the centre it is painted over the dot it belongs to, and every
+             node on the map ends up wearing a line through it. */
+          '<line class="ldr" x1="' + f1(it.x + (it.side === 'l' ? -(dr + 1) : dr + 1)) +
+          '" y1="' + f1(it.y) + '" x2="' +
+          f1(it.lx + (it.side === 'l' ? -2 : 2)) + '" y2="' + f1(it.ly - 2.4) + '"/>' +
           '<text class="nl a-' + it.side + '" x="' + f1(it.lx) + '" y="' + f1(it.ly) + '">' +
           t(leafLabel(it)) + '</text></g>';
       });
     });
     return out;
+  }
+  /* THE NAME A DISC THIS SIZE CAN HOLD.
+     cut() ends a long name in two dots, which inside a 48px disc turns
+     SAFARICOM PLC into SAFARICO.. : the dots cost two of the nine characters
+     there was room for and the word they truncate is the only one that
+     identifies the company. The legal suffix is dropped first instead, because
+     PLC and LIMITED are the parts of a name that carry no information here,
+     and only a name still too long after that is cut hard, with no dots, since
+     the ticker above it has already said which security this is. */
+  var NM_SUFFIX = /\s+(PLC|LTD|LIMITED|COMPANY|CO|GROUP|HOLDINGS|HOLDING|INC|CORPORATION|CORP|SA|NV|AG)\.?$/;
+  function discName(name, maxc){
+    var s2 = String(name || '').toUpperCase().replace(/\s+/g, ' ').trim();
+    while(s2.length > maxc && NM_SUFFIX.test(s2)) s2 = s2.replace(NM_SUFFIX, '');
+    return s2.length > maxc ? s2.slice(0, maxc).trim() : s2;
   }
   function centreSVG(m){
     var g = m.geo, c = m.centre, pc = c.pct, out = '';
@@ -1849,18 +1970,55 @@
     }
     out += '<circle class="cdc" cx="' + f1(g.cx) + '" cy="' + f1(g.cy) + '" r="' +
       f1(g.rC) + '"/>';
-    out += '<text class="ctk" x="' + f1(g.cx) + '" y="' + f1(g.cy + tfs * 0.36) +
+    /* THE NAME GOES INSIDE THE DISC.
+       It used to sit just under the disc, which is exactly where every link
+       leaves it: with the links bowed it mostly missed them, and with the links
+       drawn straight the company name lay across the whole fan. A dark outline
+       painted under the glyphs only half rescued a line of text with eight
+       spokes through it. Inside the disc nothing crosses it, so the name is
+       simply readable, and only the price is left below, on one line, where a
+       single stronger halo is enough. The name is cut short because the disc is
+       small; the full name is in the header and in NODE DETAIL. */
+    out += '<text class="ctk" x="' + f1(g.cx) + '" y="' + f1(g.cy - g.rC * 0.04) +
       '" style="font-size:' + (Math.round(tfs * 10) / 10) + 'px">' + t(String(c.tk)) +
       '</text>';
-    out += '<text class="cnm" x="' + f1(g.cx) + '" y="' + f1(g.cy + g.rC + 13.5) + '">' +
-      t(cut(c.name, 44)) + '</text>';
-    out += '<text class="cpx" x="' + f1(g.cx) + '" y="' + f1(g.cy + g.rC + 24) + '">' +
-      t(bits.join('  ')) + '</text>';
+    /* BOTH THE SIZE AND THE CUT COME OFF THE DISC, not off a guess.
+       A fixed 17 characters at a fixed 5.4px was written for a disc about
+       twice the radius this panel actually draws, so SAFARICOM PLC ran out
+       over the mint ring at both ends and read as AFARICOM PL. The type is
+       scaled to the radius and the name is then cut to the number of
+       characters that radius has room for, so it fits at any size the box
+       takes. nfs * 0.74 is the advance of this mono face including its
+       tracking; cw is the chord across the disc at the height the name sits. */
+    var nfs = Math.max(4, Math.min(6.4, g.rC * 0.2));
+    var cw = g.rC * 1.5;
+    var nmax = Math.max(3, Math.floor(cw / (nfs * 0.74)));
+    out += '<text class="cnmi" x="' + f1(g.cx) + '" y="' + f1(g.cy + g.rC * 0.44) +
+      '" style="font-size:' + (Math.round(nfs * 10) / 10) + 'px">' +
+      t(discName(c.name, nmax)) + '</text>';
+    if(bits.length){
+      out += '<text class="cpx" x="' + f1(g.cx) + '" y="' + f1(g.cy + g.rC + 13) + '">' +
+        t(bits.join('  ')) + '</text>';
+    }
     return out + '</g>';
   }
   function svgAll(m, W, H){
-    return defsSVG() + '<g class="gv">' + ringsSVG(m) + edgesSVG(m) + leavesSVG(m) +
+    return defsSVG() + '<g class="gv">' + gridSVG(m) + edgesSVG(m) + leavesSVG(m) +
       centreSVG(m) + '</g>';
+  }
+  /* THE KEY TO THE DASHES, drawn only for the link types this security actually
+     has on file. A legend listing six kinds under a map showing three is a
+     legend describing some other company. */
+  function legendHTML(m){
+    var seen = {};
+    (m && m.edges ? m.edges : []).forEach(function(e){ seen[e.mk] = true; });
+    var bits = LGD.filter(function(d){ return seen[d.k]; }).map(function(d){
+      return '<span class="lgi"><i class="d-' + d.k + '"></i>' + d.n + '</span>';
+    });
+    if(!bits.length) return '';
+    return bits.join('') + '<span class="lgsp"></span>' +
+      '<span class="lgi"><u class="cf"></u>CITED OR FILED</span>' +
+      '<span class="lgi"><u class="dv"></u>DERIVED</span>';
   }
 
   /* ---------- 7. header and footer lines --------------------------- */
@@ -3287,6 +3445,8 @@
         V3.pos = null;
         mount3(wrap.querySelector('canvas'));
         meta('rel', headerMeta(m) + ' | TURNED, THE SPHERE CARRIES EVERY NODE');
+        var lg3 = document.getElementById('gsub');
+        if(lg3) lg3.innerHTML = '';
         G.geo = null;
         return;
       }
@@ -3303,6 +3463,8 @@
       markNode(svg);
       applyFocus(svg);
       meta('rel', headerMeta(m));
+      var lg = document.getElementById('gsub');
+      if(lg) lg.innerHTML = legendHTML(m);
       G.geo = m.geo;
     }
     run();
@@ -3709,17 +3871,28 @@
         domRings: document.querySelectorAll('#b_rel rect.ar').length
       } : null,
       graph: {
+        /* ring1 and ring2 are still how the LAYOUT places a node, so they stay.
+           What changed is the drawing: there are no arrowheads and no two
+           labelled hoops any more, so the counts that described those are
+           replaced by the ones that describe what is now on screen, the grid
+           and the two provenance states. A diagnostic that reports a feature
+           the panel stopped drawing is worse than no diagnostic. */
         hopMode:G.hops, cap:G.cap, truncated:m ? m.dropped : 0, rings:2,
         ring1:m ? m.ring1.length : 0, ring2:m ? m.ring2.length : 0,
         nodes:m ? nodeCount(m) : 0, edges:m && m.edges ? m.edges.length : 0,
         domNodes: document.querySelectorAll('#b_rel g.nd').length,
         domLeaves: document.querySelectorAll('#b_rel circle.lf').length,
+        domCited: document.querySelectorAll('#b_rel circle.lf.cf').length,
+        domDerived: document.querySelectorAll('#b_rel circle.lf.dv').length,
         domEdges: document.querySelectorAll('#b_rel path.eg').length,
-        domArrows: document.querySelectorAll('#b_rel path.eg[marker-end]').length,
-        domRings: document.querySelectorAll('#b_rel ellipse.ring').length,
-        domRingLabels: document.querySelectorAll('#b_rel text.rl').length,
+        domCurvedEdges: Array.prototype.filter.call(
+          document.querySelectorAll('#b_rel path.eg'), function(p){
+            return String(p.getAttribute('d') || '').indexOf('Q') >= 0; }).length,
+        domGridRings: document.querySelectorAll('#b_rel ellipse.ring').length,
+        domGridSpokes: document.querySelectorAll('#b_rel line.gspk').length,
         domCentre: document.querySelectorAll('#b_rel circle.cdc').length,
-        domMarkers: document.querySelectorAll('#b_rel marker').length,
+        domLegend: (function(){ var e = document.getElementById('gsub');
+          return e ? e.querySelectorAll('.lgi').length : 0; })(),
         domLeafLabels: document.querySelectorAll('#b_rel text.nl').length,
         category:G.cat,
         zoom:{k:Math.round(MAP.k * 1000) / 1000, x:Math.round(MAP.x), y:Math.round(MAP.y)},
