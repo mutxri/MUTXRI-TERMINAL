@@ -278,8 +278,17 @@
     ray:   { color: "#4da6ff", width: 2, dash: null, extend: "right" },
     hline: { color: "#e0a340", width: 1, dash: null },
     vline: { color: "#9a9a9a", width: 1, dash: [4, 4] },
-    zone:  { color: "#33e29a", width: 1, dash: null }
+    zone:  { color: "#33e29a", width: 1, dash: null },
+    /* The three a reader of a chart reaches for that this had no answer to: the
+     * retracement levels between a high and a low, a note pinned to a bar, and
+     * the distance between two points. */
+    fib:     { color: "#c48bf7", width: 1, dash: null },
+    text:    { color: "#f2f2f2", width: 1, dash: null },
+    measure: { color: "#4dd4e8", width: 1, dash: [5, 4] }
   };
+  /* The retracement ladder, as every terminal draws it. 0 and 100 are the two
+   * anchors themselves; the rest are the levels between them. */
+  var FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
   var SVG_NS = "http://www.w3.org/2000/svg";
   var seq = 0;
   function newId() { seq++; return "d" + Date.now().toString(36) + seq.toString(36); }
@@ -439,6 +448,83 @@
         if (xv == null) return;
         g.appendChild(el("line", { x1: xv, y1: 0, x2: xv, y2: h, stroke: color,
           "stroke-width": width, "stroke-dasharray": dashAttr(style.dash) }));
+      } else if (it.type === "fib") {
+        /* Levels are measured from anchor a to anchor b, so dragging either end
+         * re-measures the whole ladder. Each line runs the width of the chart
+         * and carries its ratio and the price it sits at. */
+        var fa = xyOf(it.a), fb = xyOf(it.b);
+        if (!fa || !fb) return;
+        var p0 = Number(it.a.p), p1 = Number(it.b.p);
+        var xL = Math.min(fa.x, fb.x), xR = Math.max(fa.x, fb.x);
+        FIB_LEVELS.forEach(function (lv) {
+          var price = p0 + (p1 - p0) * lv;
+          var yy = null;
+          try { yy = H.series.priceToCoordinate(price); } catch (e) { yy = null; }
+          if (yy == null) return;
+          var edge = (lv === 0 || lv === 1);
+          g.appendChild(el("line", { x1: xL, y1: yy, x2: w, y2: yy, stroke: color,
+            "stroke-width": edge ? width + 0.5 : width,
+            "stroke-dasharray": edge ? "" : "3 3", opacity: edge ? "1" : "0.75" }));
+          var ft = el("text", { x: xL + 3, y: yy - 3, fill: color, "font-size": "9",
+            "font-family": "Oxygen Mono, monospace" });
+          ft.textContent = (lv * 100).toFixed(1).replace(/\.0$/, "") + "%  " + price.toFixed(2);
+          g.appendChild(ft);
+        });
+        g.appendChild(el("line", { x1: fa.x, y1: fa.y, x2: fb.x, y2: fb.y, stroke: color,
+          "stroke-width": 1, "stroke-dasharray": "2 3", opacity: "0.5" }));
+        if (ghost) return void svg.appendChild(g);
+        [[fa.x, fa.y, "a"], [fb.x, fb.y, "b"]].forEach(function (pt) {
+          g.appendChild(el("rect", { x: pt[0] - 3.5, y: pt[1] - 3.5, width: 7, height: 7,
+            fill: "#0a0a0a", stroke: color, "stroke-width": 1,
+            "pointer-events": "auto", style: "cursor:move", class: "mxta-handle",
+            "data-id": it.id || "", "data-end": pt[2] }));
+        });
+      } else if (it.type === "measure") {
+        /* What moved, in price, in per cent, and over how many sessions. The
+         * box is drawn from the two anchors so it reads like a selection. */
+        var ma = xyOf(it.a), mb = xyOf(it.b);
+        if (!ma || !mb) return;
+        var dp = Number(it.b.p) - Number(it.a.p);
+        var pct = Number(it.a.p) ? (dp / Number(it.a.p)) * 100 : 0;
+        var ia = timeIndex(it.a.t), ib = timeIndex(it.b.t);
+        var bars = (ia >= 0 && ib >= 0) ? Math.abs(ib - ia) : null;
+        var up = dp >= 0;
+        var mc = up ? "#33e29a" : "#f87171";
+        g.appendChild(el("rect", { x: Math.min(ma.x, mb.x), y: Math.min(ma.y, mb.y),
+          width: Math.abs(mb.x - ma.x), height: Math.abs(mb.y - ma.y),
+          fill: hexA(mc, 0.10), stroke: mc, "stroke-width": 1,
+          "stroke-dasharray": "5 4" }));
+        g.appendChild(el("line", { x1: ma.x, y1: ma.y, x2: mb.x, y2: mb.y,
+          stroke: mc, "stroke-width": 1 }));
+        var mt = el("text", { x: (ma.x + mb.x) / 2, y: Math.min(ma.y, mb.y) - 5,
+          fill: mc, "font-size": "10", "font-family": "Oxygen Mono, monospace",
+          "text-anchor": "middle" });
+        mt.textContent = (up ? "+" : "") + dp.toFixed(2) + "  " +
+                         (up ? "+" : "") + pct.toFixed(2) + "%" +
+                         (bars == null ? "" : "  " + bars + (bars === 1 ? " bar" : " bars"));
+        g.appendChild(mt);
+        if (ghost) return void svg.appendChild(g);
+        [[ma.x, ma.y, "a"], [mb.x, mb.y, "b"]].forEach(function (pt) {
+          g.appendChild(el("rect", { x: pt[0] - 3.5, y: pt[1] - 3.5, width: 7, height: 7,
+            fill: "#0a0a0a", stroke: mc, "stroke-width": 1,
+            "pointer-events": "auto", style: "cursor:move", class: "mxta-handle",
+            "data-id": it.id || "", "data-end": pt[2] }));
+        });
+      } else if (it.type === "text") {
+        /* A note pinned to a bar and a price, so it travels with the data
+         * rather than with the pixels. */
+        var tp = xyOf(it.a);
+        if (!tp) return;
+        var label = String(it.label == null ? "" : it.label);
+        var tw = Math.max(18, label.length * 5.6 + 10);
+        g.appendChild(el("rect", { x: tp.x, y: tp.y - 14, width: tw, height: 15,
+          fill: "rgba(10,10,10,.82)", stroke: color, "stroke-width": 1, rx: 2,
+          "pointer-events": "auto", style: "cursor:move", class: "mxta-handle",
+          "data-id": it.id || "", "data-end": "a" }));
+        var tt = el("text", { x: tp.x + 5, y: tp.y - 3.5, fill: color, "font-size": "10",
+          "font-family": "Oxygen Mono, monospace" });
+        tt.textContent = label;
+        g.appendChild(tt);
       } else if (it.type === "zone") {
         var a = xyOf(it.a), b = xyOf(it.b);
         if (!a || !b) return;
@@ -508,6 +594,30 @@
         } else if (it.type === "vline") {
           var x = coordXFromLogical(logicalOf(it.a.t));
           if (x != null) d = Math.abs(px - x);
+        } else if (it.type === "text") {
+          /* A note is grabbed by its box, which hangs above and to the right of
+           * the point it is pinned to. Without this the eraser could never
+           * reach one, because the generic two-anchor test below reads it.b and
+           * a note has no second anchor. */
+          var tp = xyOf(it.a);
+          if (tp) {
+            var tw = Math.max(18, String(it.label || "").length * 5.6 + 10);
+            d = (px >= tp.x - 3 && px <= tp.x + tw + 3 && py >= tp.y - 17 && py <= tp.y + 3) ? 0 : 1e9;
+          }
+        } else if (it.type === "fib") {
+          /* Any of its levels will do, and so will the line between the two
+           * anchors: a reader aims at the band, not at one hairline. */
+          var fa = xyOf(it.a), fb = xyOf(it.b);
+          if (fa && fb) {
+            var pA = Number(it.a.p), pB = Number(it.b.p);
+            var xl = Math.min(fa.x, fb.x);
+            for (var k = 0; k < FIB_LEVELS.length; k++) {
+              var yy = null;
+              try { yy = H.series.priceToCoordinate(pA + (pB - pA) * FIB_LEVELS[k]); } catch (e) { yy = null; }
+              if (yy != null && px >= xl - 4) d = Math.min(d, Math.abs(py - yy));
+            }
+            d = Math.min(d, distToSegment(px, py, fa.x, fa.y, fb.x, fb.y));
+          }
         } else {
           var a = xyOf(it.a), b = xyOf(it.b);
           if (a && b) {
@@ -532,7 +642,27 @@
     }
 
     /* --- interaction --- */
+    /* The snapshot is a deep copy, because the items are mutated in place when
+     * a handle is dragged: holding a reference would hand undo the same list it
+     * is meant to restore. */
+    var undoStack = [], redoStack = [], UNDO_MAX = 40;
+    function snapshot() {
+      try { return JSON.parse(JSON.stringify(itemsFor(H.key))); }
+      catch (e) { return []; }
+    }
+    function pushUndo() {
+      undoStack.push(snapshot());
+      if (undoStack.length > UNDO_MAX) undoStack.shift();
+      redoStack.length = 0;          // a new action ends the old redo branch
+    }
+    function restore(list) {
+      ST.data.keys[H.key] = list || [];
+      save(); paint();
+      if (H.onChange) H.onChange(H);
+    }
+
     function commit(item) {
+      pushUndo();
       if (!item || !item.id) item.id = newId();
       itemsFor(H.key).push(item);
       if (!save()) { /* read-only schema: still show it for this session */ }
@@ -542,7 +672,7 @@
     function removeItem(it) {
       var list = itemsFor(H.key);
       var i = list.indexOf(it);
-      if (i >= 0) { list.splice(i, 1); save(); redraw(); if (H.onChange) H.onChange(H); }
+      if (i >= 0) { pushUndo(); list.splice(i, 1); save(); redraw(); if (H.onChange) H.onChange(H); }
     }
     function onDown(ev) {
       if (H.tool === "none") return;
@@ -558,6 +688,15 @@
       if (!a) return;
       if (H.tool === "hline" || H.tool === "vline") {
         commit({ type: H.tool, a: a, b: null });
+        return;
+      }
+      if (H.tool === "text") {
+        /* The note is asked for once, where it is put. An empty answer plants
+         * nothing rather than an empty box nobody can see to remove. */
+        var said = null;
+        try { said = window.prompt("Note for this point on the chart:", ""); } catch (e) { said = null; }
+        said = (said == null ? "" : String(said)).trim().slice(0, 80);
+        if (said) commit({ type: "text", a: a, b: null, label: said });
         return;
       }
       H.drag = { start: a, startPt: pt, preview: { id: "preview", type: H.tool, a: a, b: a } };
@@ -709,9 +848,30 @@
       return false;
     };
     H.clearAll = function () {
+      pushUndo();
       ST.data.keys[H.key] = [];
       save(); paint();
       if (H.onChange) H.onChange(H);
+    };
+    /* ---- UNDO AND REDO -------------------------------------------------
+     * Every drawing action was final: the only way back from a stray line was
+     * to hunt it with the eraser, and the only way back from CLEAR ALL was to
+     * draw the lot again. A stack of snapshots is enough here because a chart
+     * holds tens of drawings, not thousands, and a snapshot is exact where
+     * replaying inverse operations is a second thing to keep correct. */
+    H.canUndo = function () { return undoStack.length > 0; };
+    H.canRedo = function () { return redoStack.length > 0; };
+    H.undo = function () {
+      if (!undoStack.length) return false;
+      redoStack.push(snapshot());
+      restore(undoStack.pop());
+      return true;
+    };
+    H.redo = function () {
+      if (!redoStack.length) return false;
+      undoStack.push(snapshot());
+      restore(redoStack.pop());
+      return true;
     };
     H.setContext = function (o) {
       o = o || {};
