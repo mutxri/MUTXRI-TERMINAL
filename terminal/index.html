@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261127235537';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
+<head><script>(function(){var V='20261128000519';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MUTXRI TERMINAL</title>
@@ -4358,7 +4358,40 @@ window.MTZ = (function(){
               if(!sp || !panelHook || typeof panelHook.capture !== 'function') return;
               let o = null;
               try{ o = panelHook.capture(); }catch(e){ o = null; }
-              if(o && typeof o === 'object'){ sp.panelwins = o; save(); }
+              if(!o || typeof o !== 'object') return;
+              // THE QUOTE TILES BELONG TO THE HOUSE PLAN, NOT TO WHOEVER WAS IN THE WAY.
+              // Opening a panel could leave a FOCUS window shoved out of the right hand
+              // column - measured at x=1, on top of the watch list - because the layer
+              // had to make room for the new window and the displaced one ended up in
+              // the corner (owner, 2026-11-27: two quote cards, one of them over the
+              // list). On a workspace nobody has arranged there is exactly one correct
+              // place for the pair: where defaultPanels() puts it. Extra panels come
+              // and go around them; the pair does not move.
+              if(sp.auto){
+                let dp = null;
+                try{ dp = defaultPanels(); }catch(e){ dp = null; }
+                if(dp){
+                  let moved = false;
+                  Object.keys(dp).forEach(function(k){
+                    const want = dp[k], got = o[k] || {};
+                    if(got.x === want.x && got.y === want.y && got.w === want.w && got.h === want.h) return;
+                    o[k] = Object.assign({}, got, {x: want.x, y: want.y, w: want.w, h: want.h,
+                                                   open: (got.open === undefined ? true : got.open)});
+                    moved = true;
+                  });
+                  if(moved && !window.__mtHouseFix){
+                    window.__mtHouseFix = true;
+                    try{ if(panelHook.apply) panelHook.apply(o); }catch(e){}
+                    window.__mtHouseFix = false;
+                    try{ o = panelHook.capture() || o; }catch(e){}
+                    Object.keys(dp).forEach(function(k){
+                      const want = dp[k];
+                      o[k] = Object.assign({}, o[k] || {}, {x: want.x, y: want.y, w: want.w, h: want.h});
+                    });
+                  }
+                }
+              }
+              sp.panelwins = o; save();
             },
             // the panel arrangement stored for the workspace in front of the
             // reader, or null when that workspace has no panel record yet (the
@@ -4982,6 +5015,22 @@ window.MTPanelWins = (function(){
     if(!n) return;
     if(!w.open){ n.style.display = 'none'; return; }
     clampWin(id);
+    // A PANEL WINDOW NEVER SITS OVER THE WATCH COLUMN. That column belongs to the
+    // shell's own window, and a panel on top of it hides the reader's list while
+    // looking like part of the layout. It kept happening when a new panel was added:
+    // something in the arrangement pass would leave a displaced window at the top
+    // left corner, measured at x=1 with the FOCUS card sitting over the list (owner,
+    // 2026-11-27: "the focus panel have same stock but different prices" was the same
+    // session's earlier report, and this is the window that had slid there). Whatever
+    // moves a window, it stops at the right edge of the list. Below 821px there is no
+    // desk - the panels are one scroll-through stack - so nothing is clamped there.
+    try{
+      if(typeof desk === 'function' && desk()){
+        const b = box();
+        const railW = Math.round(Math.min(360, Math.max(220, (b.width || 1280) * 0.22)));
+        if(w.x < railW) w.x = Math.min(railW, Math.max(0, Math.floor(b.width) - w.w));
+      }
+    }catch(e){}
     // a zoom or text-size change re-renders through here; the workspace record would
     // otherwise restore the pre-fit height and the panel would grow, leaving a gap at
     // the bottom. The fitted height wins until the reader resizes the window himself.
