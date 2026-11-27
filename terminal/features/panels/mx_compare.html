@@ -56,7 +56,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261128014632';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128014632';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
+<head><script>(function(){var V='20261128020043';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128020043';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compare</title>
@@ -103,8 +103,20 @@
   input.tk{background:var(--bg3);color:var(--tx);border:1px solid var(--line2);border-radius:2px;padding:6px 8px;font-family:var(--mono);font-size:11px;width:260px;text-transform:uppercase}
   button.go{background:var(--acc);color:#00160e;border:0;padding:6px 14px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;border-radius:2px}
   button.go:hover{background:var(--acc2)}
-  .hint{color:var(--tx3);font-size:10px}
-  .peers{display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center}
+  /* THE HINT AND THE PEER CHIPS DO NOT GET TO OUTRANK THE CHART.
+     Together they were about 170px of header in a panel 520px tall, which put
+     half the graph below the fold. Neither is thrown away: the hint is one
+     line until the box is focused or hovered, and the peer chips keep to a
+     single scrollable row. A reader reaching for either gets all of it. */
+  .hint{color:var(--tx3);font-size:10px;flex:1 1 180px;min-width:0;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .controls:hover .hint,.controls:focus-within .hint{white-space:normal;overflow:visible;flex-basis:100%}
+  .peers{display:flex;gap:6px;padding:6px 14px;border-bottom:1px solid var(--line);align-items:center;
+         flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}
+  .peers::-webkit-scrollbar{height:6px}
+  .peers::-webkit-scrollbar-thumb{background:#2e2e2e;border-radius:4px}
+  .peers > *{flex:0 0 auto}
+  .peers:hover,.peers:focus-within{flex-wrap:wrap;overflow-x:visible}
   .peers .pl{color:var(--tx3);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
   .peers a{color:var(--tx2);text-decoration:none;border:1px solid var(--line2);padding:3px 8px;border-radius:2px;font-size:11px;cursor:pointer}
   .peers a:hover{color:var(--acc);border-color:var(--acc)}
@@ -1665,11 +1677,12 @@ async function compare(tokArg){
   // currency banner: currencies are never mixed in silence
   var majors = [];
   secs.forEach(function(s){ var m = majorOf(s.quoteCcy); if(m && majors.indexOf(m)<0) majors.push(m); });
+  var bannerHTML = '';
   if(majors.length > 1){
     var ccys = [];
     secs.forEach(function(s){ var l = ccyLabel(s.quoteCcy); if(l && ccys.indexOf(l)<0) ccys.push(l); });
     var anyCents = secs.some(function(s){ return isCents(s.quoteCcy); });
-    html += '<div class="banner"><b>Currencies differ: '+esc(ccys.join(', '))+'.</b>'
+    bannerHTML += '<div class="banner"><b>Currencies differ: '+esc(ccys.join(', '))+'.</b>'
           + (anyCents ? ' JSE quotes in cents: 100 ZAc = 1 ZAR.' : '') + '</div>';
   }
 
@@ -1680,7 +1693,7 @@ async function compare(tokArg){
     var base = (s.an && s.an.valuation && (s.an.valuation.pePeriod || s.an.valuation.asOfPeriod)) || 'n/a';
     return esc(s.ticker||s.sym)+' newest '+esc(newest)+', multiples on '+esc(base);
   });
-  html += '<div class="banner" style="border-color:#122a20;background:#03170f;color:#33e29a">'
+  bannerHTML += '<div class="banner" style="border-color:#122a20;background:#03170f;color:#33e29a">'
         + '<b>Periods.</b> '+perBits.join(' &middot; ')+'</div>';
 
   var series = secs.map(function(s){
@@ -1695,14 +1708,25 @@ async function compare(tokArg){
      because it is true of all three. */
   hov3 = -1;
   var hasLanes = !!(chart.v3 && chart.v3.lanes && chart.v3.lanes.length);
+  /* THE GRAPH COMES FIRST, AND THE PROSE COMES AFTER IT.
+     This panel used to open with a currency banner, a periods banner and a
+     paragraph describing the window, and only then draw the chart. In a panel
+     window the size a reader actually keeps it at, that is four hundred pixels
+     of explanation above the thing being explained: the chart was below the
+     fold and the panel looked like it had no chart at all (2026-11-28, "show
+     graphs in the compare panel"). The order is now the answer, then the
+     caveats: chart, then the window note, then the two banners. Nothing is
+     removed, so a reader who scrolls still gets every warning that was there
+     before, in the same words. */
   if(chart.body){
-    html += '<div class="chartbox">' + viewbarHTML(hasLanes) + chart.win
+    html += '<div class="chartbox">' + viewbarHTML(hasLanes)
           + '<div class="pane" id="pnLines">' + chart.body + '</div>'
-          + pane3HTML(hasLanes) + paneCurveHTML() + '</div>';
+          + pane3HTML(hasLanes) + paneCurveHTML() + chart.win + '</div>';
   } else {
     html += '<div class="chartbox">' + viewbarHTML(false) + chart.html
           + '<div class="pane" id="pnLines"></div>' + paneCurveHTML() + '</div>';
   }
+  html += bannerHTML;
   html += renderNamed(named, chart.funds);
   html += renderFunds(funds,
     chart.cash ? chart.cash.ret : null,
