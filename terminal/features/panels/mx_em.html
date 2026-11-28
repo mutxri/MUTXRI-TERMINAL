@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><script>(function(){var V='20261128115036';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128115036';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script><meta charset="utf-8">
+<html lang="en"><head><script>(function(){var V='20261128132130';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128132130';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script><meta charset="utf-8">
 <title>EM</title>
 <style>
 :root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
@@ -54,7 +54,7 @@ tbody tr:hover{background:#101010}
     <div id="out"></div>
   </div>
 </div>
-<script src="_fresh.js?v=20261128115036"></script>
+<script src="_fresh.js?v=20261128132130"></script>
 <script>
 
 /* ---- where this panel's data comes from --------------------------------
@@ -255,11 +255,18 @@ function mxFinancials(sym, ex){
     // multiples from the latest year + market cap
     var last=years[years.length-1];
     var ni=valueFor(last,'net'), rev=valueFor(last,'revenue'), eps=valueFor(last,'eps');
-    var cap=ST.rec.marketCap||null;
+    // The market cap behind a multiple must be a dated one, in the currency the
+    // statements are filed in. The financials index carries a cap with no price
+    // date (Safaricom: 1.402T, KES 35.00 a share, against a board close of
+    // 32.95), which is why the analytics store withholds P/E. Here the cap is the
+    // board's dated close times the shares on file, or nothing: an undated or
+    // cross-currency multiple is withheld and the reason printed beside it.
+    var mc=ST.mcap||{}, cap=mc.cap||null, why=mc.why||'no dated price on file';
+    var held='<span class="dim" title="'+why.replace(/"/g,'&quot;')+'">withheld</span>';
     var rows=[
-      ['Market cap', fmt(cap)],
-      ['P/E (last FY)', (cap&&ni&&ni>0)?(cap/ni).toFixed(1)+'x':'—'],
-      ['P/S (last FY)', (cap&&rev&&rev>0)?(cap/rev).toFixed(1)+'x':'—'],
+      ['Market cap'+(cap?' <span class="dim">· close '+mc.asOf+'</span>':''), cap?fmt(cap):held],
+      ['P/E (last FY)', cap?((ni&&ni>0)?(cap/ni).toFixed(1)+'x':'—'):held],
+      ['P/S (last FY)', cap?((rev&&rev>0)?(cap/rev).toFixed(1)+'x':'—'):held],
       ['EPS (last FY)', eps==null?'—':eps.toFixed(2)],
       ['Net margin (last FY)', (ni!=null&&rev)?(ni/rev*100).toFixed(1)+'%':'—'],
       ['Fiscal years on file', years.length]
@@ -272,9 +279,30 @@ function mxFinancials(sym, ex){
          '<tr><td class="l">First year</td><td>'+years[0]+'</td></tr>'+
          '<tr><td class="l">Last year</td><td>'+last+'</td></tr>'+
        '</tbody></table></div></div>';
+    if(!cap) h+='<div class="legend">Multiples withheld: '+why+'.</div>';
     if((ST.rec.filings||[]).length) h+=filingsBlock(ST.rec.filings);
     h+='<div class="legend">Annual statements only: the store carries fiscal-year income rows, not quarterly consensus, so there is no estimate column to compare against. A dash is a year the filing does not cover.</div>';
     out.innerHTML=h;
+  }
+
+  // board close x shares on file, dated by the board, in the statements' currency
+  var MAJOR={ZAC:'ZAR',GBP:'GBP',GBX:'GBP'}, BOARD_CCY={NSE:'KES',NGX:'NGN',JSE:'ZAR',EGX:'EGP'};
+  function datedCap(s, rec){
+    return mxJSON('../../static_data/market_'+EX+'.json').then(function(m){
+      var stem=s.split('.')[0], rows=(m&&(m.stocks||m.rows))||[];
+      var r=rows.filter(function(x){ return String(x.sym||'').toUpperCase()===s; })[0] ||
+            rows.filter(function(x){ return String(x.ticker||'').toUpperCase()===stem; })[0];
+      if(!r || r.price==null) return {why:'no '+EX+' board close for '+s};
+      var q=String(r.currency||BOARD_CCY[EX]||''), minor=/^(ZAc|GBp|GBX)$/.test(q);
+      var ccy=minor?MAJOR[q.toUpperCase()]:q.toUpperCase(), px=Number(r.price)/(minor?100:1);
+      var asOf=String(r.asOf||m.asOf||'').slice(0,10);
+      var sh=Number(rec.sharesOutstanding)||0;
+      if(!asOf) return {why:'the board close carries no date'};
+      if(!sh) return {why:'no share count on file for '+s};
+      if(rec.currency && ccy && String(rec.currency).toUpperCase()!==ccy)
+        return {why:'the statements are in '+rec.currency+' and the board price is in '+ccy+', so a multiple would divide one currency by another'};
+      return {cap:px*sh, asOf:asOf};
+    }).catch(function(){ return {why:'the '+EX+' board could not be read'}; });
   }
 
   function load(){
@@ -289,9 +317,9 @@ function mxFinancials(sym, ex){
           '<span class="dim">'+(d.error||'')+'</span></div>';
         return;
       }
-      ST.rec=d;
+      ST.rec=d; ST.mcap=null;
       document.getElementById('ccy').textContent=(d.name||'')+' · '+(d.currency||'');
-      draw();
+      return datedCap(s, d).then(function(m){ ST.mcap=m; draw(); });
     }).catch(function(e){ document.getElementById('out').innerHTML='<div class="empty down">load failed: '+e.message+'</div>'; });
   }
 
