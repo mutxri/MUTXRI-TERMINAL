@@ -372,6 +372,13 @@ def _mongo_fundamentals():
     except Exception:
         return None
 
+# ---------------- Live news wire (live_news) ----------------
+try:
+    import live_news
+except Exception as _le:
+    live_news = None
+    print("live_news import failed:", str(_le)[:60])
+
 # ---------------- Email accounts (auth_api) ----------------
 try:
     import auth_api
@@ -1220,6 +1227,16 @@ class Handler(SimpleHTTPRequestHandler):
             self.json(eod_quote(ex, name) or {"error": "not found"})
         elif path.path == "/api/news":
             self.json(fetch_news())
+        elif path.path == "/api/news/live":
+            # The NEWS panel's live wire: market-scoped feeds polled in the
+            # background every couple of minutes (live_news.py). ?since=<epoch>
+            # returns only what arrived after the panel's last read.
+            q = urllib.parse.parse_qs(path.query)
+            if live_news is None:
+                self.json({"ok": False, "error": "live wire unavailable"})
+            else:
+                self.json(live_news.live(q.get("ex", [""])[0], q.get("since", ["0"])[0],
+                                         q.get("limit", ["250"])[0]))
         elif path.path == "/api/screener":
             q = urllib.parse.parse_qs(path.query)
             params = {k: v[0] if len(v) == 1 else v for k, v in q.items()}
@@ -1810,6 +1827,8 @@ chat_room.set_notifier(_notify_mentions)
 
 if __name__ == "__main__":
     print(f"AFRI Terminal server on http://{HOST}:{PORT}/  (Ctrl+C to stop)")
+    if live_news is not None:
+        live_news.ensure_started()   # the NEWS wire starts sweeping at boot
     # warm the cache in background so first page load is instant
     def _warm():
         try:
