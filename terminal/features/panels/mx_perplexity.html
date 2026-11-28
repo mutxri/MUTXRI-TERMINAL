@@ -101,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261128041008';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128041008';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
+<head><script>(function(){var V='20261128064903';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128064903';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -1267,8 +1267,12 @@
   var ELOGOS = {}, ELOGOS_READY = false;
   function logoFor(it){
     if(!it) return '';
-    if(LOGOS_READY && it.code){
-      var tk = String(it.code).toUpperCase();
+    /* THE CENTRE CALLS ITS TICKER tk AND EVERY LEAF CALLS IT code.
+       Reading only code meant the one node the whole field belongs to was the
+       one node that never got its own mark. */
+    var code = it.code || it.tk || '';
+    if(LOGOS_READY && code){
+      var tk = String(code).toUpperCase();
       var sfx = LOGO_SUFFIX[it.ex] || '';
       var byTk = LOGOS[tk] || (sfx ? LOGOS[tk + sfx] : '') || '';
       if(byTk) return byTk;
@@ -3524,6 +3528,20 @@
     /* the names last, so no node paints over one, and nudged apart: two names
        on top of each other name nothing */
     var placed = [];
+    /* NOTHING IS WRITTEN ACROSS THE CENTRE.
+       Labels were nudged apart from each other but not from the disc every
+       link leaves, so whichever leaf happened to land near it had its name
+       drawn straight over the subject of the whole field. The disc is put into
+       the collision set first, so a name moves instead. */
+    (function(){
+      var cq = pr[m.centre.key];
+      if(!cq) return;
+      var cr = node3r(cq.n) * (0.70 + 0.34 * nearD(cq.d)) * (cq.f || 1) *
+               (0.85 + 0.15 * V3.zoom);
+      placed.push({x: cq.x - cr - 8, y: cq.y, w: cr * 2 + 16});
+      placed.push({x: cq.x - cr - 8, y: cq.y - 11, w: cr * 2 + 16});
+      placed.push({x: cq.x - cr - 8, y: cq.y + 11, w: cr * 2 + 16});
+    })();
 
     /* the cluster names, out at the end of each cone. They are placed first
        and kept in the same collision set, so a company name is never buried
@@ -3640,7 +3658,9 @@
   function hud3(cx, W, H, m){
     var pad = 9, lh = 11.5, bw = 150;
     var bh = pad * 2 + 13 + HUD3.length * lh;
-    var bx = 10, by = H - bh - 10;
+    /* clear of the legend strip, which is drawn over this canvas in the DOM
+       and was cutting the last row of the key off */
+    var bx = 10, by = H - bh - 34;
     if(by < 10 || W < 300) return;
     cx.fillStyle = 'rgba(6,6,6,.82)';
     cx.fillRect(bx, by, bw, bh);
