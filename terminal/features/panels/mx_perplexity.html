@@ -101,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261128065920';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128065920';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
+<head><script>(function(){var V='20261128072651';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128072651';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -129,6 +129,21 @@
   /* ---------- search and the Act selector ---------- */
   .controls{position:relative;display:flex;align-items:center;gap:8px;padding:5px 12px;
             border-bottom:1px solid var(--line2);flex:0 0 auto;flex-wrap:wrap;min-width:0}
+  /* EIGHTY PIXELS FOR TWO CONTROLS IS NOT A HEADER, IT IS A PAGE.
+     At panel width the search box, the Act select and the line explaining them
+     each took a row of their own, which is a sixth of the window before the
+     map starts. Below 700px the two labels and the hint go, the Act select
+     shares the row with the search box instead of claiming all of it, and the
+     hint is still reachable: it comes back on hover, and at a wide width
+     nothing changes at all. */
+  @media(max-width:700px){
+    .controls{padding:4px 8px;gap:6px}
+    .controls > .cl2{display:none}
+    .controls .hint{display:none}
+    .controls:hover .hint,.controls:focus-within .hint{display:block;flex-basis:100%}
+    input.qin{width:auto;flex:1 1 120px;min-width:90px}
+    select.psel{flex:1 1 150px;min-width:120px;max-width:none}
+  }
   .controls .cl2{font-size:7px;letter-spacing:.12em;color:var(--tx3);text-transform:uppercase;
                  white-space:nowrap;flex:0 0 auto}
   input.qin{background:var(--bg3);color:var(--tx);border:1px solid var(--line2);border-radius:2px;
@@ -162,7 +177,16 @@
      rail is new; the map and the detail column keep their draggable sizes. */
   .grid{flex:1 1 auto;min-height:0;display:grid;gap:1px;background:var(--line2);padding:1px;
         grid-template-columns:172px minmax(0,1fr);
-        grid-template-rows:minmax(0,1fr) 5px var(--perph,224px)}
+        /* THE MAP IS THE PANEL, SO IT GETS THE ROOM.
+           The lower card was a flat 224px whatever the window was. In a panel
+           window 520px tall that is 43 per cent of the height for the evidence
+           card and 36 for the map it is evidence FOR, and the map ended up
+           about 110px of drawing under four rows of its own controls. The card
+           is now capped at 42 per cent of the grid and the map is floored at
+           150px, so the proportions hold at any size the window takes and the
+           splitter still drags freely between those two bounds. */
+        grid-template-rows:minmax(150px,1fr) 5px
+                           minmax(56px, min(var(--perph,224px), 42%))}
   #c_rail{grid-column:1;grid-row:1 / span 3;min-height:0;overflow:auto}
   #c_rel{grid-column:2;grid-row:1}
   /* NODE DETAIL removed: the identity rows repeated what the map already
@@ -220,8 +244,18 @@
      chip sat on top of the VIEW label at ordinary widths. The row wraps now
      and each group keeps its own gap, which costs one line of height at a
      narrow width and nothing at a wide one. */
-  .ch{display:flex;align-items:center;gap:8px 10px;padding:4px 8px;border-bottom:1px solid var(--line);
-      flex:0 0 auto;min-width:0;flex-wrap:wrap;row-gap:4px}
+  .ch{display:flex;align-items:center;gap:6px 8px;padding:3px 7px;border-bottom:1px solid var(--line);
+      flex:0 0 auto;min-width:0;flex-wrap:wrap;row-gap:3px}
+  /* IN A PANEL-SIZED WINDOW THE GROUP LABELS GO.
+     DEPTH, LINKS and VIEW each cost a word's width on a bar that is already
+     wrapping onto four lines, and each one labels buttons that say what they
+     are: 1 HOP, CUST, MAP. Dropping the three labels below 700px is worth
+     roughly a whole row of height, and at a wide width they come back. */
+  @media(max-width:700px){
+    .ch .cl2{display:none}
+    .ch{gap:5px 7px}
+    .ch .cgrp{gap:3px}
+  }
   .ch .cm{margin-left:auto}
   .cl{font-size:7.5px;letter-spacing:.14em;color:var(--tx3);text-transform:uppercase;font-weight:600;
       white-space:nowrap}
@@ -415,7 +449,12 @@
   /* the radial map: one centre disc, two dashed ellipse rings with their
      labels at the left apex, leaf circles on those rings and one quadratic
      bezier per link, each type with its own arrowhead */
-  .gwrap{position:absolute;inset:0;overflow:hidden;user-select:none}
+  /* THE LEGEND IS NOT ALLOWED TO SIT ON THE DRAWING.
+     It is absolutely positioned over this box, so at panel size it covered the
+     bottom of the map: the "no 2-link nodes" line and two node labels were
+     being read through it. The drawing area now ends where the legend starts,
+     which costs 26px of map and buys back a legible bottom edge. */
+  .gwrap{position:absolute;inset:0 0 26px 0;overflow:hidden;user-select:none}
   .gwrap svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   .gwrap svg.drag{cursor:grabbing}
   .gwrap canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
@@ -425,7 +464,8 @@
      muted grey and the KIND of link is the dash pattern, which is unreadable
      without a key, so the key is drawn: one swatch per link type in the
      pattern that type takes, then the two node states. */
-  .gsub{position:absolute;left:0;right:0;bottom:0;padding:5px 10px 6px;font-size:7px;
+  .gsub{position:absolute;left:0;right:0;bottom:0;height:26px;box-sizing:border-box;
+        padding:5px 10px 6px;font-size:7px;
         letter-spacing:.09em;color:#6f6f6f;text-transform:uppercase;
         background:linear-gradient(to top,rgba(0,0,0,.94),rgba(0,0,0,.72));
         display:flex;align-items:center;gap:13px;flex-wrap:nowrap;overflow-x:auto;
@@ -583,6 +623,16 @@
   .emp b{color:var(--tx2);font-weight:600}
 
   /* the claim, permanent and one line */
+  /* IN A PANEL-SIZED WINDOW THIS LINE IS ALREADY ON SCREEN TWICE.
+     It opens "NO ACT SELECTED", which is exactly what the select two rows
+     above it says, and then explains a control the reader can see. At panel
+     width that is 45px of the map's height spent repeating the toolbar, so it
+     is dropped below 700px and comes back on hover. Nothing is lost: with an
+     Act chosen it carries the Act's own claim, and that case still shows. */
+  @media(max-width:700px){
+    #actbar.noact{display:none}
+    #c_rel:hover #actbar.noact{display:block}
+  }
   .claim{flex:0 0 auto;padding:3px 9px 4px;border-top:1px solid var(--line);font-size:8px;
          letter-spacing:.02em;color:var(--tx3);line-height:1.35}
 
@@ -1086,6 +1136,9 @@
     var bar = document.getElementById('actbar');
     if(!bar) return;
     var law = G.law;
+    /* marked so the stylesheet can drop it at panel width, where it repeats
+       the Act select sitting two rows above it */
+    bar.classList.toggle('noact', !law);
     if(!law){
       bar.innerHTML = '<div class="abrow"><span class="abhead">NO ACT SELECTED</span>' +
         '<span class="abstat">MAP</span></div>' +
@@ -1991,10 +2044,18 @@
         f1(g.cy + Math.sin(a) * g.rC) + '" x2="' + f1(g.cx + Math.cos(a) * RX) +
         '" y2="' + f1(g.cy + Math.sin(a) * RY) + '"/>';
     }
+    /* THE FOOTNOTE NEEDS ROOM UNDER THE NODES OR IT IS NOT DRAWN.
+       Placed at a fixed drop below the ring and then clamped to the frame, in
+       a short box it landed in the middle of the leaf labels and two sentences
+       were read through each other. The 2 HOPS button is in the toolbar either
+       way, so when there is no clear band beneath the outermost node the line
+       is simply left out rather than written over the map. */
     if(!has2){
-      var ny = Math.min(g.cy + g.ry1 + 30, g.h - 22);
-      out += '<text class="none" x="' + f1(g.cx) + '" y="' + f1(ny) +
-        '" text-anchor="middle">NO 2-LINK NODES ON FILE &middot; 2 HOPS ADDS THEM WHERE A RECORD EXISTS</text>';
+      var ny = g.cy + g.ry1 + 30;
+      if(ny <= g.h - 14){
+        out += '<text class="none" x="' + f1(g.cx) + '" y="' + f1(ny) +
+          '" text-anchor="middle">NO 2-LINK NODES ON FILE &middot; 2 HOPS ADDS THEM WHERE A RECORD EXISTS</text>';
+      }
     }
     return out;
   }
@@ -2175,9 +2236,14 @@
     return (m.ring1 ? m.ring1.length : 0) + (m.ring2 ? m.ring2.length : 0);
   }
   function headerMeta(m){
-    return '2 RINGS | ' + nodeCount(m) + ' NODES | ' + (m.edges ? m.edges.length : 0) +
-      ' EDGES | RING 1 ' + (m.ring1 ? m.ring1.length : 0) + ' RING 2 ' +
-      (m.ring2 ? m.ring2.length : 0) + (m.dropped ? ' | ' + m.dropped + ' DROPPED' : '');
+    /* RINGS ARE NOT DRAWN ANY MORE, so the header stopped counting them.
+       It read "2 RINGS | 7 NODES | 7 EDGES | RING 1 7 RING 2 0", which is four
+       numbers for two facts and two of them described hoops the map no longer
+       has. What is left is what a reader can act on: how much is on screen and
+       how much was left off. */
+    return nodeCount(m) + ' NODES | ' + (m.edges ? m.edges.length : 0) + ' EDGES' +
+      (m.ring2 && m.ring2.length ? ' | ' + m.ring2.length + ' AT 2 HOPS' : '') +
+      (m.dropped ? ' | ' + m.dropped + ' DROPPED' : '');
   }
   function subHTML(m){
     /* Emptied on purpose. The node cap and the files read already print in the

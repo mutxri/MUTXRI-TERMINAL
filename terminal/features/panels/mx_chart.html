@@ -37,7 +37,7 @@
   no provider credits, no injected LIVE/EOD badges, no build step.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261128065920';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128065920';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
+<head><script>(function(){var V='20261128072651';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128072651';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - CHART</title>
@@ -151,12 +151,30 @@
   @media (max-width:700px){
     .ch-chart{height:360px;}
     .ch-sym .nm{display:none;}
-    /* the tool rail turns into a wrap row above the chart, so every tool stays
-       reachable on a phone instead of being pushed off the left edge */
-    .ch-body{flex-direction:column;}
-    .ch-rail{width:100%;flex:0 0 auto;flex-direction:row;flex-wrap:wrap;align-items:center;
-      border-right:0;border-bottom:1px solid var(--line2);padding:6px;}
-    .ch-rail .sep{display:none;}
+    /* THE RAIL STAYS A RAIL, AND LOSES ITS WORDS INSTEAD.
+       It used to become a wrapping row above the chart. Seventeen labelled
+       buttons wrap onto two lines, which is 64px of a panel that only has
+       about 380 to give the chart, and it put a third of the window between
+       the reader and the price. Narrow screens are short, not thin: the rail
+       keeps its column beside the chart and drops the labels, costing 28px of
+       width rather than 64px of height. Every tool keeps its glyph and its
+       title, so nothing becomes unreachable, and the separators stay so the
+       groups still read. */
+    .ch-body{flex-direction:row;}
+    .ch-rail{width:28px;flex:0 0 28px;flex-direction:column;flex-wrap:nowrap;
+      align-items:stretch;border-right:1px solid var(--line2);border-bottom:0;
+      padding:4px 3px;gap:3px;overflow-y:auto;scrollbar-width:none;}
+    .ch-rail::-webkit-scrollbar{display:none;}
+    .ch-rail .n{display:none;}
+    /* seventeen tools and three separators have to fit the chart's own height
+       without scrolling, or the last four (undo, redo, erase, clear) sit below
+       the fold of a 28px-wide column, which is a bad place to go looking for
+       anything. At these sizes the column measures about 335px against the
+       chart's 360. */
+    .rt{justify-content:center;padding:2px;gap:0;font-size:10px;line-height:1.25;}
+    .rt .g{font-size:10px;flex:0 0 auto;}
+    .ch-rail{gap:2px;}
+    .ch-rail .sep{display:block;margin:2px 0;}
   }
 </style>
 </head>
@@ -275,7 +293,7 @@
 <script src="_fresh.js"></script>
 <script src="https://unpkg.com/lightweight-charts@5.0.4/dist/lightweight-charts.standalone.production.js"></script>
 <!-- drawing tools + indicator maths for the candlestick chart (shared module) -->
-<script src="../../static_data/mx_chart_tools.js?v=20261128065920"></script>
+<script src="../../static_data/mx_chart_tools.js?v=20261128072651"></script>
 <script>
 // The deploy ships static_data/ (which carries mx_chart_tools.js) but a fresh
 // checkout has not copied it there yet, so fall back to the tracked source that
