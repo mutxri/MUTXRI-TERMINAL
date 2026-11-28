@@ -14,7 +14,7 @@
   levy is worse than a zero the reader can see. Every rate is a field either way.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261128065920';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128065920';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
+<head><script>(function(){var V='20261128115036';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128115036';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - CALC</title>
@@ -273,13 +273,16 @@
     try{
       var o = {};
       ['qty','cash','buy','sell','days','brok','flat','div','dtax','gtax','other'].forEach(function(k){ if($(k)) o[k] = $(k).value; });
-      localStorage.setItem(KEY, JSON.stringify({ex: X, sym: SEL, f: o}));
+      localStorage.setItem(KEY, JSON.stringify({ex: X, sym: SEL, f: o, u: 2}));
     }catch(e){}
   }
   function recall(){
     try{
       var d = JSON.parse(localStorage.getItem(KEY) || 'null');
       if(!d || !d.f) return false;
+      // saved before JSE quotes were turned from cents into rand: those prices
+      // are 100 times too large, so they are dropped and the board's price is used
+      if(d.ex === 'JSE' && !d.u){ delete d.f.buy; delete d.f.sell; }
       Object.keys(d.f).forEach(function(k){ var el = $(k); if(el && d.f[k] != null) el.value = d.f[k]; });
       if(d.ex) X = d.ex;
       if(d.sym) SEL = d.sym;
@@ -311,7 +314,7 @@
     rows.slice(0, 400).forEach(function(r){
       var o = document.createElement('option');
       o.value = r.sym;
-      o.textContent = r.sym + '  ' + String(r.name || '').slice(0, 30) + '  ' + Number(r.price).toFixed(2);
+      o.textContent = r.sym + '  ' + String(r.name || '').slice(0, 30) + '  ' + px(r, r.price).toFixed(2);
       sel.appendChild(o);
     });
     if(!rows.length) return;
@@ -320,20 +323,28 @@
     pick(keep);
   }
 
+  // The JSE board quotes in cents (row currency 'ZAc') while the fee schedule,
+  // the tax lines and every total here are in rand. Taking the quote as rand
+  // made 1,000 Naspers cost ZAR 64,987,000 instead of ZAR 649,870. A quote in a
+  // minor unit is turned into the major unit before it reaches any arithmetic.
+  function unitDiv(r){ return /^(ZAc|ZAC|GBp|GBX)$/.test(String((r && r.currency) || '')) ? 100 : 1; }
+  function px(r, v){ return Number(v) / unitDiv(r); }
+
   function pick(sym){
     SEL = sym;
     var r = BOARD.rows.filter(function(x){ return x.sym === sym; })[0];
     if(!r) return;
     var cur = market().currency || 'KES';
     if(!RESTORED || !n('buy')){
-      $('buy').value = Number(r.price).toFixed(2);
-      $('sell').value = Number(r.price).toFixed(2);
+      $('buy').value = px(r, r.price).toFixed(2);
+      $('sell').value = px(r, r.price).toFixed(2);
     }
     RESTORED = false;
     $('quo').innerHTML = '<span><b>' + r.sym + '</b> ' + String(r.name || '') + '</span>' +
-      '<span>last <b>' + Number(r.price).toFixed(2) + '</b> ' + cur + '</span>' +
+      '<span>last <b>' + px(r, r.price).toFixed(2) + '</b> ' + cur +
+        (unitDiv(r) > 1 ? ' <span class="mut">(quoted ' + Number(r.price).toFixed(2) + ' ' + r.currency + ')</span>' : '') + '</span>' +
       (r.chgPct != null ? '<span class="' + (r.chgPct >= 0 ? 'up' : 'down') + '">' + (r.chgPct >= 0 ? '+' : '') + Number(r.chgPct).toFixed(2) + '%</span>' : '') +
-      (r.prevClose != null ? '<span class="mut">prev ' + Number(r.prevClose).toFixed(2) + '</span>' : '') +
+      (r.prevClose != null ? '<span class="mut">prev ' + px(r, r.prevClose).toFixed(2) + '</span>' : '') +
       '<span class="mut">board ' + (BOARD.asOf || 'undated') + '</span>';
     draw();
   }
@@ -386,8 +397,17 @@
   fetch('../../static_data/broker_fees.json', {cache: 'no-store'}).then(function(r){ return r.json(); }).then(function(d){
     FEES = d;
     RESTORED = recall();
-    chips();
     if(!RESTORED && deskSym) SEL = deskSym;
+    // The shell opens every panel at ?ex=<board>&sym=<security>. The calculator
+    // never read them, so it reopened on whatever was last stored (Safaricom on
+    // the NSE) while the desk was on Naspers or CIB. The desk's selection now
+    // wins; the typed fields are kept, but a different security takes its own
+    // price and a different board its own taxes.
+    var _qs = new URLSearchParams(location.search);
+    var urlEx = (_qs.get('ex') || '').toUpperCase(), urlSym = (_qs.get('sym') || '').toUpperCase();
+    if(urlEx && FEES.markets && FEES.markets[urlEx] && urlEx !== X){ X = urlEx; RESTORED = false; }
+    if(urlSym && urlSym !== SEL){ SEL = urlSym; $('buy').value = ''; }
+    chips();
     loadBoard();                 // the picker needs the board whether or not a trade came back
   }).catch(function(){
     FEES = {markets: {NSE: {currency: 'KES', levies: [], taxes: {}, note: 'the published charge schedule could not be read, so no charges are applied until a rate is entered.'}}};

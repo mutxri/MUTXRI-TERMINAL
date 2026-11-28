@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><script>(function(){var V='20261128065920';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128065920';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script><meta charset="utf-8">
+<html lang="en"><head><script>(function(){var V='20261128115036';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128115036';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script><meta charset="utf-8">
 <title>EM</title>
 <style>
 :root{--bg:#000;--line:#1c1c1c;--tx:#d8d8d8;--tx3:#7a7a7a;--acc:#33e29a;--down:#ff4d5e}
@@ -30,6 +30,10 @@ tbody tr:hover{background:#101010}
 .empty b{color:var(--tx)}
 .legend{font-size:10px;color:var(--tx3);margin:2px 0 10px}
 .cols2{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px}
+/* the half-width tables must fit their column: the global min-width pushed the
+   Coverage values past the panel edge */
+.cols2 table{min-width:0;width:100%}
+@media (max-width:640px){.cols2{grid-template-columns:1fr}}
 </style></head>
 <body><div id="wrap">
   <div class="bar">
@@ -50,7 +54,7 @@ tbody tr:hover{background:#101010}
     <div id="out"></div>
   </div>
 </div>
-<script src="_fresh.js"></script>
+<script src="_fresh.js?v=20261128115036"></script>
 <script>
 
 /* ---- where this panel's data comes from --------------------------------
@@ -128,13 +132,14 @@ function mxFinancials(sym, ex){
         });
         var rec = {sym:s, name:f.name || f.ticker || s, currency:f.currency || '',
                    income:inc, _source:'static statement store', period:f.period || '',
-                   asOf:f.asOf || ''};
+                   asOf:f.asOf || '', marketCap:f.marketCap || null,
+                   sharesOutstanding:f.sharesOutstanding || null};
         return mxJSON('../../static_data/financials_index.json').then(function(idx){
           var e = idx[stem] || idx[s] || null;
           if(e){
             rec.name = rec.name || e.name;
             rec.currency = rec.currency || e.currency;
-            rec.marketCap = e.marketCap;
+            rec.marketCap = e.marketCap || rec.marketCap;
             rec.filings = e.filings || [];
             rec.exchange = e.exchange;
           }
@@ -152,8 +157,12 @@ function mxFinancials(sym, ex){
     revenue:['Total Revenue','Operating Revenue','Revenue'],
     gross:['Gross Profit'],
     ebitda:['EBITDA','Normalized EBITDA'],
-    net:['Net Income','Net Income Common Stockholders','Net Income From Continuing Operation Net Minority Interest'],
-    eps:['Diluted EPS','Basic EPS'],
+    /* the shipped statement store labels these 'Operating Profit (EBIT)', 'Net
+       Profit' and 'EPS'; only the parity API uses the long names. Without the
+       store's labels every row below Gross profit printed a dash. */
+    ebit:['Operating Profit (EBIT)','Operating Profit','EBIT'],
+    net:['Net Income','Net Income Common Stockholders','Net Income From Continuing Operation Net Minority Interest','Net Profit'],
+    eps:['Diluted EPS','Basic EPS','EPS','Earnings Per Share','Basic and Diluted Earnings Per Share (KShs)'],
     margin:null
   };
   function pick(obj,names){
@@ -188,7 +197,8 @@ function mxFinancials(sym, ex){
   var ROWS=[
     {k:'revenue', label:'Revenue'},
     {k:'gross',   label:'Gross profit'},
-    {k:'ebitda',  label:'EBITDA'},
+    {k:'ebitda',  label:'EBITDA', opt:1},
+    {k:'ebit',    label:'Operating profit (EBIT)', opt:1},
     {k:'net',     label:'Net income'},
     {k:'eps',     label:'EPS (diluted)', eps:1},
     {k:'margin',  label:'Net margin', pct:1}
@@ -225,6 +235,8 @@ function mxFinancials(sym, ex){
     h+='<table><thead><tr><th class="l">Metric</th>'+years.map(function(y){return '<th>FY '+y+'</th>';}).join('')+'</tr></thead><tbody>';
     ROWS.forEach(function(row){
       var vals=years.map(function(y){ return valueFor(y,row.k); });
+      // a line the store never carries for this company is left out, not drawn as a row of dashes
+      if(row.opt && vals.every(function(v){ return v==null; })) return;
       h+='<tr><td class="l">'+row.label+'</td>';
       vals.forEach(function(v,i){
         if(ST.mode==='yoy'){

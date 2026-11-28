@@ -8,12 +8,12 @@
   when /api/reg isn't reachable. Vanilla JS, exact Godel tokens, no build step.
 
   INTEGRATE: lift the .reg-* markup into your right-panel tab set (new
-  REG tab) and the <script src="_fresh.js"></script>
+  REG tab) and the <script src="_fresh.js?v=20261128115036"></script>
 <script> into your bundle. Wire the REG command to
   window.showReg(). No sample items are shipped.
 -->
 <html lang="en">
-<head><script>(function(){var V='20261128065920';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128065920';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
+<head><script>(function(){var V='20261128115036';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128115036';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - REG</title>
@@ -146,6 +146,17 @@
     });
   }
 
+  // The news feed sometimes indexes a forwarded email under a regulator's site,
+  // and its title is the mail header ("-----Original Message----- - Central Bank
+  // of Kenya"). That is not a headline; it is left out rather than printed.
+  function realHeadline(i) {
+    var h = String((i && i.headline) || "");
+    var o = String((i && i.outlet) || "");
+    if (o && h.slice(-(o.length + 3)) === " - " + o) h = h.slice(0, -(o.length + 3));
+    if (/original message|^\s*-{3,}|^\s*(fw|fwd|re)\s*:/i.test(h)) return false;
+    return /[A-Za-z]{3,}/.test(h);
+  }
+
   function renderFeed() {
     var items = activeIso ? allItems.filter(function (i) { return i.iso === activeIso; }) : allItems;
     $("regEmpty").style.display = items.length ? "none" : "block";
@@ -168,7 +179,7 @@
     fetch(REG_ENDPOINT)
       .then(function (r) { if (!r.ok) throw new Error("no endpoint"); return r.json(); })
       .then(function (data) {
-        allItems = data.items || [];
+        allItems = (data.items || []).filter(realHeadline);
         $("regFoot").textContent = (data.freshness || "live") + " · " + allItems.length + " items";
         renderFeed();
       })
@@ -182,7 +193,7 @@
     fetch("../../static_data/reg.json")
       .then(function (r) { if (!r.ok) throw new Error("no snapshot"); return r.json(); })
       .then(function (data) {
-        allItems = data.items || [];
+        allItems = (data.items || []).filter(realHeadline);
         $("regFoot").textContent = (data.freshness || "snapshot") + " · " + allItems.length + " items";
         renderFeed();
       })
