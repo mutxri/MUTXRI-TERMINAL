@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <!--
   MUTXRI TERMINAL - NEWS panel. NSE news headlines. Vanilla JS, Godel palette.
+
+  Two layers: the published snapshot files in static_data (rebuilt every few
+  hours) and, on top, the live wire from the backend (/api/news/live, polled
+  every minute). Each story carries an IMPACT read - which market, sector or
+  paper-book holding it reaches and which way - computed in this page by
+  tagStory(). MY BOOK narrows the panel to the stories that touch the reader's
+  holdings (localStorage mx_paper_v1, read only).
 -->
 <html lang="en">
 <head><script>(function(){var V='20261128065920';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128065920';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
@@ -101,6 +108,44 @@
   @media (max-width:600px){ .head .src{display:none} }
   .head .sbox.inhead .search{width:100%;box-sizing:border-box;font-size:10.5px;padding:3px 7px}
   .head .sbox.inhead .sugg{left:0;right:0;top:calc(100% + 2px)}
+
+  /* LIVE WIRE + IMPACT READ. The status light says whether the rows below
+     include the live wire or only the published snapshot; the IMPACT column is
+     the rules-based read of which market, sector or holding a story reaches,
+     and which way the exposure map says it usually cuts. */
+  :root{--dn:#f87171}
+  .live{font-family:var(--mono);font-size:9px;color:var(--tx3);display:inline-flex;align-items:center;
+    gap:5px;white-space:nowrap;letter-spacing:.08em;cursor:default}
+  .live i{width:6px;height:6px;border-radius:50%;background:var(--tx3);display:inline-block}
+  .live.on{color:var(--acc)}
+  .live.on i{background:var(--acc);animation:mxpulse 2s ease-in-out infinite}
+  .live.wait i{background:#d6b44a}
+  @keyframes mxpulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .bk{background:transparent;border:1px solid var(--line2);border-radius:2px;color:var(--tx2);
+    font-family:var(--mono);font-size:9px;padding:3px 8px;cursor:pointer;white-space:nowrap;letter-spacing:.06em}
+  .bk:hover{border-color:var(--acc);color:var(--acc)}
+  .bk.on{background:var(--acc);color:#000;border-color:var(--acc)}
+  .bk:disabled{opacity:.4;cursor:default;border-color:var(--line2);color:var(--tx3)}
+  .sum{font-family:var(--mono);font-size:10px;color:var(--tx2);padding:10px 0 0;display:flex;
+    gap:6px 16px;flex-wrap:wrap;align-items:baseline;line-height:1.5}
+  .sum b{color:var(--tx);font-weight:400}
+  .sum .u{color:var(--up)} .sum .d{color:var(--dn)}
+  .sum .hint{color:var(--tx3)}
+  .nt .c-imp{white-space:nowrap;width:1%;font-family:var(--mono);font-size:10px}
+  .im{display:inline-block;border:1px solid var(--line2);border-radius:2px;padding:0 5px;margin-right:3px;
+    cursor:pointer;color:var(--tx2);line-height:16px}
+  .im.up{color:var(--up);border-color:rgba(51,226,154,.35)}
+  .im.dn{color:var(--dn);border-color:rgba(248,113,113,.4)}
+  .im.mine{background:rgba(255,255,255,.04)}
+  .im.mine:before{content:"\25C9 ";font-size:8px;vertical-align:1px}
+  .nt tr.new td{animation:mxflash 7s ease-out}
+  @keyframes mxflash{0%{background:rgba(51,226,154,.16)}100%{background:transparent}}
+  .nt tr.det td{background:var(--bg2);color:var(--tx2);font-size:11px;line-height:1.6;padding:8px 12px 10px;
+    white-space:normal;border-bottom:1px solid var(--line2)}
+  .det .k{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--tx3);margin-right:6px}
+  .det .ln{margin:2px 0}
+  .det .u{color:var(--up)} .det .d{color:var(--dn)}
+  .det .fine{font-family:var(--mono);font-size:9px;color:var(--tx3);margin-top:6px}
 </style>
 </head>
 <body>
@@ -114,10 +159,13 @@
         placeholder="ticker, ISIN or company  (e.g. SCOM, Safaricom)" />
       <div class="sugg" id="sugg"></div>
     </div>
+    <button class="bk" id="bookBtn" title="Show only the stories that touch the holdings in your paper book">MY BOOK</button>
+    <span class="live" id="live" title="Connecting to the live wire"><i></i><span id="liveTx">SNAPSHOT</span></span>
     <span class="spacer"></span>
     <span class="src" id="src">Headlines · Reg · Actions</span>
   </div>
   <div class="active" id="active" style="display:none"></div>
+  <div class="sum" id="sum" style="display:none"></div>
   <div id="items"><div class="empty">loading…</div></div>
 </div>
 <script src="_fresh.js"></script>
@@ -521,6 +569,469 @@
     return '<div class="empty">Nothing for ' + esc(qraw) + ' in this window.</div>';
   }
 
+  // ---- IMPACT READ --------------------------------------------------------
+  // Which market, sector or holding a story reaches, and which way the
+  // exposure map says it usually cuts. This is a port of the theme map in
+  // bot/impact.py (keep the two in step), run here in the reader's browser so
+  // that the snapshot rows and the live rows are read by one rule set and the
+  // read of a reader's holdings never leaves their machine.
+  //
+  // It is a READ OF THE HEADLINE, not a forecast: a theme fires on its words,
+  // its direction comes from the move the headline states (rise / fall / cut /
+  // hike), and the effect is that direction times the exposure sign below. A
+  // headline that states no move gets a neutral "watch" mark, never a guess.
+  var ALLEX = ["NSE", "NGX", "JSE", "EGX"];
+  var EXCUE = {
+    NSE: /\b(nairobi securities exchange|nse kenya|nairobi bourse|kenya|kenyan|nairobi|shilling|kes|cbk)\b/,
+    NGX: /\b(ngx|nigerian exchange|nigeria|nigerian|lagos|naira|ngn|cbn)\b/,
+    JSE: /\b(jse|johannesburg stock exchange|south africa|south african|johannesburg|rand|zar|sarb)\b/,
+    EGX: /\b(egx|egyptian exchange|egypt|egyptian|cairo|egp)\b/
+  };
+  var UPW = /\b(rise|rises|rising|rose|rally|rallies|rallied|surge[sd]?|jump(?:s|ed)?|climb(?:s|ed)?|gain(?:s|ed)?|soar(?:s|ed)?|advance[sd]?|strengthen\w*|appreciat\w+|firm(?:s|er|ed)?|higher|record high|spike[sd]?|boost(?:s|ed)?|rebound\w*|hike[sd]?|raise[sd]?|tighten\w*|up)\b/g;
+  var DNW = /\b(fall|falls|falling|fell|drop(?:s|ped)?|slump(?:s|ed)?|plunge[sd]?|slide[sd]?|slid|decline[sd]?|tumble[sd]?|sink(?:s)?|sank|weaken\w*|weaker|depreciat\w+|devalu\w+|lower(?:s|ed)?|crash(?:es|ed)?|sell-?off|retreat\w*|slip(?:s|ped)?|cut(?:s)?|slash\w*|ease[sd]?|eas(?:ing)|down)\b/g;
+  var FINCTX = /\b(exchange rate|forex|fx|dollar|currency|central bank|markets?|investors?|trading|traders|bonds?|yields?|inflation|rates?|appreciat\w+|depreciat\w+|devalu\w+|weaken\w*|strengthen\w*|econom\w+|imports?|exports?|reserves|liquidity|bourse|stocks?|shares|equit\w+)\b/;
+  function allEx(sector, sign, s){ return ALLEX.map(function(e){ return { ex: e, sector: sector, sign: sign, s: s }; }); }
+  var THEMES = [
+    { id: "fed_rates", label: "US rates", inh: 1,
+      pat: /\b(federal reserve|fomc|fed (?:rate|funds|chair|official|policy)|us (?:interest )?rates?|treasury yields?|powell)\b/,
+      exp: allEx(null, -1, .55),
+      note: "Higher US rates pull portfolio money out of frontier equity and raise hard-currency funding costs; cuts do the reverse." },
+    { id: "dollar", label: "US dollar", inh: 1, ctx: 1,
+      // a move of the dollar, never a sum quoted in dollars ("a 2.3 billion US dollar sale")
+      pat: /\b(dollar index|dxy|greenback|(?:strong|stronger|weak|weaker|firm|firmer) (?:us )?dollar|(?:us )?dollar (?:strength|weakness|rall\w+|slump\w*|surge\w*|jump\w*|ris\w+|rose|fall\w*|fell|gain\w*|eases?|eased|firm\w*|weaken\w*|strengthen\w*|slip\w*|climb\w*|eyes \w+ (?:gain|loss)))\b/,
+      exp: allEx(null, -1, .4),
+      note: "A stronger dollar usually means weaker African currencies, which cuts the dollar value of local shares and lifts import costs." },
+    { id: "oil", label: "Oil", inh: 1,
+      // "Brent" alone is also a name ("Brent Brennan previews..."), so it counts
+      // only next to a price word
+      pat: /\b(oil prices?|crude|brent (?:crude|oil|futures|prices?|is|was|at|near|above|below|up|down|back|rises|rose|falls|fell|climbs|slips|jumps|hits|tops|trades|settles)|brent,? (?:and )?wti|wti|opec\+?|petroleum output|barrels? (?:a|per) day|per barrel)\b/,
+      exp: [{ ex: "NGX", sector: "Energy", sign: 1, s: .85 }, { ex: "NGX", sector: null, sign: 1, s: .5 },
+            { ex: "EGX", sector: null, sign: -1, s: .3 }, { ex: "NSE", sector: null, sign: -1, s: .35 },
+            { ex: "JSE", sector: null, sign: -1, s: .2 }],
+      note: "Nigeria earns on oil; Kenya, Egypt and South Africa import it, so the same move cuts opposite ways - dearer oil feeds their inflation and fuel bills." },
+    { id: "gold", label: "Gold", inh: 1,
+      pat: /\b(gold prices?|bullion|gold miners?|gold futures|price of gold)\b/,
+      exp: [{ ex: "JSE", sector: "Mining", sign: 1, s: .85 }, { ex: "JSE", sector: null, sign: 1, s: .35 }],
+      note: "Gold is a heavy weight in JSE resources earnings." },
+    { id: "pgm", label: "Platinum", inh: 1,
+      pat: /\b(platinum|palladium|rhodium|pgms?)\b/,
+      exp: [{ ex: "JSE", sector: "Mining", sign: 1, s: .8 }],
+      note: "South Africa dominates world platinum-group supply, so PGM prices go straight into JSE miners' earnings." },
+    { id: "china", label: "China demand", inh: 1,
+      pat: /\b(china (?:growth|economy|demand|stimulus|imports?)|chinese (?:economy|demand|growth))\b/,
+      exp: [{ ex: "JSE", sector: "Mining", sign: 1, s: .6 }, { ex: "NGX", sector: null, sign: 1, s: .25 }],
+      note: "China sets the marginal bid for African commodity exports." },
+    { id: "kes", label: "Shilling", ctx: 1, pat: /\b(kenyan shilling|shilling)\b/,
+      exp: [{ ex: "NSE", sector: null, sign: 1, s: .6 }],
+      note: "A firmer shilling lifts the dollar value of NSE holdings and cools imported inflation." },
+    { id: "ngn", label: "Naira", ctx: 1, pat: /\bnaira\b/,
+      exp: [{ ex: "NGX", sector: null, sign: 1, s: .6 }],
+      note: "Naira moves drive foreign-investor returns and import costs." },
+    { id: "zar", label: "Rand", ctx: 1,
+      pat: /\b(the rand|rand (?:weaken|strengthen|firm|slip|gain|fall|rise)\w*|rand\/dollar|rand exchange rate)\b/,
+      exp: [{ ex: "JSE", sector: "Banks", sign: 1, s: .45 }, { ex: "JSE", sector: "Mining", sign: -1, s: .4 }],
+      note: "A stronger rand helps domestic earners but squeezes rand-hedge miners that earn in dollars." },
+    { id: "egp", label: "Egyptian pound", ctx: 1, pat: /\b(egyptian pound|egp devaluation)\b/,
+      exp: [{ ex: "EGX", sector: null, sign: 1, s: .6 }],
+      note: "EGX returns in dollar terms are dominated by the pound." },
+    { id: "local_rates", label: "Policy rate",
+      // the rate itself, not the institution: "CBK reports rise in gold prices"
+      // names the central bank and says nothing about the policy rate
+      pat: /\b(monetary policy|benchmark (?:interest )?rate|policy rate|repo rate|central bank rate|cbr|mpr|key rate|lending rates?|interest rates?|rates? (?:cut|hike|decision|unchanged|on hold)s?|(?:cut|cuts|hike|hikes|raise[sd]?|holds?|keeps?) (?:its |the )?(?:key |benchmark |policy )?(?:interest )?rates?)\b/,
+      exp: allEx("Banks", 1, .5).concat(allEx(null, -1, .35)),
+      note: "Higher policy rates widen bank lending margins but make shares worth less against safer interest income; cuts reverse both." },
+    { id: "inflation", label: "Inflation", ctx: 1, pat: /\b(inflation|consumer prices?|cpi)\b/,
+      exp: allEx(null, -1, .4),
+      note: "Rising inflation pulls rate hikes forward and squeezes real returns." },
+    { id: "bond_market", label: "Bond yields",
+      pat: /\b(eurobonds?|treasury bills?|t-?bills?|treasury bonds?|bond auction|bond yields?|yields? (?:rose|fell|rise|rising|climb\w*|slip\w*)|sukuk|green bond|corporate bond|debt issuance|bond sale|fgn bond|savings bond|bond issue|primary auction|reopened bonds?)\b/,
+      exp: allEx(null, -1, .45).concat(allEx("Banks", 1, .35)),
+      note: "Higher local yields pull money out of shares and into government paper, while widening what banks earn on their bond books." },
+    { id: "imf_debt", label: "IMF / sovereign",
+      pat: /\b(imf|international monetary fund|sovereign (?:debt|rating)|debt restructur\w+|world bank loan|moody'?s|s&p global ratings|fitch)\b/,
+      exp: allEx(null, 1, .45),
+      note: "Sovereign funding and rating news resets the risk premium on the whole local market." },
+    { id: "tax", label: "Tax / budget",
+      pat: /\b(finance bill|finance act|budget|excise duty|capital gains tax|withholding tax|digital service tax|tax (?:hike|increase|cut|relief))\b/,
+      exp: allEx(null, -1, .3),
+      note: "New taxes on companies, dividends or transactions come straight out of what shareholders keep." },
+    { id: "risk_off", label: "Geopolitics", inh: 1,
+      pat: /\b(tariffs?|trade war|sanctions|recession|war|conflict|coup|election violence|shutdown)\b/,
+      exp: allEx(null, -1, .35),
+      note: "Global risk aversion hits frontier liquidity first: foreign money leaves the smaller markets before the large ones." }
+  ];
+  // Corporate-event lexicon for a story that names a company: [regex, sign, strength].
+  var CORP = [
+    [/\b(record profit|profit (?:jump|jumps|surge|surges|rise|rises|rose|up|grow|grows|grew)|(?:posts?|posted|reports?|reported|announces?|announced|declares?|declared)\b[^.]{0,40}\b(?:profit|earnings|revenue growth|surplus)|returns? to profit|beats? (?:estimates|expectations|forecasts?)|strong (?:results|earnings|performance)|earnings beat|revenue (?:jump|jumps|rise|rises|grew|grow|surge|surges))\b/, 1, .9],
+    [/\b(dividend|payout|bonus issue|buy-?back|share buyback)\b/, 1, .7],
+    [/\b(acquisition|acquires?|merger|takeover|expansion|new plant|wins? (?:contract|licence|license)|upgrade[ds]?|ipo|rights issue)\b/, 1, .55],
+    [/\b(loss|losses|profit (?:fall|falls|drop|drops|slump|decline)|misses? (?:estimates|expectations)|earnings miss|writedown|write-down|impairment)\b/, -1, .9],
+    [/\b(probe|investigation|fraud|scandal|lawsuit|sues?|fine[ds]?|penalt(?:y|ies)|sanction(?:ed|s)?|default|insolvenc\w*|liquidation|administration)\b/, -1, .85],
+    [/\b(suspend(?:ed|s|ion)?|delist(?:ed|ing)?|halt(?:ed)?|downgrade[ds]?|profit warning|going concern|resigns?|steps? down|retrench\w*|strike|job cuts?)\b/, -1, .8]
+  ];
+  // A theme names its sector in the map's own words; the listings name theirs
+  // in four different vocabularies (Banks / Banking / Financial Services...).
+  var SECT = { "Banks": /bank/i, "Mining": /mining|resources|basic material|metal/i,
+               "Energy": /energy|oil|gas|petrol/i };
+  function sectorHit(want, have){
+    if (!want || !have) return false;
+    var re = SECT[want];
+    return re ? re.test(have) : String(want).toLowerCase() === String(have).toLowerCase();
+  }
+  function count(re, s){ var m = s.match(re); return m ? m.length : 0; }
+  function tagStory(n){
+    if (n._tag) return n._tag;
+    var t = unesc(n.title || "").toLowerCase();
+    var cues = {};
+    ALLEX.forEach(function(e){ if (EXCUE[e].test(t)) cues[e] = 1; });
+    // a local desk's story is about its own market even when it does not say so
+    if (n._home) cues[n._home] = 1;
+    var up = count(UPW, t), dn = count(DNW, t);
+    var dir = up > dn ? 1 : (dn > up ? -1 : 0);
+    var themes = [], effects = [];
+    THEMES.forEach(function(th){
+      if (!th.pat.test(t)) return;
+      if (th.ctx && !FINCTX.test(t)) return;
+      themes.push({ id: th.id, label: th.label, note: th.note });
+      th.exp.forEach(function(e){
+        var cued = !!cues[e.ex];
+        if (!th.inh && !cued) return;      // a local theme reaches only the market it names
+        effects.push({ ex: e.ex, sector: e.sector, sign: dir * e.sign, s: e.s * (cued ? 1 : .7),
+                       via: th.label, note: th.note });
+      });
+    });
+    var cd = 0, cs = 0;
+    CORP.forEach(function(c){ if (c[0].test(t) && c[2] > cs){ cd = c[1]; cs = c[2]; } });
+    n._tag = { themes: themes, effects: effects, corp: cd, cues: cues, dir: dir };
+    return n._tag;
+  }
+  // The effect this story has on one market (and optionally one sector):
+  // a sector-specific exposure beats the market-wide one, then strength decides.
+  function bestEffect(tg, ex, sector){
+    var best = null;
+    tg.effects.forEach(function(e){
+      if (e.ex !== ex) return;
+      var spec = e.sector ? (sectorHit(e.sector, sector) ? 2 : 0) : 1;
+      if (!spec) return;
+      if (!best || spec > best.spec || (spec === best.spec && e.s > best.e.s)) best = { spec: spec, e: e };
+    });
+    return best;
+  }
+
+  // ---- THE READER'S BOOK ---------------------------------------------------
+  // Read-only, from the same localStorage key the TRADE panel writes
+  // ({ <EX>: { positions: { <sym>: { qty, avg } } } }). Nothing is sent anywhere:
+  // the match of a story to a holding is made here.
+  var BOOK = [];          // [{ sym, ex, qty, sec, sector }]
+  var BOOKONLY = false;
+  var LISTS = {};         // EX -> listing rows, for holdings on other boards
+  function readBookRaw(){
+    var raw = null;
+    try { raw = localStorage.getItem("mx_paper_v1") || localStorage.getItem("mt_paper_v1"); } catch(e){}
+    if (!raw) return [];
+    var all = null;
+    try { all = JSON.parse(raw); } catch(e){ return []; }
+    var out = [];
+    Object.keys(all || {}).forEach(function(k){
+      var b = all[k];
+      if (!b || typeof b !== "object" || !b.positions) return;
+      var ex = ALLEX.indexOf(k) >= 0 ? k : null;
+      Object.keys(b.positions).forEach(function(sym){
+        var q = +((b.positions[sym] || {}).qty);
+        if (!q) return;
+        out.push({ sym: baseTicker(sym), ex: ex, qty: q });
+      });
+    });
+    return out;
+  }
+  function secFrom(r, ex){
+    var tk = baseTicker(r.ticker || r.code || r.sym);
+    var s = { tk: tk, name: String(r.name || ""), phrase: namePhrase(r.name), isin: "", alt: [],
+              sector: String(r.sector || "") };
+    if (ex === "NSE") (RENAMES[tk] || []).forEach(function(x){ addAlt(s, toks(x)); });
+    return s;
+  }
+  function loadList(ex){
+    if (LISTS[ex]) return Promise.resolve(LISTS[ex]);
+    return fetch("../../static_data/listing_" + ex + ".json")
+      .then(function(r){ if (!r.ok) throw 0; return r.json(); })
+      .then(function(d){ LISTS[ex] = (d && d.stocks) || []; return LISTS[ex]; })
+      .catch(function(){ LISTS[ex] = []; return []; });
+  }
+  function loadBook(){
+    var raw = readBookRaw();
+    var need = {};
+    raw.forEach(function(h){ if (h.ex) need[h.ex] = 1; else ALLEX.forEach(function(e){ need[e] = 1; }); });
+    return Promise.all(Object.keys(need).map(loadList)).then(function(){
+      BOOK = raw.map(function(h){
+        var exs = h.ex ? [h.ex] : ALLEX;
+        for (var i = 0; i < exs.length; i++){
+          var rows = LISTS[exs[i]] || [];
+          for (var j = 0; j < rows.length; j++){
+            if (baseTicker(rows[j].ticker || rows[j].code || rows[j].sym) === h.sym){
+              var s = secFrom(rows[j], exs[i]);
+              return { sym: h.sym, ex: exs[i], qty: h.qty, sec: s, sector: s.sector };
+            }
+          }
+        }
+        return { sym: h.sym, ex: h.ex, qty: h.qty, sec: null, sector: "" };
+      });
+      var btn = document.getElementById("bookBtn");
+      btn.disabled = !BOOK.length;
+      btn.textContent = "MY BOOK" + (BOOK.length ? " (" + BOOK.length + ")" : "");
+      btn.title = BOOK.length
+        ? "Show only the stories that touch the " + BOOK.length + " holdings in your paper book"
+        : "No holdings in this browser's paper book yet - buy in TRADE and the stories that touch them are flagged here";
+      if (!BOOK.length) BOOKONLY = false;
+      NEWSROWS.forEach(function(n){ n._hits = null; });
+      if (READY) renderNews();
+    });
+  }
+  // A holding is NAMED by a story only on strong evidence: the row's own ticker
+  // field, the ticker written in capitals as a whole word (3+ letters, so "KQ"
+  // or "ART" in running text never count), the company's name phrase or an
+  // evidenced former name. A miss is better than a wrong story on a holding.
+  function names(n, s){
+    var tk = rowTickers(n);
+    for (var j = 0; j < tk.length; j++) if (tk[j] === s.tk) return true;
+    var raw = unesc(n.title || "");
+    if (s.tk.length >= 3 && new RegExp("(^|[^A-Za-z0-9])" + s.tk.replace(/[^A-Z0-9]/g, "") + "([^A-Za-z0-9]|$)").test(raw)) return true;
+    var text = rowText(n);
+    if (s.phrase.length && hasRun(text, s.phrase)) return true;
+    for (var k = 0; k < s.alt.length; k++) if (hasRun(text, s.alt[k])) return true;
+    return false;
+  }
+  function bookHits(n){
+    if (n._hits) return n._hits;
+    var tg = tagStory(n), out = [];
+    BOOK.forEach(function(h){
+      if (h.sec && names(n, h.sec)){
+        out.push({ h: h, how: "named", sign: tg.corp, e: null });
+        return;
+      }
+      if (!h.ex) return;
+      var b = bestEffect(tg, h.ex, h.sector);
+      // A market-wide theme whose headline states no move (a T-bill auction
+      // notice, a bond-index launch) would flag every holding on that board at
+      // once and say nothing. It stays in the MARKET READ; it touches the book
+      // only when the move is stated, or when the exposure is the holding's own
+      // sector.
+      if (b && b.spec === 1 && !b.e.sign) b = null;
+      if (b) out.push({ h: h, how: b.spec === 2 ? "sector" : "market", sign: b.e.sign, e: b.e });
+    });
+    n._hits = out;
+    return out;
+  }
+  // A cross-market wire story belongs on this board only when it reaches it:
+  // through the exposure map, by naming the market, or by touching the book.
+  function relevantHere(n){
+    if (!n._live || n._home) return true;
+    var tg = tagStory(n);
+    if (tg.cues[CUR]) return true;
+    for (var i = 0; i < tg.effects.length; i++) if (tg.effects[i].ex === CUR) return true;
+    return bookHits(n).length > 0;
+  }
+  // The cross-market wire files a hundred-odd macro stories a day, most of them
+  // the same oil or dollar move retold. On a board's own page they are capped
+  // at the newest GLOBAL_CAP, so the market's own desks still lead.
+  var GLOBAL_CAP = 30;
+  function capGlobal(rows){
+    var g = 0;
+    return rows.filter(function(n){
+      if (!n._live || n._home) return true;
+      return ++g <= GLOBAL_CAP;
+    });
+  }
+  function arrow(sign){ return sign > 0 ? "▲" : (sign < 0 ? "▼" : "◆"); }
+  function cls(sign){ return sign > 0 ? "up" : (sign < 0 ? "dn" : ""); }
+  function impactCell(n){
+    var hits = bookHits(n);
+    if (hits.length){
+      var groups = { "1": [], "-1": [], "0": [] };
+      hits.forEach(function(x){ groups[String(x.sign > 0 ? 1 : (x.sign < 0 ? -1 : 0))].push(x.h.sym); });
+      return ["1", "-1", "0"].filter(function(k){ return groups[k].length; }).map(function(k){
+        var g = groups[k], sg = +k;
+        return '<span class="im mine ' + cls(sg) + '" data-x="1" title="Touches your book - click for why">' +
+               arrow(sg) + " " + esc(g.slice(0, 3).join(" ")) + (g.length > 3 ? " +" + (g.length - 3) : "") + '</span>';
+      }).join("");
+    }
+    var tg = tagStory(n);
+    var b = bestEffect(tg, CUR, null), sec = null;
+    tg.effects.forEach(function(e){ if (e.ex === CUR && e.sector && (!sec || e.s > sec.s)) sec = e; });
+    var out = "";
+    if (b) out += '<span class="im ' + cls(b.e.sign) + '" data-x="1" title="' + esc(b.e.via) + ' - click for why">' +
+                  arrow(b.e.sign) + " " + esc(CUR) + " · " + esc(b.e.via.toUpperCase()) + '</span>';
+    if (sec && (!b || sec.sign !== b.e.sign))
+      out += '<span class="im ' + cls(sec.sign) + '" data-x="1">' + arrow(sec.sign) + " " + esc(sec.sector.toUpperCase()) + '</span>';
+    if (!out && tg.corp && (n.tickers || []).length)
+      out = '<span class="im ' + cls(tg.corp) + '" data-x="1">' + arrow(tg.corp) + " " + esc(n.tickers[0]) + '</span>';
+    return out;
+  }
+  function signWords(sign){
+    return sign > 0 ? '<span class="u">usually supportive</span>'
+         : (sign < 0 ? '<span class="d">usually a drag</span>'
+         : "direction not stated in the headline - one to watch");
+  }
+  function detailHtml(n){
+    var tg = tagStory(n), hits = bookHits(n), lines = [];
+    var notes = {};
+    tg.themes.forEach(function(t){ notes[t.label] = t.note; });
+    Object.keys(notes).forEach(function(k){
+      lines.push('<div class="ln"><span class="k">WHY IT MATTERS · ' + esc(k.toUpperCase()) + '</span>' + esc(notes[k]) + '</div>');
+    });
+    if (hits.length){
+      hits.forEach(function(x){
+        var where = esc(x.h.sym) + ' <span class="k">' + esc((x.h.ex || "") + (x.h.sector ? " · " + x.h.sector : "")) + '</span>';
+        var why;
+        if (x.how === "named")
+          why = "named in this story; " + (x.sign > 0 ? '<span class="u">the wording reads positive</span> (results, dividend or deal language)'
+              : (x.sign < 0 ? '<span class="d">the wording reads negative</span> (loss, probe, suspension or exit language)'
+              : "no clear positive or negative wording - read it"));
+        else
+          why = "exposed through " + esc(x.e.via) + (x.how === "sector" ? " (its sector)" : " (its whole market)") + ": " + signWords(x.sign);
+        lines.push('<div class="ln"><span class="k">YOUR BOOK</span>' + where + " - " + why + '</div>');
+      });
+    } else {
+      var seen = {};
+      tg.effects.filter(function(e){ return e.ex === CUR; }).forEach(function(e){
+        var k = (e.sector || "all") + e.via;
+        if (seen[k]) return; seen[k] = 1;
+        lines.push('<div class="ln"><span class="k">MARKET READ</span>' + esc(CUR) + " " +
+                   esc(e.sector ? e.sector.toLowerCase() : "shares overall") + " via " + esc(e.via) + ": " + signWords(e.sign) + '</div>');
+      });
+      if (tg.corp && (n.tickers || []).length)
+        lines.push('<div class="ln"><span class="k">COMPANY</span>' + esc(n.tickers.join(", ")) + ": " +
+                   (tg.corp > 0 ? '<span class="u">the wording reads positive</span>' : '<span class="d">the wording reads negative</span>') + '</div>');
+      if (!BOOK.length)
+        lines.push('<div class="ln"><span class="k">YOUR BOOK</span>no holdings in this browser\'s paper book - buy in TRADE and the stories that touch them are flagged.</div>');
+    }
+    if (!lines.length) lines.push('<div class="ln">No market theme or listed company recognised in this headline.</div>');
+    lines.push('<div class="fine">A rules-based read of the headline against a fixed exposure map: which way this kind of news has tended to push, not a forecast and not investment advice.</div>');
+    return lines.join("");
+  }
+  var OPEN = {};    // row key -> detail open
+  function summaryHtml(rows){
+    if (!BOOK.length) return "";
+    var now = Date.now() / 1000, n24 = 0, up = 0, dn = 0, by = {};
+    rows.forEach(function(n){
+      if (!n._t || now - n._t > 86400) return;
+      var h = bookHits(n);
+      if (!h.length) return;
+      n24++;
+      h.forEach(function(x){
+        if (x.sign > 0) up++; else if (x.sign < 0) dn++;
+        var b = by[x.h.sym] || (by[x.h.sym] = { n: 0, s: 0 });
+        b.n++; b.s += x.sign;
+      });
+    });
+    if (!n24) return '<span class="hint">Nothing in the last 24h touches the ' + BOOK.length + ' holdings in your paper book.</span>';
+    var top = Object.keys(by).sort(function(a, b){ return by[b].n - by[a].n; }).slice(0, 5).map(function(k){
+      var s = by[k].s;
+      return '<b class="' + (s > 0 ? "u" : (s < 0 ? "d" : "")) + '">' + arrow(s) + " " + esc(k) + "</b> " + by[k].n;
+    }).join(" · ");
+    return '<span>LAST 24H · <b>' + n24 + '</b> ' + (n24 === 1 ? "story touches" : "stories touch") + ' your book</span>' +
+           '<span><span class="u">▲ ' + up + '</span> supportive · <span class="d">▼ ' + dn + '</span> drag</span>' +
+           '<span>' + top + '</span>';
+  }
+
+  // ---- LIVE WIRE ----------------------------------------------------------
+  // The backend keeps a rolling wire of market-scoped feeds, re-read every two
+  // minutes (backend_render/live_news.py). The panel asks for what is new once
+  // a minute, while it is visible, and folds it into the same table. When the
+  // backend cannot be reached the panel keeps the snapshot and says so: the
+  // status light is the only claim the panel makes about how fresh it is.
+  //
+  // Which backend: a ?api= handed in by the shell, checked against the known
+  // hosts so a crafted link cannot aim these reads elsewhere; otherwise the
+  // terminal's own Render service, the same default the shell uses.
+  var API = (function(){
+    try {
+      var v = new URLSearchParams(location.search).get("api");
+      if (v){
+        var u = new URL(v, location.href);
+        if (u.protocol !== "https:" && u.protocol !== "http:") return "";
+        if (u.origin === location.origin || u.hostname === "mutxri-terminal.onrender.com" ||
+            u.hostname === "localhost" || u.hostname === "127.0.0.1") return u.origin;
+        return "";
+      }
+    } catch(e){}
+    return "https://mutxri-terminal.onrender.com";
+  })();
+  var LIVE = { state: "off", since: 0, updated: 0, timer: null, first: true };
+  var LIVE_MS = 60000;
+  var SEEN = {};    // url and headline keys of every row already in the table
+  function tkey(n){ return "t:" + String((n && n.title) || "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").slice(0, 90); }
+  function admit(n){
+    var a = key(n), b = tkey(n);
+    if (SEEN[a] || SEEN[b]) return false;
+    SEEN[a] = 1; SEEN[b] = 1;
+    return true;
+  }
+  function setLive(state, tip){
+    LIVE.state = state;
+    var el = document.getElementById("live"), tx = document.getElementById("liveTx");
+    el.className = "live" + (state === "on" ? " on" : (state === "wait" ? " wait" : ""));
+    if (state === "on"){
+      var d = new Date(LIVE.updated * 1000);
+      tx.textContent = "LIVE · " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+    } else tx.textContent = state === "wait" ? "CONNECTING" : "SNAPSHOT";
+    el.title = tip || "";
+  }
+  function schedule(){
+    clearTimeout(LIVE.timer);
+    LIVE.timer = setTimeout(pollLive, LIVE_MS);
+  }
+  function pollLive(){
+    if (!API){ setLive("off", "No live backend for this page - showing the published snapshot."); return; }
+    if (document.hidden){ schedule(); return; }
+    if (LIVE.state !== "on") setLive("wait", "Connecting to the live wire (the backend can take up to a minute to wake).");
+    var ctl = window.AbortController ? new AbortController() : null;
+    var to = setTimeout(function(){ if (ctl) ctl.abort(); }, 60000);
+    fetch(API + "/api/news/live?ex=" + encodeURIComponent(CUR) + (LIVE.since ? "&since=" + LIVE.since : ""),
+          { cache: "no-store", signal: ctl ? ctl.signal : undefined })
+      .then(function(r){ if (!r.ok) throw 0; return r.json(); })
+      .then(function(d){
+        clearTimeout(to);
+        if (!d || !d.ok) throw 0;
+        LIVE.updated = d.updated || Math.floor(Date.now() / 1000);
+        var added = 0, mark = !LIVE.first, now = Date.now();
+        (d.items || []).forEach(function(r){
+          if (r.seen > LIVE.since) LIVE.since = r.seen;
+          if (PRESS_ONLY && !r.home) return;
+          var n = { title: r.title, url: r.url, publisher: r.publisher, ts: r.ts, tickers: [],
+                    _live: true, _home: r.home || null, _clock: true };
+          n._t = n.ts;
+          if (!n.title || !admit(n)) return;
+          if (mark) n._newAt = now;
+          NEWSROWS.push(n);
+          added++;
+        });
+        LIVE.first = false;
+        setLive("on", "Live wire: " + (d.feeds - (d.feeds_down || 0)) + " of " + d.feeds +
+                " feeds answering, re-read every " + Math.round((d.poll || 120) / 60) +
+                " min; this panel checks every minute. Snapshot rows are kept below.");
+        if (added){
+          NEWSROWS.sort(function(a, b){ return b._t - a._t; });
+          renderNews();
+        }
+        schedule();
+      })
+      .catch(function(){
+        clearTimeout(to);
+        setLive(LIVE.updated ? "wait" : "off", LIVE.updated
+          ? "Live wire did not answer the last check - retrying. Rows already shown stay."
+          : "Live wire unreachable - showing the published snapshot, refreshed every few hours.");
+        schedule();
+      });
+  }
+  document.addEventListener("visibilitychange", function(){
+    if (!document.hidden && LIVE.state !== "off" && API){ clearTimeout(LIVE.timer); pollLive(); }
+  });
+  // TRADE writes the book from another frame; follow it.
+  window.addEventListener("storage", function(e){
+    if (e.key === "mx_paper_v1" || e.key === "mt_paper_v1") loadBook();
+  });
+
   // The feeds date their items differently: the bot emits an epoch ts, the NGX
   // disclosures use "2026-08-28", and the older collectors use "Sep 3". Reduce
   // them all to one number so a merged list can be ordered honestly; anything
@@ -658,16 +1169,17 @@
     jobs.push(load(CORP_FILE[CUR]).then(function(d){ return { kind: "corp", rows: d }; }));
 
   Promise.all(jobs).then(function(srcs){
-    var seen = {}, all = [];
+    var all = [];
     srcs.forEach(function(s){
       var rows = s.kind === "plain" ? (s.rows || [])
                : (s.kind === "reg" ? regRows(s.rows) : corpRows(s.rows));
       rows.forEach(function(n){
         if(!n || !n.title) return;
-        var k = key(n);
-        if(seen[k]) return;
-        seen[k] = 1;
+        if(!admit(n)) return;
         n._t = stamp(n);
+        // every snapshot file is filed per exchange, so its rows are this
+        // board's stories for the impact read
+        n._home = CUR;
         // WHICH ROWS MAY PRINT A TIME. Only the press feed publishes one: its
         // items carry a real epoch stamp, 823 of 823 on the NSE file, with a
         // genuine hour and minute. A corporate action is dated to the day and
@@ -680,11 +1192,12 @@
         all.push(n);
       });
     });
-    if(!all.length){ el.innerHTML = '<div class="empty">no news</div>'; return; }
     all.sort(function(a, b){ return b._t - a._t; });
-    NEWSROWS = all;
+    // rows the live wire may already have delivered stay
+    NEWSROWS = NEWSROWS.concat(all).sort(function(a, b){ return b._t - a._t; });
     READY = true;
     renderNews();
+    pollLive();
   });
 
   // Corporate actions must not lose a date race. NGX files ~300 press items a
@@ -741,8 +1254,22 @@
     var secs = qraw ? resolveSec(qraw) : null;
     chip(qraw, secs);
     var shown;
-    if(!qraw){
-      shown = windowRows(NEWSROWS);
+    var pool = capGlobal(NEWSROWS.filter(relevantHere));
+    document.getElementById("sum").style.display = BOOK.length ? "flex" : "none";
+    document.getElementById("sum").innerHTML = summaryHtml(pool);
+    document.getElementById("bookBtn").className = "bk" + (BOOKONLY ? " on" : "");
+    if(!NEWSROWS.length){ el.innerHTML = '<div class="empty">no news</div>'; return; }
+    if(BOOKONLY){
+      // the book view reads the whole wire, not the display window, so an older
+      // story about a holding is not cut by the 120-row limit
+      shown = pool.filter(function(n){ return bookHits(n).length > 0; });
+      if(qraw && secs) shown = shown.filter(function(n){ return !n._reg && rowMatch(n, secs); });
+      if(!shown.length){
+        el.innerHTML = '<div class="empty">Nothing in this window touches your book' + (qraw ? ' for ' + esc(qraw) : '') + '.</div>';
+        return;
+      }
+    } else if(!qraw){
+      shown = windowRows(pool);
     } else if(!secs){
       // A query that names no listed security is not a filter anyone can
       // honour: nothing is shown, and the empty state names the query.
@@ -755,15 +1282,16 @@
       // issuer at all (REG_ISO only narrows them to a country), so no item of it
       // can belong to one security; it is hidden rather than shown under that
       // security's name.
-      shown = NEWSROWS.filter(function(n){ return !n._reg && rowMatch(n, secs); });
+      shown = pool.filter(function(n){ return !n._reg && rowMatch(n, secs); });
     }
     if(!shown.length){ el.innerHTML = emptyState(qraw, secs); return; }
+    var nowMs = Date.now();
     el.innerHTML =
       '<div class="nwrap"><table class="nt"><thead><tr>' +
-        '<th class="c-head">Headline</th><th>Date</th><th>Time</th>' +
+        '<th class="c-head">Headline</th><th>Impact</th><th>Date</th><th>Time</th>' +
         '<th>Ticker</th><th>Source</th>' +
       '</tr></thead><tbody>' +
-      shown.map(function(n){
+      shown.map(function(n, i){
         var head = n.url
           ? '<a href="' + esc(n.url) + '" target="_blank" rel="nofollow noopener">' + esc(n.title) + '</a>'
           : '<span class="nl">' + esc(n.title) + '</span>';
@@ -772,16 +1300,37 @@
         var tick = tks.length
           ? esc(tks[0]) + (tks.length > 1 ? ' +' + (tks.length - 1) : '')
           : '';
-        return '<tr>' +
+        var k = key(n), isNew = n._newAt && nowMs - n._newAt < 7000;
+        return '<tr data-i="' + i + '"' + (isNew ? ' class="new"' : '') + '>' +
           '<td class="c-head">' + head + '</td>' +
+          '<td class="c-imp">' + impactCell(n) + '</td>' +
           '<td class="c-date">' + esc(dt) + '</td>' +
           '<td class="c-time">' + esc(tm) + '</td>' +
           '<td class="c-tick">' + tick + '</td>' +
           '<td class="c-src" title="' + esc(n.publisher || "") + '">' + esc(n.publisher || "") + '</td>' +
-        '</tr>';
+        '</tr>' +
+        (OPEN[k] ? '<tr class="det"><td colspan="6">' + detailHtml(n) + '</td></tr>' : '');
       }).join("") +
       '</tbody></table></div>';
+    SHOWN = shown;
   }
+  // Clicking an impact mark opens the reasoning under its row.
+  var SHOWN = [];
+  el.addEventListener("click", function(e){
+    var t = e.target;
+    if(!t || !t.getAttribute || t.getAttribute("data-x") !== "1") return;
+    var tr = t.closest ? t.closest("tr") : null;
+    var n = tr ? SHOWN[+tr.getAttribute("data-i")] : null;
+    if(!n) return;
+    var k = key(n);
+    OPEN[k] = !OPEN[k];
+    renderNews();
+  });
+  document.getElementById("bookBtn").addEventListener("click", function(){
+    if(!BOOK.length) return;
+    BOOKONLY = !BOOKONLY;
+    renderNews();
+  });
 
   // Date and time are read from ONE source per row so the two can never
   // disagree. A press row has a published epoch stamp and prints both from it,
@@ -832,6 +1381,7 @@
   qEl.addEventListener("blur", function(){ setTimeout(hideSugg, 120); });
   function onQuery(){ SUGSEL = -1; renderNews(); drawSugg(qEl.value); }
   loadSecurities();
+  loadBook();
 })();
 </script>
 </body>
