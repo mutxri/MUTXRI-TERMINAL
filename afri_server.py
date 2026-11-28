@@ -952,6 +952,64 @@ def eod_bars(sym):
     return None
 
 # ---------------- HTTP handler ----------------
+# ---------------- PRO data ----------------
+# pro_data/ is built by build_valuation.py and never ships with the static site.
+# Every /api/pro/* answer is decided here: a live Pro session gets the record,
+# anyone else gets a locked answer that carries no fair value and no signal.
+import pro_plans
+pro_plans.init(_mongo_db, _mongo_ok)
+_PRO_EX = {"NSE", "NGX", "JSE", "EGX"}
+_PRO_SYM = re.compile(r"^[A-Za-z0-9._-]{1,32}$")
+PRO_FEATURES = ["Fair value from four models (cash flow, peer earnings, book value, dividends)",
+                "Premium or discount to fair value",
+                "Model signal: BUY, ACCUMULATE, HOLD, SELL or SHORT, with the reasons",
+                "Three-year revenue and earnings estimates with low and high cases",
+                "Company guidance next to the model, where the company has published it"]
+
+
+def _bearer(header):
+    h = (header or "").strip()
+    return h[7:].strip() if h.lower().startswith("bearer ") else ""
+
+
+def _pro_file(*parts):
+    return pro_plans.get("/".join(parts))
+
+
+def pro_route(path, auth_header):
+    q = urllib.parse.parse_qs(path.query)
+    who = pro_plans.pro_session(_bearer(auth_header))
+    plan = who["plan"] if who else "anonymous"
+    if path.path == "/api/pro/valuation":
+        ex = (q.get("ex") or [""])[0].upper()
+        sym = (q.get("ticker") or [""])[0]
+        if ex not in _PRO_EX or not _PRO_SYM.match(sym):
+            return {"ok": False, "error": "ex and ticker are required"}
+        rec = _pro_file("valuation", "%s_%s.json" % (ex, sym))
+        # the track record is public on purpose: anyone deciding whether to pay
+        # should see how the signal did, including where it did not work
+        track = _pro_file("valuation", "backtest.json")
+        if plan != "pro":
+            return {"ok": True, "locked": True, "plan": plan, "ticker": sym, "exchange": ex,
+                    "name": (rec or {}).get("name"), "available": bool(rec),
+                    "price": (rec or {}).get("price"), "features": PRO_FEATURES, "track_record": track}
+        if not rec:
+            return {"ok": True, "locked": False, "plan": plan, "available": False, "ticker": sym,
+                    "exchange": ex, "reasons": ["no valuation built for this security"]}
+        rec = dict(rec)
+        rec.update({"ok": True, "locked": False, "plan": plan, "available": True, "track_record": track})
+        return rec
+    if path.path == "/api/pro/signals":
+        if plan != "pro":
+            return {"ok": True, "locked": True, "plan": plan, "features": PRO_FEATURES,
+                    "track_record": _pro_file("valuation", "backtest.json")}
+        idx = _pro_file("valuation", "index.json") or {}
+        ex = (q.get("ex") or [""])[0].upper()
+        rows = [r for r in idx.get("securities", []) if not ex or r.get("exchange") == ex]
+        return {"ok": True, "locked": False, "plan": plan, "built": idx.get("built"), "securities": rows}
+    return {"ok": False, "error": "unknown pro route"}
+
+
 def _sanitize(obj):
     """Recursively replace NaN/Infinity with None (invalid JSON -> null)."""
     import math
@@ -1385,7 +1443,8 @@ class Handler(SimpleHTTPRequestHandler):
             self.json(rates())
         elif path.path == "/api/health":
             self.json({"ok": True, "time": time.time(), "db": auth_api.store_mode(),
-                       "chat": chat_room.store_mode() if chat_room else "off"})
+                       "chat": chat_room.store_mode() if chat_room else "off",
+                       "pro": pro_plans.stats()})
         elif path.path == "/api/financials":
             # Claude's per-statement endpoint, served from OUR real AF data
             q = urllib.parse.parse_qs(path.query)
@@ -1444,6 +1503,8 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self.json({"ticker": ticker, "statement": statement, "available": False,
                            "rows": [], "note": "financials unavailable: %s" % str(e)[:60]})
+        elif path.path.startswith("/api/pro/"):
+            self.json(pro_route(path, self.headers.get("Authorization", "")))
         elif path.path.startswith("/api/auth/oauth/"):
             # /api/auth/oauth/<provider>/<start|callback>
             parts = [pp for pp in path.path.split("/") if pp]
@@ -1620,6 +1681,27 @@ class Handler(SimpleHTTPRequestHandler):
         # dm.py computes the room from that person's address and the caller's own
         # verified one, so there is no room id a caller could send that would
         # reach a conversation they are not part of.
+        # PRO: load the paid data into this server's own database (ingest key
+        # required, see pro_plans.py), and grant or remove Pro (owner session or
+        # ADMIN_KEY). Both are POST only, so no key ever sits in a URL.
+        if path.path in ("/api/pro/ingest", "/api/pro/set_plan"):
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                limit = 12 * 1024 * 1024 if path.path == "/api/pro/ingest" else 65536
+                data = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= limit else {}
+                if not isinstance(data, dict):
+                    data = {}
+            except Exception:
+                data = {}
+            if path.path == "/api/pro/ingest":
+                self.json(pro_plans.ingest(self.headers.get("X-Pro-Ingest-Key", ""), data.get("files")))
+            else:
+                if rate_limited(real_ip(self), "set_plan"):
+                    self.send_error(429, "too many attempts")
+                    return
+                self.json(pro_plans.admin_set_plan(data.get("key", ""), data.get("token", ""),
+                                                   data.get("email", ""), data.get("days", 0)))
+            return
         if path.path.startswith("/api/dm/"):
             act = path.path.split("/")[-1]
             if act not in ("send", "history", "threads", "directory"):
@@ -1760,7 +1842,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Vary", "Origin")
         self.end_headers()
 
