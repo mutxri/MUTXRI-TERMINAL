@@ -1,26 +1,20 @@
 <!DOCTYPE html>
 <!--
   MUTXRI TERMINAL - CALC panel.
-  A reader's own trade, worked out line by line: what the position cost to get into,
-  what it cost to get out of, what the tax on it is, and what is left. Vanilla JS.
+  Pick a security off the board, then see the whole round trip: what the broker and the
+  statutory levies take on each side, what the tax on the dividend and on the gain is,
+  and what is left. Vanilla JS, no library.
 
-  NOTHING IS WITHHELD. Every rate that goes into the answer is a field on this
-  panel, prefilled where a published figure exists and zeroed where it does not, so
-  a reader can see the whole arithmetic rather than a single number with no working.
-
-  Rates are prefilled ONLY where a published figure was read:
-    NSE  charges per side 1.85% of consideration on a trade above KES 100,000
-         (Stanbic Bank Kenya, trading charges FAQ). Below that threshold the
-         schedule differs by broker, so the field is editable and the panel says so.
-    NSE  capital gains on listed shares 0% - Kenya's 15% CGT applies to property
-         and to unlisted shares, not to shares sold on the exchange.
-    NSE  dividend withholding 5% for residents (KRA).
-  NGX, JSE and EGX are left at 0 with the reason printed: no verified schedule has
-  been loaded for those markets, and an invented fee would be worse than a zero the
-  reader can fill in from their own broker's note.
+  THE FEES ARE THE BROKER'S, NOT A GUESS. The schedule is read from
+  static_data/broker_fees.json, which carries the published client charges for each
+  market with its source named. NSE is on file (Faida Investment Bank: brokerage
+  1.76% at or below KES 100,000 and 1.5% above it, plus NSE 0.12%, CMA 0.12%, CDSC
+  0.08%, CDSC guarantee 0.01%, CMA guarantee 0.01% - a 2.10% / 1.84% round trip).
+  A market with no schedule on file charges nothing and says so, because an invented
+  levy is worse than a zero the reader can see. Every rate is a field either way.
 -->
 <html lang="en">
-<head>
+<head><script>(function(){var V='20261128064903';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128064903';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MUTXRI TERMINAL - CALC</title>
@@ -45,9 +39,18 @@
   .cxs button{background:transparent;border:1px solid var(--line2);color:var(--tx2);font:inherit;
     font-size:9.5px;letter-spacing:.08em;padding:2px 6px;cursor:pointer;border-radius:2px;}
   .cxs button.on{border-color:var(--acc);color:var(--acc);}
-  .cx-cur{color:var(--tx3);font-size:9.5px;letter-spacing:.08em;}
 
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;}
+  .pick{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 2px;}
+  .pick input[type=text]{flex:1 1 130px;min-width:110px;background:var(--bg2);border:1px solid var(--line2);
+    color:var(--tx);font:inherit;font-size:11px;padding:4px 6px;border-radius:2px;}
+  .pick select{flex:2 1 220px;background:var(--bg2);border:1px solid var(--line2);color:var(--tx);
+    font:inherit;font-size:11px;padding:4px 6px;border-radius:2px;}
+  .pick input:focus,.pick select:focus{outline:none;border-color:var(--acc);}
+  .quo{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;padding:4px 0 2px;color:var(--tx2);font-size:10.5px;}
+  .quo b{color:var(--tx);font-weight:600;}
+  .quo .up{color:var(--up);} .quo .down{color:var(--down);}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:8px;}
   @media (max-width:620px){.grid{grid-template-columns:1fr;}}
   .fld{display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid var(--line);}
   .fld label{flex:1 1 auto;color:var(--tx2);font-size:10.5px;}
@@ -63,65 +66,56 @@
   td.k{color:var(--tx2);font-size:10.5px;}
   td.v{text-align:right;font-size:11px;white-space:nowrap;}
   td.w{color:var(--tx3);font-size:9.5px;padding-left:10px;}
+  tr.sub td.k{padding-left:12px;font-size:10px;color:var(--tx3);}
+  tr.sub td.v{font-size:10px;color:var(--tx2);}
   .tot td{border-bottom:none;padding-top:7px;}
   .tot td.k{color:var(--tx);font-weight:600;}
   .tot td.v{font-size:13px;font-weight:600;}
   .up{color:var(--up);} .down{color:var(--down);} .mut{color:var(--tx3);}
   .note{color:var(--tx3);font-size:9.5px;line-height:1.5;margin:8px 0 0;}
-  .warn{color:#e0b341;}
+  #t_sens tr.here td{background:#161616;}
+  #t_sens tr.here td.k{color:var(--tx);}
 </style>
 </head>
 <body>
 <div class="cx">
   <div class="cx-hd">
     <h1>Returns, costs and tax</h1>
-    <span class="cx-cur" id="cur">KES</span>
     <div class="cxs" id="xs"></div>
   </div>
 
+  <div class="pick">
+    <input id="q" type="text" placeholder="filter by ticker or name" autocomplete="off">
+    <select id="sym" size="1"></select>
+  </div>
+  <div class="quo" id="quo"><span class="mut">reading the board</span></div>
+
   <div class="grid">
     <div class="fld"><label>Shares</label><input id="qty" type="number" min="0" step="1" value="1000"><span class="u"></span></div>
-    <div class="fld"><label>Bought at</label><input id="buy" type="number" min="0" step="0.01" value="20"><span class="u">px</span></div>
-    <div class="fld"><label>Sold at</label><input id="sell" type="number" min="0" step="0.01" value="24"><span class="u">px</span></div>
+    <div class="fld"><label>Or cash to invest</label><input id="cash" type="number" min="0" step="1000" value="0"><span class="u">amt</span></div>
+    <div class="fld"><label>Bought at</label><input id="buy" type="number" min="0" step="0.01" value="0"><span class="u">px</span></div>
+    <div class="fld"><label>Sold at</label><input id="sell" type="number" min="0" step="0.01" value="0"><span class="u">px</span></div>
     <div class="fld"><label>Held for</label><input id="days" type="number" min="1" step="1" value="365"><span class="u">d</span></div>
-    <div class="fld"><label>Cost to buy</label><input id="cbuy" type="number" min="0" step="0.01" value="1.85"><span class="u">%</span></div>
-    <div class="fld"><label>Cost to sell</label><input id="csell" type="number" min="0" step="0.01" value="1.85"><span class="u">%</span></div>
+    <div class="fld"><label>Brokerage</label><input id="brok" type="number" min="0" step="0.01" value="0"><span class="u">%</span></div>
+    <div class="fld"><label>Costs, if you want one flat rate</label><input id="flat" type="number" min="0" step="0.01" value="0"><span class="u">%</span></div>
     <div class="fld"><label>Dividends per share</label><input id="div" type="number" min="0" step="0.01" value="0"><span class="u">px</span></div>
-    <div class="fld"><label>Tax on dividends</label><input id="dtax" type="number" min="0" step="0.01" value="5"><span class="u">%</span></div>
+    <div class="fld"><label>Tax on dividends</label><input id="dtax" type="number" min="0" step="0.01" value="0"><span class="u">%</span></div>
     <div class="fld"><label>Tax on the gain</label><input id="gtax" type="number" min="0" step="0.01" value="0"><span class="u">%</span></div>
     <div class="fld"><label>Other costs</label><input id="other" type="number" min="0" step="0.01" value="0"><span class="u">amt</span></div>
   </div>
-  <p class="note" id="rateNote"></p>
+  <p class="note" id="rateNote">reading the published broker schedule</p>
 
   <h2>What the position cost</h2>
-  <table>
-    <tr><td class="k">Consideration to buy</td><td class="v" id="o_bcons"></td><td class="w" id="w_bcons"></td></tr>
-    <tr><td class="k">Fees and levies to buy</td><td class="v" id="o_bfee"></td><td class="w" id="w_bfee"></td></tr>
-    <tr><td class="k">Cash out of your pocket</td><td class="v" id="o_out"></td><td class="w" id="w_out"></td></tr>
-    <tr><td class="k">Consideration to sell</td><td class="v" id="o_scons"></td><td class="w" id="w_scons"></td></tr>
-    <tr><td class="k">Fees and levies to sell</td><td class="v" id="o_sfee"></td><td class="w" id="w_sfee"></td></tr>
-    <tr><td class="k">Other costs</td><td class="v" id="o_other"></td><td class="w">entered on this panel</td></tr>
-    <tr><td class="k">Cash back in your hand</td><td class="v" id="o_in"></td><td class="w" id="w_in"></td></tr>
-  </table>
+  <table id="t_cost"></table>
 
   <h2>Return, before and after tax</h2>
-  <table>
-    <tr><td class="k">Gross gain on the shares</td><td class="v" id="o_gain"></td><td class="w" id="w_gain"></td></tr>
-    <tr><td class="k">Dividends received</td><td class="v" id="o_dgross"></td><td class="w" id="w_dgross"></td></tr>
-    <tr><td class="k">Tax taken off dividends</td><td class="v" id="o_dtax"></td><td class="w" id="w_dtax"></td></tr>
-    <tr><td class="k">Dividends kept</td><td class="v" id="o_dnet"></td><td class="w" id="w_dnet"></td></tr>
-    <tr><td class="k">Tax on the gain</td><td class="v" id="o_gt"></td><td class="w" id="w_gt"></td></tr>
-    <tr class="tot"><td class="k">Net profit</td><td class="v" id="o_net"></td><td class="w" id="w_net"></td></tr>
-  </table>
+  <table id="t_ret"></table>
+
+  <h2>If you sell at a different price</h2>
+  <table id="t_sens"></table>
 
   <h2>Rates it worked out at</h2>
-  <table>
-    <tr><td class="k">Total cost of the round trip</td><td class="v" id="o_cost"></td><td class="w" id="w_cost"></td></tr>
-    <tr><td class="k">Net return on cash invested</td><td class="v" id="o_ret"></td><td class="w" id="w_ret"></td></tr>
-    <tr><td class="k">Annualised return</td><td class="v" id="o_ann"></td><td class="w" id="w_ann"></td></tr>
-    <tr><td class="k">Sell price that only breaks even</td><td class="v" id="o_be"></td><td class="w">covers both sides of fees and the tax on the gain</td></tr>
-    <tr><td class="k">Gain you have to make to cover costs alone</td><td class="v" id="o_need"></td><td class="w" id="w_need"></td></tr>
-  </table>
+  <table id="t_rate"></table>
 
   <p class="note" id="foot"></p>
 </div>
@@ -129,121 +123,276 @@
 <script>
 (function(){
   'use strict';
-  var MARKETS = {
-    NSE: {cur:'KES', cbuy:1.85, csell:1.85, gtax:0, dtax:5,
-          note:'NSE: fees 1.85% of consideration per side on a trade above KES 100,000 (Stanbic Bank Kenya trading charges). Below that the schedule differs by broker, so edit the two cost fields to match your contract note. Gains on shares sold on the exchange are not charged capital gains tax in Kenya; the 15% rate applies to property and to unlisted shares. Dividends carry 5% withholding for residents.'},
-    NGX: {cur:'NGN', cbuy:0, csell:0, gtax:0, dtax:10,
-          note:'NGX: no verified fee schedule has been loaded, so both cost fields start at zero - enter the rate on your broker contract note. Dividend withholding is set to 10%, the rate commonly applied to residents; edit it if your note says otherwise.'},
-    JSE: {cur:'ZAR', cbuy:0, csell:0, gtax:0, dtax:20,
-          note:'JSE: no verified fee schedule has been loaded, so both cost fields start at zero - enter the rate on your broker contract note. Dividend withholding is set to 20%; capital gains are taxed through the investor as part of taxable income rather than as a fixed trade levy, so the gain field stays at zero unless you want to model it.'},
-    EGX: {cur:'EGP', cbuy:0, csell:0, gtax:0, dtax:0,
-          note:'EGX: no verified fee schedule has been loaded, so both cost fields start at zero - enter the rate on your broker contract note. No dividend or gain rate is prefilled for this market.'}
-  };
-
-  var X = 'NSE';
   var $ = function(id){ return document.getElementById(id); };
   var n = function(id){ var v = parseFloat(($(id) || {}).value); return isFinite(v) ? v : 0; };
 
+  var FEES = null;                 // broker_fees.json
+  var X = 'NSE';                   // selected exchange
+  var BOARD = {rows: [], asOf: ''};
+  var SEL = '';                    // selected ticker
+  var RESTORED = false;            // the reader's own figures came back from storage
+
   function money(v, cur){
-    var neg = v < 0;
-    v = Math.abs(v);
-    var s = v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-    return (neg ? '-' : '') + cur + ' ' + s;
+    var neg = v < 0; v = Math.abs(v);
+    return (neg ? '-' : '') + cur + ' ' + v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   }
   function pct(v){ return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
-
-  function set(id, text, cls){
-    var el = $(id);
-    if(!el) return;
-    el.textContent = text;
-    el.className = 'v' + (cls ? ' ' + cls : '');
+  function row(tbl, k, v, why, cls, sub){
+    var tr = document.createElement('tr');
+    if(sub) tr.className = 'sub';
+    var a = document.createElement('td'); a.className = 'k'; a.textContent = k;
+    var b = document.createElement('td'); b.className = 'v' + (cls ? ' ' + cls : ''); b.textContent = v;
+    var c = document.createElement('td'); c.className = 'w'; c.textContent = why || '';
+    tr.appendChild(a); tr.appendChild(b); tr.appendChild(c);
+    tbl.appendChild(tr);
+    return tr;
   }
-  function why(id, text){ var el = $(id); if(el) el.textContent = text; }
+  function clear(tbl){ tbl.innerHTML = ''; }
+
+  // ---- the schedule for the selected market ----
+  function market(){
+    return (FEES && FEES.markets && FEES.markets[X]) ? FEES.markets[X]
+      : {currency: 'KES', levies: [], taxes: {}, note: 'no schedule is loaded for this market'};
+  }
+  function tierFor(consideration){
+    var lev = market().levies || [];
+    var levyPct = lev.reduce(function(s, l){ return s + (l.pct || 0); }, 0);
+    var flat = n('flat');
+    if(flat > 0){
+      return {brokerage: flat, levyList: [], levyPct: 0,
+              label: 'one flat rate entered on this panel', total: flat};
+    }
+    var t = null, tiers = market().tiers || [];
+    for(var i = 0; i < tiers.length; i++){
+      if(tiers[i].maxConsideration === null || consideration <= tiers[i].maxConsideration){ t = tiers[i]; break; }
+    }
+    var override = n('brok');
+    var brok = override > 0 ? override : (t ? t.brokerage : 0);
+    return {
+      brokerage: brok,
+      levyList: lev,
+      levyPct: levyPct,
+      label: override > 0 ? 'brokerage entered on this panel' : (t ? t.label : 'no tier matches this consideration'),
+      total: brok + levyPct
+    };
+  }
+
+  function num(v){ return v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function round2(v){ return Math.round(v * 100) / 100; }
+
+  // One calculation, used by every figure on the panel and by the scenario strip, so
+  // a reader cannot be shown two arithmetics for the same trade.
+  function calc(qty, buyPx, sellPx, days, dpx, dtax, gtax, other){
+    var bcons = round2(qty * buyPx), scons = round2(qty * sellPx);
+    var bt = tierFor(bcons), st = tierFor(scons);
+    var bfee = round2(bcons * bt.total / 100), sfee = round2(scons * st.total / 100);
+    var out = round2(bcons + bfee + other);
+    var gross = round2(scons - bcons);
+    var dgross = round2(qty * dpx), dtaxAmt = round2(dgross * dtax), dnet = round2(dgross - dtaxAmt);
+    var taxableGain = Math.max(0, round2(gross - bfee - sfee));
+    var gt = round2(taxableGain * gtax);
+    var net = round2(scons - sfee - bcons - bfee - other - gt + dnet);
+    var costTotal = round2(bfee + sfee + other);
+    var ret = out > 0 ? (net / out) * 100 : 0;
+    var ann = out > 0 ? (Math.pow(1 + net/out, 365/Math.max(1, days)) - 1) * 100 : 0;
+    var denom = qty * (1 - st.total/100) * (1 - gtax);
+    var be = denom !== 0 ? round2((out - dnet) / denom) : NaN;
+    return {bcons:bcons, scons:scons, bt:bt, st:st, bfee:bfee, sfee:sfee, out:out, gross:gross,
+            dgross:dgross, dtaxAmt:dtaxAmt, dnet:dnet, taxableGain:taxableGain, gt:gt, net:net,
+            costTotal:costTotal, ret:ret, ann:ann, be:be};
+  }
 
   function draw(){
-    var m = MARKETS[X], cur = m.cur;
-    $('cur').textContent = cur;
-    $('rateNote').textContent = m.note;
-
+    var m = market();
+    var cur = m.currency || 'KES';
     var qty = n('qty'), buy = n('buy'), sell = n('sell'), days = Math.max(1, n('days'));
-    var cbuy = n('cbuy')/100, csell = n('csell')/100, dpx = n('div'), dtax = n('dtax')/100;
-    var gtax = n('gtax')/100, other = n('other');
+    var dpx = n('div'), dtax = n('dtax')/100, gtax = n('gtax')/100, other = n('other');
+    var c = calc(qty, buy, sell, days, dpx, dtax, gtax, other);
 
-    var bcons = qty * buy, scons = qty * sell;
-    var bfee = bcons * cbuy, sfee = scons * csell;
-    var out = bcons + bfee + other;
-    var gross = scons - bcons;
+    var tb = $('t_cost'); clear(tb);
+    row(tb, 'Consideration to buy', money(c.bcons, cur), qty + ' x ' + num(buy));
+    row(tb, 'Brokerage to buy', money(c.bcons * c.bt.brokerage / 100, cur), num(c.bcons) + ' x ' + c.bt.brokerage.toFixed(2) + '%');
+    (c.bt.levyList || []).forEach(function(l){
+      row(tb, l.name + ' to buy', money(c.bcons * l.pct / 100, cur), num(c.bcons) + ' x ' + l.pct.toFixed(2) + '%', null, true);
+    });
+    row(tb, 'All costs to buy', money(c.bfee, cur), num(c.bcons) + ' x ' + c.bt.total.toFixed(2) + '% (' + c.bt.label + ')');
+    row(tb, 'Cash out of your pocket', money(c.out, cur), 'consideration + costs' + (other ? ' + other costs' : ''));
+    row(tb, 'Consideration to sell', money(c.scons, cur), qty + ' x ' + num(sell));
+    row(tb, 'Brokerage to sell', money(c.scons * c.st.brokerage / 100, cur), num(c.scons) + ' x ' + c.st.brokerage.toFixed(2) + '%');
+    (c.st.levyList || []).forEach(function(l){
+      row(tb, l.name + ' to sell', money(c.scons * l.pct / 100, cur), num(c.scons) + ' x ' + l.pct.toFixed(2) + '%', null, true);
+    });
+    row(tb, 'All costs to sell', money(c.sfee, cur), num(c.scons) + ' x ' + c.st.total.toFixed(2) + '% (' + c.st.label + ')');
+    if(other) row(tb, 'Other costs', money(other, cur), 'entered on this panel');
+    row(tb, 'Cash back in your hand', money(c.scons - c.sfee - other, cur), 'proceeds - costs' + (other ? ' - other costs' : ''));
 
-    var dgross = qty * dpx;
-    var dtaxAmt = dgross * dtax;
-    var dnet = dgross - dtaxAmt;
+    var tr = $('t_ret'); clear(tr);
+    row(tr, 'Gross gain on the shares', money(c.gross, cur), num(c.scons) + ' - ' + num(c.bcons), c.gross >= 0 ? 'up' : 'down');
+    row(tr, 'Dividends received', money(c.dgross, cur), qty + ' x ' + num(dpx) + ' per share');
+    row(tr, 'Tax taken off dividends', money(c.dtaxAmt, cur), num(c.dgross) + ' x ' + (dtax*100).toFixed(2) + '%');
+    row(tr, 'Dividends kept', money(c.dnet, cur), 'dividends less withholding');
+    row(tr, 'Gain chargeable to tax', money(c.taxableGain, cur), 'gross gain less both sides of costs');
+    row(tr, 'Tax on the gain', money(c.gt, cur), gtax > 0 ? num(c.taxableGain) + ' x ' + (gtax*100).toFixed(2) + '%' : 'rate on the gain is set to zero for this market');
+    var r = row(tr, 'Net profit', money(c.net, cur), 'cash back in - cash out of pocket + dividends kept - tax on the gain', c.net >= 0 ? 'up' : 'down');
+    r.className = 'tot';
 
-    var taxableGain = Math.max(0, gross - bfee - sfee);
-    var gt = taxableGain * gtax;
-    var net = scons - sfee - bcons - bfee - other - gt + dnet;
+    // the same arithmetic at other prices, so the reader sees what the trade needs
+    var ts = $('t_sens'); clear(ts);
+    var marks = [-10, -5, 0, 5, 10];
+    marks.forEach(function(d){
+      var px = buy * (1 + d/100);
+      var sc = calc(qty, buy, px, days, dpx, dtax, gtax, other);
+      var lbl = (d === 0 ? 'at the board price ' : (d > 0 ? '+' : '') + d + '% ') + num(px);
+      var rr = row(ts, lbl, money(sc.net, cur) + '  ' + pct(sc.ret),
+                   'gross ' + num(sc.gross) + ', costs both sides ' + num(sc.bfee + sc.sfee),
+                   sc.net >= 0 ? 'up' : 'down');
+      if(d === 0) rr.className = 'here';
+    });
 
-    var costTotal = bfee + sfee + other;
-    var ret = out > 0 ? (net / out) * 100 : 0;
-    var ann = out > 0 ? (Math.pow(1 + net/out, 365/days) - 1) * 100 : 0;
+    var ta = $('t_rate'); clear(ta);
+    row(ta, 'Total cost of the round trip', money(c.costTotal, cur), 'both sides of costs' + (other ? ' + other costs' : '') + ' = ' + (c.out > 0 ? (c.costTotal/c.out*100).toFixed(2) : '0') + '% of cash invested');
+    row(ta, 'Cost drag on each side', c.bt.total.toFixed(2) + '% / ' + c.st.total.toFixed(2) + '%', 'buy / sell, and ' + (c.bt.total + c.st.total).toFixed(2) + '% before any tax');
+    row(ta, 'Net return on cash invested', pct(c.ret), num(c.net) + ' on ' + num(c.out), c.ret >= 0 ? 'up' : 'down');
+    row(ta, 'Annualised return', pct(c.ann), 'the net return carried to a 365 day year over ' + days + ' days', c.ann >= 0 ? 'up' : 'down');
+    row(ta, 'Sell price that only breaks even', isFinite(c.be) ? money(c.be, cur) : 'n/a', 'covers both sides of costs, the dividend and the tax on the gain');
+    row(ta, 'That break-even price is a gain of', isFinite(c.be) && buy > 0 ? pct((c.be/buy - 1) * 100) : 'n/a', 'on the price you bought at');
+    row(ta, 'Gain you have to make to cover the bill alone', money(c.costTotal + c.gt, cur), 'costs both sides and the tax, before a shilling of profit');
 
-    // the sell price at which the position returns exactly nothing
-    var denom = qty * (1 - csell) - qty * gtax * (1 - csell);
-    var be = denom !== 0 ? (out + gt * 0 - dnet * 0) / denom : NaN;
-    if(gtax > 0){
-      // with tax on the gain the break-even solves  qty*px*(1-csell) - qty*px*gtax*(1-csell) = out - dnet
-      be = (out - dnet) / (qty * (1 - csell) * (1 - gtax));
-    }
-
-    set('o_bcons', money(bcons, cur)); why('w_bcons', qty + ' x ' + buy.toFixed(2));
-    set('o_bfee', money(bfee, cur));   why('w_bfee', bcons.toFixed(2) + ' x ' + (cbuy*100).toFixed(2) + '%');
-    set('o_out', money(out, cur));     why('w_out', 'consideration + fees' + (other ? ' + other costs' : ''));
-    set('o_scons', money(scons, cur)); why('w_scons', qty + ' x ' + sell.toFixed(2));
-    set('o_sfee', money(sfee, cur));   why('w_sfee', scons.toFixed(2) + ' x ' + (csell*100).toFixed(2) + '%');
-    set('o_other', money(other, cur));
-    set('o_in', money(scons - sfee - other, cur)); why('w_in', 'proceeds - fees' + (other ? ' - other costs' : ''));
-
-    set('o_gain', money(gross, cur), gross >= 0 ? 'up' : 'down'); why('w_gain', scons.toFixed(2) + ' - ' + bcons.toFixed(2));
-    set('o_dgross', money(dgross, cur)); why('w_dgross', qty + ' x ' + dpx.toFixed(2) + ' per share');
-    set('o_dtax', money(dtaxAmt, cur));  why('w_dtax', dgross.toFixed(2) + ' x ' + (dtax*100).toFixed(2) + '%');
-    set('o_dnet', money(dnet, cur));     why('w_dnet', 'dividends less withholding');
-    set('o_gt', money(gt, cur));         why('w_gt', gtax > 0 ? taxableGain.toFixed(2) + ' x ' + (gtax*100).toFixed(2) + '%' : 'rate on the gain is set to zero');
-    set('o_net', money(net, cur), net >= 0 ? 'up' : 'down');
-    why('w_net', 'cash back in - cash out of pocket + dividends kept - tax on the gain');
-
-    set('o_cost', money(costTotal, cur)); why('w_cost', 'fees both sides' + (other ? ' + other costs' : '') + ' = ' + (out > 0 ? (costTotal/out*100).toFixed(2) : '0') + '% of cash invested');
-    set('o_ret', pct(ret), ret >= 0 ? 'up' : 'down'); why('w_ret', net.toFixed(2) + ' on ' + out.toFixed(2));
-    set('o_ann', days > 0 ? pct(ann) : 'n/a', ann >= 0 ? 'up' : 'down'); why('w_ann', 'the whole net return carried to a 365 day year over ' + days + ' days');
-    set('o_be', isFinite(be) ? money(be, cur) : 'n/a');
-    set('o_need', money(costTotal + gt, cur));
-    why('w_need', 'the whole bill - both sides of fees, other costs and the tax - before a shilling of profit');
-
-    $('foot').textContent =
-      'This panel adds up your own figures. It does not fetch a price, a rate or a tax rule on its own: ' +
-      'every line above is the arithmetic of the fields at the top, and every rate can be changed. ' +
-      X + ' figures in ' + cur + '.';
+    var t = m.taxes || {};
+    $('rateNote').textContent = (m.source ? 'Charges: ' + m.source + '. ' : '') +
+      (m.note ? m.note + ' ' : '') + (m.also ? m.also + ' ' : '') +
+      (t.capitalGainsNote ? t.capitalGainsNote + ' ' : '') + (t.dividendNote ? t.dividendNote : '');
+    $('foot').textContent = 'This panel adds up your own figures. The price and the charges come from the board and the published schedule named above; ' +
+      'every rate on it can be changed, and no line is left out of the total. Figures in ' + cur + '.';
+    remember();
   }
 
-  // market chips
-  var chips = $('xs');
-  Object.keys(MARKETS).forEach(function(k){
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = k;
-    b.className = (k === X) ? 'on' : '';
-    b.onclick = function(){
-      X = k;
-      Array.prototype.forEach.call(chips.children, function(c){ c.className = (c.textContent === X) ? 'on' : ''; });
-      $('cbuy').value = MARKETS[k].cbuy;
-      $('csell').value = MARKETS[k].csell;
-      $('gtax').value = MARKETS[k].gtax;
-      $('dtax').value = MARKETS[k].dtax;
+  // ---- what the reader last typed stays put ----
+  var KEY = 'mt_calc_v1';
+  function remember(){
+    try{
+      var o = {};
+      ['qty','cash','buy','sell','days','brok','flat','div','dtax','gtax','other'].forEach(function(k){ if($(k)) o[k] = $(k).value; });
+      localStorage.setItem(KEY, JSON.stringify({ex: X, sym: SEL, f: o}));
+    }catch(e){}
+  }
+  function recall(){
+    try{
+      var d = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if(!d || !d.f) return false;
+      Object.keys(d.f).forEach(function(k){ var el = $(k); if(el && d.f[k] != null) el.value = d.f[k]; });
+      if(d.ex) X = d.ex;
+      if(d.sym) SEL = d.sym;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  // cash to invest fills the share count, fees included
+  function fromCash(){
+    var cash = n('cash');
+    if(cash <= 0) return;
+    var buy = n('buy');
+    if(buy <= 0) return;
+    var t = tierFor(cash);
+    var qty = Math.floor(cash / (buy * (1 + t.total/100)));
+    $('qty').value = qty;
+    draw();
+  }
+
+  // ---- the board ----
+  function fillPicker(){
+    var sel = $('sym'), q = ($('q').value || '').toUpperCase();
+    sel.innerHTML = '';
+    var rows = BOARD.rows.filter(function(r){
+      if(r.price == null) return false;
+      if(!q) return true;
+      return String(r.sym).toUpperCase().indexOf(q) > -1 || String(r.name || '').toUpperCase().indexOf(q) > -1;
+    });
+    rows.slice(0, 400).forEach(function(r){
+      var o = document.createElement('option');
+      o.value = r.sym;
+      o.textContent = r.sym + '  ' + String(r.name || '').slice(0, 30) + '  ' + Number(r.price).toFixed(2);
+      sel.appendChild(o);
+    });
+    if(!rows.length) return;
+    var keep = rows.some(function(r){ return r.sym === SEL; }) ? SEL : rows[0].sym;
+    sel.value = keep;
+    pick(keep);
+  }
+
+  function pick(sym){
+    SEL = sym;
+    var r = BOARD.rows.filter(function(x){ return x.sym === sym; })[0];
+    if(!r) return;
+    var cur = market().currency || 'KES';
+    if(!RESTORED || !n('buy')){
+      $('buy').value = Number(r.price).toFixed(2);
+      $('sell').value = Number(r.price).toFixed(2);
+    }
+    RESTORED = false;
+    $('quo').innerHTML = '<span><b>' + r.sym + '</b> ' + String(r.name || '') + '</span>' +
+      '<span>last <b>' + Number(r.price).toFixed(2) + '</b> ' + cur + '</span>' +
+      (r.chgPct != null ? '<span class="' + (r.chgPct >= 0 ? 'up' : 'down') + '">' + (r.chgPct >= 0 ? '+' : '') + Number(r.chgPct).toFixed(2) + '%</span>' : '') +
+      (r.prevClose != null ? '<span class="mut">prev ' + Number(r.prevClose).toFixed(2) + '</span>' : '') +
+      '<span class="mut">board ' + (BOARD.asOf || 'undated') + '</span>';
+    draw();
+  }
+
+  function loadBoard(){
+    var url = 'static_data/market_' + X + '.json';
+    fetch('../../' + url, {cache: 'no-store'}).then(function(r){ return r.json(); }).then(function(d){
+      BOARD = {rows: (d.stocks || d.rows || []).slice(), asOf: d.asOf || ''};
+      if(!RESTORED){
+        var t = market().taxes || {};
+        $('dtax').value = (t.dividendWithholding != null ? t.dividendWithholding : 0);
+        $('gtax').value = (t.capitalGainsOnListedShares != null ? t.capitalGainsOnListedShares : 0);
+      }
+      fillPicker();
+    }).catch(function(){
+      BOARD = {rows: [], asOf: ''};
+      $('quo').innerHTML = '<span class="mut">the board for ' + X + ' could not be read</span>';
       draw();
-    };
-    chips.appendChild(b);
-  });
+    });
+  }
+
+  function chips(){
+    var box = $('xs'); box.innerHTML = '';
+    var keys = (FEES && FEES.markets) ? Object.keys(FEES.markets) : ['NSE', 'NGX', 'JSE', 'EGX'];
+    keys.forEach(function(k){
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = k;
+      b.className = (k === X) ? 'on' : '';
+      b.onclick = function(){
+        X = k; SEL = ''; RESTORED = false;
+        Array.prototype.forEach.call(box.children, function(c){ c.className = (c.textContent === X) ? 'on' : ''; });
+        loadBoard();
+      };
+      box.appendChild(b);
+    });
+  }
 
   document.querySelectorAll('input').forEach(function(i){ i.addEventListener('input', draw); });
-  draw();
+  $('cash').addEventListener('input', fromCash);
+  $('q').addEventListener('input', function(){ fillPicker(); });
+  $('sym').addEventListener('change', function(){ pick($('sym').value); });
+
+  // the desk's own selection, when this panel is opened from the shell
+  var deskSym = '';
+  try{
+    var p = window.parent;
+    if(p && p !== window && p.__mtSelection && p.__mtSelection.sym) deskSym = String(p.__mtSelection.sym).toUpperCase();
+  }catch(e){}
+
+  fetch('../../static_data/broker_fees.json', {cache: 'no-store'}).then(function(r){ return r.json(); }).then(function(d){
+    FEES = d;
+    RESTORED = recall();
+    chips();
+    if(!RESTORED && deskSym) SEL = deskSym;
+    loadBoard();                 // the picker needs the board whether or not a trade came back
+  }).catch(function(){
+    FEES = {markets: {NSE: {currency: 'KES', levies: [], taxes: {}, note: 'the published charge schedule could not be read, so no charges are applied until a rate is entered.'}}};
+    chips(); loadBoard();
+  });
 })();
 </script>
 </body>
