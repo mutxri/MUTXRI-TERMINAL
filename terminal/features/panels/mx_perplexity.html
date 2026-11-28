@@ -101,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261128024756';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128024756';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
+<head><script>(function(){var V='20261128030042';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128030042';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -483,6 +483,15 @@
      or inferred from the sector. Mint means a source names it. Grey means the
      terminal derived it. Nothing else on the map is mint. */
   circle.lf{stroke:none}
+  /* a logo node: the disc behind the mark, and the provenance ring around it.
+     The ring is the same two colours the plain dot uses, so a reader does not
+     have to learn a second rule for the nodes that happen to be listed. */
+  circle.lgbg{fill:#0d0d0d;stroke:none}
+  circle.lgrg{fill:none;stroke-width:1.3}
+  circle.lgrg.cf{stroke:#33e29a}
+  circle.lgrg.dv{stroke:#6b6b6b}
+  image.lgim{pointer-events:none}
+  g.nd.on circle.lgrg,g.nd.cat-on circle.lgrg{stroke:#f0f0f0;stroke-width:1.8}
   circle.lf.cf{fill:#33e29a}
   circle.lf.dv{fill:#6b6b6b}
   circle.lf.h2{fill-opacity:.62}
@@ -1204,6 +1213,49 @@
     return {key:'U:' + c, ex:'', tk:'', name:String(name || ''), rec:null, row:null,
             listed:false, sector:''};
   }
+  /* ---------- company logos ----------------------------------------
+     A counterparty that is itself listed on one of the four boards already has
+     a logo in the terminal's own file, and a reader recognises a mark faster
+     than a truncated name. So a node that resolves to a listed security is
+     drawn as its logo, and every other node keeps the plain dot. The ring
+     around either one still carries the only thing colour means on this map:
+     mint for cited or filed, grey for derived. The logo never replaces that,
+     it sits inside it.
+
+     logos.json stores absolute URLs to our own site. Asked for as written,
+     every one of them crosses the network while the same file sits two
+     directories up, so the origin is dropped and the path kept, exactly as the
+     shell does for the watchlist. */
+  var LOGOS = {}, LOGOS_READY = false;
+  function logoLocal(u){
+    var m = /^https?:\/\/[^/]*mutxriterminal\.com\/terminal\/(.+)$/i.exec(String(u || ''));
+    return m ? ('../../' + m[1]) : String(u || '');
+  }
+  /* the file keys JSE by ticker.JO and EGX by ticker.CA, and carries a bare
+     ticker alias for most of them; all three spellings are tried rather than
+     assuming which one this security was filed under */
+  var LOGO_SUFFIX = {JSE:'.JO', EGX:'.CA', NGX:'.LG', NSE:'.NR'};
+  function logoFor(it){
+    if(!LOGOS_READY || !it || !it.code) return '';
+    var tk = String(it.code).toUpperCase();
+    var sfx = LOGO_SUFFIX[it.ex] || '';
+    return LOGOS[tk] || (sfx ? LOGOS[tk + sfx] : '') || '';
+  }
+  try{
+    fetch('../../static_data/logos.json')
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        var o = {};
+        Object.keys(d).forEach(function(k){ o[String(k).toUpperCase()] = logoLocal(d[k]); });
+        LOGOS = o;
+        LOGOS_READY = true;
+        /* one repaint, and only once the map is already up: the file usually
+           lands after the first draw, and a map drawn without it would keep
+           the dots until something else happened to redraw it */
+        try{ if(G.row) redrawGraph(); }catch(e){}
+      })['catch'](function(){});
+  }catch(e){}
   function srcLabel(e){
     var s = (e && e.source) || {};
     if(s.site) return String(s.site) + (s.retrieved ? ' ' + s.retrieved : '');
@@ -1905,8 +1957,10 @@
     });
     return out;
   }
+  var LGU = 0;
   function leavesSVG(m){
     var out = '';
+    LGU = 0;
     [m.ring1, m.ring2].forEach(function(arr){
       arr.forEach(function(it){
         var cls = 'nd' + (it.st ? ' st-' + it.st : '') +
@@ -1928,15 +1982,45 @@
            sector instead, which is what DERIVED means on the legend. */
         var pv = it.src ? 'cf' : 'dv';
         var dr = it.r * 0.66;
-        out += '<circle class="lf ' + pv + (it.hop === 2 ? ' h2' : '') + '" cx="' +
-          f1(it.x) + '" cy="' + f1(it.y) + '" r="' + f1(dr) + '"/>' +
+        var lgo = logoFor(it);
+        if(lgo){
+          /* the mark, in a disc the size of the dot it replaces plus a little,
+             with the provenance ring drawn around it. clipPath rather than a
+             mask so the logo's own white background cannot square off the
+             node. */
+          var cid = 'lgc' + (++LGU);
+          var LR = dr * 1.85;
+          out += '<clipPath id="' + cid + '"><circle cx="' + f1(it.x) + '" cy="' +
+            f1(it.y) + '" r="' + f1(LR) + '"/></clipPath>' +
+            '<circle class="lgbg" cx="' + f1(it.x) + '" cy="' + f1(it.y) + '" r="' +
+            f1(LR) + '"/>' +
+            '<image class="lgim" href="' + t(lgo) + '" x="' + f1(it.x - LR) + '" y="' +
+            f1(it.y - LR) + '" width="' + f1(LR * 2) + '" height="' + f1(LR * 2) +
+            '" preserveAspectRatio="xMidYMid meet" clip-path="url(#' + cid + ')"/>' +
+            '<circle class="lgrg ' + pv + '" cx="' + f1(it.x) + '" cy="' + f1(it.y) +
+            '" r="' + f1(LR) + '"/>';
+          dr = LR;
+        } else {
+          out += '<circle class="lf ' + pv + (it.hop === 2 ? ' h2' : '') + '" cx="' +
+            f1(it.x) + '" cy="' + f1(it.y) + '" r="' + f1(dr) + '"/>';
+        }
+        /* THE LABEL MOVES OUT OF THE WAY OF A LOGO.
+           lx was fixed at eight units from the node when every node was a
+           three unit dot. A logo node is nearly twice that, so the mark was
+           drawn over the first letters of its own name. The label is pushed
+           out by however much bigger this node turned out to be, on whichever
+           side it sits; a plain dot is unaffected, so nothing else on the map
+           moves. */
+        var lxo = Math.max(0, dr - it.r * 0.66 + 1.5);
+        var lxf = it.lx + (it.side === 'l' ? -lxo : lxo);
+        out +=
           /* the leader starts at the EDGE of the dot, not at its centre. Run
              from the centre it is painted over the dot it belongs to, and every
              node on the map ends up wearing a line through it. */
           '<line class="ldr" x1="' + f1(it.x + (it.side === 'l' ? -(dr + 1) : dr + 1)) +
           '" y1="' + f1(it.y) + '" x2="' +
-          f1(it.lx + (it.side === 'l' ? -2 : 2)) + '" y2="' + f1(it.ly - 2.4) + '"/>' +
-          '<text class="nl a-' + it.side + '" x="' + f1(it.lx) + '" y="' + f1(it.ly) + '">' +
+          f1(lxf + (it.side === 'l' ? -2 : 2)) + '" y2="' + f1(it.ly - 2.4) + '"/>' +
+          '<text class="nl a-' + it.side + '" x="' + f1(lxf) + '" y="' + f1(it.ly) + '">' +
           t(leafLabel(it)) + '</text></g>';
       });
     });
@@ -3202,6 +3286,23 @@
                  holders:[10, 4], laws:[5, 2, 1.4, 2], peers:[2, 4]};
   function v3dash(k){ return V3_DASH[k] || []; }
   function v3node(n){ return (n && n.src) ? V3_CITED : V3_DERIVED; }
+  /* THE SPHERE DRAWS THE SAME MARKS. A canvas cannot reference a URL the way
+     an <image> element does, so each logo is loaded once into an Image and
+     kept; the first frame after one arrives repaints, and a logo that fails to
+     load is remembered as absent so it is never asked for twice. */
+  var V3_IMG = {};
+  function v3img(url){
+    if(!url) return null;
+    if(!(url in V3_IMG)){
+      var im = new Image();
+      im.onload = function(){ if(V3.on) draw3(); };
+      im.onerror = function(){ V3_IMG[url] = null; };
+      im.src = url;
+      V3_IMG[url] = im;
+    }
+    var g2 = V3_IMG[url];
+    return (g2 && g2.complete && g2.naturalWidth) ? g2 : null;
+  }
   function node3r(n){
     if(String(n.key || '').indexOf('C:') === 0) return 9.5;
     return n.hop === 2 ? 3.4 : 5.0;
@@ -3294,9 +3395,25 @@
       var a = dim3(n);
       cx.globalAlpha = a;
       cx.beginPath(); cx.arc(it.p.x, it.p.y, r, 0, 6.3);
+      var lim = isC ? null : v3img(logoFor(n));
       if(isC){
         cx.fillStyle = '#0b2318'; cx.fill();
         cx.lineWidth = 1.3; cx.strokeStyle = '#33e29a'; cx.stroke();
+      } else if(lim){
+        var LR3 = r * 1.85;
+        cx.save();
+        cx.beginPath(); cx.arc(it.p.x, it.p.y, LR3, 0, 6.3);
+        cx.fillStyle = '#0d0d0d'; cx.fill();
+        cx.clip();
+        /* letterboxed inside the disc, never stretched: a squashed mark is
+           worse than no mark */
+        var sc = Math.min(LR3 * 2 / lim.naturalWidth, LR3 * 2 / lim.naturalHeight);
+        var iw = lim.naturalWidth * sc, ih = lim.naturalHeight * sc;
+        cx.drawImage(lim, it.p.x - iw / 2, it.p.y - ih / 2, iw, ih);
+        cx.restore();
+        cx.beginPath(); cx.arc(it.p.x, it.p.y, LR3, 0, 6.3);
+        cx.lineWidth = 1.2; cx.strokeStyle = col; cx.stroke();
+        r = LR3;
       } else {
         cx.fillStyle = col; cx.fill();
       }
