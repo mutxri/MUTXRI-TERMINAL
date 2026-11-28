@@ -101,7 +101,7 @@
 -->
 <!DOCTYPE html>
 <html lang="en">
-<head><script>(function(){var V='20261128033830';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128033830';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
+<head><script>(function(){var V='20261128035025';var f=window.fetch;if(!f||window.__mxv)return;window.__mxv=V;window.fetch=function(i,o){try{var u=(typeof i==='string')?i:(i&&i.url);if(u&&u.indexOf('static_data/')>=0&&u.indexOf('v=')<0){var s=u+(u.indexOf('?')<0?'?':'&')+'v='+V;i=(typeof i==='string')?s:new Request(s,i);}}catch(e){}return f.call(this,i,o);};})();</script><script>(function(){var V='20261128035025';try{fetch('/build.json?cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(!d||!d.build||d.build===V)return;try{if(sessionStorage.getItem('mxv')===d.build)return;sessionStorage.setItem('mxv',d.build);}catch(e){return;}var q=location.search?location.search+'&':'?';location.replace(location.pathname+q+'v='+d.build+location.hash);})['catch'](function(){});}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perplexity</title>
@@ -1254,12 +1254,43 @@
      ticker alias for most of them; all three spellings are tried rather than
      assuming which one this security was filed under */
   var LOGO_SUFFIX = {JSE:'.JO', EGX:'.CA', NGX:'.LG', NSE:'.NR'};
+  /* THE SECOND MAP: THE COUNTERPARTIES THAT ARE NOT LISTED HERE.
+     logos.json only covers securities on the four boards, which left the names
+     a reader meets most on these maps without a mark: Siemens, Ericsson, Visa,
+     Swiss Re, the World Food Programme. logos_entities.json is keyed by the
+     SAME coreName this panel uses everywhere else, so a node's name is looked
+     up without a second normalisation that could drift from the first.
+     Every mark in it was checked against the company by eye before it shipped;
+     a few well-known names are deliberately absent because Commons had only a
+     product brand or a hundred-year-old mark for them, and a node with no mark
+     is right where a node wearing the wrong company's mark is a falsehood. */
+  var ELOGOS = {}, ELOGOS_READY = false;
   function logoFor(it){
-    if(!LOGOS_READY || !it || !it.code) return '';
-    var tk = String(it.code).toUpperCase();
-    var sfx = LOGO_SUFFIX[it.ex] || '';
-    return LOGOS[tk] || (sfx ? LOGOS[tk + sfx] : '') || '';
+    if(!it) return '';
+    if(LOGOS_READY && it.code){
+      var tk = String(it.code).toUpperCase();
+      var sfx = LOGO_SUFFIX[it.ex] || '';
+      var byTk = LOGOS[tk] || (sfx ? LOGOS[tk + sfx] : '') || '';
+      if(byTk) return byTk;
+    }
+    if(ELOGOS_READY){
+      var hit = ELOGOS[coreName(it.name || it.label || '')];
+      if(hit) return hit;
+    }
+    return '';
   }
+  try{
+    fetch('../../static_data/logos_entities.json')
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        var o = {};
+        Object.keys(d).forEach(function(k){ o[k] = '../../' + String(d[k]); });
+        ELOGOS = o;
+        ELOGOS_READY = true;
+        try{ if(G.row) redrawGraph(); }catch(e){}
+      })['catch'](function(){});
+  }catch(e){}
   try{
     fetch('../../static_data/logos.json')
       .then(function(r){ return r.ok ? r.json() : null; })
